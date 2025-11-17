@@ -10,7 +10,15 @@ const {
   sanitizeInput
 } = require("./middleware/validation");
 
-require("dotenv").config();
+if (!process.env.VERCEL) {
+  require("dotenv").config();
+} else {
+  try {
+    require("dotenv").config();
+  } catch (err) {
+    // dotenv is optional on Vercel; ignore if not installed
+  }
+}
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
