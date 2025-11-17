@@ -1,8 +1,9 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
+  "path": "backend",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "npm install --prefix backend",
-    "startCommand": "npm start --prefix backend"
+    "buildCommand": "npm install",
+    "startCommand": "npm start"
   }
 }
