@@ -8,13 +8,10 @@ const jwt = require('jsonwebtoken');
 // Import database connection from server.js
 const { Pool } = require('pg');
 
-// Create database connection pool
+// Create database connection pool - Railway compatible
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
 });
 
 // Helper functions

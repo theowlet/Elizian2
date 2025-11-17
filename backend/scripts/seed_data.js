@@ -13,8 +13,11 @@ const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
-const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL || 'postgresql://elizian_user:elizian_pass_2024@localhost:5432/elizian';
-const pool = new Pool({ connectionString });
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || 'postgresql://elizian_user:elizian_pass_2024@localhost:5432/elizian';
+const pool = new Pool({ 
+  connectionString,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+});
 
 async function seedData() {
   const client = await pool.connect();

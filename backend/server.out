@@ -557,3 +557,51 @@ GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=dining 304
 GET /api/v1/offers?limit=100&is_active=true&service_type=dining 304 - - 22.669 ms reqId=-
 GET /uploads/offers/WhatsAppImage2025-11-09at17.58.08.jpeg 304 - - 0.379 ms reqId=-
 GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 1.449 ms reqId=-
+2025-11-17T01:53:46.025Z [DEV] OTP for +911234567890: 444367
+🔐 OTP for 1234567890: 444367 (expires in 5 minutes) - 2025-11-17T01:53:46.026Z
+POST /api/v1/auth/send-otp 200 84 - 55.844 ms reqId=-
+2025-11-17T01:54:00.064Z 🔍 Verifying OTP for 1234567890: received="444367" (type: string)
+2025-11-17T01:54:00.071Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 519 - 125.723 ms reqId=-
+2025-11-17T01:54:01.636Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-17T01:54:01.636Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-17T01:54:01.636Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.discount_amount,
+        po.ima...
+2025-11-17T01:54:01.636Z 📝 Query params: [10,0]
+2025-11-17T01:54:01.665Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 45.606 ms reqId=-
+2025-11-17T01:54:01.671Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-17T01:54:01.671Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-17T01:54:01.671Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.discount_amount,
+        po.ima...
+2025-11-17T01:54:01.671Z 📝 Query params: [100,0]
+GET /uploads/offers/dentalmakeover.webp 304 - - 1.513 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-09at17.58.08.jpeg 304 - - 0.971 ms reqId=-
+2025-11-17T01:54:01.674Z ✅ Query successful, returned 4 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 3.312 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 1.267 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-01at23.19.41.jpeg 304 - - 0.379 ms reqId=-

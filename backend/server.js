@@ -36,21 +36,20 @@ const validateEnvironment = () => {
   const warnings = [];
   
   // Critical environment variables (must be present)
-  const criticalVars = [
-    'DB_USER',
-    'DB_HOST', 
-    'DB_NAME',
-    'DB_PASSWORD',
-    'DB_PORT',
-    'JWT_SECRET'
-  ];
+  // Check for DATABASE_URL (Railway) or individual DB vars (local dev)
+  if (!process.env.DATABASE_URL) {
+    const dbVars = ['DB_USER', 'DB_HOST', 'DB_NAME', 'DB_PASSWORD', 'DB_PORT'];
+    dbVars.forEach(varName => {
+      if (!process.env[varName]) {
+        errors.push(`Missing critical environment variable: ${varName} (or use DATABASE_URL instead)`);
+      }
+    });
+  }
   
-  // Check critical variables
-  criticalVars.forEach(varName => {
-    if (!process.env[varName]) {
-      errors.push(`Missing critical environment variable: ${varName}`);
-    }
-  });
+  // JWT_SECRET is always required
+  if (!process.env.JWT_SECRET) {
+    errors.push('Missing critical environment variable: JWT_SECRET');
+  }
   
   // Validate JWT_SECRET strength
   if (process.env.JWT_SECRET) {
@@ -62,8 +61,8 @@ const validateEnvironment = () => {
     }
   }
   
-  // Validate database port
-  if (process.env.DB_PORT) {
+  // Validate database port (only if using individual DB vars, not DATABASE_URL)
+  if (!process.env.DATABASE_URL && process.env.DB_PORT) {
     const port = parseInt(process.env.DB_PORT);
     if (isNaN(port) || port < 1 || port > 65535) {
       errors.push('DB_PORT must be a valid port number (1-65535)');
@@ -87,8 +86,8 @@ const validateEnvironment = () => {
       errors.push('JWT_SECRET must be changed from default value in production');
     }
     
-    // Additional production security checks
-    if (process.env.DB_PASSWORD && process.env.DB_PASSWORD.length < 8) {
+    // Additional production security checks (only if using individual DB vars)
+    if (!process.env.DATABASE_URL && process.env.DB_PASSWORD && process.env.DB_PASSWORD.length < 8) {
       warnings.push('DB_PASSWORD should be at least 8 characters long in production');
     }
   }
@@ -138,10 +137,14 @@ const validateEnvironment = () => {
   // Display environment info (mask sensitive data)
   log('\n📋 Environment Configuration:');
   log(`   - NODE_ENV: ${process.env.NODE_ENV}`);
-  log(`   - DB_HOST: ${process.env.DB_HOST}`);
-  log(`   - DB_NAME: ${process.env.DB_NAME}`);
-  log(`   - DB_PORT: ${process.env.DB_PORT}`);
-  log(`   - DB_USER: ${process.env.DB_USER}`);
+  if (process.env.DATABASE_URL) {
+    log(`   - DATABASE_URL: ***SET (Railway)***`);
+  } else {
+    log(`   - DB_HOST: ${process.env.DB_HOST}`);
+    log(`   - DB_NAME: ${process.env.DB_NAME}`);
+    log(`   - DB_PORT: ${process.env.DB_PORT}`);
+    log(`   - DB_USER: ${process.env.DB_USER}`);
+  }
   log(`   - JWT_SECRET: ${process.env.JWT_SECRET ? '***SET***' : 'NOT SET'}`);
   log(`   - FRONTEND_URL: ${process.env.FRONTEND_URL || 'NOT SET'}`);
   log(`   - ADMIN_URL: ${process.env.ADMIN_URL || 'NOT SET'}`);
@@ -569,11 +572,8 @@ const otpLimiter = rateLimit({
 // ============================================
 
 const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
 });
 
 // Database connection error handling
@@ -5799,9 +5799,9 @@ cron.schedule('*/5 * * * *', async () => { // Run every 5 minutes
 });
 
 // Handle server errors
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, () => {
-  log(`✅ Elizian Backend running on http://localhost:${PORT}`);
+  log(`✅ Elizian Backend running on port ${PORT}`);
   log(`📊 Process PID: ${process.pid}`);
   log(`🔄 Auto-restart enabled: ${process.env.NODE_ENV === 'development' ? 'Yes' : 'No'}`);
   log(`⏰ Auto-cancel pending bookings: Enabled (runs every 5 minutes)`);
