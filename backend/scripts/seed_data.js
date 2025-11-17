@@ -11,7 +11,7 @@
 
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 
 const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || 'postgresql://elizian_user:elizian_pass_2024@localhost:5432/elizian';
 const pool = new Pool({ 
@@ -48,7 +48,7 @@ async function seedData() {
       INSERT INTO users (id, first_name, last_name, email, password_hash, role_id)
       VALUES ($1,$2,$3,$4,$5,$6)
       ON CONFLICT (email) DO NOTHING;
-    `, [uuidv4(), 'Super', 'Admin', 'mailfornishantverma@gmail.com', passwordHash, superRoleId]);
+    `, [randomUUID(), 'Super', 'Admin', 'mailfornishantverma@gmail.com', passwordHash, superRoleId]);
 
     // 4) Sample partners (minimal required columns; adjust if your schema has NOT NULLs)
     await client.query(`
@@ -62,8 +62,8 @@ async function seedData() {
       );
     `);
 
-    const partner1Id = uuidv4();
-    const partner2Id = uuidv4();
+    const partner1Id = randomUUID();
+    const partner2Id = randomUUID();
     await client.query(`
       INSERT INTO partners (id, name, email, phone, address, is_active) VALUES
         ($1, 'The Grand Restaurant', 'grand@example.com', '9876543210', '123 Main St, Delhi', true),
@@ -89,10 +89,10 @@ async function seedData() {
       );
     `);
 
-    const event1Id = uuidv4();
-    const event2Id = uuidv4();
-    const event3Id = uuidv4();
-    const event4Id = uuidv4();
+    const event1Id = randomUUID();
+    const event2Id = randomUUID();
+    const event3Id = randomUUID();
+    const event4Id = randomUUID();
 
     await client.query(`
       INSERT INTO events (id, partner_id, title, description, start_time, end_time, booking_cap, price_per_ticket, image_url, category, status)

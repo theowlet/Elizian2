@@ -19,7 +19,7 @@ const rateLimit = require("express-rate-limit");
 const { Pool } = require("pg");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
-const { v4: uuidv4 } = require("uuid");
+const { randomUUID } = require("crypto");
 const QRCode = require('qrcode');
 const cron = require('node-cron');
 
@@ -199,7 +199,7 @@ const requestIdHeader = 'x-request-id';
 
 // Attach a per-request ID for tracing
 app.use((req, res, next) => {
-  const requestId = req.headers[requestIdHeader] || uuidv4();
+  const requestId = req.headers[requestIdHeader] || randomUUID();
   req.requestId = requestId;
   res.setHeader(requestIdHeader, requestId);
   next();
@@ -571,10 +571,20 @@ const otpLimiter = rateLimit({
 // 1. DATABASE CONNECTION
 // ============================================
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
-});
+// Vercel-safe global PG pool
+let pool;
+
+function getPgPool() {
+  if (!pool) {
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+    });
+  }
+  return pool;
+}
+
+pool = getPgPool();
 
 // Database connection error handling
 pool.on('error', (err) => {
@@ -994,11 +1004,15 @@ app.post("/api/v1/auth/send-otp", otpLimiter, validatePhoneNumber, async (req, r
       const otpLogMessage = `🔐 OTP for ${phone_number}: ${otp} (expires in 5 minutes) - ${new Date().toISOString()}\n`;
       console.log(otpLogMessage.trim());
       
-      // Write to otp.log file
-      const fs = require('fs');
-      const path = require('path');
-      const logPath = path.join(__dirname, 'otp.log');
-      fs.appendFileSync(logPath, otpLogMessage);
+      if (process.env.VERCEL) {
+        log('⚠️ Skipping OTP file logging on Vercel');
+      } else {
+        // Write to otp.log file (local/dev only)
+        const fs = require('fs');
+        const path = require('path');
+        const logPath = path.join(__dirname, 'otp.log');
+        fs.appendFileSync(logPath, otpLogMessage);
+      }
     }
 
     successResponse(res, 200, "OTP sent successfully", { expires_in: "5 minutes" });
@@ -2179,6 +2193,10 @@ app.post("/api/v1/partners/:id/menu", async (req, res) => {
     let finalImageUrl = image_url || null;
     try {
       if (!finalImageUrl && image_base64) {
+        if (process.env.VERCEL) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 500, "Local file storage not supported on Vercel");
+        }
         // Determine upload directory based on service type
         const subFolder = service_type === 'events' ? 'events' : 'menu';
         const uploadsDir = path.join(__dirname, `../frontend/public/uploads/${subFolder}`);
@@ -2275,6 +2293,10 @@ app.put("/api/v1/partners/:id/menu/:itemId", async (req, res) => {
     let finalImageUrl = image_url || null;
     try {
       if (image_base64) {
+        if (process.env.VERCEL) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 500, "Local file storage not supported on Vercel");
+        }
         const subFolder = serviceType === 'events' ? 'events' : 'menu';
         const uploadsDir = path.join(__dirname, `../frontend/public/uploads/${subFolder}`);
         fs.mkdirSync(uploadsDir, { recursive: true });
@@ -3098,6 +3120,10 @@ app.post("/api/v1/partners/:id/offers", async (req, res) => {
     let finalImageUrl = image_url || null;
     try {
       if (!finalImageUrl && image_base64) {
+        if (process.env.VERCEL) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 500, "Local file storage not supported on Vercel");
+        }
         const uploadsDir = path.join(__dirname, '../frontend/public/uploads/offers');
         fs.mkdirSync(uploadsDir, { recursive: true });
         
@@ -3318,6 +3344,10 @@ app.put("/api/v1/partners/:partnerId/offers/:offerId", async (req, res) => {
     let finalImageUrl = image_url || null;
     try {
       if (image_base64) {
+        if (process.env.VERCEL) {
+          await client.query('ROLLBACK');
+          return errorResponse(res, 500, "Local file storage not supported on Vercel");
+        }
         const uploadsDir = path.join(__dirname, '../frontend/public/uploads/offers');
         fs.mkdirSync(uploadsDir, { recursive: true });
         
@@ -4382,7 +4412,7 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../frontend/build')));
   
   // Handle React routing, return all requests to React app
-  app.get('*', (req, res) => {
+  app.get('/*', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
   });
 }
@@ -4643,6 +4673,9 @@ app.post("/api/v1/events", async (req, res) => {
     let finalImageUrl = image_url || null;
     try {
       if (!finalImageUrl && image_base64) {
+        if (process.env.VERCEL) {
+          return errorResponse(res, 500, "Local file storage not supported on Vercel");
+        }
         // Ensure uploads directory exists
         const uploadsDir = path.join(__dirname, '../frontend/public/uploads/events');
         fs.mkdirSync(uploadsDir, { recursive: true });
@@ -5726,6 +5759,7 @@ process.on('warning', (warning) => {
 });
 
 // Graceful shutdown handlers
+let server;
 const gracefulShutdown = async (signal) => {
   log(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
   
@@ -5761,61 +5795,67 @@ process.on('SIGHUP', () => gracefulShutdown('SIGHUP'));
 // ============================================
 
 // Auto-cancel pending bookings after 10 minutes
-cron.schedule('*/5 * * * *', async () => { // Run every 5 minutes
-  try {
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-    
-    const result = await pool.query(
-      `UPDATE bookings 
-       SET status = 'cancelled',
-           cancelled_at = CURRENT_TIMESTAMP,
-           cancellation_reason = 'Auto-cancelled: No confirmation within 10 minutes'
-       WHERE status = 'pending'
-       AND created_at < $1
-       RETURNING id, deal_id, slot_id, num_tickets`,
-      [tenMinutesAgo]
-    );
-
-    if (result.rows.length > 0) {
-      log(`🔄 Auto-cancelled ${result.rows.length} pending bookings`);
+if (!process.env.VERCEL) {
+  cron.schedule('*/5 * * * *', async () => { // Run every 5 minutes
+    try {
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
       
-      // Release slots for cancelled bookings
-      for (const booking of result.rows) {
-        if (booking.slot_id) {
-          await pool.query(
-            `UPDATE deal_slots 
-             SET booked = GREATEST(0, booked - $1),
-                 is_available = CASE WHEN (capacity - GREATEST(0, booked - $1)) > 0 THEN true ELSE false END,
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $2`,
-            [booking.num_tickets || 1, booking.slot_id]
-          );
+      const result = await pool.query(
+        `UPDATE bookings 
+         SET status = 'cancelled',
+             cancelled_at = CURRENT_TIMESTAMP,
+             cancellation_reason = 'Auto-cancelled: No confirmation within 10 minutes'
+         WHERE status = 'pending'
+         AND created_at < $1
+         RETURNING id, deal_id, slot_id, num_tickets`,
+        [tenMinutesAgo]
+      );
+
+      if (result.rows.length > 0) {
+        log(`🔄 Auto-cancelled ${result.rows.length} pending bookings`);
+        
+        // Release slots for cancelled bookings
+        for (const booking of result.rows) {
+          if (booking.slot_id) {
+            await pool.query(
+              `UPDATE deal_slots 
+               SET booked = GREATEST(0, booked - $1),
+                   is_available = CASE WHEN (capacity - GREATEST(0, booked - $1)) > 0 THEN true ELSE false END,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $2`,
+              [booking.num_tickets || 1, booking.slot_id]
+            );
+          }
         }
       }
+    } catch (error) {
+      logError('❌ Error in auto-cancel bookings cron job:', error);
     }
-  } catch (error) {
-    logError('❌ Error in auto-cancel bookings cron job:', error);
-  }
-});
+  });
+} else {
+  log('⏸️ Auto-cancel bookings cron disabled on Vercel');
+}
 
-// Handle server errors
-const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => {
-  log(`✅ Elizian Backend running on port ${PORT}`);
-  log(`📊 Process PID: ${process.pid}`);
-  log(`🔄 Auto-restart enabled: ${process.env.NODE_ENV === 'development' ? 'Yes' : 'No'}`);
-  log(`⏰ Auto-cancel pending bookings: Enabled (runs every 5 minutes)`);
-});
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 3000;
+  server = app.listen(PORT, () => {
+    log(`✅ Elizian Backend running on port ${PORT}`);
+    log(`📊 Process PID: ${process.pid}`);
+    log(`🔄 Auto-restart enabled: ${process.env.NODE_ENV === 'development' ? 'Yes' : 'No'}`);
+    log(`⏰ Auto-cancel pending bookings: Enabled (runs every 5 minutes)`);
+  });
 
-// Handle server errors
-server.on('error', (error) => {
-  if (error.code === 'EADDRINUSE') {
-    logError(`❌ Port ${PORT} is already in use`);
-    process.exit(1);
-  } else {
-    logError('❌ Server error:', error);
-  }
-});
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      logError(`❌ Port ${PORT} is already in use`);
+      process.exit(1);
+    } else {
+      logError('❌ Server error:', error);
+    }
+  });
+} else {
+  log('🚀 Express app exported for Vercel serverless (no local listener)');
+}
 
 // ============================================
 // BOOKINGS SYSTEM (Dedicated Bookings Table)
@@ -6780,6 +6820,9 @@ app.post("/api/v1/bookings/:bookingId/vouchers", authenticateToken, async (req, 
     };
 
     // Generate QR code image
+    if (process.env.VERCEL) {
+      return errorResponse(res, 500, "Local file storage not supported on Vercel");
+    }
     const uploadsDir = path.join(__dirname, '../frontend/public/uploads/vouchers');
     fs.mkdirSync(uploadsDir, { recursive: true });
     const qrImagePath = path.join(uploadsDir, `qr_${voucherCode}.png`);
@@ -7026,7 +7069,9 @@ async function archiveExpiredItems() {
 }
 
 // Schedule archiving (daily at 2 AM)
-if (process.env.NODE_ENV === 'production' || process.env.ENABLE_ARCHIVING === 'true') {
+if (process.env.VERCEL) {
+  log('⏸️ Automated archiving cron disabled on Vercel');
+} else if (process.env.NODE_ENV === 'production' || process.env.ENABLE_ARCHIVING === 'true') {
   cron.schedule('0 2 * * *', archiveExpiredItems);
   log('📅 Automated archiving scheduled (daily at 2 AM)');
 }
@@ -8490,3 +8535,6 @@ setInterval(() => {
     // Process is healthy
   }
 }, 30000); // Every 30 seconds
+
+// Export the Express app for Vercel serverless
+module.exports = app;
