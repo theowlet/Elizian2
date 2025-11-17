@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Elizian Super Admin Console</title>
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+  <div class="admin-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-logo">EZ</span>
+        <div class="brand-name">Elizian Admin</div>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-target="dashboardSection">🏠 Dashboard</button>
+        <button class="nav-item" data-target="usersSection">👥 Users</button>
+        <button class="nav-item" data-target="partnersSection">🏢 Partners</button>
+        <button class="nav-item" data-target="dealsSection">🎫 Deals</button>
+        <button class="nav-item" data-target="analyticsSection">📊 Analytics</button>
+        <button class="nav-item" data-target="activitySection">🔔 Activity Log</button>
+        <button class="nav-item" data-target="settingsSection">⚙️ Settings</button>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1>Super Admin Console</h1>
+          <p id="adminWelcome">Welcome back, Super Admin</p>
+        </div>
+        <div class="topbar-right">
+          <span id="adminLastLogin" class="muted">Last login: —</span>
+          <button id="adminLogout" class="btn btn-secondary">Logout</button>
+        </div>
+      </header>
+
+      <!-- Pending Partners Alert Banner -->
+      <div id="pendingPartnersAlert" class="pending-alert hidden">
+        <div class="pending-alert-content">
+          <span class="pending-alert-icon">⚠️</span>
+          <div class="pending-alert-text">
+            <strong id="pendingPartnersCount">0</strong> partner registration(s) pending approval
+          </div>
+          <button id="reviewPendingPartners" class="btn btn-primary btn-sm">Review Now</button>
+          <button id="dismissPendingAlert" class="btn btn-secondary btn-sm">Dismiss</button>
+        </div>
+      </div>
+
+      <section id="dashboardSection" class="section visible">
+        <div class="cards-grid" id="dashboardCards"></div>
+
+        <div class="dual-grid">
+          <div class="card">
+            <div class="card-header">
+              <h2>Recent Activity</h2>
+            </div>
+            <ul id="recentActivity" class="activity-list">
+              <li class="muted">Loading activity…</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <h2>Quick Actions</h2>
+            </div>
+            <div class="quick-actions">
+              <button class="btn btn-primary" data-action="approvePartners">Approve Partners</button>
+              <button class="btn btn-primary" data-action="featureDeal">Feature Deal</button>
+              <button class="btn btn-primary" data-action="viewReports">View Reports</button>
+              <button class="btn btn-secondary" data-action="exportData">Export Data</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Revenue Trend</h2>
+            <select id="revenueRange" class="select">
+              <option value="7">7 days</option>
+              <option value="30" selected>30 days</option>
+              <option value="90">90 days</option>
+            </select>
+          </div>
+          <canvas id="revenueChart" height="220"></canvas>
+        </div>
+      </section>
+
+      <section id="usersSection" class="section">
+        <div class="section-header">
+          <div>
+            <h2>User Management</h2>
+            <p class="muted">Search, filter and manage platform users.</p>
+          </div>
+          <div class="section-actions">
+            <input type="text" id="userSearch" class="input" placeholder="Search users…">
+            <select id="userRoleFilter" class="select">
+              <option value="all">All roles</option>
+              <option value="user">User</option>
+              <option value="partner_admin">Partner Admin</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+            <select id="userStatusFilter" class="select">
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <button id="exportUsers" class="btn btn-secondary">Export</button>
+          </div>
+        </div>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersTable">
+            <tr><td colspan="7" class="muted">Loading users…</td></tr>
+          </tbody>
+        </table>
+        <div class="pagination" id="usersPagination"></div>
+      </section>
+
+      <section id="partnersSection" class="section">
+        <div class="section-header">
+          <div>
+            <h2>Partner Management</h2>
+            <p class="muted">Approve partners, change tiers, suspend accounts.</p>
+          </div>
+          <div class="section-actions">
+            <select id="partnerTabFilter" class="select">
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="suspended">Suspended</option>
+            </select>
+            <button id="addPartner" class="btn btn-primary">Add Partner</button>
+          </div>
+        </div>
+        <div id="partnersList" class="card-list">
+          <div class="card muted">Loading partners…</div>
+        </div>
+      </section>
+
+      <section id="dealsSection" class="section">
+        <div class="section-header">
+          <div>
+            <h2>Deal Management</h2>
+            <p class="muted">Review, approve, and feature partner deals.</p>
+          </div>
+          <div class="section-actions">
+            <input type="text" id="dealSearch" class="input" placeholder="Search deals…">
+            <select id="dealStatusFilter" class="select">
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="active">Active</option>
+              <option value="expired">Expired</option>
+            </select>
+            <select id="dealPromoFilter" class="select">
+              <option value="all">All deals</option>
+              <option value="promoted">Promoted</option>
+              <option value="pending_trending">Pending trending approvals</option>
+              <option value="expiring">Expiring soon</option>
+            </select>
+          </div>
+        </div>
+        <div id="dealsList" class="card-list">
+          <div class="card muted">Loading deals…</div>
+        </div>
+      </section>
+
+      <section id="analyticsSection" class="section">
+        <div class="section-header">
+          <div>
+            <h2>Analytics &amp; Reports</h2>
+            <p class="muted">Download key metrics and reports.</p>
+          </div>
+          <div class="section-actions">
+            <select id="analyticsRange" class="select">
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">Last 12 months</option>
+            </select>
+            <button id="exportRevenueReport" class="btn btn-secondary">Export Revenue</button>
+          </div>
+        </div>
+        <div id="analyticsOverview" class="cards-grid"></div>
+        <div class="dual-grid">
+          <div class="card">
+            <div class="card-header"><h2>Top Categories</h2></div>
+            <ul id="topCategories" class="list"></ul>
+          </div>
+          <div class="card">
+            <div class="card-header"><h2>Top Partners</h2></div>
+            <ul id="topPartners" class="list"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="activitySection" class="section">
+        <div class="section-header">
+          <div>
+            <h2>Activity Log</h2>
+            <p class="muted">Recent platform activity and alerts.</p>
+          </div>
+          <div class="section-actions">
+            <select id="activityFilter" class="select">
+              <option value="all">All</option>
+              <option value="users">Users</option>
+              <option value="partners">Partners</option>
+              <option value="deals">Deals</option>
+              <option value="system">System</option>
+            </select>
+          </div>
+        </div>
+        <ul id="activityList" class="activity-list">
+          <li class="muted">Loading activity…</li>
+        </ul>
+      </section>
+
+      <section id="settingsSection" class="section">
+        <div class="section-header">
+          <div>
+            <h2>System Settings</h2>
+            <p class="muted">Manage global configuration for Elizian.</p>
+          </div>
+        </div>
+        <form id="settingsForm" class="settings-form">
+          <div class="form-group">
+            <label for="platformName">Platform Name</label>
+            <input type="text" id="platformName" class="input" placeholder="Elizian">
+          </div>
+          <div class="form-group">
+            <label for="defaultCommission">Default Commission Rate (%)</label>
+            <input type="number" id="defaultCommission" class="input" min="0" max="100" step="0.1">
+          </div>
+          <div class="form-group">
+            <label for="promotedLimit">Max Promoted Deals</label>
+            <input type="number" id="promotedLimit" class="input" min="0">
+          </div>
+          <div class="form-toggle">
+            <label>Deal Approval Required</label>
+            <input type="checkbox" id="dealApprovalRequired">
+          </div>
+          <div class="form-toggle">
+            <label>Partner Auto-Approval</label>
+            <input type="checkbox" id="partnerAutoApproval">
+          </div>
+          <div class="form-inline">
+            <label>Loyalty Rate</label>
+            <input type="number" id="loyaltyPoints" class="input" min="0" step="1" value="1">
+            <span>point per</span>
+            <input type="number" id="loyaltyPerRupees" class="input" min="1" value="100">
+            <span>rupees</span>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" id="modalClose">×</button>
+      <div id="modalBody">Loading…</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"
+    integrity="sha384-6Jt5do1Q0bAzyx2DXleRyQWa8oZfJZSAW0lPpGZlcQAsgboN+c6ipL+FXOR8C82Y"
+    crossorigin="anonymous"></script>
+  <script src="js/admin.js" type="module"></script>
+</body>
+</html>

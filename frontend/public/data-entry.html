@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EZNet Data Entry Form</title>
+    <meta name="description" content="Add real data to your multi-tier partner management system">
+    <meta name="theme-color" content="#1f2937">
+    <link rel="icon" href="data:,">
+    <style>
+        :root {
+            --primary: #06b6d4;
+            --primary-dark: #0891b2;
+            --secondary: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            color: var(--primary);
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.125rem;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .card-header {
+            background: var(--primary);
+            color: white;
+            padding: 1.5rem;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.875rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.875rem;
+            background: white;
+            cursor: pointer;
+        }
+
+        .form-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 500;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            background: var(--secondary);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-error {
+            background: var(--error);
+            color: white;
+        }
+
+        .btn-error:hover {
+            background: #dc2626;
+        }
+
+        .notification {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            background: var(--success);
+        }
+
+        .notification.error {
+            background: var(--error);
+        }
+
+        .notification.warning {
+            background: var(--warning);
+        }
+
+        .notification.info {
+            background: var(--primary);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab {
+            padding: 1rem 2rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            color: var(--text-muted);
+        }
+
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab:hover {
+            color: var(--text);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .tabs {
+                flex-direction: column;
+            }
+            
+            .tab {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏢 EZNet Data Entry</h1>
+            <p>Add real data to your multi-tier partner management system</p>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="showSection('organization')">Organization</div>
+            <div class="tab" onclick="showSection('store')">Store</div>
+            <div class="tab" onclick="showSection('user')">User</div>
+            <div class="tab" onclick="showSection('template')">Template</div>
+        </div>
+
+        <!-- Organization Section -->
+        <section id="organization" class="section active">
+            <div class="card">
+                <div class="card-header">
+                    Create Organization
+                </div>
+                <div class="card-body">
+                    <form id="organizationForm">
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="orgName">Organization Name *</label>
+                                <input type="text" id="orgName" class="form-input" required placeholder="e.g., Pizza Palace India">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="orgType">Organization Type *</label>
+                                <select id="orgType" class="form-select" required>
+                                    <option value="">Select Type</option>
+                                    <option value="standalone">Standalone</option>
+                                    <option value="chain">Chain</option>
+                                    <option value="franchise">Franchise</option>
+                                    <option value="corporate">Corporate</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="orgCode">Organization Code *</label>
+                                <input type="text" id="orgCode" class="form-input" required placeholder="e.g., PP-IND">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="orgTier">Tier Level *</label>
+                                <select id="orgTier" class="form-select" required>
+                                    <option value="">Select Tier</option>
+                                    <option value="1">Tier 1 - Store Level</option>
+                                    <option value="2">Tier 2 - Franchise Level</option>
+                                    <option value="3">Tier 3 - Regional Level</option>
+                                    <option value="4">Tier 4 - National Level</option>
+                                    <option value="5">Tier 5 - Corporate Level</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="orgDescription">Description</label>
+                            <textarea id="orgDescription" class="form-input form-textarea" placeholder="Brief description of the organization"></textarea>
+                        </div>
+
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="orgStreet">Street Address</label>
+                                <input type="text" id="orgStreet" class="form-input" placeholder="e.g., 123 Main Street">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="orgCity">City</label>
+                                <input type="text" id="orgCity" class="form-input" placeholder="e.g., Mumbai">
+                            </div>
+                        </div>
+
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="orgState">State</label>
+                                <input type="text" id="orgState" class="form-input" placeholder="e.g., Maharashtra">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="orgPincode">Pincode</label>
+                                <input type="text" id="orgPincode" class="form-input" placeholder="e.g., 400001">
+                            </div>
+                        </div>
+
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="orgPhone">Phone</label>
+                                <input type="tel" id="orgPhone" class="form-input" placeholder="e.g., +91-9876543210">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="orgEmail">Email</label>
+                                <input type="email" id="orgEmail" class="form-input" placeholder="e.g., contact@company.com">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <span id="orgSubmitText">Create Organization</span>
+                            <span id="orgLoading" class="loading" style="display: none;"></span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Store Section -->
+        <section id="store" class="section">
+            <div class="card">
+                <div class="card-header">
+                    Create Store
+                </div>
+                <div class="card-body">
+                    <form id="storeForm">
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="storeName">Store Name *</label>
+                                <input type="text" id="storeName" class="form-input" required placeholder="e.g., Pizza Palace Andheri">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="storeCode">Store Code *</label>
+                                <input type="text" id="storeCode" class="form-input" required placeholder="e.g., PP-AND-001">
+                            </div>
+                        </div>
+
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="storeType">Store Type *</label>
+                                <select id="storeType" class="form-select" required>
+                                    <option value="">Select Type</option>
+                                    <option value="standalone">Standalone</option>
+                                    <option value="chain_store">Chain Store</option>
+                                    <option value="franchise_store">Franchise Store</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="storeCapacity">Capacity</label>
+                                <input type="number" id="storeCapacity" class="form-input" placeholder="e.g., 100">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="storeStreet">Street Address</label>
+                            <input type="text" id="storeStreet" class="form-input" placeholder="e.g., 456 Store Street">
+                        </div>
+
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="storeCity">City</label>
+                                <input type="impl" id="storeCity" class="form-input" placeholder="e.g., Mumbai">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="storeState">State</label>
+                                <input type="text" id="storeState" class="form-input" placeholder="e.g., Maharashtra">
+                            </div>
+                        </div>
+
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="storePincode">Pincode</label>
+                                <input type="text" id="storePincode" class="form-input" placeholder="e.g., 400002">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="storePhone">Phone</label>
+                                <input type="tel" id="storePhone" class="form-input" placeholder="e.g., +91-9876543211">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <span id="storeSubmitText">Create Store</span>
+                            <span id="storeLoading" class="loading" style="display: none;"></span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- User Section -->
+        <section id="user" class="section">
+            <div class="card">
+                <div class="card-header">
+                    Create User
+                </div>
+                <div class="card-body">
+                    <form id="userForm">
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="userType">User Type *</label>
+                                <select id="userType" class="form-select" required>
+                                    <option value="">Select Type</option>
+                                    <option value="store_manager">Store Manager</option>
+                                    <option value="regional_manager">Regional Manager</option>
+                                    <option value="franchise_owner">Franchise Owner</option>
+                                    <option value="corporate_admin">Corporate Admin</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="userAccessLevel">Access Level *</label>
+                                <select id="userAccessLevel" class="form-select" required>
+                                    <option value="">Select Level</option>
+                                    <option value="1">Level 1 - Store</option>
+                                    <option value="2">Level 2 - Franchise</option>
+                                    <option value="3">Level 3 - Regional</option>
+                                    <option value="4">Level 4 - National</option>
+                                    <option value="5">Level 5 - Corporate</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="userCanCreateOrgs">Can Create Sub-Organizations</label>
+                                <select id="userCanCreateOrgs" class="form-select">
+                                    <option value="false">No</option>
+                                    <option value="true">Yes</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="userCanApprove">Can Approve Changes</label>
+                                <select id="userCanApprove" class="form-select">
+                                    <option value="false">No</option>
+                                    <option value="true">Yes</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="userBudgetLimit">Budget Limit</label>
+                            <input type="number" id="userBudgetLimit" class="form-input" placeholder="e.g., 100000">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <span id="userSubmitText">Create User</span>
+                            <span id="userLoading" class="loading" style="display: none;"></span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Template Section -->
+        <section id="template" class="section">
+            <div class="card">
+                <div class="card-header">
+                    Create Template
+                </div>
+                <div class="card-body">
+                    <form id="templateForm">
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="templateType">Template Type *</label>
+                                <select id="templateType" class="form-select" required>
+                                    <option value="">Select Type</option>
+                                    <option value="menu">Menu Template</option>
+                                    <option value="pricing">Pricing Template</option>
+                                    <option value="offers">Offers Template</option>
+                                    <option value="branding">Branding Template</option>
+                                    <option value="policies">Policies Template</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="templateName">Template Name *</label>
+                                <input type="text" id="templateName" class="form-input" required placeholder="e.g., Standard Menu Template">
+                            </div>
+                        </div>
+
+                        <div class="grid">
+                            <div class="form-group">
+                                <label class="form-label" for="templateMandatory">Is Mandatory</label>
+                                <select id="templateMandatory" class="form-select">
+                                    <option value="false">No</option>
+                                    <option value="true">Yes</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="templateCustomizable">Can Be Customized</label>
+                                <select id="templateCustomizable" class="form-select">
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="templateData">Template Data (JSON) *</label>
+                            <textarea id="templateData" class="form-input form-textarea" required placeholder='{"items": ["Item 1", "Item 2"], "pricing": "standard"}'></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">
+                            <span id="templateSubmitText">Create Template</span>
+                            <span id="templateLoading" class="loading" style="display: none;"></span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <div class="card">
+            <div class="card-header">
+                Quick Actions
+            </div>
+            <div class="card-body">
+                <button class="btn btn-secondary" onclick="viewData()">View All Data</button>
+                <button class="btn btn-success" onclick="exportData()">Export Data</button>
+                <button class="btn btn-error" onclick="clearAllData()">Clear All Data</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5001';
+
+        // Tab Navigation
+        function showSection(sectionId) {
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.remove('active');
+            });
+
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected section
+            document.getElementById(sectionId).classList.add('active');
+
+            // Add active class to selected tab
+            document.querySelector(`[onclick="showSection('${sectionId}')"]`).classList.add('active');
+        }
+
+        // API Helper Functions
+        async function apiCall(endpoint, options = {}) {
+            const token = localStorage.getItem('partnerToken');
+            const defaultOptions = {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            const response = await fetch(`${API_BASE}${endpoint}`, {
+                ...defaultOptions,
+                ...options,
+                headers: { ...defaultOptions.headers, ...options.headers }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API call failed: ${response.status}`);
+            }
+
+            return await response.json();
+        }
+
+        // Notification Functions
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        // Organization Form Handler
+        document.getElementById('organizationForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('orgSubmitText');
+            const loadingBtn = document.getElementById('orgLoading');
+            
+            submitBtn.style.display = 'none';
+            loadingBtn.style.display = 'inline-block';
+
+            try {
+                const formData = {
+                    name: document.getElementById('orgName').value,
+                    type: document.getElementById('orgType').value,
+                    tier_level: parseInt(document.getElementById('orgTier').value),
+                    organization_code: document.getElementById('orgCode').value,
+                    description: document.getElementById('orgDescription').value,
+                    address: {
+                        street: document.getElementById('orgStreet').value,
+                        city: document.getElementById('orgCity').value,
+                        state: document.getElementById('orgState').value,
+                        pincode: document.getElementById('orgPincode').value
+                    },
+                    contact_info: {
+                        phone: document.getElementById('orgPhone').value,
+                        email: document.getElementById('orgEmail').value
+                    }
+                };
+
+                const result = await apiCall('/api/v1/organizations', {
+                    method: 'POST',
+                    body: JSON.stringify(formData)
+                });
+
+                showNotification('Organization created successfully!', 'success');
+                this.reset();
+            } catch (error) {
+                console.error('Error creating organization:', error);
+                showNotification('Error creating organization: ' + error.message, 'error');
+            } finally {
+                submitBtn.style.display = 'inline';
+                loadingBtn.style.display = 'none';
+            }
+        });
+
+        // Store Form Handler
+        document.getElementById('storeForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('storeSubmitText');
+            const loadingBtn = document.getElementById('storeLoading');
+            
+            submitBtn.style.display = 'none';
+            loadingBtn.style.display = 'inline-block';
+
+            try {
+                const formData = {
+                    store_name: document.getElementById('storeName').value,
+                    store_code: document.getElementById('storeCode').value,
+                    store_type: document.getElementById('storeType').value,
+                    capacity: parseInt(document.getElementById('storeCapacity').value) || null,
+                    address: {
+                        street: document.getElementById('storeStreet').value,
+                        city: document.getElementById('storeCity').value,
+                        state: document.getElementById('storeState').value,
+                        pincode: document.getElementById('storePincode').value
+                    },
+                    contact_info: {
+                        phone: document.getElementById('storePhone').value
+                    }
+                };
+
+                // You'll need to get the organization ID first
+                showNotification('Store creation requires organization ID. Please use the admin console.', 'warning');
+                this.reset();
+            } catch (error) {
+                console.error('Error creating store:', error);
+                showNotification('Error creating store: ' + error.message, 'error');
+            } finally {
+                submitBtn.style.display = 'inline';
+                loadingBtn.style.display = 'none';
+            }
+        });
+
+        // User Form Handler
+        document.getElementById('userForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('userSubmitText');
+            const loadingBtn = document.getElementById('userLoading');
+            
+            submitBtn.style.display = 'none';
+            loadingBtn.style.display = 'inline-block';
+
+            try {
+                const formData = {
+                    user_type: document.getElementById('userType').value,
+                    access_level: parseInt(document.getElementById('userAccessLevel').value),
+                    can_create_sub_orgs: document.getElementById('userCanCreateOrgs').value === 'true',
+                    can_approve_changes: document.getElementById('userCanApprove').value === 'true',
+                    budget_limit: parseFloat(document.getElementById('userBudgetLimit').value) || null
+                };
+
+                // You'll need to get the organization ID first
+                showNotification('User creation requires organization ID. Please use the admin console.', 'warning');
+                this.reset();
+            } catch (error) {
+                console.error('Error creating user:', error);
+                showNotification('Error creating user: ' + error.message, 'error');
+            } finally {
+                submitBtn.style.display = 'inline';
+                loadingBtn.style.display = 'none';
+            }
+        });
+
+        // Template Form Handler
+        document.getElementById('templateForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('templateSubmitText');
+            const loadingBtn = document.getElementById('templateLoading');
+            
+            submitBtn.style.display = 'none';
+            loadingBtn.style.display = 'inline-block';
+
+            try {
+                const formData = {
+                    template_type: document.getElementById('templateType').value,
+                    template_name: document.getElementById('templateName').value,
+                    template_data: JSON.parse(document.getElementById('templateData').value),
+                    is_mandatory: document.getElementById('templateMandatory').value === 'true',
+                    can_be_customized: document.getElementById('templateCustomizable').value === 'true'
+                };
+
+                // You'll need to get the organization ID first
+                showNotification('Template creation requires organization ID. Please use the admin console.', 'warning');
+                this.reset();
+            } catch (error) {
+                console.error('Error creating template:', error);
+                showNotification('Error creating template: ' + error.message, 'error');
+            } finally {
+                submitBtn.style.display = 'inline';
+                loadingBtn.style.display = 'none';
+            }
+        });
+
+        // Quick Actions
+        function viewData() {
+            window.open('multi-tier-admin.html', '_blank');
+        }
+
+        function exportData() {
+            showNotification('Export functionality coming soon!', 'info');
+        }
+
+        function clearAllData() {
+            if (confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
+                showNotification('Clear data functionality coming soon!', 'warning');
+            }
+        }
+
+        // Check authentication on load
+        document.addEventListener('DOMContentLoaded', function() {
+            const token = localStorage.getItem('partnerToken');
+            if (!token) {
+                showNotification('Please login first to access the data entry form.', 'warning');
+                setTimeout(() => {
+                    window.location.href = 'partner-login.html';
+                }, 2000);
+            }
+        });
+    </script>
+</body>
+</html>

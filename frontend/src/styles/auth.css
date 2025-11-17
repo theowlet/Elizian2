@@ -1,0 +1,337 @@
+/* ============================================
+   ELIZIAN AUTH MODAL STYLES (Login/OTP/Signup)
+   ============================================ */
+
+/* Modal Overlay - Full Screen Centered */
+.elizian-auth-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(8px) !important;
+  z-index: 10000 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 1rem !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  transform: none !important;
+  overflow: auto !important;
+}
+
+/* Modal Container - Centers the modal */
+.elizian-auth-modal-container {
+  width: 100% !important;
+  max-width: 440px !important;
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  margin: 0 auto !important;
+  position: relative !important;
+  align-self: center !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+  background: transparent !important;
+  height: auto !important;
+}
+
+/* Glass Card Modal */
+.elizian-auth-modal {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: var(--radius-lg) !important;
+  padding: 2.5rem !important;
+  width: 100% !important;
+  box-shadow: var(--shadow-card), var(--shadow-glow) !important;
+  position: relative !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  margin: 0 auto !important;
+}
+
+/* Close Button */
+.elizian-auth-modal-close {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.elizian-auth-modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  transform: rotate(90deg);
+}
+
+/* Typography */
+.elizian-auth-modal-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -0.02em;
+}
+
+.elizian-auth-modal-subtitle {
+  font-size: 0.9375rem;
+  color: var(--muted);
+  margin: 0 0 2rem 0;
+  line-height: 1.5;
+}
+
+/* Form Styles */
+.elizian-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.elizian-auth-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.elizian-auth-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+
+/* Input Styles */
+.elizian-auth-input {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: rgba(11, 11, 14, 0.6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 1rem;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.2s ease;
+}
+
+.elizian-auth-input:focus {
+  outline: none;
+  border-color: var(--brand1);
+  box-shadow: 0 0 0 3px rgba(94, 23, 235, 0.1);
+  background: rgba(11, 11, 14, 0.8);
+}
+
+.elizian-auth-input::placeholder {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
+/* Phone Input Wrapper */
+.elizian-phone-input-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.elizian-country-code-btn {
+  padding: 0.875rem 1rem;
+  background: rgba(11, 11, 14, 0.6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 0.875rem;
+  cursor: default;
+  white-space: nowrap;
+  font-family: 'Inter', sans-serif;
+}
+
+.elizian-phone-input {
+  flex: 1;
+}
+
+/* OTP Inputs - Centered */
+.elizian-otp-inputs-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.elizian-otp-input {
+  width: 52px;
+  height: 64px;
+  text-align: center;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(11, 11, 14, 0.6);
+  color: var(--text);
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  transition: all 0.2s ease;
+}
+
+.elizian-otp-input:focus {
+  outline: none;
+  border-color: var(--brand1);
+  box-shadow: 0 0 0 3px rgba(94, 23, 235, 0.15);
+  background: rgba(11, 11, 14, 0.8);
+  transform: scale(1.05);
+}
+
+.elizian-otp-input:not(:placeholder-shown) {
+  border-color: var(--brand1);
+  background: rgba(94, 23, 235, 0.1);
+}
+
+/* Button Styles */
+.elizian-auth-submit-btn {
+  width: 100%;
+  padding: 0.875rem 1.5rem;
+  background: var(--accent-gradient);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-glow);
+  font-family: 'Inter', sans-serif;
+  margin-top: 0.5rem;
+  letter-spacing: 0.01em;
+}
+
+.elizian-auth-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 0 40px rgba(94, 23, 235, 0.4), var(--shadow-glow);
+}
+
+.elizian-auth-submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.elizian-auth-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Error Message */
+.elizian-auth-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* Footer */
+.elizian-auth-footer {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.elizian-auth-footer p {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.elizian-auth-footer a {
+  color: var(--brand1);
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.elizian-auth-footer a:hover {
+  color: var(--brand2);
+  text-decoration: underline;
+}
+
+/* Resend OTP Button */
+.elizian-resend-btn {
+  background: none !important;
+  border: none !important;
+  color: var(--brand1) !important;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 0.9rem;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  transition: color 0.2s ease;
+}
+
+.elizian-resend-btn:hover:not(:disabled) {
+  color: var(--brand2);
+}
+
+.elizian-resend-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ============================================
+   RESPONSIVE - MOBILE (max-width: 768px)
+   ============================================ */
+
+@media (max-width: 768px) {
+  .elizian-auth-modal {
+    padding: 1.75rem !important;
+    max-width: 100% !important;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+    max-height: 95vh !important;
+  }
+  
+  .elizian-auth-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  
+  .elizian-auth-modal-container {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .elizian-auth-modal-title {
+    font-size: 1.75rem;
+  }
+
+  .elizian-otp-input {
+    width: 48px;
+    height: 60px;
+    font-size: 1.25rem;
+  }
+
+  .elizian-otp-inputs-wrapper {
+    gap: 0.5rem;
+  }
+}
+
+
+

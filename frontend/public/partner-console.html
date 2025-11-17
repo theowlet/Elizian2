@@ -1,0 +1,3823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EZNet Partner Console - Event Management</title>
+    <meta name="description" content="Manage your event venue profile, events, and bookings with EZNet Partner Console">
+    <meta name="theme-color" content="#1f2937">
+    <link rel="icon" href="data:,">
+    <style>
+        :root {
+            --brand1: #5E17EB;     /* primary Elizian purple */
+            --brand2: #24105F;     /* deep purple */
+            --accent-gradient: linear-gradient(135deg,var(--brand1),var(--brand2));
+            --bg: #F5F5F5;
+            --muted: #666666;
+            --success: #4CAF50;
+            --card: #FFFFFF;
+            --tier-ather: #B0BEC5;
+            --tier-nova:  #64B5F6;
+            --tier-luminar:#9575CD;
+            --tier-valiant:#66BB6A;
+            --tier-echelon:#FFD54F;
+            --glass: rgba(255,255,255,0.85);
+            
+            /* Legacy variables for compatibility */
+            --primary: var(--brand1);
+            --primary-dark: var(--brand2);
+            --secondary: var(--muted);
+            --warning: var(--tier-echelon);
+            --error: #ef4444;
+            --text: #222;
+            --text-muted: var(--muted);
+            --border: rgba(94, 23, 235, 0.1);
+            --shadow: 0 12px 32px rgba(0,0,0,0.08);
+            --shadow-lg: 0 20px 50px rgba(0,0,0,0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        /* Header */
+        .header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            position: sticky;
+            top: 0;
+            z-index: 9999; /* increased to ensure header stays on top */
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--primary);
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: transparent;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 900;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg);
+        }
+
+        /* Main Layout */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 2rem;
+            min-height: calc(100vh - 100px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            height: fit-content;
+            box-shadow: var(--shadow);
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-muted);
+            text-decoration: none;
+        }
+
+        .nav-item:hover {
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .nav-icon {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Main Content */
+        .main-content {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            position: relative;
+            z-index: 1; /* ensure content stays below header */
+        }
+
+        .content-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .content-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        /* Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+        }
+
+        .form-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table th {
+            background: var(--bg);
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .table tbody tr:hover {
+            background: var(--bg);
+        }
+
+        /* Status Badges */
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .badge-error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+
+        .badge-secondary {
+            background: rgba(100, 116, 139, 0.1);
+            color: var(--secondary);
+        }
+
+        /* Actions */
+        .actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-sm {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        .btn-danger {
+            background: var(--error);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        /* Modals */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000; /* above header to ensure full overlay */
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top: 2px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                order: 2;
+            }
+            
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+        }
+
+        /* Hidden sections */
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">
+                    <img src="mockups/images/z.png" alt="Z Logo" style="width: 24px; height: 24px; object-fit: contain;">
+                </div>
+                <span>EZNet Event Partner Console</span>
+            </div>
+            <div class="header-actions">
+                <span id="partnerName">Event Venue Name</span>
+                <button class="btn btn-secondary" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+        <div class="dashboard-grid">
+            <!-- Sidebar -->
+            <nav class="sidebar">
+                <div class="nav-item active" onclick="showSection('dashboard')">
+                    <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
+                    </svg>
+                    Dashboard
+                </div>
+                <div class="nav-item" onclick="showSection('profile')">
+                    <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path>
+                    </svg>
+                    Profile
+                </div>
+                <div class="nav-item" onclick="showSection('menu')">
+                    <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
+                    </svg>
+                    Menu Items
+                </div>
+                <div class="nav-item" onclick="showSection('orders')">
+                    <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 2L3 7v11a1 1 0 001 1h12a1 1 0 001-1V7l-7-5zM8 15v-4h4v4H8z" clip-rule="evenodd"></path>
+                    </svg>
+                    Orders
+                </div>
+                <div class="nav-item" onclick="showSection('analytics')">
+                    <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"></path>
+                    </svg>
+                    Analytics
+                </div>
+                <div class="nav-item" onclick="showSection('offers')">
+                    <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"></path>
+                        <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z"></path>
+                    </svg>
+                    Offers & Discounts
+                </div>
+                <div class="nav-item" onclick="showSection('scanner')">
+                    <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V4a2 2 0 00-2-2H4zm6 2a2 2 0 100 4 2 2 0 000-4zM8 14a2 2 0 100-4 2 2 0 000 4zm6-2a2 2 0 11-4 0 2 2 0 014 0z" clip-rule="evenodd"></path>
+                    </svg>
+                    QR Scanner
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="main-content">
+                <!-- Dashboard Section -->
+                <div id="dashboard" class="section active">
+                    <div class="content-header">
+                        <h1 class="content-title">Dashboard</h1>
+                        <button class="btn btn-primary" onclick="refreshDashboard()">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"></path>
+                            </svg>
+                            Refresh
+                        </button>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalOrders">0</div>
+                            <div class="stat-label">Total Orders</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="todayOrders">0</div>
+                            <div class="stat-label">Today's Orders</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalRevenue">₹0</div>
+                            <div class="stat-label">Total Revenue</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="menuItems">0</div>
+                            <div class="stat-label">Menu Items</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 2rem;">
+                        <h3 style="margin-bottom: 1rem;">Recent Orders</h3>
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Order ID</th>
+                                        <th>Customer</th>
+                                        <th>Items</th>
+                                        <th>Amount</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentOrdersTable">
+                                    <tr>
+                                        <td colspan="6" class="loading">
+                                            <div class="spinner"></div>
+                                            Loading orders...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Profile Section -->
+                <div id="profile" class="section">
+                    <div class="content-header">
+                        <h1 class="content-title">Event Venue Profile</h1>
+                        <button class="btn btn-primary" onclick="saveProfile()">Save Changes</button>
+                    </div>
+
+                    <form id="profileForm">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="venueName">Venue Name</label>
+                                <input type="text" id="venueName" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="venueEmail">Email</label>
+                                <input type="email" id="venueEmail" class="form-input" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="venuePhone">Phone Number</label>
+                            <input type="tel" id="venuePhone" class="form-input" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="venueGST">GST Number</label>
+                            <input type="text" id="venueGST" class="form-input" placeholder="e.g., 22AAAAA0000A1Z5">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="venueAddress">Address</label>
+                            <textarea id="venueAddress" class="form-input form-textarea" required></textarea>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="venueType">Venue Type</label>
+                                <select id="venueType" class="form-input">
+                                    <option value="">Select Venue Type</option>
+                                    <option value="dining">Dining</option>
+                                    <option value="events">Events</option>
+                                    <option value="spa-and-salon">Spa and Salon</option>
+                                    <option value="healthcare">Healthcare</option>
+                                    <option value="wellness">Wellness</option>
+                                    <option value="travel">Travel</option>
+                                    <option value="others">Others</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="discountPercentage">Partner Discount %</label>
+                                <input type="number" id="discountPercentage" class="form-input" min="0" max="100" placeholder="e.g., 15">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="venueDescription">Description</label>
+                            <textarea id="venueDescription" class="form-input form-textarea" placeholder="Tell customers about your venue and events..."></textarea>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Orders Section -->
+                <div id="orders" class="section">
+                    <div class="content-header">
+                        <h1 class="content-title">Orders & Bookings</h1>
+                        <select id="orderStatusFilter" onchange="filterOrders(this.value)" class="form-input" style="width: 200px;">
+                            <option value="">All Bookings</option>
+                            <option value="pending">Pending</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Order ID</th>
+                                    <th>Customer</th>
+                                    <th>Items</th>
+                                    <th>Tickets</th>
+                                    <th>Total</th>
+                                    <th>Payment</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ordersTable">
+                                <tr>
+                                    <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                        <div class="spinner" style="margin: 0 auto 16px;"></div>
+                                        Loading orders...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Events Section -->
+        <div id="menu" class="section">
+        <div class="content-header">
+            <h1 class="content-title">Services & Menu</h1>
+            <button class="btn btn-primary" onclick="showAddMenuItemModal()">Add New Service</button>
+        </div>
+
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                        <th>Service Name</th>
+                        <th>Description</th>
+                        <th>Price</th>
+                        <th>Category & Details</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="menuItemsTable">
+                                <tr>
+                                    <td colspan="7" class="loading">
+                                        <div class="spinner"></div>
+                                        Loading services...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Bookings Section -->
+                <div id="orders" class="section">
+                    <div class="content-header">
+                        <h1 class="content-title">Bookings Management</h1>
+                        <div class="actions">
+                            <select id="bookingStatusFilter" class="form-input" style="width: auto;" onchange="filterBookings()">
+                                <option value="">All Bookings</option>
+                                <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="checked-in">Checked In</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Booking ID</th>
+                                    <th>Customer</th>
+                                    <th>Event</th>
+                                    <th>Date & Time</th>
+                                    <th>Tickets</th>
+                                    <th>Total</th>
+                                    <th>Payment</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bookingsTable">
+                                <tr>
+                                    <td colspan="9" class="loading">
+                                        <div class="spinner"></div>
+                                        Loading bookings...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Analytics Section -->
+                <div id="analytics" class="section">
+                    <div class="content-header">
+                        <h1 class="content-title">Analytics</h1>
+                        <div class="actions">
+                            <select id="analyticsPeriod" class="form-input" style="width: auto;">
+                                <option value="7">Last 7 days</option>
+                                <option value="30">Last 30 days</option>
+                                <option value="90">Last 90 days</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="avgOrderValue">₹350</div>
+                            <div class="stat-label">Average Order Value</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalCustomers">89</div>
+                            <div class="stat-label">Total Customers</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="repeatCustomers">65%</div>
+                            <div class="stat-label">Repeat Customers</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="completionRate">92%</div>
+                            <div class="stat-label">Order Completion Rate</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="totalRevenue">₹125,000</div>
+                            <div class="stat-label">Total Revenue</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="avgRating">4.6⭐</div>
+                            <div class="stat-label">Average Rating</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 2rem;">
+                        <h3 style="margin-bottom: 1rem;">Popular Menu Items</h3>
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Item Name</th>
+                                        <th>Orders</th>
+                                        <th>Revenue</th>
+                                        <th>Rating</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="popularItemsTable">
+                                    <tr>
+                                        <td colspan="4" class="loading">
+                                            <div class="spinner"></div>
+                                            Loading analytics...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- QR Scanner Section -->
+                <div id="scanner" class="section">
+                    <div class="content-header">
+                        <h1 class="content-title">QR Voucher Scanner</h1>
+                    </div>
+
+                    <div class="scanner-container">
+                        <div class="scanner-options">
+                            <button class="btn btn-primary" onclick="startCameraScanner()" id="cameraBtn">
+                                📷 Scan with Camera
+                            </button>
+                            <button class="btn btn-secondary" onclick="showManualEntry()" id="manualBtn">
+                                ⌨️ Enter Code Manually
+                            </button>
+                        </div>
+
+                        <div id="cameraScanner" style="display: none;">
+                            <div class="scanner-video-wrapper">
+                                <video id="scannerVideo" autoplay playsinline style="width: 100%; max-width: 500px; border-radius: 12px; background: #000;"></video>
+                                <canvas id="scannerCanvas" style="display: none;"></canvas>
+                            </div>
+                            <div class="scanner-controls">
+                                <button class="btn btn-secondary" onclick="stopCameraScanner()" style="margin-top: 1rem;">
+                                    Stop Scanner
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="manualEntry" style="display: none;">
+                            <div class="form-group" style="max-width: 400px; margin: 2rem auto;">
+                                <label class="form-label">Enter Voucher Code</label>
+                                <input type="text" id="manualVoucherCode" class="form-input" placeholder="VCH-XXXXXXXX" style="text-align: center; font-family: monospace; font-size: 1.25rem; letter-spacing: 0.1em;">
+                                <button class="btn btn-primary" onclick="validateManualVoucher()" style="width: 100%; margin-top: 1rem;">
+                                    Validate & Redeem
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="voucherResult" style="display: none; margin-top: 2rem;">
+                            <div class="voucher-result-card">
+                                <h3 id="voucherResultTitle"></h3>
+                                <div id="voucherResultContent"></div>
+                                <button class="btn btn-primary" onclick="resetScanner()" style="margin-top: 1rem;">
+                                    Scan Another
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Offers Section -->
+                <div id="offers" class="section">
+                    <div class="content-header">
+                        <h1 class="content-title">Offers & Discounts Management</h1>
+                        <button class="btn btn-primary" onclick="showAddOfferModal()">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
+                            </svg>
+                            Create New Offer
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Offer Details</th>
+                                    <th>Type & Discount</th>
+                                    <th>Validity Period</th>
+                                    <th>Redemptions</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="offersTable">
+                                <tr>
+                                    <td colspan="6" class="loading">
+                                        <div class="spinner"></div>
+                                        Loading offers...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Add/Edit Offer Modal -->
+    <div id="offerModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="offerModalTitle">Create New Offer</h2>
+                <button class="modal-close" onclick="closeModal('offerModal')">&times;</button>
+            </div>
+            <form id="offerForm">
+                <div class="form-group">
+                    <label class="form-label" for="offerTitle">Offer Title *</label>
+                    <input type="text" id="offerTitle" class="form-input" required 
+                           placeholder="e.g., Summer Special - 50% Off All Services">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="offerDescription">Description</label>
+                    <textarea id="offerDescription" class="form-input form-textarea" rows="3"
+                              placeholder="Describe your offer in detail..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="offerDiscountAppliesTo">Discount Applies To *</label>
+                    <select id="offerDiscountAppliesTo" class="form-input" required onchange="updateOfferDiscountType()">
+                        <option value="standalone">Standalone Offer (General Promotion)</option>
+                        <option value="menu_item">Specific Menu Item</option>
+                        <option value="service_type">All Items in Service Type</option>
+                    </select>
+                    <small style="color: var(--text-muted);">Choose how this discount applies</small>
+                </div>
+
+                <div class="form-group" id="menuItemSelectionField" style="display: none;">
+                    <label class="form-label" for="offerMenuItemId">Select Menu Item</label>
+                    <select id="offerMenuItemId" class="form-input" onchange="handleMenuItemSelection()">
+                        <option value="">Loading menu items...</option>
+                    </select>
+                    <small style="color: var(--text-muted);">Select a menu item to apply this discount to. Price will be auto-filled.</small>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="offerServiceType">Service Type *</label>
+                        <select id="offerServiceType" class="form-input" required>
+                            <option value="">Select Service Type</option>
+                            <option value="dining">🍽️ Dining</option>
+                            <option value="events">🎉 Events</option>
+                            <option value="spa-and-salon">💆 Spa & Salon</option>
+                            <option value="wellness">🧘 Wellness</option>
+                            <option value="travel">✈️ Travel</option>
+                            <option value="healthcare">🩺 Healthcare</option>
+                            <option value="others">📦 Others</option>
+                        </select>
+                        <small style="color: var(--text-muted);">Select the service category this offer applies to</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="offerType">Offer Type *</label>
+                        <select id="offerType" name="offerType" class="form-input" required onchange="updateOfferFields()">
+                            <option value="percentage">Percentage Discount</option>
+                            <option value="fixed_amount">Fixed Amount Off</option>
+                            <option value="bogo">Buy One Get One</option>
+                            <option value="bundle">Bundle Deal</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+
+                    <div class="form-group" id="discountPercentageField">
+                        <label class="form-label" for="offerDiscountPercentage">Discount Percentage *</label>
+                        <input type="number" id="offerDiscountPercentage" name="offerDiscountPercentage" class="form-input" min="1" max="100" 
+                               placeholder="e.g., 25" oninput="recalculateDiscountedPrice()" onchange="recalculateDiscountedPrice()">
+                    </div>
+
+                    <div class="form-group" id="discountAmountField" style="display: none;">
+                        <label class="form-label" for="offerDiscountAmount">Discount Amount (₹) *</label>
+                        <input type="number" id="offerDiscountAmount" name="offerDiscountAmount" class="form-input" min="0" step="0.01"
+                               placeholder="e.g., 500" oninput="recalculateDiscountedPrice()" onchange="recalculateDiscountedPrice()">
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="offerOriginalPrice">Original Price (₹)</label>
+                        <input type="number" id="offerOriginalPrice" name="offerOriginalPrice" class="form-input" min="0" step="0.01"
+                               placeholder="Optional" oninput="recalculateDiscountedPrice()" onchange="recalculateDiscountedPrice()">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="offerDiscountedPrice">Discounted Price (₹)</label>
+                        <input type="number" id="offerDiscountedPrice" name="offerDiscountedPrice" class="form-input" min="0" step="0.01"
+                               placeholder="Auto-calculated" readonly>
+                        <div id="offerSavingsInfo" style="margin-top: 4px; color: #008b5d; font-weight: 500;"></div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="offerImage">Offer Image</label>
+                    <input type="file" id="offerImage" class="form-input" accept="image/*">
+                    <small style="color: var(--text-muted);">PNG/JPG/WebP. Max 5MB</small>
+                    <img id="offerImagePreview" alt="Preview" style="width: 200px; height: 120px; object-fit: cover; border-radius: 8px; margin-top: 8px; display: none;">
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="startDate">Start Date *</label>
+                        <input type="datetime-local" id="startDate" class="form-input" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="endDate">End Date *</label>
+                        <input type="datetime-local" id="endDate" class="form-input" required>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="maxRedemptions">Max Redemptions</label>
+                        <input type="number" id="maxRedemptions" class="form-input" min="1"
+                               placeholder="Leave empty for unlimited">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="minPurchaseAmount">Min Purchase Amount (₹)</label>
+                        <input type="number" id="minPurchaseAmount" class="form-input" min="0" step="0.01"
+                               placeholder="Optional">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Applicable Days *</label>
+                    <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px;">
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-secondary, #f5f5f5); border-radius: 6px; transition: all 0.2s;">
+                            <input type="checkbox" class="applicable-day-checkbox" value="monday" checked>
+                            <span>Monday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-secondary, #f5f5f5); border-radius: 6px; transition: all 0.2s;">
+                            <input type="checkbox" class="applicable-day-checkbox" value="tuesday" checked>
+                            <span>Tuesday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-secondary, #f5f5f5); border-radius: 6px; transition: all 0.2s;">
+                            <input type="checkbox" class="applicable-day-checkbox" value="wednesday" checked>
+                            <span>Wednesday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-secondary, #f5f5f5); border-radius: 6px; transition: all 0.2s;">
+                            <input type="checkbox" class="applicable-day-checkbox" value="thursday" checked>
+                            <span>Thursday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-secondary, #f5f5f5); border-radius: 6px; transition: all 0.2s;">
+                            <input type="checkbox" class="applicable-day-checkbox" value="friday" checked>
+                            <span>Friday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-secondary, #f5f5f5); border-radius: 6px; transition: all 0.2s;">
+                            <input type="checkbox" class="applicable-day-checkbox" value="saturday" checked>
+                            <span>Saturday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; padding: 8px 12px; background: var(--bg-secondary, #f5f5f5); border-radius: 6px; transition: all 0.2s;">
+                            <input type="checkbox" class="applicable-day-checkbox" value="sunday" checked>
+                            <span>Sunday</span>
+                        </label>
+                    </div>
+                    <small style="color: var(--text-muted); display: block; margin-top: 8px;">
+                        Select which days of the week this offer is valid. Customers will only see offers applicable on the current day.
+                    </small>
+                    <div style="margin-top: 8px; display: flex; gap: 8px;">
+                        <button type="button" onclick="selectWeekdays()" style="padding: 6px 12px; background: var(--bg-secondary, #f5f5f5); border: 1px solid var(--border, #ddd); border-radius: 4px; cursor: pointer; font-size: 12px;">Weekdays</button>
+                        <button type="button" onclick="selectWeekends()" style="padding: 6px 12px; background: var(--bg-secondary, #f5f5f5); border: 1px solid var(--border, #ddd); border-radius: 4px; cursor: pointer; font-size: 12px;">Weekends</button>
+                        <button type="button" onclick="selectAllDays()" style="padding: 6px 12px; background: var(--bg-secondary, #f5f5f5); border: 1px solid var(--border, #ddd); border-radius: 4px; cursor: pointer; font-size: 12px;">All Days</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="promoCode">Promo Code</label>
+                    <input type="text" id="promoCode" class="form-input" 
+                           placeholder="e.g., SUMMER50" style="text-transform: uppercase;">
+                    <small style="color: var(--text-muted);">Optional unique code for this offer</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="termsConditions">Terms & Conditions</label>
+                    <textarea id="termsConditions" class="form-input form-textarea" rows="3"
+                              placeholder="Enter terms and conditions..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" id="isTrending" style="margin-right: 8px;">
+                        <strong>Trending Offer</strong> (Shown in trending section)
+                    </label>
+                    <small style="color: var(--text-muted); display: block; margin-left: 24px;">
+                        Trending offers get premium visibility in the customer app
+                    </small>
+                </div>
+
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('offerModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Offer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Menu Item Modal -->
+    <div id="menuItemModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Add Service/Menu Item</h2>
+                <button class="modal-close" onclick="closeModal('menuItemModal')">&times;</button>
+            </div>
+            <form id="menuItemForm">
+                <div class="form-group">
+                    <label class="form-label" for="serviceType">Service Type</label>
+                    <select id="serviceType" class="form-input" required onchange="updateServiceFields()">
+                        <option value="">Select Service Type</option>
+                            <option value="dining">🍽️ Dining</option>
+                            <option value="events">🎉 Events</option>
+                            <option value="spa-and-salon">💆 Spa & Salon</option>
+                            <option value="healthcare">🩺 Healthcare</option>
+                            <option value="wellness">🧘 Wellness</option>
+                            <option value="travel">✈️ Travel</option>
+                            <option value="others">📦 Others</option>
+                        <option value="dining">🍽️ Dining</option>
+                        <option value="events">🎉 Events</option>
+                        <option value="spa-and-salon">💆 Spa & Salon</option>
+                        <option value="healthcare">🩺 Healthcare</option>
+                        <option value="wellness">🧘 Wellness</option>
+                        <option value="travel">✈️ Travel</option>
+                        <option value="others">📦 Others</option>
+                    </select>
+                    <small style="color: var(--text-muted);">Main category (Dining, Events, etc.)</small>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="serviceCategory" id="serviceCategoryLabel">Subcategory</label>
+                    <select id="serviceCategory" class="form-input">
+                        <option value="">-- Select Subcategory --</option>
+                        <option value="comedy-show">🎭 Comedy Show</option>
+                        <option value="music-concert">🎵 Music Concert</option>
+                        <option value="sports-event">⚽ Sports Event</option>
+                        <option value="corporate-event">💼 Corporate Event</option>
+                        <option value="wedding">💒 Wedding & Celebrations</option>
+                        <option value="conference">🎤 Conference & Seminar</option>
+                        <option value="workshop">🎨 Workshop & Training</option>
+                        <option value="exhibition">🖼️ Exhibition & Fair</option>
+                        <option value="party">🎊 Party & Social Gathering</option>
+                        <option value="theater">🎬 Theater & Drama</option>
+                        <option value="festival">🎪 Festival</option>
+                        <option value="charity">❤️ Charity & Fundraiser</option>
+                        <option value="others">📦 Others</option>
+                    </select>
+                    <small style="color: var(--text-muted);">Specific type of event</small>
+                    <div id="subcategoryISOInfo" style="margin-top: 8px;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="itemName">Service Name</label>
+                    <input type="text" id="itemName" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="itemDescription">Description</label>
+                    <textarea id="itemDescription" class="form-input form-textarea"></textarea>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="itemImage">Cover Image</label>
+                        <input type="file" id="itemImage" class="form-input" accept="image/*" style="cursor: pointer;">
+                        <small style="color: var(--text-muted);">PNG/JPG/WebP. Max ~5MB</small>
+                        <small id="selectedFileName" style="color: var(--primary); font-weight: 600; display: block; margin-top: 4px;"></small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Preview</label>
+                        <img id="itemImagePreview" alt="Preview" style="width: 120px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #eee; background:#f6f6f6; display: block;">
+                    </div>
+                </div>
+                    <div class="form-group">
+                        <label class="form-label" for="itemPrice">Price (₹)</label>
+                        <input type="number" id="itemPrice" class="form-input" min="0" step="0.01" required>
+                    <small style="color: var(--text-muted);">Enter 0 for free events/services</small>
+                </div>
+                
+                <!-- Hidden internal category field (kept for backend compatibility) -->
+                <input type="hidden" id="itemCategory" class="form-input">
+
+                <div class="form-grid" id="serviceSpecificFields" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label" for="durationMinutes">Duration (minutes)</label>
+                        <input type="number" id="durationMinutes" class="form-input" placeholder="60" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="maxCapacity">Max Capacity</label>
+                        <input type="number" id="maxCapacity" class="form-input" placeholder="10" min="1">
+                    </div>
+                </div>
+
+                <div class="form-grid" id="eventSpecificFields" style="display: none;">
+                    <div class="form-group">
+                        <label class="form-label" for="eventDate">Event Date</label>
+                        <input type="date" id="eventDate" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="eventTime">Event Time</label>
+                        <input type="time" id="eventTime" class="form-input">
+                    </div>
+                </div>
+
+                <div class="form-group" id="organizerField" style="display: none;">
+                    <label class="form-label" for="organizerName">Organizer/Initiative</label>
+                    <input type="text" id="organizerName" class="form-input" placeholder="e.g., A SATADRU DUTTA INITIATIVE®">
+                </div>
+
+                <div class="form-group" id="venueField" style="display: none;">
+                    <label class="form-label" for="venueName">Specific Venue Name</label>
+                    <input type="text" id="venueName" class="form-input" placeholder="e.g., Arun Jaitley Stadium (optional)">
+                </div>
+
+                <div class="form-group" id="bookingRequiredField" style="display: none;">
+                    <label class="form-label">
+                        <input type="checkbox" id="requiresBooking" style="margin-right: 8px;">
+                        Requires advance booking
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" id="itemAvailable" checked> Available for booking
+                    </label>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('menuItemModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Service</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = 'http://localhost:5001';
+        let currentPartner = null;
+        let menuItems = [];
+        let orders = [];
+        
+        // Helper functions for day selection - Define globally at the top
+        window.selectWeekdays = function() {
+            document.querySelectorAll('.applicable-day-checkbox').forEach(checkbox => {
+                const day = checkbox.value;
+                checkbox.checked = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(day);
+            });
+        };
+        
+        window.selectWeekends = function() {
+            document.querySelectorAll('.applicable-day-checkbox').forEach(checkbox => {
+                const day = checkbox.value;
+                checkbox.checked = ['saturday', 'sunday'].includes(day);
+            });
+        };
+        
+        window.selectAllDays = function() {
+            document.querySelectorAll('.applicable-day-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+        };
+
+        // Get auth headers
+        function getAuthHeaders() {
+            const token = localStorage.getItem('partnerToken');
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            };
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('Partner Console - DOM loaded, starting initialization');
+            
+            // Check authentication
+            const token = localStorage.getItem('partnerToken');
+            const partnerInfo = localStorage.getItem('partnerInfo');
+            
+            console.log('Partner Console - Token check:', token ? 'Found' : 'Missing');
+            console.log('Partner Console - Partner info check:', partnerInfo ? 'Found' : 'Missing');
+            
+            if (!token) {
+                console.log('Partner Console - No token, redirecting to login');
+                // Redirect to login if no token
+                window.location.href = 'partner-login.html';
+                return;
+            }
+            
+            console.log('Partner Console - Authentication passed, loading console');
+            
+            // Try to get partner info from localStorage, otherwise fetch from API
+            if (partnerInfo) {
+                try {
+                    currentPartner = JSON.parse(partnerInfo);
+                    document.getElementById('partnerName').textContent = currentPartner.name || 'Event Venue Name';
+                    console.log('Partner Console - Loaded partner from localStorage:', currentPartner);
+                } catch (e) {
+                    console.warn('Invalid partner info in localStorage, fetching from API');
+                    await loadPartnerData();
+                }
+            } else {
+                console.log('No partner info in localStorage, fetching from API');
+                await loadPartnerData();
+            }
+            
+            // Load initial data
+            console.log('Partner Console - Loading service types');
+            await loadServiceTypes(); // Load service types from API (dynamic)
+            
+            console.log('Partner Console - Loading service categories');
+            await loadServiceCategories();
+            
+            // Test form elements exist
+            console.log('Partner Console - Testing form elements:');
+            console.log('- Menu form:', document.getElementById('menuItemForm') ? 'Found' : 'Missing');
+            console.log('- Item name field:', document.getElementById('itemName') ? 'Found' : 'Missing');
+            console.log('- Save profile button:', document.querySelector('[onclick="saveProfile()"]') ? 'Found' : 'Missing');
+            loadDashboard();
+            loadProfile();
+
+            const analyticsPeriodSelect = document.getElementById('analyticsPeriod');
+            if (analyticsPeriodSelect) {
+                analyticsPeriodSelect.addEventListener('change', () => {
+                    if (document.getElementById('analytics').classList.contains('active')) {
+                        loadAnalytics();
+                    }
+                });
+            }
+        });
+
+        // Load partner data from API
+        async function loadPartnerData(partnerId) {
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/partners/${partnerId}`, {
+                    headers: getAuthHeaders()
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentPartner = result.data;
+                    document.getElementById('partnerName').textContent = currentPartner.name || 'Event Venue Name';
+                    loadDashboard();
+                    loadProfile();
+                } else {
+                    showNotification('Failed to load partner data: ' + result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error loading partner data:', error);
+                showNotification('Error connecting to server', 'error');
+            }
+        }
+
+        // Navigation
+        function showSection(sectionId) {
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.remove('active');
+            });
+
+            // Remove active class from all nav items
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            // Show selected section
+            document.getElementById(sectionId).classList.add('active');
+
+            // Add active class to clicked nav item
+            const clickedNavItem = document.querySelector(`[onclick="showSection('${sectionId}')"]`);
+            if (clickedNavItem) {
+                clickedNavItem.classList.add('active');
+            }
+
+            // Load section-specific data
+            switch(sectionId) {
+                case 'dashboard':
+                    loadDashboard();
+                    break;
+                case 'menu':
+                    loadMenuItems();
+                    break;
+                case 'orders':
+                    loadOrders();
+                    break;
+                case 'analytics':
+                    loadAnalytics();
+                    break;
+                case 'offers':
+                    loadOffers();
+                    break;
+            }
+        }
+
+        // Dashboard Functions
+        async function loadDashboard() {
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/dashboard`, {
+                    headers: getAuthHeaders()
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    const data = result.data;
+                    updateDashboardUI({
+                        totalOrders: data.total_orders,
+                        todayOrders: data.today_orders,
+                        totalRevenue: data.total_revenue,
+                        menuItems: data.menu_items_count,
+                        recentOrders: data.recent_orders
+                    });
+                } else {
+                    showNotification('Failed to load dashboard data: ' + result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                showNotification('Error loading dashboard data', 'error');
+            }
+        }
+
+        function updateDashboardUI(data) {
+            // Update stats
+            document.getElementById('totalOrders').textContent = data.totalOrders;
+            document.getElementById('todayOrders').textContent = data.todayOrders;
+            document.getElementById('totalRevenue').textContent = `₹${data.totalRevenue.toLocaleString()}`;
+            document.getElementById('menuItems').textContent = data.menuItems;
+
+            // Update recent orders table
+            const tableBody = document.getElementById('recentOrdersTable');
+            if (data.recentOrders.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No recent orders</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = data.recentOrders.map(order => {
+                const itemsText = Array.isArray(order.items) 
+                    ? order.items.map(item => item.name || item).join(', ')
+                    : order.items;
+                
+                return `
+                    <tr>
+                        <td>${order.id}</td>
+                        <td>${order.customer_name || order.customer}</td>
+                        <td>${itemsText}</td>
+                        <td>₹${order.total_amount || order.amount}</td>
+                        <td><span class="badge badge-${getStatusClass(order.status)}">${order.status}</span></td>
+                        <td>
+                            <div class="actions">
+                                <button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">View</button>
+                                <button class="btn btn-sm btn-secondary" onclick="updateOrderStatus('${order.id}')">Update</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function refreshDashboard() {
+            loadDashboard();
+            showNotification('Dashboard refreshed successfully', 'success');
+        }
+
+        // Profile Functions
+        function loadProfile() {
+            if (!currentPartner) return;
+
+            // Update header with partner name
+            document.getElementById('partnerName').textContent = currentPartner.name || 'Event Venue Name';
+
+            // Load profile data into form fields
+            document.getElementById('venueName').value = currentPartner.name || '';
+            document.getElementById('venueEmail').value = currentPartner.email || '';
+            document.getElementById('venuePhone').value = currentPartner.phone_number || currentPartner.phone || '';
+            document.getElementById('venueGST').value = currentPartner.gst_number || currentPartner.gst || '';
+            document.getElementById('venueAddress').value = currentPartner.address || '';
+            document.getElementById('venueType').value = currentPartner.partner_category_type || currentPartner.cuisine_type || '';
+            document.getElementById('discountPercentage').value = currentPartner.partner_discount_percentage || currentPartner.discount_percentage || 0;
+            document.getElementById('venueDescription').value = currentPartner.description || '';
+        }
+
+        async function saveProfile() {
+            console.log('Save profile function called');
+            console.log('Current partner:', currentPartner);
+            
+            if (!currentPartner || !currentPartner.id) {
+                showNotification('Partner information not available. Please refresh the page.', 'error');
+                return;
+            }
+            
+            try {
+                const profileData = {
+                    name: document.getElementById('venueName').value,
+                    email: document.getElementById('venueEmail').value,
+                    phone_number: document.getElementById('venuePhone').value,
+                    gst_number: document.getElementById('venueGST').value,
+                    address: document.getElementById('venueAddress').value,
+                    partner_category_type: document.getElementById('venueType').value,
+                    partner_discount_percentage: parseFloat(document.getElementById('discountPercentage').value),
+                    description: document.getElementById('venueDescription').value
+                };
+
+                console.log('Profile data to save:', profileData);
+
+                // Make API call to update the partner profile
+                console.log('Making API call to update profile');
+                const headers = getAuthHeaders();
+                console.log('Request headers:', headers);
+                
+                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}`, {
+                    method: 'PUT',
+                    headers: headers,
+                    body: JSON.stringify(profileData)
+                });
+
+                console.log('Profile update response status:', response.status);
+                const result = await response.json();
+                console.log('Profile update response data:', result);
+                
+                if (result.success) {
+                    currentPartner = { ...currentPartner, ...result.data };
+                    document.getElementById('partnerName').textContent = currentPartner.name;
+                    showNotification('Profile updated successfully', 'success');
+                } else {
+                    showNotification('Failed to update profile: ' + result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error saving profile:', error);
+                showNotification('Error updating profile: ' + error.message, 'error');
+            }
+        }
+
+        // Menu Functions
+        let serviceCategories = [];
+        
+        // Universal Service Type Loader (ISO/WHO Aligned)
+        async function loadServiceTypes() {
+            try {
+                console.log('🔄 Loading service types from API...');
+                const response = await fetch(`${API_BASE}/api/v1/service-types`);
+                const result = await response.json();
+                
+                if (result.success && result.service_types) {
+                    console.log(`✅ Loaded ${result.count} service types`);
+                    const dropdown = document.getElementById('serviceType');
+                    if (dropdown) {
+                        // Preserve the "Select Service Type" placeholder
+                        dropdown.innerHTML = '<option value="">Select Service Type</option>' +
+                            result.service_types.map(type => 
+                                `<option value="${type.key}">${type.icon} ${type.label}</option>`
+                            ).join('');
+                        console.log('✅ Service type dropdown populated');
+                    }
+                } else {
+                    console.error('❌ Error loading service types:', result.message);
+                }
+            } catch (error) {
+                console.error('❌ Error loading service types:', error);
+                // Fallback to hardcoded options if API fails
+                console.warn('⚠️ Using fallback service types');
+            }
+        }
+        
+        async function loadServiceCategories() {
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/service-categories`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    serviceCategories = result.data;
+                    populateServiceCategoryDropdown();
+                } else {
+                    console.error('Error loading service categories:', result.error);
+                }
+            } catch (error) {
+                console.error('Error loading service categories:', error);
+            }
+        }
+
+        function populateServiceCategoryDropdown() {
+            const dropdown = document.getElementById('serviceCategory');
+            dropdown.innerHTML = '<option value="">Select Category</option>';
+            
+            serviceCategories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category.id;
+                option.textContent = `${category.icon} ${category.name}`;
+                dropdown.appendChild(option);
+            });
+        }
+
+        function getCategoryTypeValue(category) {
+            // Attempt to normalize category type field names
+            return category.service_type || category.type || category.group || '';
+        }
+
+        // ISO/ISIC Compliant Subcategory Loader
+        async function populateFilteredCategoriesByType(serviceType) {
+            const dropdown = document.getElementById('serviceCategory');
+            const isoInfoEl = document.getElementById('subcategoryISOInfo');
+            const previous = dropdown.value;
+            
+            // Clear ISO info
+            if (isoInfoEl) isoInfoEl.textContent = '';
+            
+            // For DINING: Use static food menu categories (not ISO-based)
+            if (serviceType === 'dining') {
+                dropdown.innerHTML = `
+                    <option value="">-- Select Category --</option>
+                    <option value="starters-veg">🥗 Starters - Veg</option>
+                    <option value="starters-non-veg">🍗 Starters - Non-Veg</option>
+                    <option value="main-course-veg">🍛 Main Course - Veg</option>
+                    <option value="main-course-non-veg">🍖 Main Course - Non-Veg</option>
+                    <option value="appetizers">🥙 Appetizers</option>
+                    <option value="soups">🍲 Soups</option>
+                    <option value="salads">🥬 Salads</option>
+                    <option value="breads-rice">🍚 Breads & Rice</option>
+                    <option value="desserts">🍰 Desserts</option>
+                    <option value="beverages-hot">☕ Beverages - Hot</option>
+                    <option value="beverages-cold">🥤 Beverages - Cold</option>
+                    <option value="beverages-alcohol">🍷 Beverages - Alcohol</option>
+                    <option value="snacks">🍿 Snacks</option>
+                    <option value="breakfast">🥞 Breakfast</option>
+                    <option value="brunch">🍳 Brunch</option>
+                    <option value="seafood">🦞 Seafood</option>
+                    <option value="tandoor">🔥 Tandoor</option>
+                    <option value="chinese">🥢 Chinese</option>
+                    <option value="continental">🍝 Continental</option>
+                    <option value="italian">🍕 Italian</option>
+                    <option value="mexican">🌮 Mexican</option>
+                    <option value="thai">🍜 Thai</option>
+                    <option value="others">📦 Others</option>
+                `;
+                dropdown.required = false;
+                return;
+            }
+            
+            // For ALL OTHER SERVICE TYPES: Fetch ISO-compliant subcategories from API
+            if (serviceType && serviceType !== 'dining') {
+                dropdown.innerHTML = '<option value="">Loading ISO subcategories...</option>';
+                dropdown.required = true;
+                
+                try {
+                    const response = await fetch(`${API_BASE}/api/v1/subcategories?service_type=${serviceType}`);
+                    const data = await response.json();
+                    
+                    if (data.success && data.subcategories.length > 0) {
+                        // Store subcategories data for ISO reference display
+                        dropdown.dataset.subcategoriesData = JSON.stringify(data.subcategories);
+                        
+                        dropdown.innerHTML = `<option value="">-- Select ${serviceType === 'events' ? 'Event' : serviceType === 'spa-and-salon' ? 'Spa/Salon' : serviceType.charAt(0).toUpperCase() + serviceType.slice(1)} Subcategory --</option>` +
+                            data.subcategories.map(sc => `<option value="${sc.name}">${sc.name}</option>`).join('');
+                        
+                        // Show ISO compliance badge
+                        if (isoInfoEl) {
+                            isoInfoEl.innerHTML = `<small style="color: #10b981; font-weight: 500;">✓ ISO/ISIC Compliant (${data.count} options)</small>`;
+                        }
+                    } else {
+                        dropdown.innerHTML = '<option value="">No subcategories available</option>';
+                        dropdown.required = false;
+                    }
+                } catch (error) {
+                    console.error('Error fetching ISO subcategories:', error);
+                    dropdown.innerHTML = '<option value="">Error loading subcategories</option>';
+                    showNotification('Failed to load subcategories', 'error');
+                }
+            } else {
+                dropdown.innerHTML = '<option value="">-- Select Service Type First --</option>';
+                dropdown.required = false;
+            }
+
+            // Try to keep selection if still valid
+            if ([...dropdown.options].some(o => o.value === previous)) {
+                dropdown.value = previous;
+            }
+        }
+        
+        // Display ISO Reference when subcategory is selected
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropdown = document.getElementById('serviceCategory');
+            const isoInfoEl = document.getElementById('subcategoryISOInfo');
+            
+            if (dropdown && isoInfoEl) {
+                dropdown.addEventListener('change', (e) => {
+                    const selectedValue = e.target.value;
+                    const subcategoriesData = dropdown.dataset.subcategoriesData;
+                    
+                    if (subcategoriesData && selectedValue) {
+                        try {
+                            const subcategories = JSON.parse(subcategoriesData);
+                            const selected = subcategories.find(sc => sc.name === selectedValue);
+                            
+                            if (selected && selected.iso_reference) {
+                                isoInfoEl.innerHTML = `
+                                    <small style="color: var(--muted); display: block; margin-top: 4px;">
+                                        <strong>ISO Reference:</strong> ${selected.iso_reference}<br>
+                                        <em>${selected.description}</em>
+                                    </small>
+                                `;
+                            } else {
+                                isoInfoEl.innerHTML = '';
+                            }
+                        } catch (err) {
+                            console.error('Error parsing subcategories data:', err);
+                        }
+                    }
+                });
+            }
+        });
+
+        function updateServiceFields() {
+            const serviceType = document.getElementById('serviceType').value;
+            const serviceSpecificFields = document.getElementById('serviceSpecificFields');
+            const bookingRequiredField = document.getElementById('bookingRequiredField');
+            const eventSpecificFields = document.getElementById('eventSpecificFields');
+            const organizerField = document.getElementById('organizerField');
+            const venueField = document.getElementById('venueField');
+            const categoryLabel = document.getElementById('serviceCategoryLabel');
+            
+            // Refresh categories to avoid type/category overlap
+            populateFilteredCategoriesByType(serviceType);
+            
+            if (serviceType === 'dining') {
+                serviceSpecificFields.style.display = 'none';
+                bookingRequiredField.style.display = 'none';
+                eventSpecificFields.style.display = 'none';
+                organizerField.style.display = 'none';
+                venueField.style.display = 'none';
+                if (categoryLabel) categoryLabel.textContent = 'Food Menu Category';
+            } else if (serviceType === 'events') {
+                serviceSpecificFields.style.display = 'grid';
+                bookingRequiredField.style.display = 'block';
+                eventSpecificFields.style.display = 'grid';
+                organizerField.style.display = 'block';
+                venueField.style.display = 'block';
+                if (categoryLabel) categoryLabel.textContent = 'Event Subcategory';
+            } else {
+                serviceSpecificFields.style.display = 'grid';
+                bookingRequiredField.style.display = 'block';
+                eventSpecificFields.style.display = 'none';
+                organizerField.style.display = 'none';
+                venueField.style.display = 'none';
+                if (categoryLabel) categoryLabel.textContent = 'Service Category';
+            }
+        }
+
+        async function loadMenuItems() {
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/menu`, {
+                    headers: getAuthHeaders()
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    menuItems = result.data;
+                    updateMenuItemsTable();
+                } else {
+                    showNotification('Failed to load menu items: ' + result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error loading menu items:', error);
+                showNotification('Error loading menu items', 'error');
+            }
+        }
+
+        function updateMenuItemsTable() {
+            const tableBody = document.getElementById('menuItemsTable');
+            if (menuItems.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No menu items found</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = menuItems.map(item => {
+                // Compute display status for events
+                let statusBadge = '';
+                let statusClass = '';
+                let statusText = '';
+                
+                if (item.service_type === 'events' && item.computed_status) {
+                    // For events, show computed lifecycle status
+                    switch(item.computed_status) {
+                        case 'active':
+                            statusClass = 'success';
+                            statusText = '✅ ACTIVE';
+                            break;
+                        case 'expired':
+                            statusClass = 'warning';
+                            statusText = '⏰ EXPIRED';
+                            break;
+                        case 'scheduled':
+                            statusClass = 'info';
+                            statusText = '📅 SCHEDULED';
+                            break;
+                        default:
+                            statusClass = item.is_available ? 'success' : 'error';
+                            statusText = item.is_available ? 'Available' : 'Unavailable';
+                    }
+                } else {
+                    // For non-events, use is_available
+                    statusClass = item.is_available ? 'success' : 'error';
+                    statusText = item.is_available ? 'Available' : 'Unavailable';
+                }
+                
+                // Add event date/time info if available
+                let eventTimeInfo = '';
+                if (item.service_type === 'events' && item.event_date) {
+                    const eventDate = new Date(item.event_date);
+                    const dateStr = eventDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                    const timeStr = item.event_time ? item.event_time.substring(0, 5) : '';
+                    eventTimeInfo = `<div style="font-size: 12px; color: var(--text-muted);">📅 ${dateStr} ${timeStr ? '🕐 ' + timeStr : ''}</div>`;
+                }
+                
+                return `
+                <tr style="${item.computed_status === 'expired' ? 'opacity: 0.7; background: rgba(255, 193, 7, 0.05);' : ''}">
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 16px;">${item.service_category_icon || '🍽️'}</span>
+                            <div>
+                                <div style="font-weight: 600;">${item.name}</div>
+                                <div style="font-size: 12px; color: var(--text-muted);">${item.service_category_name || item.service_type || 'Food'}</div>
+                                ${eventTimeInfo}
+                            </div>
+                        </div>
+                    </td>
+                    <td>${item.description || ''}</td>
+                    <td>₹${item.price}</td>
+                    <td>
+                        <div>
+                            <div>${item.category || ''}</div>
+                            ${item.duration_minutes ? `<div style="font-size: 12px; color: var(--text-muted);">⏱️ ${item.duration_minutes}min</div>` : ''}
+                            ${item.max_capacity ? `<div style="font-size: 12px; color: var(--text-muted);">👥 ${item.max_capacity} max</div>` : ''}
+                        </div>
+                    </td>
+                    <td><span class="badge badge-${statusClass}">${statusText}</span></td>
+                    <td>
+                        <div class="actions">
+                            <button class="btn btn-sm btn-secondary" onclick="editMenuItem('${item.id}')">Edit</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteMenuItem('${item.id}')">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        function showAddMenuItemModal() {
+            document.getElementById('menuItemForm').reset();
+            document.getElementById('itemAvailable').checked = true;
+            document.getElementById('itemImagePreview').src = '';
+            document.getElementById('selectedFileName').textContent = '';
+            const formEl = document.getElementById('menuItemForm');
+            delete formEl.dataset.editingId;
+            delete formEl.dataset.existingImageUrl;
+            delete formEl.dataset.imageBase64;
+            delete formEl.dataset.imageFilename;
+            showModal('menuItemModal');
+        }
+
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.add('show');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+        }
+
+        // Menu Item Form Handler
+        document.getElementById('menuItemForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            console.log('Form submission started');
+            console.log('Current partner:', currentPartner);
+            
+            if (!currentPartner || !currentPartner.id) {
+                showNotification('Partner information not available. Please refresh the page.', 'error');
+                return;
+            }
+            
+            const serviceTypeSel = document.getElementById('serviceType').value;
+            const eventDateVal = document.getElementById('eventDate').value || null;
+            const eventTimeVal = document.getElementById('eventTime').value || null;
+
+            // Client-side validation to prevent past events and enforce event fields
+            if (serviceTypeSel === 'events') {
+                if (!eventDateVal || !eventTimeVal) {
+                    showNotification('For events, event date and time are required', 'error');
+                    return;
+                }
+                const startIso = new Date(`${eventDateVal}T${eventTimeVal}:00Z`).toISOString();
+                if (startIso < new Date().toISOString()) {
+                    showNotification('Event start time cannot be in the past', 'error');
+                    return;
+                }
+            }
+
+            // Get price and handle 0 correctly
+            const priceValue = document.getElementById('itemPrice').value;
+            const price = priceValue === '' ? 0 : parseFloat(priceValue);
+            
+            // Get subcategory value (it's a text value, not UUID)
+            const subcategoryValue = document.getElementById('serviceCategory').value;
+
+            const itemData = {
+                name: document.getElementById('itemName').value,
+                description: document.getElementById('itemDescription').value,
+                price: price, // Allow 0 for free events
+                category: subcategoryValue || document.getElementById('itemCategory').value, // Use subcategory as category
+                is_available: document.getElementById('itemAvailable').checked,
+                service_type: serviceTypeSel,
+                service_category_id: null, // Not using UUID-based categories anymore
+                duration_minutes: document.getElementById('durationMinutes').value ? parseInt(document.getElementById('durationMinutes').value) : null,
+                max_capacity: document.getElementById('maxCapacity').value ? parseInt(document.getElementById('maxCapacity').value) : null,
+                requires_booking: document.getElementById('requiresBooking').checked,
+                event_date: eventDateVal,
+                event_time: eventTimeVal,
+                organizer_name: document.getElementById('organizerName').value || null,
+                venue_name: document.getElementById('venueName').value || null,
+                // image fields
+                image_url: document.getElementById('menuItemForm').dataset.existingImageUrl || null,
+                image_base64: document.getElementById('menuItemForm').dataset.imageBase64 || null,
+                image_filename: document.getElementById('menuItemForm').dataset.imageFilename || null
+            };
+
+            console.log('Item data to submit:', itemData);
+
+            const editingId = document.getElementById('menuItemForm').dataset.editingId;
+
+            try {
+                const headers = getAuthHeaders();
+                console.log('Request headers:', headers);
+                
+                if (editingId) {
+                    // Update existing item via API
+                    console.log('Updating existing item with ID:', editingId);
+                    const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/menu/${editingId}`, {
+                        method: 'PUT',
+                        headers: headers,
+                        body: JSON.stringify(itemData)
+                    });
+
+                    console.log('Update response status:', response.status);
+                    const result = await response.json();
+                    console.log('Update response data:', result);
+                    
+                    if (result.success) {
+                        const itemIndex = menuItems.findIndex(i => i.id == editingId);
+                        if (itemIndex !== -1) {
+                            menuItems[itemIndex] = result.data;
+                        }
+                        updateMenuItemsTable();
+                        closeModal('menuItemModal');
+                        
+                        // Reset form completely after update
+                        const formEl = document.getElementById('menuItemForm');
+                        formEl.reset();
+                        formEl.removeAttribute('data-editing-id');
+                        delete formEl.dataset.editingId;
+                        delete formEl.dataset.existingImageUrl;
+                        delete formEl.dataset.imageBase64;
+                        delete formEl.dataset.imageFilename;
+                        document.getElementById('itemImagePreview').src = '';
+                        document.getElementById('selectedFileName').textContent = '';
+                        
+                        showNotification('Menu item updated successfully', 'success');
+                    } else {
+                        showNotification('Failed to update menu item: ' + result.error, 'error');
+                    }
+                } else {
+                    // Add new item via API
+                    console.log('Adding new item');
+                    const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/menu`, {
+                        method: 'POST',
+                        headers: headers,
+                        body: JSON.stringify(itemData)
+                    });
+
+                    console.log('Add response status:', response.status);
+                    const result = await response.json();
+                    console.log('Add response data:', result);
+                    
+                    if (result.success) {
+                        menuItems.push(result.data);
+                        updateMenuItemsTable();
+                        closeModal('menuItemModal');
+                        showNotification('Menu item added successfully', 'success');
+                    } else {
+                        showNotification('Failed to add menu item: ' + result.error, 'error');
+                    }
+                }
+            } catch (error) {
+                console.error('Error with menu item:', error);
+                showNotification('Error with menu item operation: ' + error.message, 'error');
+            }
+        });
+
+        async function editMenuItem(itemId) {
+            const item = menuItems.find(i => i.id == itemId);
+            if (!item) return;
+
+            // Populate form with existing data
+            document.getElementById('itemName').value = item.name;
+            document.getElementById('itemDescription').value = item.description || '';
+            document.getElementById('itemPrice').value = item.price;
+            document.getElementById('itemCategory').value = item.category || '';
+            document.getElementById('itemAvailable').checked = item.is_available;
+            document.getElementById('serviceType').value = item.service_type || '';
+            updateServiceFields();
+
+            // Ensure categories are loaded before selecting
+            if (!Array.isArray(serviceCategories) || serviceCategories.length === 0) {
+                await loadServiceCategories();
+            }
+
+            // Re-populate categories for the item's service type
+            populateFilteredCategoriesByType(item.service_type || '');
+
+            // For events and dining, set the subcategory value directly (it's stored in 'category' field)
+            const catSelect = document.getElementById('serviceCategory');
+            if ((item.service_type === 'events' || item.service_type === 'dining') && item.category) {
+                // The category field contains the subcategory value like "comedy-show" or "starters-veg"
+                catSelect.value = item.category;
+                console.log('Set', item.service_type, 'subcategory to:', item.category);
+            } else {
+                // For other service types, try to match by service_category_id
+            let selectedId = item.service_category_id;
+            if (!selectedId && item.service_category_name) {
+                const foundByName = serviceCategories.find(c => (c.name || '').toLowerCase() === String(item.service_category_name).toLowerCase());
+                if (foundByName) selectedId = foundByName.id;
+            }
+            if (!selectedId && item.service_category_slug) {
+                const foundBySlug = serviceCategories.find(c => (c.slug || '').toLowerCase() === String(item.service_category_slug).toLowerCase());
+                if (foundBySlug) selectedId = foundBySlug.id;
+            }
+
+            if (selectedId && [...catSelect.options].some(o => o.value === String(selectedId))) {
+                catSelect.value = String(selectedId);
+            } else if (item.service_category_name) {
+                // As a last resort, inject an option matching the existing data so the UI reflects it
+                const opt = document.createElement('option');
+                opt.value = item.service_category_id || '';
+                opt.textContent = `${item.service_category_icon || '📁'} ${item.service_category_name}`;
+                opt.selected = true;
+                catSelect.prepend(opt);
+                }
+            }
+            document.getElementById('durationMinutes').value = item.duration_minutes || '';
+            document.getElementById('maxCapacity').value = item.max_capacity || '';
+            document.getElementById('requiresBooking').checked = !!item.requires_booking;
+            
+            // Set organizer and venue
+            document.getElementById('organizerName').value = item.organizer_name || '';
+            document.getElementById('venueName').value = item.venue_name || '';
+            
+            // Prefill event date/time - these are stored directly in menu_items table
+            let evtDate = item.event_date || '';
+            let evtTime = item.event_time || '';
+            
+            // Format time if it comes with seconds (HH:MM:SS -> HH:MM)
+            if (evtTime && evtTime.includes(':')) {
+                const timeParts = evtTime.split(':');
+                evtTime = `${timeParts[0]}:${timeParts[1]}`;
+            }
+            
+            console.log('Editing event - Date:', evtDate, 'Time:', evtTime);
+            console.log('Item service_type:', item.service_type);
+            
+            // Set date/time fields - these should now be visible after updateServiceFields()
+            const dateInput = document.getElementById('eventDate');
+            const timeInput = document.getElementById('eventTime');
+            
+            if (dateInput) {
+                dateInput.value = evtDate;
+                console.log('Set eventDate.value =', evtDate, '| Actual value:', dateInput.value);
+            } else {
+                console.error('eventDate input not found!');
+            }
+            
+            if (timeInput) {
+                timeInput.value = evtTime;
+                console.log('Set eventTime.value =', evtTime, '| Actual value:', timeInput.value);
+            } else {
+                console.error('eventTime input not found!');
+            }
+
+            // Image preview and persistence
+            const preview = document.getElementById('itemImagePreview');
+            preview.src = item.image_url ? (item.image_url.startsWith('http') ? item.image_url : `${API_BASE}${item.image_url}`) : '';
+            const formEl = document.getElementById('menuItemForm');
+            formEl.dataset.existingImageUrl = item.image_url || '';
+            delete formEl.dataset.imageBase64;
+            delete formEl.dataset.imageFilename;
+            
+            // Clear file input and show existing image info
+            document.getElementById('itemImage').value = '';
+            const fileNameDisplay = document.getElementById('selectedFileName');
+            if (item.image_url) {
+                fileNameDisplay.textContent = `Current: ${item.image_url.split('/').pop()}`;
+                fileNameDisplay.style.color = 'var(--text-muted)';
+            } else {
+                fileNameDisplay.textContent = '';
+            }
+
+            // Store the item ID for editing
+            document.getElementById('menuItemForm').dataset.editingId = itemId;
+            
+            // Show warning banner for expired events
+            const modalTitle = document.querySelector('#menuItemModal h2');
+            let warningBanner = document.getElementById('expiredEventWarning');
+            
+            if (item.service_type === 'events' && item.computed_status === 'expired') {
+                if (!warningBanner) {
+                    warningBanner = document.createElement('div');
+                    warningBanner.id = 'expiredEventWarning';
+                    warningBanner.style.cssText = `
+                        background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(251, 191, 36, 0.1));
+                        border: 2px solid #f59e0b;
+                        border-radius: 8px;
+                        padding: 16px;
+                        margin: 16px 0;
+                        display: flex;
+                        align-items: start;
+                        gap: 12px;
+                    `;
+                    modalTitle.insertAdjacentElement('afterend', warningBanner);
+                }
+                warningBanner.innerHTML = `
+                    <div style="font-size: 24px;">⏰</div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; color: #d97706; margin-bottom: 4px;">This Event Has Expired</div>
+                        <div style="font-size: 14px; color: #92400e;">
+                            This event is no longer visible to users. Update the date and time to reactivate it.
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Remove warning banner if it exists
+                if (warningBanner) {
+                    warningBanner.remove();
+                }
+            }
+            
+            showModal('menuItemModal');
+        }
+
+        // Handle image file selection -> base64 + preview
+        document.getElementById('itemImage').addEventListener('change', function(ev) {
+            const file = ev.target.files && ev.target.files[0];
+            const fileNameDisplay = document.getElementById('selectedFileName');
+            
+            if (!file) {
+                fileNameDisplay.textContent = '';
+                return;
+            }
+            
+            // Display selected file name
+            fileNameDisplay.textContent = `✓ Selected: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+            
+            // Check file size (5MB limit)
+            if (file.size > 5 * 1024 * 1024) {
+                showNotification('Image file size must be less than 5MB', 'error');
+                ev.target.value = '';
+                fileNameDisplay.textContent = '';
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = () => {
+                const dataUrl = reader.result;
+                document.getElementById('itemImagePreview').src = dataUrl;
+                const formEl = document.getElementById('menuItemForm');
+                formEl.dataset.imageBase64 = String(dataUrl);
+                formEl.dataset.imageFilename = file.name;
+                delete formEl.dataset.existingImageUrl;
+                console.log('✅ Image loaded:', file.name, 'Base64 length:', dataUrl.length);
+            };
+            reader.onerror = () => {
+                showNotification('Failed to read image file', 'error');
+                fileNameDisplay.textContent = '';
+            };
+            reader.readAsDataURL(file);
+        });
+
+        async function deleteMenuItem(itemId) {
+            if (!confirm('Are you sure you want to delete this menu item?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/menu/${itemId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    menuItems = menuItems.filter(i => i.id != itemId);
+                    updateMenuItemsTable();
+                    showNotification('Menu item deleted successfully', 'success');
+                } else {
+                    showNotification('Failed to delete menu item: ' + result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting menu item:', error);
+                showNotification('Error deleting menu item', 'error');
+            }
+        }
+
+        // Orders Functions
+        async function loadOrders(status = '') {
+            try {
+                let url = `${API_BASE}/api/v1/partners/${currentPartner.id}/orders`;
+                if (status) {
+                    url += `?status=${status}`;
+                }
+                
+                const response = await fetch(url, {
+                    headers: getAuthHeaders()
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    orders = result.data;
+                    updateOrdersTable();
+                } else {
+                    showNotification('Failed to load orders: ' + result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error loading orders:', error);
+                showNotification('Error loading orders', 'error');
+            }
+        }
+
+        function filterOrders(status) {
+            loadOrders(status);
+        }
+
+        function updateOrdersTable() {
+            const tableBody = document.getElementById('ordersTable');
+            if (orders.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">No orders found. Orders will appear here when customers book your services or events.</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = orders.map(order => {
+                const rawItems = order.items || order.order_items || [];
+                const itemsArray = Array.isArray(rawItems)
+                    ? rawItems
+                    : (rawItems && typeof rawItems === 'object' ? [rawItems] : []);
+                const itemsText = itemsArray.length > 0
+                    ? itemsArray.map(item => {
+                        if (typeof item === 'object') {
+                            const qty = item.quantity || item.qty || 1;
+                            return `${item.name || item.title || 'Item'} (${qty}x)`;
+                        }
+                        return item;
+                    }).join(', ')
+                    : '—';
+                
+                const orderTime = order.created_at 
+                    ? new Date(order.created_at).toLocaleString('en-IN', { 
+                        day: '2-digit', 
+                        month: 'short', 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })
+                    : order.orderTime || '';
+
+                const paymentStatus = order.payment_status || (order.status === 'confirmed' ? 'paid' : 'pending');
+                const ticketCount = order.ticket_count || order.quantity || itemsArray?.[0]?.quantity || '-';
+
+                return `
+                    <tr>
+                        <td>
+                            <div style="font-weight: 600;">#${order.id ? order.id.substring(0, 8) : 'N/A'}</div>
+                            <small style="color: var(--text-muted);">${orderTime}</small>
+                        </td>
+                        <td>
+                            <div style="font-weight: 500;">${order.customer_name || order.customer || 'N/A'}</div>
+                            <small style="color: var(--text-muted);">${order.customer_phone || order.phone || ''}</small>
+                        </td>
+        <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${itemsText}</td>
+                        <td style="text-align: center;">${ticketCount}</td>
+                        <td>₹${(order.total_amount || order.total || 0).toFixed ? (order.total_amount || order.total).toFixed(2) : (parseFloat(order.total_amount || order.total || 0).toFixed(2))}</td>
+                        <td>
+                            <span class="badge badge-${paymentStatus === 'paid' ? 'success' : 'warning'}">
+                                ${paymentStatus.toUpperCase()}
+                            </span>
+                        </td>
+                        <td><span class="badge badge-${getStatusClass(order.status)}">${order.status}</span></td>
+                        <td>${orderTime}</td>
+                        <td>
+                            <div class="actions">
+                                <button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">View</button>
+                                <button class="btn btn-sm btn-secondary" onclick="updateOrderStatus('${order.id}')">Update</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function filterOrders() {
+            const status = document.getElementById('orderStatusFilter').value;
+            let filteredOrders = orders;
+            
+            if (status) {
+                filteredOrders = orders.filter(order => order.status === status);
+            }
+            
+            // Update table with filtered data
+            const tableBody = document.getElementById('ordersTable');
+            if (filteredOrders.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No orders found</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = filteredOrders.map(order => `
+                <tr>
+                    <td>${order.id}</td>
+                    <td>
+                        <div>${order.customer}</div>
+                        <small style="color: var(--text-muted);">${order.phone}</small>
+                    </td>
+                    <td>${order.items}</td>
+                    <td>₹${order.total}</td>
+                    <td><span class="badge badge-${getStatusClass(order.status)}">${order.status}</span></td>
+                    <td>${order.orderTime}</td>
+                    <td>
+                        <div class="actions">
+                            <button class="btn btn-sm btn-primary" onclick="viewOrder('${order.id}')">View</button>
+                            <button class="btn btn-sm btn-secondary" onclick="updateOrderStatus('${order.id}')">Update</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function updateOrderStatus(orderId) {
+            const order = orders.find(o => o.id === orderId);
+            if (!order) return;
+
+            const statuses = ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'];
+            const currentIndex = statuses.indexOf(order.status);
+            const nextIndex = (currentIndex + 1) % statuses.length;
+            const newStatus = statuses[nextIndex];
+
+            try {
+                // Make API call to update order status
+                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/orders/${orderId}`, {
+                    method: 'PUT',
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    order.status = newStatus;
+                    updateOrdersTable();
+                    showNotification(`Order ${orderId} status updated to ${newStatus}`, 'success');
+                } else {
+                    showNotification('Failed to update order status: ' + result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error updating order status:', error);
+                showNotification('Error updating order status', 'error');
+            }
+        }
+
+        function viewOrder(orderId) {
+            const order = orders.find(o => o.id === orderId);
+            if (!order) return;
+
+            const rawItems = order.items || order.order_items || [];
+            const itemsArray = Array.isArray(rawItems) ? rawItems : (rawItems && typeof rawItems === 'object' ? [rawItems] : []);
+            const itemsText = itemsArray.length > 0
+                ? itemsArray.map(item => {
+                    if (typeof item === 'object') {
+                        const qty = item.quantity || item.qty || 1;
+                        const price = item.price || item.amount || 0;
+                        return `${item.name || item.title || 'Item'} (${qty}x) - ₹${parseFloat(price).toFixed(2)}`;
+                    }
+                    return item;
+                }).join('\n')
+                : 'No items recorded';
+
+            const orderTime = order.created_at 
+                ? new Date(order.created_at).toLocaleString()
+                : order.orderTime || '';
+
+            const estimatedDelivery = order.estimated_delivery 
+                ? new Date(order.estimated_delivery).toLocaleString()
+                : 'Not specified';
+
+            let orderDetails = `Order Details:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 Order ID: ${order.id}
+👤 Customer: ${order.customer_name || order.customer}
+📞 Phone: ${order.customer_phone || order.phone}
+📧 Email: ${order.customer_email || 'Not provided'}
+
+🍽️ Items:
+${itemsText}
+
+💰 Total Amount: ₹${parseFloat(order.total_amount || order.total || 0).toFixed(2)}
+💳 Payment Status: ${(order.payment_status || (order.status === 'confirmed' ? 'paid' : 'pending')).toUpperCase()}
+🚚 Order Type: ${order.order_type || 'Delivery'}
+📊 Status: ${order.status}
+
+⏰ Order Time: ${orderTime}
+🕐 Estimated Delivery: ${estimatedDelivery}`;
+
+            if (order.delivery_address) {
+                orderDetails += `\n📍 Delivery Address: ${order.delivery_address}`;
+            }
+
+            if (order.table_number) {
+                orderDetails += `\n🪑 Table Number: ${order.table_number}`;
+            }
+
+            if (order.order_notes) {
+                orderDetails += `\n📝 Notes: ${order.order_notes}`;
+            }
+
+            alert(orderDetails);
+        }
+
+        // Analytics Functions
+        async function loadAnalytics() {
+            try {
+                const periodSelect = document.getElementById('analyticsPeriod');
+                const periodValue = periodSelect ? periodSelect.value : '30';
+                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/analytics?period=${periodValue}`, {
+                    headers: getAuthHeaders()
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    const analytics = result.data || {};
+                    const summary = analytics.summary || {};
+
+                    const avgOrderValue = Number(summary.avgOrderValue || 0);
+                    const totalRevenue = Number(summary.totalRevenue || 0);
+                    const repeatPercent = summary.repeatCustomersPercent || 0;
+                    const completionPercent = summary.completionRatePercent || 0;
+                    const totalCustomers = summary.totalCustomers || 0;
+
+                    document.getElementById('avgOrderValue').textContent = `₹${avgOrderValue.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 0 })}`;
+                    document.getElementById('totalCustomers').textContent = totalCustomers;
+                    document.getElementById('repeatCustomers').textContent = `${repeatPercent}%`;
+                    document.getElementById('completionRate').textContent = `${completionPercent}%`;
+                    document.getElementById('totalRevenue').textContent = `₹${totalRevenue.toLocaleString('en-IN')}`;
+                    document.getElementById('avgRating').textContent = analytics.averageRating ? `${analytics.averageRating.toFixed(1)}⭐` : '—';
+                    
+                    const tableBody = document.getElementById('popularItemsTable');
+                    if (analytics.top_offers && analytics.top_offers.length > 0) {
+                        tableBody.innerHTML = analytics.top_offers.map(item => `
+                            <tr>
+                                <td>${item.title}</td>
+                                <td>${item.booking_count}</td>
+                                <td>₹${Number(item.revenue || 0).toLocaleString('en-IN')}</td>
+                                <td>${item.service_type ? formatServiceTypeLabel(item.service_type) : '—'}</td>
+                            </tr>
+                        `).join('');
+                    } else {
+                        tableBody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No data available</td></tr>';
+                    }
+                } else {
+                    showNotification('Failed to load analytics: ' + result.error, 'error');
+                }
+
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+                showNotification('Error loading analytics', 'error');
+            }
+        }
+
+        // Utility Functions
+        function getStatusClass(status) {
+            const statusClasses = {
+                'pending': 'warning',
+                'confirmed': 'secondary',
+                'preparing': 'warning',
+                'ready': 'success',
+                'completed': 'success',
+                'cancelled': 'error'
+            };
+            return statusClasses[status] || 'secondary';
+        }
+
+        function showNotification(message, type = 'success') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                color: white;
+                font-weight: 500;
+                z-index: 10000;
+                background: ${type === 'success' ? 'var(--success)' : 'var(--error)'};
+                box-shadow: var(--shadow-lg);
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+            `;
+            notification.textContent = message;
+
+            document.body.appendChild(notification);
+
+            // Animate in
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                // Clear authentication data
+                localStorage.removeItem('partnerToken');
+                localStorage.removeItem('partnerInfo');
+                
+                // Clear any stored data
+                currentPartner = null;
+                menuItems = [];
+                orders = [];
+                
+                // Redirect to login page
+                window.location.href = 'partner-login.html';
+            }
+        }
+
+        // Close modals when clicking outside
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('show');
+            }
+        });
+
+        // ============================================
+        // OFFER MANAGEMENT FUNCTIONS
+        // ============================================
+        let currentOffers = [];
+        let isSavingOffer = false;
+        let isTrendingAction = false;
+
+        // Load offers
+        async function loadOffers() {
+            if (!currentPartner || !currentPartner.id) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/offers`, {
+                    headers: getAuthHeaders()
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    const partnerId = currentPartner.id;
+                    currentOffers = (result.data || []).filter(offer => !offer.partner_id || offer.partner_id === partnerId);
+                    
+                    // Optional: Transform to Offer instances for computed properties
+                    // Uncomment if you need computed_status or other computed properties
+                    // if (window.DataModels && window.DataModels.transformOffers) {
+                    //     currentOffers = window.DataModels.transformOffers(result.data);
+                    //     // Convert back to plain objects for template rendering
+                    //     currentOffers = currentOffers.map(offer => offer.toJSON());
+                    // }
+                    
+                    updateOffersTable();
+                } else {
+                    showNotification('Failed to load offers: ' + result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error loading offers:', error);
+                showNotification('Error loading offers', 'error');
+            }
+        }
+
+        // Update offers table
+        function updateOffersTable() {
+            const tableBody = document.getElementById('offersTable');
+            if (!tableBody) return;
+            
+            if (currentOffers.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">No offers created yet. Click "Create New Offer" to get started.</td></tr>';
+                return;
+            }
+            
+            tableBody.innerHTML = currentOffers.map(offer => {
+                // Handle missing dates gracefully
+                const startDate = offer.start_date ? new Date(offer.start_date).toLocaleDateString('en-IN', {day: '2-digit', month: 'short'}) : 'N/A';
+                const endDate = offer.end_date ? new Date(offer.end_date).toLocaleDateString('en-IN', {day: '2-digit', month: 'short', year: 'numeric'}) : 'N/A';
+                const isActive = offer.is_active && (offer.end_date ? new Date(offer.end_date) > new Date() : true);
+                const isExpired = offer.end_date ? new Date(offer.end_date) < new Date() : false;
+                
+                return `
+                    <tr data-offer-id="${offer.id}" style="${!isActive ? 'opacity: 0.6;' : ''}">
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                ${offer.image_url ? 
+                                    `<img src="${API_BASE}${offer.image_url}" alt="${offer.title}" 
+                                          style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">` :
+                                    `<div style="width: 60px; height: 60px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">🎁</div>`
+                                }
+                                <div>
+                                    <div style="font-weight: 600;">${offer.title}</div>
+                                    ${offer.promo_code ? 
+                                        `<code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${offer.promo_code}</code>` : ''}
+                                    ${offer.menu_item_id ? 
+                                        `<span style="font-size: 11px; color: #6b7280; margin-left: 8px;">🔗 Linked to Menu Item</span>` : ''}
+                                    ${offer.discount_applies_to === 'menu_item' ? 
+                                        `<span style="font-size: 11px; color: #059669; margin-left: 8px;">📌 Item-Specific</span>` : 
+                                        offer.discount_applies_to === 'service_type' ? 
+                                        `<span style="font-size: 11px; color: #0284c7; margin-left: 8px;">📂 Category-Wide</span>` : ''}
+                                    ${offer.is_promoted || offer.is_trending ? 
+                                        `<span class="badge badge-success" style="margin-left: 8px; background: #10b981;">⭐ TRENDING</span>` : ''}
+                                    ${offer.featured_request_pending ? 
+                                        `<span class="badge badge-warning" style="margin-left: 8px; background: #f59e0b;">⏳ PENDING APPROVAL</span>` : ''}
+                                </div>
+                            </div>
+                        </td>
+                        <td class="offer-type-discount">
+                            ${formatOfferTypeDiscountHTML(offer)}
+                        </td>
+                        <td>
+                            <div>${startDate} - ${endDate}</div>
+                            ${isExpired ? '<small style="color: #ef4444;">Expired</small>' : ''}
+                        </td>
+                        <td>
+                            ${offer.max_redemptions ? 
+                                `${offer.current_redemptions || 0} / ${offer.max_redemptions}` : 
+                                `${offer.current_redemptions || 0} (Unlimited)`}
+                        </td>
+                        <td>
+                            <span class="badge badge-${isActive && !isExpired ? 'success' : 'error'}">
+                                ${isActive && !isExpired ? 'ACTIVE' : 'INACTIVE'}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="actions">
+                                ${!offer.is_promoted && !offer.featured_request_pending && !offer.is_trending ? 
+                                    `<button class="btn btn-sm btn-primary" onclick="promoteOffer(this, '${offer.id}')" title="Request to make this deal Trending">⭐ Make Trending</button>` : ''}
+                                <button class="btn btn-sm btn-secondary" onclick="editOffer('${offer.id}')">Edit</button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteOffer('${offer.id}')">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function notifyOfferUpdate(offerId) {
+            try {
+                localStorage.setItem('landingOfferDirty', JSON.stringify({ offerId, ts: Date.now() }));
+            } catch (err) {
+                console.warn('Unable to write landing cache flag:', err);
+            }
+
+            if (typeof window.clearLandingCache === 'function') {
+                window.clearLandingCache(offerId);
+            }
+
+            if (window.opener && !window.opener.closed) {
+                try {
+                    window.opener.postMessage({ type: 'OFFER_UPDATED', offerId }, '*');
+                } catch (err) {
+                    console.warn('Failed to notify opener window:', err);
+                }
+            }
+
+            try {
+                window.postMessage({ type: 'OFFER_UPDATED_LOCAL', offerId }, '*');
+            } catch (err) {
+                console.warn('Failed to post local message:', err);
+            }
+        }
+
+        // Show add offer modal
+        function showAddOfferModal() {
+            document.getElementById('offerModalTitle').textContent = 'Create New Offer';
+            document.getElementById('offerForm').reset();
+            document.getElementById('offerImagePreview').style.display = 'none';
+            delete document.getElementById('offerForm').dataset.editingId;
+            const savingsInfo = document.getElementById('offerSavingsInfo');
+            if (savingsInfo) savingsInfo.innerHTML = '';
+            
+            // Reset applicable days checkboxes to all checked (default)
+            document.querySelectorAll('.applicable-day-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            
+            // Reset discount applies to
+            document.getElementById('offerDiscountAppliesTo').value = 'standalone';
+            updateOfferDiscountType();
+            
+            // Load menu items for dropdown
+            loadMenuItemsForOffer();
+            
+            showModal('offerModal');
+            attachOfferPricingListeners();
+            recalculateDiscountedPrice();
+        }
+        
+        // Load menu items for offer creation dropdown
+        async function loadMenuItemsForOffer() {
+            const menuItemSelect = document.getElementById('offerMenuItemId');
+            if (!menuItemSelect) return;
+            
+            if (!currentPartner || !currentPartner.id) {
+                menuItemSelect.innerHTML = '<option value="">Partner not available</option>';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/menu`, {
+                    headers: getAuthHeaders()
+                });
+                const result = await response.json();
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    menuItemSelect.innerHTML = '<option value="">Select a menu item (optional)</option>';
+                    result.data.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = item.id;
+                        option.textContent = `${item.name} - ₹${item.price || 0}`;
+                        option.dataset.price = item.price || 0;
+                        option.dataset.serviceType = item.service_type || '';
+                        menuItemSelect.appendChild(option);
+                    });
+                } else {
+                    menuItemSelect.innerHTML = '<option value="">No menu items available. Create menu items first.</option>';
+                }
+            } catch (error) {
+                console.error('Error loading menu items:', error);
+                menuItemSelect.innerHTML = '<option value="">Error loading menu items</option>';
+            }
+        }
+        
+        // Update offer discount type UI
+        function updateOfferDiscountType() {
+            const discountAppliesTo = document.getElementById('offerDiscountAppliesTo').value;
+            const menuItemField = document.getElementById('menuItemSelectionField');
+            const serviceTypeField = document.getElementById('offerServiceType').closest('.form-group');
+            
+            if (discountAppliesTo === 'menu_item') {
+                menuItemField.style.display = 'block';
+                serviceTypeField.querySelector('select').required = false;
+            } else if (discountAppliesTo === 'service_type') {
+                menuItemField.style.display = 'none';
+                serviceTypeField.querySelector('select').required = true;
+            } else {
+                menuItemField.style.display = 'none';
+                serviceTypeField.querySelector('select').required = true;
+            }
+
+            syncApplicableDaysWithDates();
+        }
+        
+        // Handle menu item selection - auto-fill price
+        function handleMenuItemSelection() {
+            const menuItemSelect = document.getElementById('offerMenuItemId');
+            const selectedOption = menuItemSelect.options[menuItemSelect.selectedIndex];
+            
+            if (selectedOption && selectedOption.value) {
+                const price = parseFloat(selectedOption.dataset.price) || 0;
+                const serviceType = selectedOption.dataset.serviceType || '';
+                
+                // Auto-fill original price
+                document.getElementById('offerOriginalPrice').value = price;
+                
+                // Auto-fill service type if not set
+                if (!document.getElementById('offerServiceType').value && serviceType) {
+                    document.getElementById('offerServiceType').value = serviceType;
+                }
+                
+                recalculateDiscountedPrice();
+                syncApplicableDaysWithDates();
+            } else {
+                // Clear prices if no menu item selected
+                document.getElementById('offerOriginalPrice').value = '';
+                document.getElementById('offerDiscountedPrice').value = '';
+                const savingsInfoBox = document.getElementById('offerSavingsInfo');
+                if (savingsInfoBox) savingsInfoBox.innerHTML = '';
+                syncApplicableDaysWithDates();
+            }
+        }
+
+        function recalculateDiscountedPrice() {
+            const originalField = document.getElementById('offerOriginalPrice');
+            const discountPercentField = document.getElementById('offerDiscountPercentage');
+            const discountAmountField = document.getElementById('offerDiscountAmount');
+            const discountedField = document.getElementById('offerDiscountedPrice');
+            const savingsBox = document.getElementById('offerSavingsInfo');
+            const offerTypeSelect = document.getElementById('offerType');
+
+            if (!originalField || !discountedField) return;
+
+            const original = parseFloat(originalField.value) || 0;
+            const percent = parseFloat(discountPercentField?.value) || 0;
+            const fixed = parseFloat(discountAmountField?.value) || 0;
+
+            // Reset discount amount field if offer type is percentage
+            if (offerTypeSelect && offerTypeSelect.value === 'percentage' && discountAmountField) {
+                discountAmountField.value = '';
+            }
+
+            let discounted = original;
+            let savings = 0;
+
+            if (percent > 0) {
+                const safePercent = Math.min(Math.max(percent, 0), 100);
+                if (safePercent !== percent && discountPercentField) {
+                    discountPercentField.value = safePercent;
+                }
+                savings = (original * safePercent) / 100;
+                discounted = original - savings;
+            } else if (fixed > 0) {
+                savings = fixed;
+                discounted = original - fixed;
+            } else if (discountedField && discountedField.value) {
+                const manualDiscounted = parseFloat(discountedField.value);
+                if (!Number.isNaN(manualDiscounted) && manualDiscounted >= 0) {
+                    discounted = manualDiscounted;
+                    savings = Math.max(0, original - manualDiscounted);
+                }
+            }
+
+            if (discounted < 0) discounted = 0;
+
+            discountedField.value = discounted ? discounted.toFixed(2) : '';
+
+            const ezt = savings > 0 ? (savings / 100).toFixed(5) : '0.00000';
+            if (savingsBox) {
+                if (savings > 0) {
+                    savingsBox.innerHTML = `💰 You Save ₹${savings.toFixed(2)} | 🎟 ${ezt} EZT Equivalent`;
+                } else {
+                    savingsBox.innerHTML = '';
+                }
+            }
+        }
+
+        function syncApplicableDaysWithDates() {
+            const startInput = document.getElementById('startDate');
+            const endInput = document.getElementById('endDate');
+            const checkboxes = document.querySelectorAll('.applicable-day-checkbox');
+            if (!startInput || !endInput || checkboxes.length === 0) return;
+
+            const startValue = startInput.value;
+            const endValue = endInput.value;
+
+            if (!startValue || !endValue) {
+                checkboxes.forEach(cb => {
+                    cb.disabled = false;
+                    cb.checked = true;
+                });
+                return;
+            }
+
+            const startDate = new Date(startValue);
+            const endDate = new Date(endValue);
+            if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate < startDate) {
+                checkboxes.forEach(cb => {
+                    cb.disabled = false;
+                    cb.checked = true;
+                });
+                return;
+            }
+
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const allowed = new Set();
+            const cursor = new Date(startDate);
+            while (cursor <= endDate) {
+                allowed.add(dayNames[cursor.getDay()]);
+                cursor.setDate(cursor.getDate() + 1);
+            }
+
+            checkboxes.forEach(cb => {
+                const day = cb.value.toLowerCase();
+                const shouldEnable = allowed.has(day);
+                cb.checked = shouldEnable;
+                cb.disabled = !shouldEnable;
+            });
+        }
+
+        function attachOfferPricingListeners() {
+            const discountPercentageInput = document.getElementById('offerDiscountPercentage');
+            const discountAmountInput = document.getElementById('offerDiscountAmount');
+            const originalPriceInput = document.getElementById('offerOriginalPrice');
+            const startDateInput = document.getElementById('startDate');
+            const endDateInput = document.getElementById('endDate');
+
+            if (discountPercentageInput && !discountPercentageInput.dataset.listenerAttached) {
+                ['input', 'change'].forEach(eventName => {
+                    discountPercentageInput.addEventListener(eventName, recalculateDiscountedPrice);
+                });
+                discountPercentageInput.dataset.listenerAttached = 'true';
+            }
+
+            if (discountAmountInput && !discountAmountInput.dataset.listenerAttached) {
+                ['input', 'change'].forEach(eventName => {
+                    discountAmountInput.addEventListener(eventName, recalculateDiscountedPrice);
+                });
+                discountAmountInput.dataset.listenerAttached = 'true';
+            }
+
+            if (originalPriceInput && !originalPriceInput.dataset.listenerAttached) {
+                ['input', 'change'].forEach(eventName => {
+                    originalPriceInput.addEventListener(eventName, recalculateDiscountedPrice);
+                });
+                originalPriceInput.dataset.listenerAttached = 'true';
+            }
+
+            if (startDateInput && !startDateInput.dataset.listenerAttached) {
+                ['input', 'change'].forEach(eventName => {
+                    startDateInput.addEventListener(eventName, () => {
+                        syncApplicableDaysWithDates();
+                    });
+                });
+                startDateInput.dataset.listenerAttached = 'true';
+            }
+
+            if (endDateInput && !endDateInput.dataset.listenerAttached) {
+                ['input', 'change'].forEach(eventName => {
+                    endDateInput.addEventListener(eventName, () => {
+                        syncApplicableDaysWithDates();
+                    });
+                });
+                endDateInput.dataset.listenerAttached = 'true';
+            }
+        }
+        
+        // Helper function to format applicable days for display
+        function formatApplicableDays(days) {
+            if (!days || days.length === 0 || days.length === 7) {
+                return 'All Days';
+            }
+            
+            const dayMap = {
+                'monday': 'Mon',
+                'tuesday': 'Tue',
+                'wednesday': 'Wed',
+                'thursday': 'Thu',
+                'friday': 'Fri',
+                'saturday': 'Sat',
+                'sunday': 'Sun'
+            };
+            
+            const formatted = days.map(day => dayMap[day] || day).join(', ');
+            
+            // Check for common patterns
+            if (days.length === 2 && days.includes('saturday') && days.includes('sunday')) {
+                return 'Weekends';
+            }
+            if (days.length === 5 && !days.includes('saturday') && !days.includes('sunday')) {
+                return 'Weekdays';
+            }
+            
+            return formatted;
+        }
+
+        function computeApplicableDaysDisplay(offer = {}) {
+            if (!offer) return 'All Days';
+            const days = Array.isArray(offer.applicable_days)
+                ? offer.applicable_days
+                : (typeof offer.applicable_days === 'string' && offer.applicable_days.trim()
+                    ? offer.applicable_days.split(',').map(day => day.trim().toLowerCase()).filter(Boolean)
+                    : []);
+            if (days.length === 0 || days.length === 7) {
+                return 'All Days';
+            }
+            return formatApplicableDays(days);
+        }
+
+        function formatDiscountLabel(offer = {}) {
+            const percent = parseFloat(offer.discount_percentage);
+            if (!Number.isNaN(percent) && percent > 0) {
+                return `${percent.toFixed(2)}% OFF`;
+            }
+            const amount = parseFloat(offer.discount_amount);
+            if (!Number.isNaN(amount) && amount > 0) {
+                return `₹${amount.toFixed(2)} OFF`;
+            }
+            return 'No Discount';
+        }
+
+        function getServiceTypeIcon(type = '') {
+            switch ((type || '').toLowerCase()) {
+                case 'dining': return '🍽️';
+                case 'events': return '🎉';
+                case 'spa-and-salon': return '💆';
+                case 'wellness': return '🧘';
+                case 'travel': return '✈️';
+                case 'healthcare': return '🩺';
+                default: return '📦';
+            }
+        }
+
+        function formatServiceTypeLabel(type = '') {
+            if (!type) return 'Dining';
+            return type.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function formatOfferTypeDiscountHTML(offer = {}) {
+            const icon = getServiceTypeIcon(offer.service_type);
+            const serviceLabel = formatServiceTypeLabel(offer.service_type);
+            const offerTypeLabel = (offer.offer_type || 'standard').replace('_', ' ').toUpperCase();
+            const discountLabel = formatDiscountLabel(offer);
+            const daysDisplay = offer.applicable_days_display || computeApplicableDaysDisplay(offer);
+
+            return `
+                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">
+                    ${icon} ${serviceLabel}
+                </div>
+                <div style="font-weight: 600;">${offerTypeLabel}</div>
+                <div style="color: #10b981; font-weight: 700;">${discountLabel}</div>
+                <div style="font-size: 10px; color: #6b7280; margin-top: 4px;">
+                    ${daysDisplay}
+                </div>
+            `;
+        }
+
+        function updateOfferRow(offer = {}) {
+            if (!offer || !offer.id) return;
+            const row = document.querySelector(`[data-offer-id="${offer.id}"]`);
+            if (!row) return;
+            const typeDiscountCell = row.querySelector('.offer-type-discount');
+            if (!typeDiscountCell) return;
+            const enrichedOffer = {
+                ...offer,
+                applicable_days_display: offer.applicable_days_display || computeApplicableDaysDisplay(offer)
+            };
+            typeDiscountCell.innerHTML = formatOfferTypeDiscountHTML(enrichedOffer);
+        }
+
+        // Update offer type fields
+        function updateOfferFields() {
+            const offerType = document.getElementById('offerType').value;
+            const percentageField = document.getElementById('discountPercentageField');
+            const amountField = document.getElementById('discountAmountField');
+            
+            if (offerType === 'percentage') {
+                percentageField.style.display = 'block';
+                amountField.style.display = 'none';
+                document.getElementById('offerDiscountPercentage').required = true;
+                document.getElementById('offerDiscountAmount').required = false;
+                document.getElementById('offerDiscountAmount').value = '';
+                const percentValue = document.getElementById('offerDiscountPercentage').value;
+                if (!percentValue) {
+                    document.getElementById('offerDiscountPercentage').value = '';
+                }
+            } else if (offerType === 'fixed_amount') {
+                percentageField.style.display = 'none';
+                amountField.style.display = 'block';
+                document.getElementById('offerDiscountPercentage').required = false;
+                document.getElementById('offerDiscountAmount').required = true;
+                document.getElementById('offerDiscountPercentage').value = '';
+            } else {
+                percentageField.style.display = 'none';
+                amountField.style.display = 'none';
+                document.getElementById('offerDiscountPercentage').required = false;
+                document.getElementById('offerDiscountAmount').required = false;
+                document.getElementById('offerDiscountPercentage').value = '';
+                document.getElementById('offerDiscountAmount').value = '';
+            }
+            recalculateDiscountedPrice();
+        }
+
+        // Handle offer image preview
+        document.addEventListener('DOMContentLoaded', function() {
+            const offerImageInput = document.getElementById('offerImage');
+            if (offerImageInput) {
+                offerImageInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const preview = document.getElementById('offerImagePreview');
+                        preview.src = e.target.result;
+                        preview.style.display = 'block';
+                        document.getElementById('offerForm').dataset.imageBase64 = e.target.result;
+                        document.getElementById('offerForm').dataset.imageFilename = file.name;
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            // Submit offer form
+            const offerForm = document.getElementById('offerForm');
+            if (offerForm) {
+                offerForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    if (isSavingOffer) {
+                        showNotification('Please wait for the current save to finish.', 'warning');
+                        return;
+                    }
+                    isSavingOffer = true;
+                    
+                    if (!currentPartner || !currentPartner.id) {
+                        showNotification('Partner information not available', 'error');
+                        isSavingOffer = false;
+                        return;
+                    }
+                    
+                    // Collect applicable days from checkboxes
+                    const applicableDaysCheckboxes = document.querySelectorAll('.applicable-day-checkbox:checked');
+                    const applicableDays = Array.from(applicableDaysCheckboxes).map(cb => cb.value);
+                    
+                    // Validate at least one day is selected
+                    if (applicableDays.length === 0) {
+                        showNotification('Please select at least one applicable day for this offer', 'error');
+                        isSavingOffer = false;
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = originalBtnText || 'Save Offer';
+                        }
+                        return;
+                    }
+                    
+                    console.log('Creating offer with applicable days:', applicableDays);
+                    
+                    const discountAppliesTo = document.getElementById('offerDiscountAppliesTo').value;
+                    const menuItemId = document.getElementById('offerMenuItemId').value || null;
+                    const offerTypeValue = document.getElementById('offerType').value;
+                    const discountPercentInput = document.getElementById('offerDiscountPercentage');
+                    const discountAmountInput = document.getElementById('offerDiscountAmount');
+
+                    if (discountPercentInput) {
+                        discountPercentInput.required = offerTypeValue === 'percentage';
+                    }
+                    if (discountAmountInput) {
+                        discountAmountInput.required = offerTypeValue === 'fixed_amount';
+                    }
+
+                    const originalVal = parseFloat(document.getElementById('offerOriginalPrice').value) || 0;
+                    const percentVal = parseFloat(document.getElementById('offerDiscountPercentage').value) || 0;
+                    const amountVal = parseFloat(document.getElementById('offerDiscountAmount').value) || 0;
+                    const discountedFieldValRaw = document.getElementById('offerDiscountedPrice').value;
+                    const discountedFieldVal = discountedFieldValRaw ? parseFloat(discountedFieldValRaw) : null;
+                    let savingsVal = 0;
+                    let discountedVal = originalVal;
+
+                    if (percentVal > 0) {
+                        savingsVal = (originalVal * percentVal) / 100;
+                        discountedVal = originalVal - savingsVal;
+                    } else if (amountVal > 0) {
+                        savingsVal = amountVal;
+                        discountedVal = originalVal - amountVal;
+                    } else if (discountedFieldVal !== null && !Number.isNaN(discountedFieldVal)) {
+                        discountedVal = Math.max(0, discountedFieldVal);
+                        savingsVal = Math.max(0, originalVal - discountedVal);
+                    }
+
+                    if (discountedVal < 0) discountedVal = 0;
+
+                    const eztVal = savingsVal > 0 ? savingsVal / 100 : 0;
+
+                    const formattedOriginal = parseFloat(originalVal.toFixed(2));
+                    const formattedDiscounted = parseFloat(discountedVal.toFixed(2));
+                    const formattedSavings = parseFloat(savingsVal.toFixed(2));
+                    const formattedEzt = parseFloat(eztVal.toFixed(5));
+
+                    const discountPercentageToSend = offerTypeValue === 'percentage' && percentVal > 0
+                        ? parseFloat(percentVal.toFixed(2))
+                        : null;
+                    const discountAmountToSend = offerTypeValue === 'fixed_amount' && amountVal > 0
+                        ? parseFloat(amountVal.toFixed(2))
+                        : (offerTypeValue !== 'percentage' && formattedSavings > 0 ? formattedSavings : null);
+                    
+                    const offerData = {
+                        title: document.getElementById('offerTitle').value,
+                        description: document.getElementById('offerDescription').value,
+                        service_type: document.getElementById('offerServiceType').value || null,
+                        offer_type: offerTypeValue,
+                        discount_percentage: discountPercentageToSend,
+                        discount_amount: discountAmountToSend,
+                        original_price: formattedOriginal,
+                        discounted_price: formattedDiscounted,
+                        savings: formattedSavings,
+                        ezt_equivalent: formattedEzt,
+                        start_date: document.getElementById('startDate').value,
+                        end_date: document.getElementById('endDate').value,
+                        max_redemptions: document.getElementById('maxRedemptions').value ? 
+                            parseInt(document.getElementById('maxRedemptions').value) : null,
+                        min_purchase_amount: document.getElementById('minPurchaseAmount').value ? 
+                            parseFloat(document.getElementById('minPurchaseAmount').value) : null,
+                        promo_code: document.getElementById('promoCode').value.toUpperCase() || null,
+                        terms_conditions: document.getElementById('termsConditions').value || null,
+                        is_trending: document.getElementById('isTrending').checked,
+                        applicable_days: applicableDays.length > 0 ? applicableDays : null,
+                        image_base64: this.dataset.imageBase64 || null,
+                        image_filename: this.dataset.imageFilename || null,
+                        menu_item_id: menuItemId,
+                        discount_applies_to: discountAppliesTo
+                    };
+                    
+                    const editingId = this.dataset.editingId;
+                    const existingOfferBeforeSubmit = editingId
+                        ? currentOffers.find(o => o.id === editingId)
+                        : null;
+                    
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    let originalBtnText = '';
+                    if (submitBtn) {
+                        originalBtnText = submitBtn.textContent;
+                        submitBtn.disabled = true;
+                        submitBtn.textContent = 'Saving...';
+                    }
+                    
+                    try {
+                        const url = editingId ? 
+                            `${API_BASE}/api/v1/partners/${currentPartner.id}/offers/${editingId}` :
+                            `${API_BASE}/api/v1/partners/${currentPartner.id}/offers`;
+                        
+                        const response = await fetch(url, {
+                            method: editingId ? 'PUT' : 'POST',
+                            headers: getAuthHeaders(),
+                            body: JSON.stringify(offerData)
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            const savedOffer = result.data || result.offer || result.updated || null;
+                            if (savedOffer && savedOffer.id) {
+                                savedOffer.applicable_days_display = computeApplicableDaysDisplay(savedOffer);
+
+                                const idx = currentOffers.findIndex(o => o.id === savedOffer.id);
+                                if (idx !== -1) {
+                                    currentOffers[idx] = { ...currentOffers[idx], ...savedOffer };
+                                } else {
+                                    currentOffers.unshift(savedOffer);
+                                }
+                                updateOffersTable();
+                                notifyOfferUpdate(savedOffer.id);
+
+                                showNotification(editingId ? 'Offer updated successfully' : 'Offer created successfully', 'success');
+                                closeModal('offerModal');
+                            } else if (editingId && existingOfferBeforeSubmit) {
+                                console.warn('Offer saved but response did not include payload. Applying optimistic update for editing ID:', editingId);
+                                
+                                const fallbackOffer = {
+                                    ...existingOfferBeforeSubmit,
+                                    ...offerData,
+                                    id: editingId,
+                                    partner_id: existingOfferBeforeSubmit.partner_id || currentPartner.id,
+                                    savings: formattedSavings,
+                                    discounted_price: formattedDiscounted,
+                                    original_price: formattedOriginal,
+                                    discount_percentage: discountPercentageToSend,
+                                    discount_amount: discountAmountToSend,
+                                    ezt_equivalent: formattedEzt,
+                                    is_trending: document.getElementById('isTrending').checked,
+                                    applicable_days: applicableDays.length > 0 ? applicableDays : existingOfferBeforeSubmit.applicable_days,
+                                    updated_at: new Date().toISOString()
+                                };
+
+                                const idx = currentOffers.findIndex(o => o.id === editingId);
+                                if (idx !== -1) {
+                                    currentOffers[idx] = fallbackOffer;
+                                }
+                                updateOffersTable();
+                                notifyOfferUpdate(editingId);
+
+                                showNotification('Offer updated successfully', 'success');
+                                closeModal('offerModal');
+                            } else {
+                                console.warn('Offer saved but response did not include payload, refreshing list.');
+                                showNotification('Offer saved successfully', 'success');
+                                closeModal('offerModal');
+                                await loadOffers();
+                            }
+                        } else {
+                            console.error('Offer save error:', result);
+                            showNotification('Failed to save offer: ' + (result.error || 'Unknown error'), 'error');
+                        }
+                    } catch (error) {
+                        console.error('Error saving offer:', error);
+                        showNotification('Error saving offer: ' + (error.message || 'Network error'), 'error');
+                    } finally {
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = originalBtnText || 'Save Offer';
+                        }
+                        isSavingOffer = false;
+                    }
+                });
+            }
+        });
+
+        // Edit offer
+        async function editOffer(offerId) {
+            const offer = currentOffers.find(o => o.id === offerId);
+            if (!offer) return;
+            
+            attachOfferPricingListeners();
+            document.getElementById('offerModalTitle').textContent = 'Edit Offer';
+            document.getElementById('offerForm').dataset.editingId = offerId;
+            document.getElementById('offerTitle').value = offer.title;
+            document.getElementById('offerDescription').value = offer.description || '';
+            document.getElementById('offerServiceType').value = offer.service_type || '';
+
+            const discountPercentInput = document.getElementById('offerDiscountPercentage');
+            const discountAmountInput = document.getElementById('offerDiscountAmount');
+            const originalPriceInput = document.getElementById('offerOriginalPrice');
+            const discountedPriceInput = document.getElementById('offerDiscountedPrice');
+
+            const originalNumeric = offer.original_price ? parseFloat(offer.original_price) : 0;
+            const discountedNumeric = offer.discounted_price ? parseFloat(offer.discounted_price) : 0;
+            const computedSavings = originalNumeric > 0 && discountedNumeric >= 0 ? Math.max(0, originalNumeric - discountedNumeric) : 0;
+
+            let derivedOfferType = offer.offer_type;
+            if (!derivedOfferType) {
+                if (offer.discount_percentage && parseFloat(offer.discount_percentage) > 0) {
+                    derivedOfferType = 'percentage';
+                } else if (offer.discount_amount && parseFloat(offer.discount_amount) > 0) {
+                    derivedOfferType = 'fixed_amount';
+                } else if (computedSavings > 0) {
+                    derivedOfferType = 'fixed_amount';
+                } else {
+                    derivedOfferType = 'bundle';
+                }
+            }
+
+            document.getElementById('offerType').value = derivedOfferType;
+            updateOfferFields();
+            
+            // Set discount applies to
+            const discountAppliesTo = offer.discount_applies_to || 'standalone';
+            document.getElementById('offerDiscountAppliesTo').value = discountAppliesTo;
+            updateOfferDiscountType();
+            
+            // Load menu items and set selected menu item if linked
+            await loadMenuItemsForOffer();
+            if (offer.menu_item_id) {
+                document.getElementById('offerMenuItemId').value = offer.menu_item_id;
+            }
+            
+            if (discountPercentInput) {
+                if (offer.discount_percentage && parseFloat(offer.discount_percentage) > 0) {
+                    discountPercentInput.value = parseFloat(offer.discount_percentage).toFixed(2).replace(/\.00$/, '');
+                } else {
+                    discountPercentInput.value = '';
+                }
+            }
+            if (discountAmountInput) {
+                if (offer.discount_amount && parseFloat(offer.discount_amount) > 0) {
+                    discountAmountInput.value = parseFloat(offer.discount_amount).toFixed(2);
+                } else if (computedSavings > 0) {
+                    discountAmountInput.value = computedSavings.toFixed(2);
+                } else {
+                    discountAmountInput.value = '';
+                }
+            }
+            if (originalPriceInput) {
+                originalPriceInput.value = offer.original_price || '';
+            }
+            if (discountedPriceInput) {
+                discountedPriceInput.value = offer.discounted_price || '';
+            }
+            
+            // Convert timestamps to datetime-local format
+            const startDate = new Date(offer.start_date);
+            document.getElementById('startDate').value = startDate.toISOString().slice(0, 16);
+            
+            const endDate = new Date(offer.end_date);
+            document.getElementById('endDate').value = endDate.toISOString().slice(0, 16);
+            
+            if (offer.max_redemptions) {
+                document.getElementById('maxRedemptions').value = offer.max_redemptions;
+            }
+            if (offer.min_purchase_amount) {
+                document.getElementById('minPurchaseAmount').value = offer.min_purchase_amount;
+            }
+            if (offer.promo_code) {
+                document.getElementById('promoCode').value = offer.promo_code;
+            }
+            if (offer.terms_conditions) {
+                document.getElementById('termsConditions').value = offer.terms_conditions;
+            }
+            
+            document.getElementById('isTrending').checked = offer.is_trending;
+            const savingsInfo = document.getElementById('offerSavingsInfo');
+            if (savingsInfo) savingsInfo.innerHTML = '';
+            if (offer.original_price && (offer.discount_percentage || offer.discount_amount)) {
+                recalculateDiscountedPrice();
+            } else {
+                recalculateDiscountedPrice();
+            }
+            
+            // Set applicable days checkboxes
+            const applicableDays = offer.applicable_days || [];
+            // If no days specified or empty array, default to all days
+            const hasDays = applicableDays && applicableDays.length > 0;
+            document.querySelectorAll('.applicable-day-checkbox').forEach(checkbox => {
+                checkbox.checked = hasDays ? applicableDays.includes(checkbox.value) : true;
+            });
+            
+            if (offer.image_url) {
+                const preview = document.getElementById('offerImagePreview');
+                preview.src = `${API_BASE}${offer.image_url}`;
+                preview.style.display = 'block';
+            }
+            
+            document.getElementById('offerForm').dataset.editingId = offerId;
+            attachOfferPricingListeners();
+            recalculateDiscountedPrice();
+            showModal('offerModal');
+        }
+
+        // Delete offer
+        // Make offer Trending (request approval if partner not eligible)
+        async function promoteOffer(buttonEl, offerId) {
+            if (!currentPartner || !currentPartner.id) {
+                showNotification('Partner information not available', 'error');
+                return;
+            }
+
+            // Check if token exists
+            const token = localStorage.getItem('partnerToken');
+            if (!token) {
+                showNotification('Authentication required. Please log in again.', 'error');
+                setTimeout(() => {
+                    window.location.href = 'partner-login.html';
+                }, 2000);
+                return;
+            }
+
+            if (isTrendingAction) {
+                showNotification('Please wait, a trending request is already in progress.', 'warning');
+                return;
+            }
+
+            if (!confirm('Request to make this deal Trending? It will need admin approval if your account is not eligible for Trending deals.')) {
+                return;
+            }
+
+            try {
+                isTrendingAction = true;
+                if (buttonEl) {
+                    buttonEl.disabled = true;
+                    buttonEl.textContent = 'Requesting...';
+                }
+                const url = `${API_BASE}/api/v1/partners/${currentPartner.id}/offers/${offerId}`;
+                const headers = getAuthHeaders();
+                
+                console.log('🔍 Promoting offer:', offerId);
+                console.log('📡 URL:', url);
+                console.log('🔑 Headers:', { ...headers, Authorization: headers.Authorization ? 'Bearer ***' : 'MISSING' });
+                console.log('👤 Partner ID:', currentPartner.id);
+                
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: headers,
+                    body: JSON.stringify({ is_promoted: true, request_trending: true })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorData;
+                    try {
+                        errorData = JSON.parse(errorText);
+                    } catch {
+                        errorData = { error: errorText || `HTTP ${response.status}: ${response.statusText}` };
+                    }
+                    console.error('❌ Promote offer error response:', errorData);
+                    showNotification(`Failed to make offer Trending: ${errorData.error || errorData.message || `HTTP ${response.status}`}`, 'error');
+                    return;
+                }
+
+                const result = await response.json();
+                console.log('📦 Promote response:', result);
+
+                if (result.success) {
+                    if (result.pendingApproval) {
+                        showNotification('Trending request submitted! Waiting for admin approval.', 'info');
+                    } else {
+                        showNotification('Deal is now Trending!', 'success');
+                    }
+                    loadOffers();
+                } else {
+                    showNotification('Failed to make offer Trending: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('❌ Error promoting offer:', error);
+                console.error('❌ Error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                    name: error.name
+                });
+                
+                let errorMessage = 'Network error. ';
+                if (error.message.includes('Failed to fetch')) {
+                    errorMessage += 'Please check if the backend server is running on http://localhost:5001';
+                } else {
+                    errorMessage += error.message || 'Please check your connection.';
+                }
+                
+                showNotification('Error making offer Trending: ' + errorMessage, 'error');
+            } finally {
+                isTrendingAction = false;
+                if (buttonEl) {
+                    buttonEl.disabled = false;
+                    buttonEl.textContent = '⭐ Make Trending';
+                }
+            }
+        }
+
+        async function deleteOffer(offerId) {
+            if (!confirm('Are you sure you want to delete this offer?')) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/offers/${offerId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Offer deleted successfully', 'success');
+                    await loadOffers();
+                    notifyOfferUpdate(offerId);
+                } else {
+                    showNotification('Failed to delete offer: ' + result.error, 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting offer:', error);
+                showNotification('Error deleting offer', 'error');
+            }
+        }
+
+        // ============================================
+        // QR SCANNER FUNCTIONALITY
+        // ============================================
+        
+        let scannerStream = null;
+        let scanningInterval = null;
+
+        // Load QR scanner library (using html5-qrcode as example, but can use jsQR or others)
+        // For now, we'll implement manual entry and camera-based scanning with jsQR
+        async function startCameraScanner() {
+            const cameraDiv = document.getElementById('cameraScanner');
+            const manualDiv = document.getElementById('manualEntry');
+            const resultDiv = document.getElementById('voucherResult');
+            
+            cameraDiv.style.display = 'block';
+            manualDiv.style.display = 'none';
+            resultDiv.style.display = 'none';
+
+            const video = document.getElementById('scannerVideo');
+            const canvas = document.getElementById('scannerCanvas');
+            const ctx = canvas.getContext('2d');
+
+            try {
+                // Request camera access
+                scannerStream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: 'environment', // Use back camera on mobile
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+
+                video.srcObject = scannerStream;
+                video.play();
+
+                // Start scanning loop
+                scanningInterval = setInterval(async () => {
+                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        
+                        // Try to decode QR code using jsQR (if available) or send to backend
+                        // For now, we'll use a simple approach: try to decode or send image to backend
+                        try {
+                            // Load jsQR if available, otherwise use backend decoding
+                            if (typeof jsQR !== 'undefined') {
+                                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                                if (code) {
+                                    stopCameraScanner();
+                                    validateVoucherCode(code.data);
+                                    return;
+                                }
+                            } else {
+                                // Alternative: Send canvas image to backend for QR decoding
+                                // For now, skip auto-detection and rely on manual entry
+                            }
+                        } catch (error) {
+                            // Continue scanning
+                        }
+                    }
+                }, 100);
+            } catch (error) {
+                console.error('Error accessing camera:', error);
+                showNotification('Camera access denied. Please use manual entry.', 'error');
+                showManualEntry();
+            }
+        }
+
+        function stopCameraScanner() {
+            if (scanningInterval) {
+                clearInterval(scanningInterval);
+                scanningInterval = null;
+            }
+            
+            if (scannerStream) {
+                scannerStream.getTracks().forEach(track => track.stop());
+                scannerStream = null;
+            }
+
+            const video = document.getElementById('scannerVideo');
+            if (video && video.srcObject) {
+                video.srcObject = null;
+            }
+        }
+
+        function showManualEntry() {
+            stopCameraScanner();
+            
+            const cameraDiv = document.getElementById('cameraScanner');
+            const manualDiv = document.getElementById('manualEntry');
+            const resultDiv = document.getElementById('voucherResult');
+            
+            cameraDiv.style.display = 'none';
+            manualDiv.style.display = 'block';
+            resultDiv.style.display = 'none';
+        }
+
+        async function validateManualVoucher() {
+            const code = document.getElementById('manualVoucherCode').value.trim();
+            if (!code) {
+                showNotification('Please enter a voucher code', 'error');
+                return;
+            }
+
+            await validateVoucherCode(code);
+        }
+
+        async function validateVoucherCode(code) {
+            const resultDiv = document.getElementById('voucherResult');
+            const resultTitle = document.getElementById('voucherResultTitle');
+            const resultContent = document.getElementById('voucherResultContent');
+
+            resultDiv.style.display = 'block';
+            resultTitle.textContent = 'Validating...';
+            resultContent.innerHTML = '<div class="spinner"></div>';
+
+            try {
+                // First, validate/get voucher details
+                const validateResponse = await fetch(`${API_BASE}/api/v1/vouchers/${code}`, {
+                    headers: getAuthHeaders()
+                });
+
+                const validateResult = await validateResponse.json();
+
+                if (!validateResult.success) {
+                    resultTitle.textContent = '❌ Invalid Voucher';
+                    resultContent.innerHTML = `<p style="color: var(--error);">${validateResult.error || 'Voucher not found'}</p>`;
+                    return;
+                }
+
+                const voucher = validateResult.data;
+
+                // Check if voucher belongs to this partner
+                const partnerId = currentPartner?.id;
+                if (voucher.partner_id !== partnerId) {
+                    resultTitle.textContent = '❌ Voucher Not Valid';
+                    resultContent.innerHTML = '<p style="color: var(--error);">This voucher does not belong to your partner account.</p>';
+                    return;
+                }
+
+                // Check if already redeemed
+                if (voucher.status === 'redeemed') {
+                    resultTitle.textContent = '⚠️ Already Redeemed';
+                    resultContent.innerHTML = `
+                        <p style="color: var(--warning);">This voucher has already been redeemed.</p>
+                        <p style="margin-top: 0.5rem; color: var(--text-muted); font-size: 0.875rem;">
+                            Redeemed at: ${voucher.redeemed_at ? new Date(voucher.redeemed_at).toLocaleString() : 'N/A'}
+                        </p>
+                    `;
+                    return;
+                }
+
+                // Show voucher details and redemption button
+                resultTitle.textContent = '✅ Valid Voucher';
+                resultContent.innerHTML = `
+                    <div style="background: var(--card); padding: 1.5rem; border-radius: 12px; margin-top: 1rem;">
+                        <div style="margin-bottom: 1rem;">
+                            <strong>Voucher Code:</strong><br>
+                            <code style="font-size: 1.25rem; font-weight: 600; color: var(--primary);">${voucher.code}</code>
+                        </div>
+                        ${voucher.booking ? `
+                            <div style="margin-bottom: 0.5rem;">
+                                <strong>Booking Amount:</strong> ₹${parseFloat(voucher.booking.amount || 0).toFixed(2)}
+                            </div>
+                        ` : ''}
+                        ${voucher.expires_at ? `
+                            <div style="margin-bottom: 0.5rem; color: var(--text-muted);">
+                                <strong>Expires:</strong> ${new Date(voucher.expires_at).toLocaleDateString('en-IN', {day: '2-digit', month: 'short', year: 'numeric'})}
+                            </div>
+                        ` : ''}
+                        <button class="btn btn-primary" onclick="redeemVoucher('${voucher.code}')" style="width: 100%; margin-top: 1rem;">
+                            ✅ Redeem Voucher
+                        </button>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error('Error validating voucher:', error);
+                resultTitle.textContent = '❌ Error';
+                resultContent.innerHTML = '<p style="color: var(--error);">Error validating voucher. Please try again.</p>';
+            }
+        }
+
+        async function redeemVoucher(code) {
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/vouchers/${code}/redeem`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showNotification('Voucher redeemed successfully!', 'success');
+                    
+                    // Update display
+                    const resultTitle = document.getElementById('voucherResultTitle');
+                    const resultContent = document.getElementById('voucherResultContent');
+                    resultTitle.textContent = '✅ Redeemed Successfully';
+                    resultContent.innerHTML = `
+                        <div style="background: #d1fae5; padding: 1.5rem; border-radius: 12px; color: #065f46; text-align: center;">
+                            <p style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">Voucher Redeemed!</p>
+                            <p style="font-size: 0.875rem;">This voucher has been marked as redeemed.</p>
+                        </div>
+                    `;
+
+                    // Refresh orders/dashboard if needed
+                    if (typeof refreshDashboard === 'function') {
+                        refreshDashboard();
+                    }
+                } else {
+                    showNotification('Failed to redeem voucher: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Error redeeming voucher:', error);
+                showNotification('Error redeeming voucher. Please try again.', 'error');
+            }
+        }
+
+        function resetScanner() {
+            stopCameraScanner();
+            
+            document.getElementById('cameraScanner').style.display = 'none';
+            document.getElementById('manualEntry').style.display = 'none';
+            document.getElementById('voucherResult').style.display = 'none';
+            document.getElementById('manualVoucherCode').value = '';
+        }
+
+        // Cleanup when leaving scanner section
+        document.addEventListener('DOMContentLoaded', function() {
+            const scannerSection = document.getElementById('scanner');
+            if (scannerSection) {
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                            const isVisible = !scannerSection.classList.contains('active');
+                            if (isVisible) {
+                                stopCameraScanner();
+                            }
+                        }
+                    });
+                });
+                observer.observe(scannerSection, { attributes: true, attributeFilter: ['class'] });
+            }
+        });
+
+        // Stub function for handleNotifyPremium (if referenced but not implemented)
+        window.handleNotifyPremium = function() {
+            console.warn('handleNotifyPremium called but not implemented');
+            // Optional: Show a notification or modal
+            // showNotification('Premium feature notification', 'info');
+        };
+    </script>
+    
+    <!-- EZNet Common Utilities -->
+    <script src="/js/utils/eznet-utils.js"></script>
+    
+    <!-- EZNet Data Models (Backend API Compatible) -->
+</body>
+</html>

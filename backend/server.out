@@ -1,0 +1,85 @@
+
+> elizian-backend@1.0.0 start
+> node server.js
+
+[dotenv@17.2.3] injecting env (10) from .env -- tip: 🔑 add access controls to secrets: https://dotenvx.com/ops
+2025-11-17T00:16:41.483Z ✅ Environment validation passed
+2025-11-17T00:16:41.483Z 
+📋 Environment Configuration:
+2025-11-17T00:16:41.483Z    - NODE_ENV: development
+2025-11-17T00:16:41.483Z    - DB_HOST: localhost
+2025-11-17T00:16:41.483Z    - DB_NAME: elizian
+2025-11-17T00:16:41.483Z    - DB_PORT: 5432
+2025-11-17T00:16:41.483Z    - DB_USER: postgres
+2025-11-17T00:16:41.483Z    - JWT_SECRET: ***SET***
+2025-11-17T00:16:41.483Z    - FRONTEND_URL: NOT SET
+2025-11-17T00:16:41.483Z    - ADMIN_URL: NOT SET
+2025-11-17T00:16:41.483Z 
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+2025-11-17T00:16:41.580Z ✅ Elizian Backend running on http://localhost:5001
+2025-11-17T00:16:41.580Z 📊 Process PID: 4497
+2025-11-17T00:16:41.580Z 🔄 Auto-restart enabled: Yes
+2025-11-17T00:16:41.580Z ⏰ Auto-cancel pending bookings: Enabled (runs every 5 minutes)
+2025-11-17T00:16:41.594Z ✅ Database connected successfully
+2025-11-17T00:16:41.623Z ✅ Default partner categories verified
+GET / 200 163782 - 8.978 ms reqId=-
+2025-11-17T00:25:02.868Z [DEV] OTP for +911234567890: 952229
+🔐 OTP for 1234567890: 952229 (expires in 5 minutes) - 2025-11-17T00:25:02.868Z
+POST /api/v1/auth/send-otp 200 84 - 76.650 ms reqId=-
+2025-11-17T00:28:20.137Z 🔍 Verifying OTP for 1234567890: received="952229" (type: string)
+2025-11-17T00:28:20.147Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 519 - 126.412 ms reqId=-
+2025-11-17T00:28:21.875Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-17T00:28:21.875Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-17T00:28:21.875Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.discount_amount,
+        po.ima...
+2025-11-17T00:28:21.875Z 📝 Query params: [10,0]
+2025-11-17T00:28:22.143Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 200 3053 - 284.445 ms reqId=-
+2025-11-17T00:28:22.344Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-17T00:28:22.344Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-17T00:28:22.344Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.discount_amount,
+        po.ima...
+2025-11-17T00:28:22.344Z 📝 Query params: [100,0]
+2025-11-17T00:28:22.347Z ✅ Query successful, returned 4 offers
+GET /api/v1/offers?limit=100&is_active=true 200 4083 - 4.871 ms reqId=-
+GET /uploads/offers/dentalmakeover.webp 200 38594 - 8.689 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-09at17.58.08.jpeg 200 57641 - 3.445 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 200 1874528 - 2.109 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-01at23.19.41.jpeg 200 52292 - 1.425 ms reqId=-
+GET /api/v1/categories 200 1413 - 47.190 ms reqId=-
+POST /api/v1/partners/auth/login 200 505 - 334.186 ms reqId=-
+GET /api/v1/service-types 200 1018 - 46.869 ms reqId=-
+GET /api/v1/service-categories 200 1083 - 4.667 ms reqId=-
+GET /api/v1/partners/e178e5af-906c-4c6b-bf39-e116d8c97cae/dashboard 200 753 - 10.452 ms reqId=-
+GET /api/v1/partners/e178e5af-906c-4c6b-bf39-e116d8c97cae/offers 200 1110 - 308.005 ms reqId=-
+GET /uploads/offers/dentalmakeover.webp 304 - - 2.103 ms reqId=-
+GET /api/v1/user/profile 403 25 - 2.375 ms reqId=-
+POST /api/v1/auth/login 200 459 - 129.350 ms reqId=-
+GET /api/v1/user/profile 200 642 - 9.814 ms reqId=-
+GET /api/v1/user/profile 304 - - 10.484 ms reqId=-
+GET /api/v1/admin/dashboard 200 5247 - 34.922 ms reqId=-

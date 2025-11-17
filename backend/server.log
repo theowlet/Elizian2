@@ -1,0 +1,1925 @@
+[dotenv@17.2.3] injecting env (10) from .env -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops
+2025-11-06T18:05:19.957Z ✅ Environment validation passed
+2025-11-06T18:05:19.964Z 
+📋 Environment Configuration:
+2025-11-06T18:05:19.964Z    - NODE_ENV: development
+2025-11-06T18:05:19.964Z    - DB_HOST: localhost
+2025-11-06T18:05:19.964Z    - DB_NAME: elizian
+2025-11-06T18:05:19.964Z    - DB_PORT: 5432
+2025-11-06T18:05:19.964Z    - DB_USER: postgres
+2025-11-06T18:05:19.964Z    - JWT_SECRET: ***SET***
+2025-11-06T18:05:19.964Z    - FRONTEND_URL: NOT SET
+2025-11-06T18:05:19.964Z    - ADMIN_URL: NOT SET
+2025-11-06T18:05:19.964Z 
+[dotenv@17.2.3] injecting env (0) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+2025-11-06T18:05:20.060Z ✅ Elizian Backend running on http://localhost:5001
+2025-11-06T18:05:20.061Z 📊 Process PID: 24916
+2025-11-06T18:05:20.061Z 🔄 Auto-restart enabled: Yes
+2025-11-06T18:05:20.130Z ✅ Database connected successfully
+2025-11-06T18:05:23.640Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-06T18:05:23.640Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-06T18:05:23.640Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-06T18:05:23.640Z 📝 Query params: [100,0]
+2025-11-06T18:05:23.666Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?limit=100&is_active=true 200 1871 - 82.736 ms reqId=-
+2025-11-06T18:05:30.776Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-06T18:05:30.777Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-06T18:05:30.777Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-06T18:05:30.777Z 📝 Query params: [10,0]
+2025-11-06T18:05:30.809Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 200 968 - 35.581 ms reqId=-
+2025-11-06T18:05:41.676Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-06T18:05:41.677Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-06T18:05:41.677Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-06T18:05:41.677Z 📝 Query params: [100,0]
+2025-11-06T18:05:41.749Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?limit=100&is_active=true 200 1871 - 75.897 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 2.757 ms reqId=-
+2025-11-06T18:07:04.196Z [DEV] OTP for +911234567890: 187999
+🔐 OTP for 1234567890: 187999 (expires in 5 minutes) - 2025-11-06T18:07:04.196Z
+POST /api/v1/auth/send-otp 200 84 - 124.993 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.553 ms reqId=-
+2025-11-06T18:07:17.993Z 🔍 Verifying OTP for 1234567890: received="187999" (type: string)
+2025-11-06T18:07:18.002Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 518 - 62.746 ms reqId=-
+2025-11-06T18:07:19.769Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-06T18:07:19.769Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-06T18:07:19.769Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-06T18:07:19.769Z 📝 Query params: [10,0]
+2025-11-06T18:07:19.814Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 53.151 ms reqId=-
+2025-11-06T18:07:19.819Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-06T18:07:19.819Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-06T18:07:19.819Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-06T18:07:19.819Z 📝 Query params: [100,0]
+2025-11-06T18:07:19.823Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?limit=100&is_active=true 200 1871 - 4.343 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 4.542 ms reqId=-
+GET /uploads/offers/modernindian-3.png 304 - - 1.339 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 5.159 ms reqId=-
+2025-11-07T01:19:07.898Z [DEV] OTP for +911234567890: 944848
+🔐 OTP for 1234567890: 944848 (expires in 5 minutes) - 2025-11-07T01:19:07.899Z
+POST /api/v1/auth/send-otp 200 84 - 102.706 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.337 ms reqId=-
+2025-11-07T01:19:28.627Z 🔍 Verifying OTP for 1234567890: received="944848" (type: string)
+2025-11-07T01:19:28.637Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 518 - 84.345 ms reqId=-
+2025-11-07T01:19:30.615Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T01:19:30.615Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T01:19:30.615Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T01:19:30.615Z 📝 Query params: [10,0]
+2025-11-07T01:19:30.694Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 90.772 ms reqId=-
+2025-11-07T01:19:30.700Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T01:19:30.700Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T01:19:30.700Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T01:19:30.700Z 📝 Query params: [100,0]
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 1.674 ms reqId=-
+2025-11-07T01:19:30.721Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 22.162 ms reqId=-
+GET /uploads/offers/modernindian-3.png 304 - - 2.108 ms reqId=-
+OPTIONS /api/v1/partners/d40d4876-bd1b-40f6-829c-dc0ffce0a529/menu 204 0 - 2.674 ms reqId=-
+GET /api/v1/partners/d40d4876-bd1b-40f6-829c-dc0ffce0a529/menu 304 - - 106.447 ms reqId=-
+OPTIONS /api/v1/partners/d40d4876-bd1b-40f6-829c-dc0ffce0a529/menu 204 0 - 0.354 ms reqId=-
+GET /api/v1/partners/d40d4876-bd1b-40f6-829c-dc0ffce0a529/menu 304 - - 27.377 ms reqId=-
+GET /api/v1/categories 304 - - 619.444 ms reqId=-
+OPTIONS /api/v1/partners/auth/login 204 0 - 0.158 ms reqId=-
+POST /api/v1/partners/auth/login 401 47 - 18.309 ms reqId=-
+OPTIONS /api/v1/partners/auth/login 204 0 - 0.370 ms reqId=-
+POST /api/v1/partners/auth/login 200 501 - 342.844 ms reqId=-
+GET /api/v1/service-types 304 - - 179.106 ms reqId=-
+GET /api/v1/service-categories 304 - - 55.639 ms reqId=-
+OPTIONS /api/v1/partners/b4ee06bc-9e0e-4101-aed9-0a11e7d78c1e/dashboard 204 0 - 1.039 ms reqId=-
+GET /api/v1/partners/b4ee06bc-9e0e-4101-aed9-0a11e7d78c1e/dashboard 304 - - 226.296 ms reqId=-
+OPTIONS /api/v1/partners/b4ee06bc-9e0e-4101-aed9-0a11e7d78c1e/offers 204 0 - 0.165 ms reqId=-
+GET /api/v1/partners/b4ee06bc-9e0e-4101-aed9-0a11e7d78c1e/offers 304 - - 67.841 ms reqId=-
+OPTIONS /api/v1/partners/b4ee06bc-9e0e-4101-aed9-0a11e7d78c1e/menu 204 0 - 0.107 ms reqId=-
+GET /api/v1/partners/b4ee06bc-9e0e-4101-aed9-0a11e7d78c1e/menu 304 - - 9.371 ms reqId=-
+OPTIONS /api/v1/partners/b4ee06bc-9e0e-4101-aed9-0a11e7d78c1e/offers 204 0 - 2.699 ms reqId=-
+2025-11-07T01:27:05.021Z ✅ Linked offer to menu item: Mens haircut (₹800)
+POST /api/v1/partners/b4ee06bc-9e0e-4101-aed9-0a11e7d78c1e/offers 201 1059 - 185.475 ms reqId=-
+GET /api/v1/partners/b4ee06bc-9e0e-4101-aed9-0a11e7d78c1e/offers 200 1072 - 39.912 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 200 19214 - 11.589 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 0.284 ms reqId=-
+2025-11-07T01:27:17.962Z [DEV] OTP for +911234567890: 811145
+🔐 OTP for 1234567890: 811145 (expires in 5 minutes) - 2025-11-07T01:27:17.963Z
+POST /api/v1/auth/send-otp 200 84 - 44.187 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.316 ms reqId=-
+2025-11-07T01:27:30.034Z 🔍 Verifying OTP for 1234567890: received="811145" (type: string)
+2025-11-07T01:27:30.039Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 518 - 27.662 ms reqId=-
+2025-11-07T01:27:32.016Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T01:27:32.016Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T01:27:32.016Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T01:27:32.016Z 📝 Query params: [10,0]
+2025-11-07T01:27:32.055Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 200 1921 - 52.204 ms reqId=-
+2025-11-07T01:27:32.061Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T01:27:32.062Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T01:27:32.062Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T01:27:32.062Z 📝 Query params: [100,0]
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 304 - - 1.791 ms reqId=-
+2025-11-07T01:27:32.067Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 200 2824 - 5.999 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 1.251 ms reqId=-
+GET /uploads/offers/modernindian-3.png 304 - - 0.564 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 0.386 ms reqId=-
+2025-11-07T01:28:25.886Z [DEV] OTP for +919999911111: 392831
+🔐 OTP for 9999911111: 392831 (expires in 5 minutes) - 2025-11-07T01:28:25.886Z
+POST /api/v1/auth/send-otp 200 84 - 34.483 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 6.901 ms reqId=-
+2025-11-07T01:30:43.311Z [DEV] OTP for +911234567890: 406506
+🔐 OTP for 1234567890: 406506 (expires in 5 minutes) - 2025-11-07T01:30:43.312Z
+POST /api/v1/auth/send-otp 200 84 - 62.810 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.688 ms reqId=-
+2025-11-07T01:30:55.392Z 🔍 Verifying OTP for 1234567890: received="406506" (type: string)
+2025-11-07T01:30:55.408Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 518 - 211.952 ms reqId=-
+2025-11-07T01:30:57.129Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T01:30:57.129Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T01:30:57.130Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T01:30:57.130Z 📝 Query params: [10,0]
+2025-11-07T01:30:57.187Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 78.681 ms reqId=-
+2025-11-07T01:30:57.192Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T01:30:57.192Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T01:30:57.192Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T01:30:57.192Z 📝 Query params: [100,0]
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 304 - - 1.420 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 0.795 ms reqId=-
+2025-11-07T01:30:57.195Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 3.373 ms reqId=-
+GET /uploads/offers/modernindian-3.png 304 - - 0.380 ms reqId=-
+OPTIONS /api/v1/users/b7acf3c1-de44-4d1b-a5d7-3793942f0446/tickets 204 0 - 2.457 ms reqId=-
+GET /api/v1/users/b7acf3c1-de44-4d1b-a5d7-3793942f0446/tickets 304 - - 87.971 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 0.425 ms reqId=-
+2025-11-07T01:42:20.702Z [DEV] OTP for +911234567890: 460004
+🔐 OTP for 1234567890: 460004 (expires in 5 minutes) - 2025-11-07T01:42:20.703Z
+POST /api/v1/auth/send-otp 200 84 - 46.098 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 0.592 ms reqId=-
+2025-11-07T01:42:31.548Z [DEV] OTP for +919999911111: 384488
+🔐 OTP for 9999911111: 384488 (expires in 5 minutes) - 2025-11-07T01:42:31.548Z
+POST /api/v1/auth/send-otp 200 84 - 33.565 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 0.540 ms reqId=-
+2025-11-07T01:43:28.959Z [DEV] OTP for +919999911111: 360791
+🔐 OTP for 9999911111: 360791 (expires in 5 minutes) - 2025-11-07T01:43:28.960Z
+POST /api/v1/auth/send-otp 200 84 - 49.871 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.275 ms reqId=-
+2025-11-07T01:43:40.877Z 🔍 Verifying OTP for 9999911111: received="360791" (type: string)
+2025-11-07T01:43:40.882Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 113 - 33.108 ms reqId=-
+OPTIONS /api/v1/auth/register 204 0 - 2.220 ms reqId=-
+2025-11-07T01:44:32.134Z 🔐 Registration attempt: role=user, email=bachchittarsingh@gmail.com, phone=9999911111, has_password=true
+2025-11-07T01:44:32.320Z ⚠️ role_id column not found, creating user without role_id
+POST /api/v1/auth/register 201 615 - 225.615 ms reqId=-
+2025-11-07T01:44:34.069Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T01:44:34.069Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T01:44:34.069Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T01:44:34.069Z 📝 Query params: [10,0]
+2025-11-07T01:44:34.144Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 91.128 ms reqId=-
+2025-11-07T01:44:34.147Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T01:44:34.147Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T01:44:34.147Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T01:44:34.147Z 📝 Query params: [10,0]
+2025-11-07T01:44:34.153Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T01:44:34.153Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T01:44:34.154Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T01:44:34.154Z 📝 Query params: [100,0]
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 304 - - 4.624 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 0.413 ms reqId=-
+2025-11-07T01:44:34.161Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 15.373 ms reqId=-
+2025-11-07T01:44:34.183Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 29.927 ms reqId=-
+2025-11-07T01:44:34.185Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T01:44:34.185Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T01:44:34.185Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T01:44:34.185Z 📝 Query params: [100,0]
+2025-11-07T01:44:34.187Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 2.881 ms reqId=-
+GET /uploads/offers/modernindian-3.png 304 - - 0.203 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 3.958 ms reqId=-
+2025-11-07T04:25:14.877Z [DEV] OTP for +919999911111: 529097
+🔐 OTP for 9999911111: 529097 (expires in 5 minutes) - 2025-11-07T04:25:14.878Z
+POST /api/v1/auth/send-otp 200 84 - 147.856 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.911 ms reqId=-
+2025-11-07T04:25:25.921Z 🔍 Verifying OTP for 9999911111: received="529097" (type: string)
+2025-11-07T04:25:25.928Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 530 - 51.837 ms reqId=-
+2025-11-07T04:25:29.729Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:25:29.729Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T04:25:29.729Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:25:29.729Z 📝 Query params: [10,0]
+2025-11-07T04:25:29.776Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 61.681 ms reqId=-
+2025-11-07T04:25:29.784Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:25:29.784Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T04:25:29.785Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:25:29.785Z 📝 Query params: [100,0]
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 304 - - 4.378 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 2.822 ms reqId=-
+2025-11-07T04:25:29.790Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 6.022 ms reqId=-
+GET /uploads/offers/modernindian-3.png 304 - - 1.620 ms reqId=-
+2025-11-07T04:25:34.497Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:25:34.497Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:25:34.497Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:25:34.498Z 📝 Query params: ["spa-and-salon",10,0]
+2025-11-07T04:25:34.501Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:25:34.501Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:25:34.501Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:25:34.501Z 📝 Query params: ["spa-and-salon",100,0]
+2025-11-07T04:25:34.502Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=spa-and-salon 200 1020 - 7.128 ms reqId=-
+2025-11-07T04:25:34.520Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=spa-and-salon 200 1020 - 20.882 ms reqId=-
+2025-11-07T04:25:40.576Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:25:40.576Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:25:40.576Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:25:40.576Z 📝 Query params: ["dining",10,0]
+2025-11-07T04:25:40.577Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:25:40.577Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:25:40.577Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:25:40.577Z 📝 Query params: ["dining",100,0]
+2025-11-07T04:25:40.579Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=dining 200 968 - 4.400 ms reqId=-
+2025-11-07T04:25:40.581Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=dining 200 1871 - 5.067 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 0.757 ms reqId=-
+GET /uploads/offers/modernindian-3.png 304 - - 0.918 ms reqId=-
+2025-11-07T04:25:48.317Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:25:48.318Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:25:48.318Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:25:48.318Z 📝 Query params: ["events",10,0]
+2025-11-07T04:25:48.319Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:25:48.319Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:25:48.319Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:25:48.320Z 📝 Query params: ["events",100,0]
+2025-11-07T04:25:48.324Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=events 200 68 - 8.715 ms reqId=-
+2025-11-07T04:25:48.325Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=events 200 68 - 6.200 ms reqId=-
+2025-11-07T04:25:50.910Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:25:50.911Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:25:50.911Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:25:50.911Z 📝 Query params: ["healthcare",10,0]
+2025-11-07T04:25:50.912Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:25:50.912Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:25:50.912Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:25:50.912Z 📝 Query params: ["healthcare",100,0]
+2025-11-07T04:25:50.914Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=healthcare 200 68 - 4.933 ms reqId=-
+2025-11-07T04:25:50.923Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=healthcare 200 68 - 11.890 ms reqId=-
+2025-11-07T04:25:53.379Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:25:53.379Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:25:53.379Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:25:53.379Z 📝 Query params: ["spa-and-salon",10,0]
+2025-11-07T04:25:53.380Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:25:53.380Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:25:53.380Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:25:53.380Z 📝 Query params: ["spa-and-salon",100,0]
+2025-11-07T04:25:53.382Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=spa-and-salon 304 - - 3.647 ms reqId=-
+2025-11-07T04:25:53.383Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=spa-and-salon 304 - - 3.485 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 304 - - 0.711 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 0.385 ms reqId=-
+2025-11-07T04:26:06.785Z [DEV] OTP for +919999911111: 332584
+🔐 OTP for 9999911111: 332584 (expires in 5 minutes) - 2025-11-07T04:26:06.786Z
+POST /api/v1/auth/send-otp 200 84 - 60.404 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.407 ms reqId=-
+2025-11-07T04:26:19.667Z 🔍 Verifying OTP for 9999911111: received="332584" (type: string)
+2025-11-07T04:26:19.675Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 530 - 39.640 ms reqId=-
+2025-11-07T04:26:22.301Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:26:22.301Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T04:26:22.301Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:26:22.301Z 📝 Query params: [10,0]
+2025-11-07T04:26:22.322Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 22.441 ms reqId=-
+2025-11-07T04:26:22.327Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:26:22.327Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T04:26:22.327Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:26:22.327Z 📝 Query params: [100,0]
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 304 - - 1.699 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 0.667 ms reqId=-
+2025-11-07T04:26:22.330Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 4.329 ms reqId=-
+GET /uploads/offers/modernindian-3.png 304 - - 0.508 ms reqId=-
+2025-11-07T04:26:28.016Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:26:28.016Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:26:28.016Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:26:28.016Z 📝 Query params: ["spa-and-salon",10,0]
+2025-11-07T04:26:28.017Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:26:28.017Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:26:28.017Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:26:28.017Z 📝 Query params: ["spa-and-salon",100,0]
+2025-11-07T04:26:28.020Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=spa-and-salon 304 - - 6.560 ms reqId=-
+2025-11-07T04:26:28.033Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=spa-and-salon 304 - - 16.378 ms reqId=-
+2025-11-07T04:26:30.359Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:26:30.359Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:26:30.359Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:26:30.359Z 📝 Query params: ["dining",100,0]
+2025-11-07T04:26:30.360Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:26:30.360Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:26:30.360Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:26:30.360Z 📝 Query params: ["dining",10,0]
+2025-11-07T04:26:30.363Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=dining 304 - - 5.194 ms reqId=-
+2025-11-07T04:26:30.364Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=dining 304 - - 4.801 ms reqId=-
+2025-11-07T04:26:46.802Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:26:46.802Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:26:46.802Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:26:46.802Z 📝 Query params: ["spa-and-salon",10,0]
+2025-11-07T04:26:46.803Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:26:46.803Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:26:46.803Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:26:46.803Z 📝 Query params: ["spa-and-salon",100,0]
+2025-11-07T04:26:46.841Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=spa-and-salon 304 - - 38.570 ms reqId=-
+2025-11-07T04:26:46.842Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=spa-and-salon 304 - - 41.100 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 304 - - 0.360 ms reqId=-
+2025-11-07T04:27:07.679Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:27:07.680Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:27:07.680Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:27:07.680Z 📝 Query params: ["travel",10,0]
+2025-11-07T04:27:07.681Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:27:07.681Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:27:07.681Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:27:07.681Z 📝 Query params: ["travel",100,0]
+2025-11-07T04:27:07.715Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=travel 200 68 - 34.504 ms reqId=-
+2025-11-07T04:27:07.715Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=travel 200 68 - 36.607 ms reqId=-
+2025-11-07T04:27:08.881Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:27:08.881Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:27:08.881Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:27:08.881Z 📝 Query params: ["healthcare",100,0]
+2025-11-07T04:27:08.882Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:27:08.882Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:27:08.882Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:27:08.882Z 📝 Query params: ["healthcare",10,0]
+2025-11-07T04:27:08.884Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=healthcare 304 - - 4.779 ms reqId=-
+2025-11-07T04:27:08.885Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=healthcare 304 - - 3.933 ms reqId=-
+2025-11-07T04:27:09.741Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:27:09.742Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:27:09.742Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:27:09.742Z 📝 Query params: ["events",10,0]
+2025-11-07T04:27:09.743Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:27:09.743Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:27:09.743Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:27:09.743Z 📝 Query params: ["events",100,0]
+2025-11-07T04:27:09.744Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=events 304 - - 3.445 ms reqId=-
+2025-11-07T04:27:09.745Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=events 304 - - 2.548 ms reqId=-
+2025-11-07T04:27:10.795Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:27:10.796Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:27:10.796Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:27:10.796Z 📝 Query params: ["dining",10,0]
+2025-11-07T04:27:10.796Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:27:10.796Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:27:10.797Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:27:10.797Z 📝 Query params: ["dining",100,0]
+2025-11-07T04:27:10.798Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=dining 304 - - 3.506 ms reqId=-
+2025-11-07T04:27:10.799Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=dining 304 - - 3.105 ms reqId=-
+OPTIONS /api/v1/users/1d12f917-08d6-43de-b464-1eb4fa64fb2f/tickets 204 0 - 0.364 ms reqId=-
+GET /api/v1/users/1d12f917-08d6-43de-b464-1eb4fa64fb2f/tickets 200 69 - 79.528 ms reqId=-
+2025-11-07T04:29:49.607Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:29:49.608Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T04:29:49.608Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:29:49.608Z 📝 Query params: [10,0]
+2025-11-07T04:29:49.643Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 37.384 ms reqId=-
+2025-11-07T04:29:49.651Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:29:49.652Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T04:29:49.652Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:29:49.652Z 📝 Query params: [100,0]
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 304 - - 1.351 ms reqId=-
+2025-11-07T04:29:49.657Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 6.367 ms reqId=-
+2025-11-07T04:30:33.224Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:30:33.225Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:30:33.225Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:30:33.225Z 📝 Query params: ["dining",100,0]
+2025-11-07T04:30:33.227Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:30:33.227Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:30:33.227Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:30:33.227Z 📝 Query params: ["dining",10,0]
+2025-11-07T04:30:33.252Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=dining 304 - - 30.499 ms reqId=-
+2025-11-07T04:30:33.253Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=dining 304 - - 26.830 ms reqId=-
+2025-11-07T04:30:45.706Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:30:45.707Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:30:45.707Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:30:45.707Z 📝 Query params: ["spa-and-salon",100,0]
+2025-11-07T04:30:45.708Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:30:45.708Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:30:45.708Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:30:45.708Z 📝 Query params: ["spa-and-salon",10,0]
+2025-11-07T04:30:45.722Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=spa-and-salon 304 - - 14.669 ms reqId=-
+2025-11-07T04:30:45.723Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=spa-and-salon 304 - - 17.185 ms reqId=-
+2025-11-07T04:31:01.242Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:31:01.243Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:31:01.243Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:31:01.243Z 📝 Query params: ["wellness",10,0]
+2025-11-07T04:31:01.245Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:31:01.245Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:31:01.245Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:31:01.245Z 📝 Query params: ["wellness",100,0]
+2025-11-07T04:31:01.267Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=wellness 200 68 - 26.560 ms reqId=-
+2025-11-07T04:31:01.268Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=wellness 200 68 - 23.653 ms reqId=-
+2025-11-07T04:31:05.490Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:31:05.491Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:31:05.491Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:31:05.491Z 📝 Query params: ["travel",10,0]
+2025-11-07T04:31:05.492Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:31:05.492Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:31:05.492Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:31:05.492Z 📝 Query params: ["travel",100,0]
+2025-11-07T04:31:05.494Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=travel 304 - - 4.947 ms reqId=-
+2025-11-07T04:31:05.495Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=travel 304 - - 3.230 ms reqId=-
+2025-11-07T04:31:06.487Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:31:06.487Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:31:06.487Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:31:06.487Z 📝 Query params: ["spa-and-salon",10,0]
+2025-11-07T04:31:06.488Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:31:06.488Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:31:06.488Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:31:06.488Z 📝 Query params: ["spa-and-salon",100,0]
+2025-11-07T04:31:06.490Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=spa-and-salon 304 - - 3.747 ms reqId=-
+2025-11-07T04:31:06.491Z ✅ Query successful, returned 1 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=spa-and-salon 304 - - 3.122 ms reqId=-
+2025-11-07T04:31:07.921Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:31:07.921Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:31:07.922Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:31:07.922Z 📝 Query params: ["others",10,0]
+2025-11-07T04:31:07.923Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:31:07.923Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:31:07.923Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:31:07.923Z 📝 Query params: ["others",100,0]
+2025-11-07T04:31:07.925Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=others 200 68 - 4.785 ms reqId=-
+2025-11-07T04:31:07.926Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=others 200 68 - 3.653 ms reqId=-
+2025-11-07T04:31:10.022Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:31:10.022Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:31:10.022Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:31:10.022Z 📝 Query params: ["healthcare",10,0]
+2025-11-07T04:31:10.023Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:31:10.023Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:31:10.023Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:31:10.023Z 📝 Query params: ["healthcare",100,0]
+2025-11-07T04:31:10.026Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=healthcare 304 - - 3.292 ms reqId=-
+2025-11-07T04:31:10.026Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=healthcare 304 - - 5.066 ms reqId=-
+2025-11-07T04:31:10.971Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:31:10.971Z 🔍 Executing offers query (admin=false, params=3, limit=10)
+2025-11-07T04:31:10.971Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:31:10.971Z 📝 Query params: ["events",10,0]
+2025-11-07T04:31:10.972Z 🔍 Admin request: paramCount=1, queryParams.length=3, limitParam=2, offsetParam=3
+2025-11-07T04:31:10.972Z 🔍 Executing offers query (admin=false, params=3, limit=100)
+2025-11-07T04:31:10.972Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:31:10.972Z 📝 Query params: ["events",100,0]
+2025-11-07T04:31:10.974Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true&service_type=events 304 - - 4.125 ms reqId=-
+2025-11-07T04:31:10.975Z ✅ Query successful, returned 0 offers
+GET /api/v1/offers?limit=100&is_active=true&service_type=events 304 - - 3.609 ms reqId=-
+OPTIONS /api/v1/partners/b4ee06bc-9e0e-4101-aed9-0a11e7d78c1e/menu 204 0 - 0.310 ms reqId=-
+GET /api/v1/partners/b4ee06bc-9e0e-4101-aed9-0a11e7d78c1e/menu 304 - - 120.342 ms reqId=-
+GET /api/v1/partners/b4ee06bc-9e0e-4101-aed9-0a11e7d78c1e/menu 304 - - 7.299 ms reqId=-
+OPTIONS /api/v1/offers?admin=true 204 0 - 0.404 ms reqId=-
+2025-11-07T04:32:20.617Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:32:20.618Z 🔍 Executing offers query (admin=true, params=2, limit=1000)
+2025-11-07T04:32:20.618Z 📝 Query preview: 
+            SELECT 
+              po.id,
+              po.partner_id,
+              po.title as name,
+              po.title,
+              po.description,
+              po.original_price as price,
+              po.discounted_price,
+              po.discount_percentage,
+              po.image_url,
+...
+2025-11-07T04:32:20.618Z 📝 Query params: [1000,0]
+2025-11-07T04:32:20.667Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?admin=true 200 2749 - 51.493 ms reqId=-
+OPTIONS /api/v1/users/1d12f917-08d6-43de-b464-1eb4fa64fb2f/tickets 204 0 - 2.482 ms reqId=-
+GET /api/v1/users/1d12f917-08d6-43de-b464-1eb4fa64fb2f/tickets 304 - - 53.825 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 0.336 ms reqId=-
+2025-11-07T04:39:54.973Z [DEV] OTP for +911234567890: 505298
+🔐 OTP for 1234567890: 505298 (expires in 5 minutes) - 2025-11-07T04:39:54.973Z
+POST /api/v1/auth/send-otp 200 84 - 34.773 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.300 ms reqId=-
+2025-11-07T04:40:08.753Z 🔍 Verifying OTP for 1234567890: received="332584" (type: string)
+2025-11-07T04:40:08.758Z 🔍 OTP match result: false
+2025-11-07T04:40:08.770Z ❌ Invalid OTP attempt for 1234567890. Attempts: 1
+POST /api/v1/auth/verify-otp 400 39 - 49.143 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.097 ms reqId=-
+2025-11-07T04:40:19.111Z 🔍 Verifying OTP for 1234567890: received="505298" (type: string)
+2025-11-07T04:40:19.116Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 518 - 26.379 ms reqId=-
+2025-11-07T04:40:20.751Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:40:20.751Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T04:40:20.752Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:40:20.752Z 📝 Query params: [10,0]
+2025-11-07T04:40:20.786Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 47.081 ms reqId=-
+2025-11-07T04:40:20.794Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:40:20.794Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T04:40:20.794Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:40:20.794Z 📝 Query params: [100,0]
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 304 - - 1.139 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 0.873 ms reqId=-
+2025-11-07T04:40:20.796Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 3.177 ms reqId=-
+GET /uploads/offers/modernindian-3.png 304 - - 0.488 ms reqId=-
+OPTIONS /api/v1/users/b7acf3c1-de44-4d1b-a5d7-3793942f0446/tickets 204 0 - 0.196 ms reqId=-
+GET /api/v1/users/b7acf3c1-de44-4d1b-a5d7-3793942f0446/tickets 304 - - 8.033 ms reqId=-
+2025-11-07T04:40:34.724Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:40:34.726Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T04:40:34.736Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:40:34.737Z 📝 Query params: [10,0]
+2025-11-07T04:40:34.791Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 68.681 ms reqId=-
+2025-11-07T04:40:34.795Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:40:34.795Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T04:40:34.795Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:40:34.795Z 📝 Query params: [100,0]
+2025-11-07T04:40:34.797Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 2.780 ms reqId=-
+OPTIONS /api/v1/users/b7acf3c1-de44-4d1b-a5d7-3793942f0446/tickets 204 0 - 1.762 ms reqId=-
+GET /api/v1/users/b7acf3c1-de44-4d1b-a5d7-3793942f0446/tickets 304 - - 58.010 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 0.600 ms reqId=-
+2025-11-07T04:57:45.898Z [DEV] OTP for +911234567890: 603232
+🔐 OTP for 1234567890: 603232 (expires in 5 minutes) - 2025-11-07T04:57:45.898Z
+POST /api/v1/auth/send-otp 200 84 - 25.207 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.403 ms reqId=-
+2025-11-07T04:57:58.614Z 🔍 Verifying OTP for 1234567890: received="603232" (type: string)
+2025-11-07T04:57:58.620Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 518 - 126.040 ms reqId=-
+2025-11-07T04:58:00.838Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:58:00.838Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T04:58:00.838Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:58:00.838Z 📝 Query params: [10,0]
+2025-11-07T04:58:00.893Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 67.110 ms reqId=-
+2025-11-07T04:58:00.902Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T04:58:00.902Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T04:58:00.902Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T04:58:00.902Z 📝 Query params: [100,0]
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 304 - - 2.052 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 0.536 ms reqId=-
+2025-11-07T04:58:00.904Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 2.854 ms reqId=-
+GET /uploads/offers/modernindian-3.png 304 - - 0.300 ms reqId=-
+OPTIONS /api/v1/users/b7acf3c1-de44-4d1b-a5d7-3793942f0446/tickets 204 0 - 0.283 ms reqId=-
+GET /api/v1/users/b7acf3c1-de44-4d1b-a5d7-3793942f0446/tickets 304 - - 19.432 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 3.109 ms reqId=-
+2025-11-07T05:00:33.980Z [DEV] OTP for +911234567890: 896887
+🔐 OTP for 1234567890: 896887 (expires in 5 minutes) - 2025-11-07T05:00:33.981Z
+POST /api/v1/auth/send-otp 200 84 - 101.729 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.426 ms reqId=-
+2025-11-07T05:00:45.607Z 🔍 Verifying OTP for 1234567890: received="896887" (type: string)
+2025-11-07T05:00:45.612Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 518 - 30.084 ms reqId=-
+2025-11-07T05:00:47.680Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T05:00:47.681Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T05:00:47.681Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T05:00:47.681Z 📝 Query params: [10,0]
+2025-11-07T05:00:47.701Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 43.357 ms reqId=-
+2025-11-07T05:00:47.708Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T05:00:47.708Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T05:00:47.708Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T05:00:47.708Z 📝 Query params: [100,0]
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 304 - - 1.565 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 0.825 ms reqId=-
+2025-11-07T05:00:47.715Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 7.587 ms reqId=-
+GET /uploads/offers/modernindian-3.png 304 - - 0.488 ms reqId=-
+OPTIONS /api/v1/users/b7acf3c1-de44-4d1b-a5d7-3793942f0446/tickets 204 0 - 0.393 ms reqId=-
+GET /api/v1/users/b7acf3c1-de44-4d1b-a5d7-3793942f0446/tickets 304 - - 7.564 ms reqId=-
+OPTIONS /api/v1/admin/users?limit=1000 204 0 - 3.295 ms reqId=-
+GET /api/v1/admin/users?limit=1000 403 25 - 35.014 ms reqId=-
+OPTIONS /api/v1/admin/analytics?period=month 204 0 - 0.383 ms reqId=-
+GET /api/v1/admin/analytics?period=month 403 25 - 4.839 ms reqId=-
+GET /api/v1/admin/analytics?period=month 403 25 - 1.423 ms reqId=-
+OPTIONS /api/v1/admin/users?limit=5 204 0 - 0.137 ms reqId=-
+OPTIONS /api/v1/partners 204 0 - 0.273 ms reqId=-
+OPTIONS /api/v1/offers?limit=5 204 0 - 0.076 ms reqId=-
+OPTIONS /api/v1/offers?admin=true 204 0 - 0.152 ms reqId=-
+2025-11-07T05:01:48.573Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T05:01:48.579Z 🔍 Executing offers query (admin=false, params=2, limit=5)
+2025-11-07T05:01:48.579Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T05:01:48.579Z 📝 Query params: [5,0]
+2025-11-07T05:01:48.594Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T05:01:48.594Z 🔍 Executing offers query (admin=true, params=2, limit=1000)
+2025-11-07T05:01:48.595Z 📝 Query preview: 
+            SELECT 
+              po.id,
+              po.partner_id,
+              po.title as name,
+              po.title,
+              po.description,
+              po.original_price as price,
+              po.discounted_price,
+              po.discount_percentage,
+              po.image_url,
+...
+2025-11-07T05:01:48.595Z 📝 Query params: [1000,0]
+GET /api/v1/admin/users?limit=5 403 25 - 3.205 ms reqId=-
+2025-11-07T05:01:48.639Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?admin=true 304 - - 45.476 ms reqId=-
+GET /api/v1/partners 304 - - 54.086 ms reqId=-
+2025-11-07T05:01:48.646Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=5 200 2824 - 121.251 ms reqId=-
+OPTIONS /api/v1/admin/users?limit=1000 204 0 - 0.198 ms reqId=-
+GET /api/v1/admin/users?limit=1000 403 25 - 1.764 ms reqId=-
+OPTIONS /api/v1/partners 204 0 - 0.871 ms reqId=-
+GET /api/v1/partners 304 - - 43.692 ms reqId=-
+OPTIONS /api/v1/offers?admin=true 204 0 - 0.618 ms reqId=-
+2025-11-07T05:02:06.844Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T05:02:06.845Z 🔍 Executing offers query (admin=true, params=2, limit=1000)
+2025-11-07T05:02:06.845Z 📝 Query preview: 
+            SELECT 
+              po.id,
+              po.partner_id,
+              po.title as name,
+              po.title,
+              po.description,
+              po.original_price as price,
+              po.discounted_price,
+              po.discount_percentage,
+              po.image_url,
+...
+2025-11-07T05:02:06.845Z 📝 Query params: [1000,0]
+2025-11-07T05:02:06.883Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?admin=true 304 - - 41.101 ms reqId=-
+OPTIONS /api/v1/admin/analytics?period=month 204 0 - 2.155 ms reqId=-
+GET /api/v1/admin/analytics?period=month 403 25 - 32.034 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 2.836 ms reqId=-
+GET /api/v1/health 404 152 - 40.854 ms reqId=-
+2025-11-07T16:48:47.533Z [DEV] OTP for +911234567890: 247797
+🔐 OTP for 1234567890: 247797 (expires in 5 minutes) - 2025-11-07T16:48:47.534Z
+POST /api/v1/auth/send-otp 200 84 - 91.555 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 8.805 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 0.829 ms reqId=-
+2025-11-07T16:51:14.866Z [DEV] OTP for +911234567890: 627978
+🔐 OTP for 1234567890: 627978 (expires in 5 minutes) - 2025-11-07T16:51:14.867Z
+POST /api/v1/auth/send-otp 200 84 - 78.343 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.826 ms reqId=-
+2025-11-07T16:51:32.863Z 🔍 Verifying OTP for 1234567890: received="627978" (type: string)
+2025-11-07T16:51:32.869Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 518 - 66.159 ms reqId=-
+2025-11-07T16:51:34.660Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T16:51:34.660Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T16:51:34.661Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T16:51:34.661Z 📝 Query params: [10,0]
+2025-11-07T16:51:34.759Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 113.344 ms reqId=-
+2025-11-07T16:51:34.768Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T16:51:34.768Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T16:51:34.768Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T16:51:34.768Z 📝 Query params: [100,0]
+2025-11-07T16:51:34.771Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 5.065 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 0.314 ms reqId=-
+2025-11-07T16:52:10.281Z [DEV] OTP for +919999911111: 179146
+🔐 OTP for 9999911111: 179146 (expires in 5 minutes) - 2025-11-07T16:52:10.282Z
+POST /api/v1/auth/send-otp 200 84 - 27.624 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.164 ms reqId=-
+2025-11-07T16:52:22.767Z 🔍 Verifying OTP for 9999911111: received="179146" (type: string)
+2025-11-07T16:52:22.774Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 530 - 26.422 ms reqId=-
+2025-11-07T16:52:24.588Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T16:52:24.589Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T16:52:24.589Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T16:52:24.589Z 📝 Query params: [10,0]
+2025-11-07T16:52:24.628Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 304 - - 40.963 ms reqId=-
+2025-11-07T16:52:24.634Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T16:52:24.634Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T16:52:24.634Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T16:52:24.634Z 📝 Query params: [100,0]
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 304 - - 2.373 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 304 - - 2.879 ms reqId=-
+2025-11-07T16:52:24.668Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 304 - - 34.174 ms reqId=-
+GET /uploads/offers/modernindian-3.png 304 - - 1.412 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 3.104 ms reqId=-
+2025-11-07T17:28:13.208Z [DEV] OTP for +911234567890: 800327
+🔐 OTP for 1234567890: 800327 (expires in 5 minutes) - 2025-11-07T17:28:13.208Z
+POST /api/v1/auth/send-otp 200 84 - 80.080 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.353 ms reqId=-
+2025-11-07T17:28:27.414Z 🔍 Verifying OTP for 1234567890: received="800327" (type: string)
+2025-11-07T17:28:27.421Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 518 - 42.168 ms reqId=-
+2025-11-07T17:28:29.418Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T17:28:29.418Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T17:28:29.418Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T17:28:29.418Z 📝 Query params: [10,0]
+2025-11-07T17:28:29.471Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 200 1921 - 64.511 ms reqId=-
+2025-11-07T17:28:29.485Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T17:28:29.485Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T17:28:29.485Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T17:28:29.485Z 📝 Query params: [100,0]
+2025-11-07T17:28:29.488Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 200 2824 - 4.595 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 200 19214 - 9.673 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 200 1874528 - 6.091 ms reqId=-
+GET /uploads/offers/modernindian-3.png 200 2036020 - 2.548 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 200 19214 - 1.769 ms reqId=-
+OPTIONS /api/v1/offers?admin=true&limit=1000 204 0 - 0.092 ms reqId=-
+OPTIONS /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/availability 204 0 - 0.048 ms reqId=-
+OPTIONS /api/v1/user/profile 204 0 - 0.042 ms reqId=-
+2025-11-07T17:28:33.913Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T17:28:33.913Z 🔍 Executing offers query (admin=true, params=2, limit=1000)
+2025-11-07T17:28:33.913Z 📝 Query preview: 
+            SELECT 
+              po.id,
+              po.partner_id,
+              po.title as name,
+              po.title,
+              po.description,
+              po.original_price as price,
+              po.discounted_price,
+              po.discount_percentage,
+              po.image_url,
+...
+2025-11-07T17:28:33.913Z 📝 Query params: [1000,0]
+GET /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/availability 404 201 - 7.140 ms reqId=-
+GET /api/v1/user/profile 403 25 - 1.452 ms reqId=-
+2025-11-07T17:28:33.921Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?admin=true&limit=1000 200 2749 - 9.452 ms reqId=-
+OPTIONS /api/v1/offers?admin=true&limit=1000 204 0 - 2.253 ms reqId=-
+OPTIONS /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/availability 204 0 - 0.129 ms reqId=-
+OPTIONS /api/v1/user/profile 204 0 - 0.315 ms reqId=-
+2025-11-07T17:34:10.601Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T17:34:10.603Z 🔍 Executing offers query (admin=true, params=2, limit=1000)
+2025-11-07T17:34:10.603Z 📝 Query preview: 
+            SELECT 
+              po.id,
+              po.partner_id,
+              po.title as name,
+              po.title,
+              po.description,
+              po.original_price as price,
+              po.discounted_price,
+              po.discount_percentage,
+              po.image_url,
+...
+2025-11-07T17:34:10.603Z 📝 Query params: [1000,0]
+GET /api/v1/user/profile 403 25 - 5.317 ms reqId=-
+GET /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/availability 404 201 - 15.214 ms reqId=-
+2025-11-07T17:34:10.725Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?admin=true&limit=1000 200 2749 - 137.950 ms reqId=-
+OPTIONS /api/v1/offers?admin=true&limit=1000 204 0 - 1.899 ms reqId=-
+2025-11-07T17:55:01.512Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T17:55:01.514Z 🔍 Executing offers query (admin=true, params=2, limit=1000)
+2025-11-07T17:55:01.514Z 📝 Query preview: 
+            SELECT 
+              po.id,
+              po.partner_id,
+              po.title as name,
+              po.title,
+              po.description,
+              po.original_price as price,
+              po.discounted_price,
+              po.discount_percentage,
+              po.image_url,
+...
+2025-11-07T17:55:01.514Z 📝 Query params: [1000,0]
+OPTIONS /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/availability 204 0 - 0.192 ms reqId=-
+OPTIONS /api/v1/user/profile 204 0 - 0.049 ms reqId=-
+GET /api/v1/user/profile 403 25 - 5.760 ms reqId=-
+GET /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/availability 404 201 - 12.152 ms reqId=-
+2025-11-07T17:55:01.677Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?admin=true&limit=1000 200 2749 - 183.797 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 200 19214 - 8.302 ms reqId=-
+OPTIONS /api/v1/offers?admin=true&limit=1000 204 0 - 0.069 ms reqId=-
+OPTIONS /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/availability 204 0 - 0.147 ms reqId=-
+OPTIONS /api/v1/user/profile 204 0 - 0.099 ms reqId=-
+2025-11-07T17:55:10.483Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T17:55:10.483Z 🔍 Executing offers query (admin=true, params=2, limit=1000)
+2025-11-07T17:55:10.484Z 📝 Query preview: 
+            SELECT 
+              po.id,
+              po.partner_id,
+              po.title as name,
+              po.title,
+              po.description,
+              po.original_price as price,
+              po.discounted_price,
+              po.discount_percentage,
+              po.image_url,
+...
+2025-11-07T17:55:10.484Z 📝 Query params: [1000,0]
+GET /api/v1/user/profile 403 25 - 1.662 ms reqId=-
+GET /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/availability 404 201 - 8.758 ms reqId=-
+2025-11-07T17:55:10.489Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?admin=true&limit=1000 200 2749 - 7.571 ms reqId=-
+OPTIONS /api/v1/auth/send-otp 204 0 - 3.248 ms reqId=-
+2025-11-07T18:02:30.008Z [DEV] OTP for +911234567890: 503832
+🔐 OTP for 1234567890: 503832 (expires in 5 minutes) - 2025-11-07T18:02:30.008Z
+POST /api/v1/auth/send-otp 200 84 - 66.949 ms reqId=-
+OPTIONS /api/v1/auth/verify-otp 204 0 - 0.405 ms reqId=-
+2025-11-07T18:03:01.215Z 🔍 Verifying OTP for 1234567890: received="503832" (type: string)
+2025-11-07T18:03:01.219Z 🔍 OTP match result: true
+POST /api/v1/auth/verify-otp 200 518 - 61.787 ms reqId=-
+2025-11-07T18:03:04.349Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T18:03:04.350Z 🔍 Executing offers query (admin=false, params=2, limit=10)
+2025-11-07T18:03:04.350Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T18:03:04.350Z 📝 Query params: [10,0]
+2025-11-07T18:03:04.399Z ✅ Query successful, returned 2 offers
+GET /api/v1/offers?trending=true&limit=10&is_active=true 200 1921 - 59.173 ms reqId=-
+2025-11-07T18:03:04.414Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T18:03:04.414Z 🔍 Executing offers query (admin=false, params=2, limit=100)
+2025-11-07T18:03:04.414Z 📝 Query preview: 
+          SELECT * FROM (
+            (
+      SELECT 
+        po.id,
+        po.partner_id,
+        po.title as name,
+        po.title,
+        po.description,
+        po.original_price as price,
+        po.discounted_price,
+        po.discount_percentage,
+        po.image_url,
+        po.is_trendi...
+2025-11-07T18:03:04.414Z 📝 Query params: [100,0]
+2025-11-07T18:03:04.418Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?limit=100&is_active=true 200 2824 - 5.187 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 200 19214 - 2.987 ms reqId=-
+GET /uploads/offers/GeneratedImageOctober202025-8_47AM.png 200 1874528 - 5.443 ms reqId=-
+GET /uploads/offers/modernindian-3.png 200 2036020 - 2.705 ms reqId=-
+GET /uploads/offers/WhatsAppImage2025-11-01at23.01.18.jpeg 200 19214 - 2.715 ms reqId=-
+2025-11-07T18:03:09.070Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T18:03:09.070Z 🔍 Executing offers query (admin=true, params=2, limit=1000)
+2025-11-07T18:03:09.070Z 📝 Query preview: 
+            SELECT 
+              po.id,
+              po.partner_id,
+              po.title as name,
+              po.title,
+              po.description,
+              po.original_price as price,
+              po.discounted_price,
+              po.discount_percentage,
+              po.image_url,
+...
+2025-11-07T18:03:09.070Z 📝 Query params: [1000,0]
+2025-11-07T18:03:09.072Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?admin=true&limit=1000 200 2749 - 3.189 ms reqId=-
+OPTIONS /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/availability 204 0 - 0.094 ms reqId=-
+GET /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/availability 404 201 - 1.586 ms reqId=-
+OPTIONS /api/v1/user/profile 204 0 - 0.103 ms reqId=-
+GET /api/v1/user/profile 403 25 - 0.886 ms reqId=-
+2025-11-07T18:08:26.521Z 🔍 Admin request: paramCount=0, queryParams.length=2, limitParam=1, offsetParam=2
+2025-11-07T18:08:26.525Z 🔍 Executing offers query (admin=true, params=2, limit=1000)
+2025-11-07T18:08:26.525Z 📝 Query preview: 
+            SELECT 
+              po.id,
+              po.partner_id,
+              po.title as name,
+              po.title,
+              po.description,
+              po.original_price as price,
+              po.discounted_price,
+              po.discount_percentage,
+              po.image_url,
+...
+2025-11-07T18:08:26.526Z 📝 Query params: [1000,0]
+2025-11-07T18:08:26.648Z ✅ Query successful, returned 3 offers
+GET /api/v1/offers?admin=true&limit=1000 304 - - 164.818 ms reqId=-
+OPTIONS /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/availability 204 0 - 0.049 ms reqId=-
+GET /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/availability 404 201 - 7.041 ms reqId=-
+OPTIONS /api/v1/user/profile 204 0 - 0.206 ms reqId=-
+GET /api/v1/user/profile 403 25 - 1.134 ms reqId=-
+OPTIONS /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/book 204 0 - 0.322 ms reqId=-
+POST /api/v1/deals/88c8e85c-829b-465a-898a-6713efd3ac47/book 404 194 - 5.852 ms reqId=-

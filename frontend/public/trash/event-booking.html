@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Booking - EZNet</title>
+    <meta name="description" content="Discover and book amazing events with EZNet - Earn tokens with every purchase">
+    <style>
+        :root {
+            --brand1: #5E17EB;     /* primary Elizian purple */
+            --brand2: #24105F;     /* deep purple */
+            --accent-gradient: linear-gradient(135deg,var(--brand1),var(--brand2));
+            --bg: #F5F5F5;
+            --muted: #666666;
+            --success: #4CAF50;
+            --card: #FFFFFF;
+            --tier-ather: #B0BEC5;
+            --tier-nova:  #64B5F6;
+            --tier-luminar:#9575CD;
+            --tier-valiant:#66BB6A;
+            --tier-echelon:#FFD54F;
+            --glass: rgba(255,255,255,0.85);
+            
+            /* Legacy variables for compatibility */
+            --primary: var(--brand1);
+            --primary-dark: var(--brand2);
+            --secondary: var(--glass);
+            --accent: var(--tier-echelon);
+            --text: #222;
+            --text-muted: var(--muted);
+            --border: rgba(94, 23, 235, 0.1);
+            --card-bg: var(--card);
+            --error: #ef4444;
+            --shadow: 0 12px 32px rgba(0,0,0,0.08);
+            --shadow-lg: 0 20px 50px rgba(0,0,0,0.15);
+            --radius: 12px;
+            --radius-lg: 22px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--bg);
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            color: var(--text);
+        }
+
+        .logo img {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+        }
+
+        .logo-text {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .token-balance {
+            background: var(--secondary);
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius);
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            font-weight: 500;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            padding: 4rem 0;
+            text-align: center;
+        }
+
+        .hero-content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }
+
+        .hero p {
+            font-size: 1.125rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+
+        .search-bar {
+            max-width: 500px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 1rem 1.5rem;
+            border: none;
+            border-radius: 50px;
+            font-size: 1rem;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+        }
+
+        .search-input:focus {
+            outline: none;
+            background: white;
+        }
+
+        /* Events Section */
+        .events-section {
+            padding: 3rem 0;
+            background: var(--card-bg);
+        }
+
+        .events-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 0.5rem;
+            background: white;
+            padding: 0.25rem;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+
+        .filter-tab {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: transparent;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        .filter-tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .events-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 2rem;
+        }
+
+        .event-card {
+            background: var(--bg);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .event-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .event-image {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: white;
+            position: relative;
+        }
+
+        .event-badge {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .event-content {
+            padding: 1.5rem;
+        }
+
+        .event-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+
+        .event-organizer {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+        }
+
+        .event-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .event-detail {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .event-price {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .event-price .early-bird {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-decoration: line-through;
+            margin-right: 0.5rem;
+        }
+
+        .token-reward {
+            background: var(--secondary);
+            color: var(--primary);
+            padding: 0.5rem;
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .book-btn {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem;
+            border-radius: var(--radius);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .book-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .book-btn:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        /* Booking Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+        }
+
+        .price-summary {
+            background: var(--card-bg);
+            padding: 1rem;
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .price-row.total {
+            font-weight: 700;
+            font-size: 1.125rem;
+            border-top: 1px solid var(--border);
+            padding-top: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                padding: 1rem;
+                flex-wrap: wrap;
+                gap: 1rem;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .events-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .section-header {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+
+            .filter-tabs {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <a href="index.html" class="logo">
+                <img src="mockups/images/z.png" alt="EZNet Logo">
+                <span class="logo-text">EZNet Events</span>
+            </a>
+            
+            <nav>
+                <ul class="nav-links">
+                    <li><a href="#events">Events</a></li>
+                    <li><a href="#my-tickets">My Tickets</a></li>
+                    <li><a href="#organize">Organize</a></li>
+                </ul>
+            </nav>
+            
+            <div class="user-info">
+                <div class="token-balance" id="tokenBalance">
+                    <span id="tokenCount">0</span> Tokens
+                </div>
+                <a href="#" class="btn btn-primary" id="loginBtn">Login</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1>Discover Amazing Events</h1>
+            <p>Book tickets to concerts, workshops, conferences, and more. Earn tokens with every purchase!</p>
+            
+            <div class="search-bar">
+                <input type="text" class="search-input" placeholder="Search events..." id="searchInput">
+            </div>
+        </div>
+    </section>
+
+    <!-- Events Section -->
+    <section class="events-section" id="events">
+        <div class="events-content">
+            <div class="section-header">
+                <h2 class="section-title">Upcoming Events</h2>
+                <div class="filter-tabs">
+                    <button class="filter-tab active" data-filter="all">All Events</button>
+                    <button class="filter-tab" data-filter="music">Music</button>
+                    <button class="filter-tab" data-filter="tech">Tech</button>
+                    <button class="filter-tab" data-filter="sports">Sports</button>
+                    <button class="filter-tab" data-filter="workshop">Workshop</button>
+                </div>
+            </div>
+            
+            <div class="events-grid" id="eventsGrid">
+                <!-- Events will be loaded dynamically -->
+            </div>
+        </div>
+    </section>
+
+    <!-- Booking Modal -->
+    <div class="modal" id="bookingModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Book Your Ticket</h3>
+                <button class="close-btn" onclick="closeBookingModal()">&times;</button>
+            </div>
+            
+            <form id="bookingForm">
+                <div class="form-group">
+                    <label class="form-label" for="attendeeName">Full Name</label>
+                    <input type="text" id="attendeeName" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="attendeeEmail">Email</label>
+                    <input type="email" id="attendeeEmail" class="form-input" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="attendeePhone">Phone</label>
+                    <input type="tel" id="attendeePhone" class="form-input" required>
+                </div>
+                
+                <div class="price-summary" id="priceSummary">
+                    <!-- Price breakdown will be shown here -->
+                </div>
+                
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Purchase Ticket</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = 'http://localhost:5001';
+        let currentUser = null;
+        let selectedEvent = null;
+        let allEvents = [];
+
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadEvents();
+            await loadUserInfo();
+            setupEventListeners();
+        });
+
+        // Check if user is authenticated (optional for standalone use)
+        function checkAuthentication() {
+            const token = localStorage.getItem('token');
+            const userInfo = localStorage.getItem('userInfo');
+            return token && userInfo;
+        }
+
+        // Load events
+        async function loadEvents() {
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/events`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    allEvents = result.data;
+                    renderEvents(allEvents);
+                } else {
+                    showNotification('Failed to load events: ' + result.error, 'error');
+                    renderEvents([]);
+                }
+            } catch (error) {
+                console.error('Error loading events:', error);
+                showNotification('Error loading events. Please check your connection.', 'error');
+                renderEvents([]);
+            }
+        }
+
+
+        // Render events
+        function renderEvents(events) {
+            const grid = document.getElementById('eventsGrid');
+            
+            if (events.length === 0) {
+                grid.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 2rem;">No events found.</p>';
+                return;
+            }
+            
+            grid.innerHTML = events.map(event => {
+                const eventDate = new Date(event.event_date);
+                const today = new Date();
+                const isEarlyBird = event.early_bird_price && event.early_bird_end_date && 
+                                  new Date(event.early_bird_end_date) >= today;
+                const displayPrice = isEarlyBird ? event.early_bird_price : event.ticket_price;
+                const originalPrice = isEarlyBird ? event.ticket_price : null;
+                const availableTickets = event.capacity ? event.capacity - (event.sold_tickets || 0) : null;
+                const isSoldOut = availableTickets === 0;
+                
+                return `
+                    <div class="event-card" onclick="openBookingModal(${JSON.stringify(event).replace(/"/g, '&quot;')})">
+                        <div class="event-image">
+                            ${event.image_url ? `<img src="${event.image_url}" alt="${event.title}" style="width: 100%; height: 100%; object-fit: cover;">` : '🎵'}
+                            ${isEarlyBird ? '<div class="event-badge">Early Bird</div>' : ''}
+                            ${isSoldOut ? '<div class="event-badge" style="background: var(--error);">Sold Out</div>' : ''}
+                        </div>
+                        <div class="event-content">
+                            <h3 class="event-title">${event.title}</h3>
+                            <p class="event-organizer">by ${event.organizer_name}</p>
+                            <div class="event-details">
+                                <div class="event-detail">
+                                    <span>📅</span>
+                                    <span>${eventDate.toLocaleDateString()}</span>
+                                </div>
+                                <div class="event-detail">
+                                    <span>🕐</span>
+                                    <span>${event.event_time}</span>
+                                </div>
+                                <div class="event-detail">
+                                    <span>📍</span>
+                                    <span>${event.venue_name}</span>
+                                </div>
+                                <div class="event-detail">
+                                    <span>👥</span>
+                                    <span>${availableTickets ? `${availableTickets} left` : 'Unlimited'}</span>
+                                </div>
+                            </div>
+                            <div class="event-price">
+                                ${originalPrice ? `<span class="early-bird">₹${originalPrice}</span>` : ''}
+                                ₹${displayPrice}
+                            </div>
+                            <div class="token-reward">
+                                Earn ${Math.floor(displayPrice * 0.05)} tokens (5%)
+                            </div>
+                            <button class="book-btn" ${isSoldOut ? 'disabled' : ''}>
+                                ${isSoldOut ? 'Sold Out' : 'Book Now'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Load user info
+        async function loadUserInfo() {
+            try {
+                const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+                const token = localStorage.getItem('token');
+                
+                if (userInfo && token) {
+                    currentUser = userInfo;
+                    
+                    // Get membership info
+                    const response = await fetch(`${API_BASE}/api/v1/users/${userInfo.id}/membership`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        document.getElementById('tokenCount').textContent = result.data.token_balance || 0;
+                        document.getElementById('loginBtn').textContent = 'Profile';
+                    }
+                } else {
+                    // User not authenticated - show login option
+                    document.getElementById('tokenCount').textContent = '0';
+                    document.getElementById('loginBtn').textContent = 'Login';
+                    document.getElementById('loginBtn').onclick = () => {
+                        window.location.href = 'mockups/elzmockup5.html';
+                    };
+                }
+            } catch (error) {
+                console.error('Error loading user info:', error);
+                // If there's an error, show login option
+                document.getElementById('tokenCount').textContent = '0';
+                document.getElementById('loginBtn').textContent = 'Login';
+                document.getElementById('loginBtn').onclick = () => {
+                    window.location.href = 'mockups/elzmockup5.html';
+                };
+            }
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Search functionality
+            document.getElementById('searchInput').addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const filteredEvents = allEvents.filter(event => 
+                    event.title.toLowerCase().includes(searchTerm) ||
+                    event.organizer_name.toLowerCase().includes(searchTerm) ||
+                    event.description.toLowerCase().includes(searchTerm)
+                );
+                renderEvents(filteredEvents);
+            });
+
+            // Filter tabs
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    const filter = this.dataset.filter;
+                    if (filter === 'all') {
+                        renderEvents(allEvents);
+                    } else {
+                        const filteredEvents = allEvents.filter(event => event.category === filter);
+                        renderEvents(filteredEvents);
+                    }
+                });
+            });
+
+            // Booking form submission
+            document.getElementById('bookingForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                submitBooking();
+            });
+
+            // Close modal on outside click
+            document.getElementById('bookingModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeBookingModal();
+                }
+            });
+        }
+
+        // Open booking modal
+        function openBookingModal(event) {
+            selectedEvent = event;
+            
+            // Check if sold out
+            const availableTickets = event.capacity ? event.capacity - (event.sold_tickets || 0) : null;
+            if (availableTickets === 0) {
+                alert('This event is sold out!');
+                return;
+            }
+            
+            document.getElementById('bookingModal').classList.add('show');
+            updatePriceSummary();
+        }
+
+        // Close booking modal
+        function closeBookingModal() {
+            document.getElementById('bookingModal').classList.remove('show');
+            selectedEvent = null;
+            document.getElementById('bookingForm').reset();
+        }
+
+        // Update price summary
+        function updatePriceSummary() {
+            if (!selectedEvent) return;
+            
+            const today = new Date();
+            const isEarlyBird = selectedEvent.early_bird_price && selectedEvent.early_bird_end_date && 
+                              new Date(selectedEvent.early_bird_end_date) >= today;
+            const ticketPrice = isEarlyBird ? selectedEvent.early_bird_price : selectedEvent.ticket_price;
+            
+            const priceSummary = document.getElementById('priceSummary');
+            priceSummary.innerHTML = `
+                <div class="price-row">
+                    <span>Ticket Price:</span>
+                    <span>₹${ticketPrice}</span>
+                </div>
+                ${isEarlyBird ? `
+                <div class="price-row">
+                    <span>Early Bird Discount:</span>
+                    <span style="color: var(--success);">-₹${selectedEvent.ticket_price - selectedEvent.early_bird_price}</span>
+                </div>
+                ` : ''}
+                <div class="price-row">
+                    <span>Service Fee:</span>
+                    <span>₹0</span>
+                </div>
+                <div class="price-row total">
+                    <span>Total:</span>
+                    <span>₹${ticketPrice}</span>
+                </div>
+                <div style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--primary); text-align: center;">
+                    You'll earn ${Math.floor(ticketPrice * 0.05)} tokens (5%)
+                </div>
+            `;
+        }
+
+        // Submit booking
+        async function submitBooking() {
+            if (!selectedEvent) return;
+            
+            const formData = {
+                attendee_name: document.getElementById('attendeeName').value,
+                attendee_email: document.getElementById('attendeeEmail').value,
+                attendee_phone: document.getElementById('attendeePhone').value,
+                payment_method: 'online'
+            };
+            
+            try {
+                const token = localStorage.getItem('token');
+                const headers = { 'Content-Type': 'application/json' };
+                
+                // Add authorization header if user is authenticated
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
+                const response = await fetch(`${API_BASE}/api/v1/events/${selectedEvent.id}/tickets`, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`Ticket purchased successfully!\n\nTicket Code: ${result.data.ticket_code}\nQR Code: ${result.data.qr_code}\n\nTokens Earned: ${result.data.tokens_earned || 0}`);
+                    
+                    closeBookingModal();
+                    
+                    // Reload user info to update token balance
+                    await loadUserInfo();
+                } else {
+                    alert('Failed to purchase ticket: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error purchasing ticket:', error);
+                alert('Error purchasing ticket. Please try again.');
+            }
+        }
+    </script>
+</body>
+</html>

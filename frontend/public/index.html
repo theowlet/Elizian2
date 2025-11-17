@@ -1,0 +1,3962 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elizian — Events & Entertainment</title>
+
+  <!-- Playfair Display -->
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Leaflet Map Library -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <!-- Global Header -->
+  <header class="global-header" id="globalHeader" style="display: none;">
+    <div class="header-content" style="display:flex; justify-content:space-between; align-items:center; padding:1rem 2rem; background:var(--card); box-shadow:var(--shadow); position:sticky; top:0; z-index:9999;">
+      <div class="logo" style="display:flex; align-items:center; gap:0.5rem; font-weight:700; color:var(--primary);">
+        <img src="mockups/images/z.png" alt="Logo" style="width:28px; height:28px; object-fit:contain;">
+        <span>Elizian</span>
+      </div>
+      <div class="header-actions" style="display:flex; align-items:center; gap:1rem;">
+        <span id="headerUserName" style="font-weight:500;"></span>
+        <button id="globalLogoutBtn" class="btn" onclick="logoutGlobal()" style="padding: 8px 20px; background: var(--error); color: white; border: none; cursor: pointer;">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Container Wrapper -->
+  <div class="mobile-container">
+  <!-- Main App Container -->
+  <div class="container">
+    <div class="screen-grid">
+      
+      <!-- Landing Page / First Login Screen -->
+      <div id="onboardingScreen" class="screen active" data-screen="onboarding">
+        <!-- Header with Login/Sign Up -->
+        <header class="landing-header">
+          <div class="landing-header-content">
+            <div class="landing-logo">
+              <img src="/assets/z.png" alt="Elizian" class="landing-logo-img">
+              <span class="landing-logo-text">Elizian</span>
+        </div>
+            <div class="landing-auth-buttons">
+              <button class="landing-btn landing-btn-text" onclick="showScreen('login')">Login</button>
+              <button class="landing-btn landing-btn-primary" onclick="showScreen('signup')">Sign Up</button>
+        </div>
+          </div>
+        </header>
+
+        <!-- Hero Section -->
+        <section class="landing-hero">
+          <h1 class="landing-hero-title">Discover Curated Experiences</h1>
+          <p class="landing-hero-subtitle">Your gateway to unforgettable moments</p>
+        </section>
+
+        <!-- Search Bar -->
+        <section class="landing-search">
+          <div class="search-wrapper">
+            <svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 17C13.4183 17 17 13.4183 17 9C17 4.58172 13.4183 1 9 1C4.58172 1 1 4.58172 1 9C1 13.4183 4.58172 17 9 17Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M19 19L14.65 14.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <input type="text" class="search-input" placeholder="Search" id="landingSearchInput">
+          </div>
+        </section>
+
+        <!-- Category Filters -->
+        <section class="landing-categories">
+          <div class="categories-scroll">
+            <button class="category-chip active" data-category="all" onclick="filterByCategory('all')">All Experiences</button>
+            <button class="category-chip" data-category="dining" onclick="filterByCategory('dining')">Dining</button>
+            <button class="category-chip" data-category="events" onclick="filterByCategory('events')">Events</button>
+            <button class="category-chip" data-category="healthcare" onclick="filterByCategory('healthcare')">Healthcare</button>
+            <button class="category-chip" data-category="spa" onclick="filterByCategory('spa')">Spa and Salon</button>
+            <button class="category-chip" data-category="wellness" onclick="filterByCategory('wellness')">Wellness</button>
+            <button class="category-chip" data-category="travel" onclick="filterByCategory('travel')">Travel</button>
+            <button class="category-chip" data-category="others" onclick="filterByCategory('others')">Others</button>
+        </div>
+        </section>
+
+        <!-- Trending Experiences -->
+        <section class="landing-content">
+          <h2 class="landing-section-title">Trending Experiences</h2>
+          <div id="landingExperiencesContainer" class="experiences-grid">
+            <div class="experience-placeholder">
+              <p class="placeholder-text">No experiences found. Try a different category or search term.</p>
+          </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Login Screen -->
+      <div id="loginScreen" class="screen hidden" data-screen="login">
+        <div class="auth-modal-container">
+          <div class="auth-modal">
+            <button class="auth-modal-close" onclick="showScreen('onboarding')">&times;</button>
+            <h2 class="auth-modal-title">Login</h2>
+            <p class="auth-modal-subtitle">Welcome back to Elizian</p>
+            
+            <form class="auth-form" onsubmit="handleOTPLogin(event)">
+              <div class="auth-form-group">
+                <label class="auth-label">Phone Number</label>
+                <div class="phone-input-wrapper">
+                  <button type="button" class="country-code-btn" disabled>
+                    🇮🇳 +91
+                  </button>
+                  <input 
+                    type="tel" 
+                    id="loginPhoneInput" 
+                    class="auth-input phone-input" 
+                    placeholder="10-digit mobile number"
+                    inputmode="numeric"
+                    maxlength="10"
+                    autocomplete="tel"
+                    required
+                    oninput="validatePhoneInput(this)"
+                  />
+        </div>
+          </div>
+          
+              <button type="submit" class="auth-submit-btn" id="sendOtpBtn">
+            Send OTP
+          </button>
+            </form>
+          
+            <div class="auth-footer">
+              <p>Don't have an account? <a href="#" onclick="showScreen('signup'); return false;">Sign up</a></p>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OTP Verification Screen -->
+      <div id="otpScreen" class="screen hidden" data-screen="otp">
+        <div class="auth-modal-container">
+          <div class="auth-modal">
+            <button class="auth-modal-close" onclick="showScreen('login')">&times;</button>
+            <h2 class="auth-modal-title">Verify OTP</h2>
+            <p class="auth-modal-subtitle">Enter the 6-digit code sent to your phone</p>
+            
+            <div class="otp-input-container">
+              <div class="otp-inputs-wrapper">
+                <input type="text" class="otp-input" maxlength="1" onkeyup="handleOTPInput(0)" onkeydown="handleOTPKeydown(0, event)" data-index="0">
+                <input type="text" class="otp-input" maxlength="1" onkeyup="handleOTPInput(1)" onkeydown="handleOTPKeydown(1, event)" data-index="1">
+                <input type="text" class="otp-input" maxlength="1" onkeyup="handleOTPInput(2)" onkeydown="handleOTPKeydown(2, event)" data-index="2">
+                <input type="text" class="otp-input" maxlength="1" onkeyup="handleOTPInput(3)" onkeydown="handleOTPKeydown(3, event)" data-index="3">
+                <input type="text" class="otp-input" maxlength="1" onkeyup="handleOTPInput(4)" onkeydown="handleOTPKeydown(4, event)" data-index="4">
+                <input type="text" class="otp-input" maxlength="1" onkeyup="handleOTPInput(5)" onkeydown="handleOTPKeydown(5, event)" data-index="5">
+        </div>
+          </div>
+          
+            <button class="auth-submit-btn" onclick="verifyOTPFromForm()" id="verifyOtpBtn" style="margin-top: 1.5rem;">
+            Verify OTP
+          </button>
+          
+            <div class="auth-footer">
+              <p>Didn't receive the code? <a href="#" onclick="resendOTP(); return false;">Resend</a></p>
+        </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Signup Screen -->
+      <div id="signupScreen" class="screen hidden" data-screen="signup">
+        <div class="auth-modal-container">
+          <div class="auth-modal">
+            <button class="auth-modal-close" onclick="showScreen('onboarding')">&times;</button>
+            <h2 class="auth-modal-title">Create Account</h2>
+            <p class="auth-modal-subtitle">Join Elizian today</p>
+            
+            <form class="auth-form" onsubmit="handleSignup(event)">
+              <div class="auth-form-group">
+                <label class="auth-label">Name</label>
+                <input type="text" id="signupNameInput" class="auth-input" placeholder="Enter your full name" required>
+        </div>
+        
+              <div class="auth-form-group">
+                <label class="auth-label">Mobile Number <span style="font-weight:400;color:#6b7280;">(primary)</span></label>
+                <div class="phone-input-wrapper">
+                  <button type="button" class="country-code-btn" disabled>🇮🇳 +91</button>
+                  <input 
+                    type="tel" 
+                    id="signupPhoneInput" 
+                    class="auth-input phone-input" 
+                    placeholder="10-digit mobile number"
+                    inputmode="numeric"
+                    maxlength="10"
+                    autocomplete="tel"
+                    oninput="validatePhoneInput(this)"
+                  />
+          </div>
+                <button type="button" class="auth-submit-btn" style="margin-top:0.75rem;background:#004F4A" onclick="sendSignupOTP()" id="sendSignupOtpBtn">Send OTP</button>
+          </div>
+          
+              <!-- OTP Verification Section -->
+              <div class="auth-form-group" id="signupOtpGroup" style="display: none;">
+                <label class="auth-label">Enter OTP <span style="font-weight:400;color:#6b7280;">(6 digits)</span></label>
+                <div class="otp-input-container">
+                  <div class="otp-inputs-wrapper">
+                    <input type="text" class="otp-input" id="signupOtp0" maxlength="1" onkeyup="handleSignupOTPInput(0, event)" onkeydown="handleSignupOTPKeydown(0, event)" data-index="0" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" class="otp-input" id="signupOtp1" maxlength="1" onkeyup="handleSignupOTPInput(1, event)" onkeydown="handleSignupOTPKeydown(1, event)" data-index="1" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" class="otp-input" id="signupOtp2" maxlength="1" onkeyup="handleSignupOTPInput(2, event)" onkeydown="handleSignupOTPKeydown(2, event)" data-index="2" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" class="otp-input" id="signupOtp3" maxlength="1" onkeyup="handleSignupOTPInput(3, event)" onkeydown="handleSignupOTPKeydown(3, event)" data-index="3" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" class="otp-input" id="signupOtp4" maxlength="1" onkeyup="handleSignupOTPInput(4, event)" onkeydown="handleSignupOTPKeydown(4, event)" data-index="4" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" class="otp-input" id="signupOtp5" maxlength="1" onkeyup="handleSignupOTPInput(5, event)" onkeydown="handleSignupOTPKeydown(5, event)" data-index="5" inputmode="numeric" pattern="[0-9]*">
+          </div>
+                </div>
+                <button type="button" class="auth-submit-btn" style="margin-top:0.75rem;background:#059669" onclick="verifySignupOTP()" id="verifySignupOtpBtn">Verify OTP</button>
+                <p style="margin-top:0.5rem;font-size:0.875rem;color:#6b7280;text-align:center;">
+                  Didn't receive? <a href="#" onclick="resendSignupOTP(); return false;" style="color:#004F4A;">Resend OTP</a>
+                </p>
+          </div>
+          
+              <div class="auth-form-group">
+                <label class="auth-label">Email <span style="font-weight:400;color:#6b7280;">(optional)</span></label>
+                <input type="email" id="signupEmailInput" class="auth-input" placeholder="your@email.com"
+                  autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" name="elizian_signup_email" value="">
+          </div>
+          
+              <div class="auth-form-group">
+                <label class="auth-label">Password <span style="font-weight:400;color:#6b7280;">(optional)</span></label>
+                <input type="password" id="signupPasswordInput" class="auth-input" placeholder="••••••••"
+                  autocomplete="new-password" name="elizian_signup_password" value="">
+          </div>
+          
+              <div class="auth-form-group">
+                <label class="auth-label">Register as</label>
+                <div class="auth-dropdown-wrapper">
+                  <select id="signupRoleSelect" class="auth-select" required>
+                    <option value="user" selected>User</option>
+                    <option value="partner">Partner</option>
+                  </select>
+                  <svg class="auth-dropdown-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+          </div>
+        </div>
+        
+              <button type="submit" class="auth-submit-btn">Sign Up</button>
+            </form>
+            
+            <div class="auth-footer">
+              <p>Already have an account? <a href="#" onclick="showScreen('login'); return false;">Login</a></p>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Home Screen -->
+      <div id="homeScreen" class="screen hidden" data-screen="home">
+        <div class="app-frame">
+          <!-- Fixed Header -->
+          <header class="top-header">
+            <div class="location-selector">
+              <span class="location-icon">📍</span>
+              <div class="location-text">
+                <div class="location-main" id="locationName">Sector 47 <span style="font-size: 10px; opacity: 0.6;">▼</span></div>
+                <div class="location-sub" id="locationCity">Gurugram</div>
+        </div>
+        </div>
+            <button class="profile-btn" onclick="navigateTo('profile')">👤</button>
+          </header>
+
+          <!-- Fixed Search Bar -->
+          <div class="search-container">
+            <div class="search-wrapper">
+              <span class="search-icon">🔍</span>
+              <input 
+                type="text" 
+                class="search-input" 
+                placeholder="Search events, restaurants, services..."
+                id="searchInput"
+              >
+            </div>
+          </div>
+          
+          <!-- Fixed Category Tabs -->
+          <div class="category-tabs-wrapper">
+            <nav class="category-tabs" id="categoryTabs">
+              <button class="tab active" data-category="dining" onclick="filterByCategory('dining')">
+                <span class="tab-icon">🍽️</span>
+                <span class="tab-label">Dining</span>
+            </button>
+              <button class="tab" data-category="events" onclick="filterByCategory('events')">
+                <span class="tab-icon">🎉</span>
+                <span class="tab-label">Events</span>
+              </button>
+              <button class="tab" data-category="healthcare" onclick="filterByCategory('healthcare')">
+                <span class="tab-icon">🩺</span>
+                <span class="tab-label">Health</span>
+              </button>
+              <button class="tab" data-category="spa" onclick="filterByCategory('spa')">
+                <span class="tab-icon">💆</span>
+                <span class="tab-label">Spa</span>
+              </button>
+              <button class="tab" data-category="travel" onclick="filterByCategory('travel')">
+                <span class="tab-icon">✈️</span>
+                <span class="tab-label">Travel</span>
+              </button>
+              <button class="tab" data-category="wellness" onclick="filterByCategory('wellness')">
+                <span class="tab-icon">🧘</span>
+                <span class="tab-label">Wellness</span>
+              </button>
+              <button class="tab" data-category="others" onclick="filterByCategory('others')">
+                <span class="tab-icon">📦</span>
+                <span class="tab-label">Others</span>
+              </button>
+            </nav>
+          </div>
+          
+          <!-- Main Content (Scrollable) -->
+          <main class="app-container">
+            <!-- Featured & Promoted Section -->
+            <section id="promotionsContainer" class="promo-section">
+              <h2 class="section-heading">⭐ FEATURED</h2>
+              <div id="trendingCarousel" class="trending-carousel">
+                <!-- Will be populated by JS or show empty state -->
+                <div class="loading">
+                  <div class="spinner"></div>
+                  Loading trending deals...
+          </div>
+        </div>
+            </section>
+
+            <!-- Organic Deals Section -->
+            <section id="dealsContainer" class="deals-section">
+              <h2 class="section-heading">🎁 PARTNER DEALS</h2>
+              <div id="allDealsGrid" class="deals-grid">
+                <!-- Will be populated by JS or show empty state -->
+                <div class="loading">
+                  <div class="spinner"></div>
+                  Loading deals...
+          </div>
+          </div>
+            </section>
+
+            <div class="category-tabs-wrapper">
+              <nav class="category-tabs" id="categoryTabs">
+                <button class="tab active" data-category="dining" onclick="filterByCategory('dining')">
+                  <span class="tab-icon">📍</span>
+                  <span class="tab-label">Distance</span>
+                </button>
+                <button class="tab" data-category="events" onclick="filterByCategory('events')">
+                  <span class="tab-icon">💰</span>
+                  <span class="tab-label">Disount</span>
+                </button>
+                <button class="tab" data-category="healthcare" onclick="filterByCategory('healthcare')">
+                  <span class="tab-icon">⭐</span>
+                  <span class="tab-label">Rating</span>
+                </button>
+                <button class="tab" data-category="healthcare" onclick="filterByCategory('healthcare')">
+                  <span class="tab-icon">⭐</span>
+                  <span class="tab-label">Service</span>
+                </button>
+              </nav>
+          </div>
+
+            <!-- Filter Bar (covers white space at bottom) -->
+            <!--<div class="filter-bar" id="filterBar">
+              <button class="filter-chip" onclick="toggleFilter('distance')">
+                <span>📍</span> Distance
+              </button>
+              <button class="filter-chip" onclick="toggleFilter('discount')">
+                <span>💰</span> Discount
+              </button>
+              <button class="filter-chip" onclick="toggleFilter('rating')">
+                <span>⭐</span> Rating
+              </button>
+              <a href="#" class="clear-filters" onclick="clearFilters(); return false;">Clear all</a>
+            </div>-->
+          </main>
+        </div>
+      </div>
+
+      <!-- Events Screen -->
+      <div id="eventsScreen" class="screen hidden" data-screen="events">
+        <div class="status-bar">
+          <span class="time">9:41</span>
+          <span>Elizian</span>
+          <span class="battery">100%</span>
+        </div>
+        
+        <div class="header">
+          <h1>Events</h1>
+          <p>Discover amazing experiences</p>
+        </div>
+        
+        <div style="position: relative;">
+          <div id="eventsList" class="loading">
+            <div class="spinner"></div>
+            Loading events...
+          </div>
+          <div class="events-scroll-hint">← Swipe to explore →</div>
+        </div>
+      </div>
+
+      <!-- Dining Screen -->
+      <div id="diningScreen" class="screen hidden" data-screen="dining">
+        <div class="status-bar">
+          <span class="time">9:41</span>
+          <span>Elizian</span>
+          <span class="battery">100%</span>
+        </div>
+        
+        <div class="header">
+          <h1>Dining</h1>
+          <p>Premium restaurants & exclusive offers</p>
+        </div>
+        
+        <div style="padding:20px;">
+          <div id="restaurantList" class="loading">
+            <div class="spinner"></div>
+            Loading restaurants...
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile Screen -->
+      <div id="profileScreen" class="screen hidden" data-screen="profile">
+        <div class="status-bar">
+          <span class="time">9:41</span>
+          <span>Elizian</span>
+          <span class="battery">100%</span>
+        </div>
+        
+        <div class="header">
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <button class="back-btn" onclick="navigateTo('home')" style="background: none; border: none; cursor: pointer; padding: 8px; margin-right: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; color: var(--text);">
+              ←
+            </button>
+            <div style="flex: 1;">
+          <h1>Profile</h1>
+          <p>Manage your account & preferences</p>
+            </div>
+            <button id="logoutBtnTop" class="btn" onclick="logout()" style="padding: 8px 20px; background: var(--error); color: white; border: none; margin-left: 12px;">
+              Logout
+            </button>
+          </div>
+        </div>
+        
+        <div style="padding:20px;">
+          <div class="card">
+            <h3>Account Information</h3>
+            <p id="profileInfo">Loading profile...</p>
+          </div>
+          
+          <div class="card">
+            <h3>EZT Token Balance</h3>
+            <div id="eztBalance" style="padding: 16px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; color: white; margin-bottom: 12px;">
+              <div style="font-size: 14px; opacity: 0.9; margin-bottom: 8px;">Available Balance</div>
+              <div id="eztBalanceAmount" style="font-size: 32px; font-weight: bold;">Loading...</div>
+              <div style="font-size: 12px; opacity: 0.8; margin-top: 8px;">
+                <span id="eztTotalEarned">Total Earned: —</span> • 
+                <span id="eztTotalSpent">Total Spent: —</span>
+              </div>
+            </div>
+            <div style="font-size: 12px; color: #6b7280; margin-top: 8px;">
+              💡 1 EZT = ₹100 discount at checkout
+            </div>
+          </div>
+          
+          <div class="card">
+            <h3>Membership Tiers</h3>
+            <div id="tierInfo" class="tier-info-card">
+              <div class="tier-highlight tier-ather">
+                <div class="tier-highlight-left">
+                  <div class="tier-icon">
+                    <img id="tierIconImg" src="/assets/Aether.png" alt="Ather tier icon">
+                  </div>
+                  <div class="tier-text">
+                    <div class="tier-label">Current Tier</div>
+                    <div id="currentTierName" class="tier-name">Loading...</div>
+                    <div class="tier-earn-rate">
+                      <span>Earning Rate</span>
+                      <strong><span id="currentTierPercentage">—</span> EZ Tokens</strong>
+                    </div>
+                  </div>
+                </div>
+                <div class="tier-badge tier-ather">EZT Loyalty</div>
+              </div>
+            </div>
+            <div class="next-tier-box">
+              <div class="next-tier-title">Next milestone</div>
+              <div class="next-tier-meta">Spend <span id="nextTierSpend">—</span> more to reach <span id="nextTierName">—</span></div>
+              </div>
+            <div class="tier-stack" aria-label="Explore other tiers">
+              <div id="tierStack" class="tier-stack-inner"></div>
+              <div class="tier-stack-hint">Swipe cards to explore</div>
+          </div>
+        </div>
+        
+          <div class="card">
+            <h3>My Bookings & Vouchers</h3>
+            <div id="userBookingsList" class="loading">
+              <div class="spinner"></div>
+              Loading bookings...
+          </div>
+          </div>
+
+          <div class="card">
+            <h3>Loyalty Points</h3>
+            <div id="userLoyaltyPoints" class="loading">
+              <div class="spinner"></div>
+              Loading loyalty points...
+          </div>
+          </div>
+          
+          <div class="card">
+            <h3>Settings</h3>
+            <button class="btn" onclick="logout()" style="width:100%;margin-top:12px;">
+              Log out
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+      <!-- End of all screens -->
+      </div>
+    </div>
+    <!-- End mobile-container -->
+  </div>
+
+  <!-- Modals -->
+  <div id="eventDetailsModal" class="modal"></div>
+  <div id="eventBookingModal" class="modal"></div>
+  <div id="restaurantBookingModal" class="modal"></div>
+  <div id="bookingConfirmationModal" class="modal"></div>
+  <div id="paymentScreenModal" class="modal"></div>
+  <div id="bookingModal" class="modal"></div>
+  <div id="voucherModal" class="modal"></div>
+
+  <!-- Load JavaScript Modules -->
+  <!-- Fallback shim to avoid race if modules haven't exposed navigateTo yet -->
+  <script>
+    (function(){
+      if (!window.showScreen) {
+        window.showScreen = function(name){
+          if (window.navigateTo) { window.navigateTo(name); return; }
+          document.addEventListener('DOMContentLoaded', function(){
+            if (window.navigateTo) window.navigateTo(name);
+          });
+        };
+      }
+    })();
+  </script>
+  
+  <!-- Define filterByCategory early so it's available for onclick handlers -->
+  <script>
+    // Make filterByCategory available globally immediately (will be overridden with full implementation later)
+    window.filterByCategory = function(category) {
+      console.log('Filtering by category (early stub):', category);
+      // Full implementation will be defined later in the script
+    };
+    
+    // Make initiateBooking available globally immediately (will be overridden with full implementation later)
+    window.initiateBooking = function(dealId, itemType) {
+      console.log('⚠️ Booking initiated (early stub) - full implementation loading:', dealId);
+      // Show a loading message while the full implementation loads
+      setTimeout(() => {
+        if (typeof window.initiateBooking === 'function' && window.initiateBooking.toString().includes('async')) {
+          // Full implementation is loaded, call it
+          window.initiateBooking(dealId, itemType);
+        } else {
+          alert('Booking system is loading. Please try again in a moment.');
+        }
+      }, 100);
+    };
+  </script>
+  
+  <!-- Minimal navigation fallback to ensure modals/screens can open from landing -->
+  <script>
+    (function(){
+      if (!window.navigateTo) {
+        window.navigateTo = function(screenName) {
+          try {
+            var screens = document.querySelectorAll('.screen');
+            screens.forEach(function(el){ el.classList.add('hidden'); el.classList.remove('active'); });
+            // Map common names to element ids
+            var idMap = {
+              onboarding: 'onboardingScreen',
+              home: 'homeScreen',
+              login: 'loginScreen',
+              otp: 'otpScreen',
+              signup: 'signupScreen',
+              profile: 'profileScreen'
+            };
+            var targetId = idMap[screenName] || (screenName + 'Screen');
+            var target = document.getElementById(targetId);
+            if (target) {
+              target.classList.remove('hidden');
+              target.classList.add('active');
+              // Ensure auth modals overlay properly
+              if (screenName === 'login' || screenName === 'otp' || screenName === 'signup') {
+                var container = target.querySelector('.auth-modal-container');
+                if (container) { container.style.display = 'flex'; }
+                // Clear potential browser autofill on signup
+                if (screenName === 'signup') {
+                  var emailEl = document.getElementById('signupEmailInput');
+                  var passEl = document.getElementById('signupPasswordInput');
+                  var phoneEl = document.getElementById('signupPhoneInput');
+                  if (emailEl) emailEl.value = '';
+                  if (passEl) passEl.value = '';
+                  // Prefill phone with verified phone if present and lock it
+                  try {
+                    var regPhone = localStorage.getItem('registrationPhone') || '';
+                    var otpV = localStorage.getItem('otpVerified');
+                    // Accept JSON-stringified or plain 'true'
+                    otpV = (otpV || '').replace(/\"/g,'');
+                    if (otpV === 'true' && regPhone && phoneEl) {
+                      phoneEl.value = regPhone;
+                      phoneEl.readOnly = true;
+                    } else if (phoneEl) {
+                      phoneEl.readOnly = false;
+                    }
+                  } catch (e) {}
+                }
+              }
+            } else {
+              console.warn('[navigateTo] target screen not found:', screenName, targetId);
+            }
+          } catch (e) {
+            console.error('[navigateTo] error navigating to', screenName, e);
+          }
+        };
+      }
+    })();
+  </script>
+
+  <script>
+    function computeDiscountSummary(offer = {}) {
+      const original = parseFloat(offer.original_price) || 0;
+      const explicitDiscounted = offer.discounted_price !== undefined && offer.discounted_price !== null
+        ? parseFloat(offer.discounted_price)
+        : NaN;
+      const percent = parseFloat(offer.discount_percentage) || 0;
+      const amount = parseFloat(offer.discount_amount) || 0;
+
+      let discounted = !Number.isNaN(explicitDiscounted) ? explicitDiscounted : null;
+
+      if (discounted === null) {
+        if (percent > 0 && original > 0) {
+          discounted = original - (original * percent) / 100;
+        } else if (amount > 0 && original > 0) {
+          discounted = original - amount;
+        } else {
+          discounted = original;
+        }
+      }
+
+      if (discounted < 0 || Number.isNaN(discounted)) {
+        discounted = original;
+      }
+
+      let savings = offer.savings !== undefined && offer.savings !== null
+        ? parseFloat(offer.savings)
+        : (original > 0 ? original - discounted : 0);
+
+      if (Number.isNaN(savings) || savings < 0) {
+        savings = 0;
+      }
+
+      const ezt = offer.ezt_equivalent !== undefined && offer.ezt_equivalent !== null
+        ? parseFloat(offer.ezt_equivalent)
+        : parseFloat((savings / 100).toFixed(2));
+
+      return {
+        original,
+        discounted: parseFloat(discounted.toFixed(2)),
+        percent,
+        amount,
+        hasDiscount: original > 0 && discounted < original,
+        savings: parseFloat(savings.toFixed(2)),
+        ezt: parseFloat((Number.isNaN(ezt) ? 0 : ezt).toFixed(2))
+      };
+    }
+  </script>
+  
+  <!-- Phone validation - must be global for inline handlers -->
+  <script>
+    // Phone number validation - MUST be global for oninput handler
+    function validatePhoneInput(input) {
+      if (!input) {
+        console.error('[validatePhoneInput] No input element provided!');
+        return;
+      }
+      
+      console.log('[validatePhoneInput] Called with value:', input.value);
+      
+      // Remove any non-numeric characters
+      let value = input.value.replace(/\D/g, '');
+      
+      // Limit to 10 digits
+      if (value.length > 10) {
+        value = value.slice(0, 10);
+      }
+      
+      // Update input value
+      input.value = value;
+      
+      console.log('[validatePhoneInput] Cleaned value:', value, 'Length:', value.length);
+      
+      // Find continue button - try multiple methods
+      let continueBtn = document.getElementById('continueBtn');
+      
+      // If not found, try finding in the same screen as the input
+      if (!continueBtn && input.closest) {
+        const screen = input.closest('.screen');
+        if (screen) {
+          continueBtn = screen.querySelector('#continueBtn');
+        }
+      }
+      
+      // If still not found, try querySelector
+      if (!continueBtn) {
+        continueBtn = document.querySelector('#continueBtn');
+      }
+      
+      console.log('[validatePhoneInput] Continue button found:', !!continueBtn);
+      
+      if (continueBtn) {
+        const isValid = value.length === 10;
+        
+        if (isValid) {
+          console.log('[validatePhoneInput] ✅ ENABLING continue button');
+          continueBtn.classList.add('active');
+          continueBtn.disabled = false;
+          continueBtn.removeAttribute('disabled');
+          continueBtn.style.opacity = '1';
+          continueBtn.style.pointerEvents = 'auto';
+          continueBtn.style.display = 'block';
+          continueBtn.style.visibility = 'visible';
+          continueBtn.style.cursor = 'pointer';
+          
+          // Force a reflow to ensure styles apply
+          continueBtn.offsetHeight;
+        } else {
+          console.log('[validatePhoneInput] ❌ Disabling continue button (length:', value.length, ')');
+          continueBtn.classList.remove('active');
+          continueBtn.disabled = true;
+          continueBtn.setAttribute('disabled', 'disabled');
+        }
+        
+        // Debug: Log button state
+        console.log('[validatePhoneInput] Button state:', {
+          disabled: continueBtn.disabled,
+          hasActive: continueBtn.classList.contains('active'),
+          display: window.getComputedStyle(continueBtn).display,
+          visibility: window.getComputedStyle(continueBtn).visibility,
+          opacity: window.getComputedStyle(continueBtn).opacity
+        });
+      } else {
+        console.error('[validatePhoneInput] ❌ Continue button not found!');
+        console.error('[validatePhoneInput] Attempted to find in:', input.closest('.screen')?.id || 'document');
+      }
+    }
+    
+    // Make it globally available immediately
+    window.validatePhoneInput = validatePhoneInput;
+    
+    // Also validate on DOM ready to catch any pre-filled values
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        const phoneInput = document.getElementById('phoneInput');
+        if (phoneInput && phoneInput.value) {
+          validatePhoneInput(phoneInput);
+        }
+      });
+    } else {
+      // DOM already loaded
+      const phoneInput = document.getElementById('phoneInput');
+      if (phoneInput && phoneInput.value) {
+        validatePhoneInput(phoneInput);
+      }
+    }
+
+    // Handle continue button click - robust version (MUST be global for onclick)
+    async function handleContinueClick() {
+      console.log('[handleContinueClick] clicked');
+
+      // Find the visible phone input on the active screen
+      let phone = '';
+      const activeScreen = document.querySelector('.screen.active');
+      if (activeScreen) {
+        const activeTel = activeScreen.querySelector('input[type="tel"], input[id="phoneInput"]');
+        if (activeTel) phone = (activeTel.value || '').trim();
+      }
+
+      // Fallback: search common phone inputs if no active one found
+      if (!phone) {
+        const possible = [
+          document.getElementById('phoneInput'),
+          document.getElementById('loginPhoneInput'),
+          document.querySelector('input[name="phone_number_elizian"]')
+        ];
+        for (const el of possible) {
+          if (el && el.value && el.value.trim()) { phone = el.value.trim(); break; }
+        }
+      }
+
+      console.log('[handleContinueClick] raw phone value:', phone);
+
+      // Clean up phone (digits only)
+      const cleaned = (phone || '').replace(/\D/g, '').replace(/^91/, '');
+      console.log('[handleContinueClick] cleaned phone:', cleaned);
+
+      if (cleaned.length !== 10) {
+        alert(`Please enter a valid 10-digit mobile number (got ${cleaned.length} digits)`);
+        return;
+      }
+
+      // Disable button while request in-flight
+      const continueBtn = document.getElementById('continueBtn');
+      if (continueBtn) {
+        continueBtn.disabled = true;
+        continueBtn.textContent = 'Sending...';
+        continueBtn.classList.add('disabled');
+      }
+
+      try {
+        // Call sendOTPFromForm with explicit phone number
+        // Wait for module to load if needed
+        let sendOTP = window.sendOTPFromForm;
+        
+        if (!sendOTP && typeof sendOTPFromForm === 'function') {
+          sendOTP = sendOTPFromForm;
+        }
+        
+        if (sendOTP && typeof sendOTP === 'function') {
+          console.log('[handleContinueClick] calling sendOTPFromForm with', cleaned);
+          await sendOTP(cleaned);
+        } else {
+          throw new Error('OTP function not found (sendOTPFromForm not defined). Please wait for page to fully load.');
+        }
+      } catch (err) {
+        console.error('[handleContinueClick] Error:', err);
+        alert('Error sending OTP: ' + (err.message || err));
+      } finally {
+        if (continueBtn) {
+          continueBtn.disabled = false;
+          continueBtn.textContent = 'Continue';
+          continueBtn.classList.remove('disabled');
+        }
+      }
+    }
+    
+    // Make it globally available immediately
+    window.handleContinueClick = handleContinueClick;
+  </script>
+  
+  <!-- Disable Continue button until OTP function is ready -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const continueBtn = document.getElementById("continueBtn");
+
+      if (!continueBtn) {
+        console.warn("⚠️ Continue button not found on DOMContentLoaded");
+        return;
+      }
+
+      const check = setInterval(() => {
+        if (window.otpReady && typeof window.sendOTPFromForm === "function") {
+          continueBtn.disabled = false;
+          clearInterval(check);
+          console.log("✅ OTP module loaded; Continue button enabled");
+        } else {
+          continueBtn.disabled = true;
+        }
+      }, 200);
+
+      setTimeout(() => {
+        clearInterval(check);
+        if (!window.otpReady) {
+          console.error("❌ OTP module still not loaded after 15s");
+        }
+      }, 15000);
+    });
+  </script>
+  
+  <script type="module">
+    // Set OTP readiness flag to false initially
+    window.otpReady = false;
+    
+    // Import core modules
+    import { CONFIG, VERSION, ENV } from './js/core/config.js';
+    import { setupEventListeners, initializeScreens } from './js/ui/navigation.js';
+    import { updateWelcomeText, updateProfileInfo, sendOTPFromForm, logout } from './js/core/auth.js';
+    import { loadEventsFromBackend, renderEventsList } from './js/features/events.js';
+    import { loadRestaurantsFromBackend, renderRestaurantsList, showRestaurantDetails } from './js/features/restaurants.js';
+    import { getUserLocation } from './js/ui/map.js';
+    import { calculateDistance, formatDistance } from './js/utils/utils.js';
+    
+    // API Base URL for image loading
+    const API_BASE = "http://localhost:5001";
+    
+    // Make functions globally available for onclick handlers
+    window.sendOTPFromForm = sendOTPFromForm;
+    window.otpReady = true;
+    console.log("✅ sendOTPFromForm attached to window");
+    
+    window.logout = logout;
+    window.showRestaurantDetails = showRestaurantDetails;
+
+    // ============================================
+    // BOOKMYSHOW-STYLE HOME SCREEN
+    // ============================================
+    
+    // Category tab switching
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', function() {
+        tabs.forEach(t => t.classList.remove('active'));
+        this.classList.add('active');
+        
+        const category = this.dataset.category;
+        console.log('Selected category:', category);
+        // TODO: Filter content based on category
+      });
+    });
+
+    // ============================================
+    // SPOTLIGHT CAROUSEL
+    // ============================================
+    async function loadSpotlightCarousel() {
+      const carousel = document.getElementById('spotlightCarousel');
+      const dotsContainer = document.getElementById('carouselDots');
+      if (!carousel || !dotsContainer) return;
+
+      try {
+        const events = await loadEventsFromBackend();
+        const spotlightEvents = events && events.length > 0 ? events.slice(0, 4) : [];
+
+        if (spotlightEvents.length === 0) {
+          carousel.innerHTML = '<p style="color:#a0a0a0; padding:2rem; text-align:center;">No spotlight events available</p>';
+          return;
+        }
+
+        // Render event cards
+        carousel.innerHTML = spotlightEvents.map(evt => `
+          <div class="event-card-large">
+            <div class="card-media">
+              ${evt.image_url ? 
+                `<img src="${API_BASE}${evt.image_url}" alt="${evt.title}" />` :
+                `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                  <span style="font-size: 48px;">🎤</span>
+                </div>`
+              }
+              <button class="mute-btn">🔇</button>
+            </div>
+            <div class="card-info">
+              <div class="event-date">${evt.start_time ? new Date(evt.start_time).toLocaleDateString('en-US', {weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit'}) : 'Coming Soon'}</div>
+              <h3 class="event-title">${evt.title}</h3>
+              <div class="event-location">${evt.organizer_name || 'Location TBD'}</div>
+              <button class="bookmark-btn" onclick="event.stopPropagation(); alert('Bookmarked!')">🔖</button>
+            </div>
+          </div>
+        `).join('');
+
+        // Render dots
+        dotsContainer.innerHTML = spotlightEvents.map((_, i) => 
+          `<span class="dot ${i === 0 ? 'active' : ''}" data-index="${i}"></span>`
+        ).join('');
+
+        // Initialize carousel functionality
+        initializeCarouselControls();
+      } catch (err) {
+        console.error('Error loading spotlight carousel:', err);
+        carousel.innerHTML = '<p style="color:#a0a0a0; padding:2rem; text-align:center;">Unable to load events</p>';
+      }
+    }
+
+    // ============================================
+    // RECOMMENDED EVENTS GRID
+    // ============================================
+    async function loadRecommendedEvents() {
+      const grid = document.getElementById('recommendedGrid');
+      if (!grid) return;
+
+      try {
+        const events = await loadEventsFromBackend();
+        const recommended = events && events.length > 0 ? events.slice(4, 8) : [];
+
+        if (recommended.length === 0) {
+          grid.innerHTML = `
+            <div class="card-small">
+              <div class="card-small-image">
+                <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
+                  <span style="font-size: 40px;">🎪</span>
+                </div>
+                <span class="price-badge">₹499</span>
+              </div>
+              <div class="card-small-info">
+                <div class="card-small-title">Comedy Show</div>
+                <div class="card-small-meta">Coming Soon</div>
+              </div>
+            </div>
+            <div class="card-small">
+              <div class="card-small-image">
+                <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
+                  <span style="font-size: 40px;">🎨</span>
+                </div>
+                <span class="price-badge">FREE</span>
+              </div>
+              <div class="card-small-info">
+                <div class="card-small-title">Art Exhibition</div>
+                <div class="card-small-meta">Coming Soon</div>
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        grid.innerHTML = recommended.map(evt => `
+          <div class="card-small" onclick="alert('Event: ${evt.title}')">
+            <div class="card-small-image">
+              ${evt.image_url ?
+                `<img src="${API_BASE}${evt.image_url}" alt="${evt.title}" style="width:100%; height:100%; object-fit:cover;" />` :
+                `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                  <span style="font-size: 40px;">🎭</span>
+                </div>`
+              }
+              <span class="price-badge">${evt.price_per_ticket ? '₹' + evt.price_per_ticket : 'FREE'}</span>
+            </div>
+            <div class="card-small-info">
+              <div class="card-small-title">${evt.title}</div>
+              <div class="card-small-meta">${evt.start_time ? new Date(evt.start_time).toLocaleDateString('en-US', {day: 'numeric', month: 'short'}) : 'TBD'}</div>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Error loading recommended events:', err);
+      }
+    }
+
+    // ============================================
+    // CAROUSEL CONTROLS
+    // ============================================
+    function initializeCarouselControls() {
+      const carousel = document.getElementById('spotlightCarousel');
+      const dots = document.querySelectorAll('.dot');
+      if (!carousel || dots.length === 0) return;
+
+      let currentIndex = 0;
+      let autoScrollInterval;
+
+      function updateCarousel(index) {
+        const cardWidth = carousel.querySelector('.event-card-large').offsetWidth + 16;
+        carousel.scrollTo({
+          left: index * cardWidth,
+          behavior: 'smooth'
+        });
+        
+        dots.forEach((dot, i) => {
+          dot.classList.toggle('active', i === index);
+        });
+        
+        currentIndex = index;
+      }
+
+      // Auto-scroll every 4 seconds
+      function startAutoScroll() {
+        autoScrollInterval = setInterval(() => {
+          currentIndex = (currentIndex + 1) % dots.length;
+          updateCarousel(currentIndex);
+        }, 4000);
+      }
+
+      function stopAutoScroll() {
+        clearInterval(autoScrollInterval);
+      }
+
+      // Manual dot click
+      dots.forEach((dot, index) => {
+        dot.addEventListener('click', () => {
+          stopAutoScroll();
+          updateCarousel(index);
+          startAutoScroll();
+        });
+      });
+
+      // Detect scroll position to update dots
+      carousel.addEventListener('scroll', () => {
+        const cardWidth = carousel.querySelector('.event-card-large').offsetWidth + 16;
+        const scrollPosition = carousel.scrollLeft;
+        const newIndex = Math.round(scrollPosition / cardWidth);
+        
+        if (newIndex !== currentIndex && newIndex < dots.length) {
+          currentIndex = newIndex;
+          dots.forEach((dot, i) => {
+            dot.classList.toggle('active', i === currentIndex);
+          });
+        }
+      });
+
+      // Pause auto-scroll on user interaction
+      carousel.addEventListener('touchstart', stopAutoScroll);
+      carousel.addEventListener('mousedown', stopAutoScroll);
+
+      // Resume auto-scroll after interaction
+      carousel.addEventListener('touchend', () => {
+        setTimeout(startAutoScroll, 3000);
+      });
+      carousel.addEventListener('mouseup', () => {
+        setTimeout(startAutoScroll, 3000);
+      });
+
+      // Start auto-scroll on page load
+      startAutoScroll();
+    }
+
+    // Initialize on home screen load
+    function initializeHomeScreen() {
+      console.log('🎬 Initializing BookMyShow-style home screen...');
+      loadSpotlightCarousel();
+      loadRecommendedEvents();
+    }
+
+    // Call when home screen becomes visible
+    const homeScreen = document.getElementById('homeScreen');
+    if (homeScreen && !homeScreen.classList.contains('hidden')) {
+      initializeHomeScreen();
+    }
+
+    // Hook into navigation to init when going to home
+    const originalNavigateTo = window.navigateTo;
+    window.navigateTo = function(screen) {
+      if (typeof originalNavigateTo === 'function') {
+        originalNavigateTo(screen);
+      }
+      if (screen === 'home') {
+        setTimeout(initializeHomeScreen, 100);
+      }
+    };
+    
+    // Tier carousel rendering
+    const TIERS = [
+      { key: 'Ather',    image: '/assets/Aether.png',   earn: 1 },
+      { key: 'Nova',     image: '/assets/nova.png',     earn: 2 },
+      { key: 'Luminar',  image: '/assets/luminar.png',  earn: 3 },
+      { key: 'Valiant',  image: '/assets/valiant.png',  earn: 4 },
+      { key: 'Echelon',  image: '/assets/echelon.png',  earn: 5 }
+    ];
+
+    // Render Tinder-style tier stack excluding current tier
+    function renderTierStack(currentTierKey) {
+      const stack = document.getElementById('tierStack');
+      if (!stack) return;
+      const others = TIERS.filter(t => t.key !== (currentTierKey || 'Ather'));
+      stack.innerHTML = others.map(t => `
+        <div class="tier-card-swipe" data-tier="${t.key}">
+            <img src="${t.image}" alt="${t.key}">
+          <div class="meta">
+            <div class="title">${t.key}</div>
+            <div class="sub">Earn ${t.earn}% in $EZT</div>
+          </div>
+        </div>
+      `).join('');
+
+      initTierStackGestures();
+    }
+
+    function initTierStackGestures() {
+      const stack = document.getElementById('tierStack');
+      if (!stack) return;
+      let isDragging = false;
+      let startX = 0, startY = 0, current = null;
+
+      const threshold = 80;
+
+      const attach = (card) => {
+        const onStart = (x, y) => { isDragging = true; startX = x; startY = y; current = card; card.style.transition = 'none'; };
+        const onMove = (x, y) => {
+          if (!isDragging || current !== card) return;
+          const dx = x - startX; const dy = y - startY;
+          card.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) rotate(${dx/12}deg)`;
+        };
+        const onEnd = (x) => {
+          if (!isDragging || current !== card) return;
+          isDragging = false;
+          const dx = x - startX;
+          card.style.transition = 'transform 0.2s ease';
+          if (Math.abs(dx) > threshold) {
+            const dir = dx > 0 ? 1 : -1;
+            card.style.transform = `translate(calc(-50% + ${dir*500}px), -50%) rotate(${dir*25}deg)`;
+            setTimeout(() => {
+              stack.removeChild(card);
+              stack.appendChild(card); // recycle to back
+              card.style.transition = 'none';
+              card.style.transform = 'translate(-50%, -50%)';
+            }, 200);
+          } else {
+            card.style.transform = 'translate(-50%, -50%)';
+          }
+          current = null;
+        };
+
+        card.addEventListener('mousedown', (e) => onStart(e.pageX, e.pageY));
+        window.addEventListener('mousemove', (e) => onMove(e.pageX, e.pageY));
+        window.addEventListener('mouseup',   (e) => onEnd(e.pageX));
+        card.addEventListener('touchstart', (e) => { const t=e.touches[0]; onStart(t.pageX, t.pageY); });
+        window.addEventListener('touchmove', (e) => { const t=e.touches[0]; onMove(t.pageX, t.pageY); }, { passive: true });
+        window.addEventListener('touchend',  (e) => { const t=(e.changedTouches||[])[0]||{pageX:startX}; onEnd(t.pageX); });
+      };
+
+      Array.from(stack.children).slice(0,3).forEach(attach);
+    }
+
+    function updateNextTierPlaceholder(currentTierKey) {
+      const order = ['Ather','Nova','Luminar','Valiant','Echelon'];
+      const thresholds = { Ather: 10000, Nova: 25000, Luminar: 50000, Valiant: 100000 };
+      const idx = order.indexOf(currentTierKey || 'Ather');
+      const next = order[idx+1];
+      const spendEl = document.getElementById('nextTierSpend');
+      const nameEl = document.getElementById('nextTierName');
+      if (!spendEl || !nameEl) return;
+      if (!next) {
+        spendEl.textContent = '—';
+        nameEl.textContent = 'Top tier achieved';
+        return;
+      }
+      const amount = thresholds[currentTierKey || 'Ather'] || 0;
+      spendEl.textContent = `₹${amount.toLocaleString('en-IN')}`;
+      nameEl.textContent = next;
+    }
+
+    // HOME FEED RENDERING
+    async function renderHome(category = 'for-you') {
+      const feed = document.getElementById('homeFeed');
+      if (!feed) return;
+      feed.innerHTML = '<div class="loading"><div class="spinner"></div> Loading nearby picks…</div>';
+
+      // determine location
+      const loc = await getUserLocation().catch(() => null);
+      if (loc) {
+        const text = `${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}`;
+        const el = document.getElementById('homeLocation');
+        if (el) el.textContent = `Around you • ${text}`;
+      }
+
+      if (category === 'dining') {
+        // fetch restaurants and sort by distance
+        const raw = await loadRestaurantsFromBackend();
+        const withNumeric = (raw || []).map(r => {
+          let d = Number.POSITIVE_INFINITY;
+          if (loc && r.latitude && r.longitude) {
+            d = calculateDistance(loc.latitude, loc.longitude, r.latitude, r.longitude);
+          }
+          return { ...r, _distanceKm: d, distance: isFinite(d) ? formatDistance(d) : 'N/A' };
+        }).sort((a,b) => (a._distanceKm||9999)-(b._distanceKm||9999));
+        feed.innerHTML = `<div class="feed-section-title">Dining near you</div>` +
+          `<div class="feed-list">` + withNumeric.map(r => {
+            const imgSrc = r.image_url
+              ? (r.image_url.startsWith('http') ? r.image_url : API_BASE + r.image_url)
+              : '/assets/bukhara.jpg';
+            return `
+            <div class="feed-card" onclick="showRestaurantDetails('${r.id}')">
+              <img src="${imgSrc}" alt="${r.name}">
+              <div style="flex:1;">
+                <div class="title">${r.name}</div>
+                <div class="sub">${r.distance} • ${r.city || r.address || ''}</div>
+              </div>
+              <div style="font-weight:700; color:#c7d2fe;">${r.discount_percentage>0? r.discount_percentage+'% OFF':''}</div>
+            </div>
+          `;
+          }).join('') + `</div>`;
+        return;
+      }
+
+      if (category === 'events') {
+        const events = await loadEventsFromBackend();
+        feed.innerHTML = `<div class="feed-section-title">Events</div>` +
+          `<div class="feed-list">` + (events||[]).map(evt => {
+            const imgSrc = evt.image_url
+              ? (evt.image_url.startsWith('http') ? evt.image_url : API_BASE + evt.image_url)
+              : '/assets/event-default.jpg';
+            return `
+            <div class="feed-card" onclick="showEventBookingModal('${evt.id}')">
+              <img src="${imgSrc}" alt="${evt.title}">
+              <div style="flex:1;">
+                <div class="title">${evt.title || 'Event'}</div>
+                <div class="sub">${evt.organizer_name || ''}</div>
+              </div>
+              <div style="font-weight:700; color:#c7d2fe;">${evt.price_per_ticket? '₹'+evt.price_per_ticket:'FREE'}</div>
+            </div>
+          `;
+          }).join('') + `</div>`;
+        return;
+      }
+
+      // For You (mix restaurants + events)
+      const [rawRestaurants, events] = await Promise.all([
+        loadRestaurantsFromBackend(),
+        loadEventsFromBackend()
+      ]);
+      const withNumeric = (rawRestaurants||[]).map(r => {
+        let d = Number.POSITIVE_INFINITY;
+        if (loc && r.latitude && r.longitude) d = calculateDistance(loc.latitude, loc.longitude, r.latitude, r.longitude);
+        return { ...r, _distanceKm: d, distance: isFinite(d) ? formatDistance(d) : 'N/A' };
+      }).sort((a,b) => (a._distanceKm||9999)-(b._distanceKm||9999)).slice(0,5);
+
+      const topEvents = (events||[]).slice(0,5);
+
+      feed.innerHTML = `
+        <div class="feed-section-title">Dining near you</div>
+        <div class="feed-list">
+          ${withNumeric.map(r => {
+            const imgSrc = r.image_url
+              ? (r.image_url.startsWith('http') ? r.image_url : API_BASE + r.image_url)
+              : '/assets/bukhara.jpg';
+            return `
+            <div class=\"feed-card\" onclick=\"showRestaurantDetails('${r.id}')\">
+              <img src=\"${imgSrc}\" alt=\"${r.name}\">
+              <div style=\"flex:1;\">
+                <div class=\"title\">${r.name}</div>
+                <div class=\"sub\">${r.distance} • ${r.city || r.address || ''}</div>
+              </div>
+            </div>
+          `;
+          }).join('')}
+        </div>
+        <div class="feed-section-title">Trending events</div>
+        <div class="feed-list">
+          ${topEvents.map(evt => {
+            const imgSrc = evt.image_url
+              ? (evt.image_url.startsWith('http') ? evt.image_url : API_BASE + evt.image_url)
+              : '/assets/event-default.jpg';
+            return `
+            <div class=\"feed-card\" onclick=\"showEventBookingModal('${evt.id}')\">
+              <img src=\"${imgSrc}\" alt=\"${evt.title}\">
+              <div style=\"flex:1;\">
+                <div class=\"title\">${evt.title || 'Event'}</div>
+                <div class=\"sub\">${evt.organizer_name || ''}</div>
+              </div>
+              <div style=\"font-weight:700; color:#c7d2fe;\">${evt.price_per_ticket? '₹'+evt.price_per_ticket:'FREE'}</div>
+            </div>
+          `;
+          }).join('')}
+        </div>`;
+    }
+
+    function initHomeInteractions() {
+      const cats = document.getElementById('homeCategories');
+      if (!cats) return;
+      cats.addEventListener('click', (e) => {
+        const btn = e.target.closest('.cat');
+        if (!btn) return;
+        cats.querySelectorAll('.cat').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderHome(btn.dataset.cat);
+      });
+      const search = document.getElementById('homeSearchInput');
+      if (search) {
+        search.addEventListener('input', debounce(() => {
+          // future: filter feed by search term; for now rerender current category
+          const active = document.querySelector('.home-categories .cat.active')?.dataset.cat || 'for-you';
+          renderHome(active);
+        }, 400));
+      }
+    }
+
+    // handleContinueClick is now defined in non-module script above for immediate availability
+    // It's available as window.handleContinueClick from page load
+    
+    // Function for login screen OTP
+    async function sendOTPFromLoginScreen() {
+      console.log('Login screen: Send OTP clicked');
+      const phoneInput = document.getElementById('loginPhoneInput');
+      const phone = phoneInput ? phoneInput.value.trim() : '';
+      
+      console.log('Login phone value:', phone);
+      
+      // Validate phone number (10 digits, numeric only)
+      const cleaned = phone.replace(/\D/g, '');
+      
+      if (cleaned.length !== 10) {
+        alert(`Please enter a valid 10-digit mobile number (got ${cleaned.length} digits)`);
+        return;
+      }
+      
+      // Call the imported sendOTPFromForm function with phone number directly
+      try {
+        console.log('Calling sendOTPFromForm from login screen with phone:', cleaned);
+        await sendOTPFromForm(cleaned);
+      } catch (error) {
+        console.error('Error in sendOTPFromLoginScreen:', error);
+        alert('Error: ' + error.message);
+      }
+    }
+    
+    // =======================
+    // FILTER & DEALS FUNCTIONS
+    // =======================
+    
+    // Global filters state
+    let currentFilters = {
+      category: null,
+      maxDistance: null,
+      minDiscount: null,
+      minRating: null
+    };
+    
+    // Filter handling
+    window.toggleFilter = function(filterType) {
+      switch(filterType) {
+        case 'distance':
+          showDistanceFilter();
+          break;
+        case 'category':
+          showCategoryFilter();
+          break;
+        case 'discount':
+          showDiscountFilter();
+          break;
+        case 'rating':
+          showRatingFilter();
+          break;
+      }
+    };
+    
+    function showDistanceFilter() {
+      const distances = [
+        { label: 'Within 1 km', value: 1 },
+        { label: 'Within 5 km', value: 5 },
+        { label: 'Within 10 km', value: 10 },
+        { label: 'Within 20 km', value: 20 },
+        { label: 'Any distance', value: null }
+      ];
+      
+      const selected = prompt('Select distance:\n' + distances.map((d, i) => `${i + 1}. ${d.label}`).join('\n'));
+      const index = parseInt(selected) - 1;
+      
+      if (index >= 0 && index < distances.length) {
+        currentFilters.maxDistance = distances[index].value;
+        loadHomeScreenData();
+      }
+    }
+    
+    function showDiscountFilter() {
+      const discounts = [
+        { label: '10% or more', value: 10 },
+        { label: '20% or more', value: 20 },
+        { label: '30% or more', value: 30 },
+        { label: '50% or more', value: 50 },
+        { label: 'Any discount', value: null }
+      ];
+      
+      const selected = prompt('Select minimum discount:\n' + discounts.map((d, i) => `${i + 1}. ${d.label}`).join('\n'));
+      const index = parseInt(selected) - 1;
+      
+      if (index >= 0 && index < discounts.length) {
+        currentFilters.minDiscount = discounts[index].value;
+        loadHomeScreenData();
+      }
+    }
+    
+    function showCategoryFilter() {
+      alert('Category filter - Use category tabs above to filter by category');
+    }
+    
+    function showRatingFilter() {
+      const ratings = [
+        { label: '4+ stars', value: 4 },
+        { label: '3+ stars', value: 3 },
+        { label: '2+ stars', value: 2 },
+        { label: 'Any rating', value: null }
+      ];
+      
+      const selected = prompt('Select minimum rating:\n' + ratings.map((r, i) => `${i + 1}. ${r.label}`).join('\n'));
+      const index = parseInt(selected) - 1;
+      
+      if (index >= 0 && index < ratings.length) {
+        currentFilters.minRating = ratings[index].value;
+        loadHomeScreenData();
+      }
+    }
+    
+    window.clearFilters = function() {
+      currentFilters = {
+        category: null,
+        maxDistance: null,
+        minDiscount: null,
+        minRating: null
+      };
+      
+      // Reset active tab to first one
+      const tabs = document.querySelectorAll('.tab');
+      tabs.forEach(t => t.classList.remove('active'));
+      if (tabs.length > 0) tabs[0].classList.add('active');
+      
+      loadHomeScreenData();
+    };
+    
+    window.viewAllDeals = function() {
+      console.log('View all deals clicked');
+      alert('View all deals - Navigate to dedicated deals page');
+    };
+    
+    // =======================
+    // INFINITE SCROLLING PARTNER DEALS
+    // =======================
+    
+    // Infinite Scroll Configuration
+    let isLoadingDeals = false;
+    let allDealsData = [];
+    let trendingDealsData = [];
+    let landingExperiencesData = [];
+    let activeSlug = 'all';
+
+    window.clearLandingCache = function() {
+      allDealsData = [];
+      trendingDealsData = [];
+      landingExperiencesData = [];
+    };
+
+    window.addEventListener('message', (event) => {
+      if (!event || !event.data) return;
+      if (event.data.type === 'OFFER_UPDATED' || event.data.type === 'OFFER_UPDATED_LOCAL') {
+        console.log('🔄 Offer updated message received, refreshing experiences');
+        window.clearLandingCache();
+        loadLandingExperiences(activeSlug || 'all');
+        loadTrendingDeals(currentServiceTypeFilter);
+        loadAllDeals(currentServiceTypeFilter);
+      }
+    });
+
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'landingOfferDirty' && event.newValue) {
+        console.log('📦 Storage change detected, refreshing cached data');
+        window.clearLandingCache();
+        loadLandingExperiences(activeSlug || 'all');
+        loadTrendingDeals(currentServiceTypeFilter);
+        loadAllDeals(currentServiceTypeFilter);
+      }
+    });
+    let currentServiceTypeFilter = null; // Store current service type filter
+    
+    // Load trending deals (for carousel)
+    async function loadTrendingDeals(serviceType = null) {
+      const container = document.getElementById('trendingCarousel');
+      if (!container) return;
+      
+      try {
+        container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading trending deals...</div>';
+        
+        let url = `${API_BASE}/api/v1/offers?trending=true&limit=10&is_active=true`;
+        if (serviceType) {
+          url += `&service_type=${serviceType}`;
+        }
+        
+        console.log('🔥 Loading TRENDING deals from:', url);
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        console.log('🔥 Trending deals response:', result);
+        
+        if (result.success && result.data && result.data.length > 0) {
+          trendingDealsData = result.data;
+          console.log(`✅ Loaded ${result.data.length} trending deals for Featured section`);
+          renderTrendingCarousel(result.data);
+        } else {
+          console.log('⚠️ No trending deals found');
+          renderNoTrendingMessage();
+        }
+      } catch (error) {
+        console.error('❌ Error loading trending deals:', error);
+        renderNoTrendingMessage();
+      }
+    }
+    
+    // Render trending carousel with horizontal scroll
+    function renderTrendingCarousel(deals) {
+      const container = document.getElementById('trendingCarousel');
+      if (!container) return;
+      
+      container.classList.remove('has-banner');
+      
+      // Render deal cards
+      container.innerHTML = deals.map(deal => {
+        const imageUrl = deal.image_url ? 
+          (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
+          '/assets/default-offer.jpg';
+        const { original, discounted, percent, amount, hasDiscount, savings, ezt } = computeDiscountSummary(deal);
+        const formattedPercent = percent > 0 ? (percent % 1 === 0 ? percent.toFixed(0) : percent.toFixed(2)) : null;
+        const formattedAmount = amount > 0 ? (amount % 1 === 0 ? amount.toFixed(0) : amount.toFixed(2)) : null;
+        
+        return `
+          <div class="trending-card" onclick="openOfferDetails('${deal.id}')">
+            <div class="trending-image-wrapper">
+              <img src="${imageUrl}" class="trending-image" alt="${deal.title}" 
+                   onerror="this.src='/assets/default-offer.jpg'">
+              <div class="trending-badge">🔥 TRENDING</div>
+              ${hasDiscount ? 
+                `<div class="discount-badge">${formattedPercent ? `${formattedPercent}% OFF` : `₹${formattedAmount} OFF`}</div>` : ''}
+            </div>
+            <div class="trending-card-content">
+              <h3>${deal.title}</h3>
+              <p class="partner-name">${deal.partner_name}</p>
+              ${(() => {
+                if (hasDiscount) {
+                  return `<div class="price-info">
+                    <span class="original-price" style="text-decoration: line-through; opacity: 0.6; margin-right: 6px;">₹${original.toFixed(2)}</span>
+                    <span class="discounted-price">₹${discounted.toFixed(2)}</span>
+                    <span class="discount-note" style="display:block; font-size:12px; color:#10b981;">You save ₹${savings.toFixed(2)} • ${ezt.toFixed(2)} EZT</span>
+                  </div>`;
+                } else if (percent > 0 && original === 0) {
+                  return `<div class="discount-highlight">${formattedPercent}% OFF</div>`;
+                } else if (original > 0 || discounted > 0) {
+                  const finalPrice = discounted > 0 ? discounted : original;
+                  return `<div class="price-info">
+                    <span class="final-price">₹${finalPrice.toFixed(2)}</span>
+                  </div>`;
+                }
+                return '';
+              })()}
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      // Add friendly message if there are 2 or fewer deals
+      if (deals.length <= 2 && deals.length > 0) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'deals-placeholder-message';
+        messageDiv.style.cssText = `
+          min-width: 280px;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 40px 24px;
+          text-align: center;
+          color: var(--text-muted, #6b7280);
+          font-size: 15px;
+          line-height: 1.6;
+          background: rgba(255, 255, 255, 0.02);
+          border-radius: 12px;
+          border: 1px dashed rgba(255, 255, 255, 0.1);
+          margin-left: 16px;
+        `;
+        messageDiv.innerHTML = `
+          <div>
+            <div style="font-size: 32px; margin-bottom: 12px;">🧑‍🍳</div>
+            <div style="font-weight: 500; color: var(--text, #e5e7eb); margin-bottom: 4px;">
+              More deals are being cooked
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted, #9ca3af);">
+              by our partners and shall be served soon!
+            </div>
+          </div>
+        `;
+        container.appendChild(messageDiv);
+      }
+      
+      // Enable horizontal scrolling with touch support
+      enableHorizontalScroll(container);
+    }
+    
+    // Enable smooth horizontal scrolling
+    function enableHorizontalScroll(container) {
+      let isDown = false;
+      let startX;
+      let scrollLeft;
+      
+      container.addEventListener('mousedown', (e) => {
+        isDown = true;
+        container.style.cursor = 'grabbing';
+        startX = e.pageX - container.offsetLeft;
+        scrollLeft = container.scrollLeft;
+      });
+      
+      container.addEventListener('mouseleave', () => {
+        isDown = false;
+        container.style.cursor = 'grab';
+      });
+      
+      container.addEventListener('mouseup', () => {
+        isDown = false;
+        container.style.cursor = 'grab';
+      });
+      
+      container.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - container.offsetLeft;
+        const walk = (x - startX) * 2;
+        container.scrollLeft = scrollLeft - walk;
+      });
+    }
+    
+    // Load all partner deals (includes both promoted and non-promoted)
+    async function loadAllDeals(serviceType = null) {
+      const container = document.getElementById('allDealsGrid');
+      if (!container) return;
+      
+      try {
+        container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading partner deals...</div>';
+        
+        // Don't pass trending=false - this ensures we get ALL deals including trending ones
+        // Trending deals appear at the top because backend sorts promoted entries first
+        let url = `${API_BASE}/api/v1/offers?limit=100&is_active=true`;
+        if (serviceType) {
+          url += `&service_type=${serviceType}`;
+        }
+        
+        console.log('📦 Loading ALL partner deals from:', url);
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        console.log('📦 Partner deals response:', result);
+        
+        if (result.success && result.data && result.data.length > 0) {
+          allDealsData = result.data;
+          console.log(`✅ Loaded ${result.data.length} partner deals (including ${result.data.filter(d => d.is_promoted).length} promoted)`);
+          renderPartnerDealsInfiniteScroll(result.data);
+        } else {
+          console.log('⚠️ No partner deals found');
+          renderNoDealsMessage();
+        }
+      } catch (error) {
+        console.error('❌ Error loading partner deals:', error);
+        renderNoDealsMessage();
+      }
+    }
+    
+    // Render partner deals with infinite horizontal scroll
+    function renderPartnerDealsInfiniteScroll(deals) {
+      const container = document.getElementById('allDealsGrid');
+      if (!container) return;
+      
+      container.classList.remove('has-banner');
+      
+      // For infinite scroll: only triple if we have more than 2 deals
+      // If 2 or fewer, show them normally with a message
+      let infiniteDeals = deals;
+      let shouldUseInfiniteScroll = deals.length > 2;
+      
+      if (shouldUseInfiniteScroll) {
+        infiniteDeals = [...deals, ...deals, ...deals];
+      }
+      
+      container.innerHTML = infiniteDeals.map((deal, index) => {
+        const imageUrl = deal.image_url ? 
+          (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
+          '/assets/default-offer.jpg';
+        
+        return `
+          <div class="deal-card" onclick="openOfferDetails('${deal.id}')" data-index="${index}">
+            <div class="deal-image-wrapper">
+              <img src="${imageUrl}" class="deal-image" alt="${deal.title}"
+                   onerror="this.src='/assets/default-offer.jpg'">
+              ${deal.is_promoted ? 
+                `<div class="trending-badge">🔥 TRENDING</div>` : ''}
+              ${(() => {
+                const summary = computeDiscountSummary(deal);
+                if (summary.hasDiscount) {
+                  return `<div class="discount-badge">${summary.percent > 0 ? `${summary.percent % 1 === 0 ? summary.percent.toFixed(0) : summary.percent.toFixed(2)}% OFF` : `₹${summary.savings.toFixed(2)} OFF`}</div>`;
+                }
+                return '';
+              })()}
+            </div>
+            <div class="deal-info">
+              <h4>${deal.title}</h4>
+              <p class="partner-name">${deal.partner_name}</p>
+              ${deal.category_name ? 
+                `<span class="category-badge">${deal.category_name}</span>` : ''}
+              ${(() => {
+                const summary = computeDiscountSummary(deal);
+                if (summary.hasDiscount) {
+                  return `<div class="price-info">
+                    <span class="original-price" style="text-decoration: line-through; opacity: 0.6; margin-right: 6px;">₹${summary.original.toFixed(2)}</span>
+                    <span class="discounted-price">₹${summary.discounted.toFixed(2)}</span>
+                    <span class="discount-note" style="display:block; font-size:12px; color:#10b981;">You save ₹${summary.savings.toFixed(2)} • ${summary.ezt.toFixed(2)} EZT</span>
+                  </div>`;
+                } else if (summary.percent > 0 && summary.original === 0) {
+                  return `<div class="discount-text">${summary.percent % 1 === 0 ? summary.percent.toFixed(0) : summary.percent.toFixed(2)}% OFF</div>`;
+                } else if (summary.original > 0 || summary.discounted > 0) {
+                  const finalPrice = summary.discounted > 0 ? summary.discounted : summary.original;
+                  return `<div class="price-info">
+                    <span class="final-price">₹${finalPrice.toFixed(2)}</span>
+                  </div>`;
+                }
+                return '';
+              })()}
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      // Add friendly message if there are 2 or fewer deals
+      if (deals.length <= 2 && deals.length > 0) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'deals-placeholder-message';
+        messageDiv.style.cssText = `
+          min-width: 280px;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 40px 24px;
+          text-align: center;
+          color: var(--text-muted, #6b7280);
+          font-size: 15px;
+          line-height: 1.6;
+          background: rgba(255, 255, 255, 0.02);
+          border-radius: 12px;
+          border: 1px dashed rgba(255, 255, 255, 0.1);
+          margin-left: 16px;
+        `;
+        messageDiv.innerHTML = `
+          <div>
+            <div style="font-size: 32px; margin-bottom: 12px;">🧑‍🍳</div>
+            <div style="font-weight: 500; color: var(--text, #e5e7eb); margin-bottom: 4px;">
+              More deals are being cooked
+            </div>
+            <div style="font-size: 13px; color: var(--text-muted, #9ca3af);">
+              by our partners and shall be served soon!
+            </div>
+          </div>
+        `;
+        container.appendChild(messageDiv);
+      }
+      
+      // Add infinite scroll behavior only if we have more than 2 deals
+      if (shouldUseInfiniteScroll) {
+        setupInfiniteScroll(container, deals.length);
+      }
+      
+      // Enable horizontal scrolling with touch support
+      enableHorizontalScroll(container);
+    }
+    
+    // Setup infinite scroll (loop back to start)
+    function setupInfiniteScroll(container, originalLength) {
+      let isScrolling = false;
+      
+      container.addEventListener('scroll', () => {
+        if (isScrolling) return;
+        
+        const scrollLeft = container.scrollLeft;
+        const scrollWidth = container.scrollWidth;
+        const clientWidth = container.clientWidth;
+        
+        // Calculate position in the original array
+        const cardWidth = 280; // Approximate card width + gap
+        const totalWidth = cardWidth * originalLength;
+        
+        // If scrolled to the end, jump back to middle section
+        if (scrollLeft + clientWidth >= scrollWidth - 50) {
+          isScrolling = true;
+          container.scrollLeft = totalWidth;
+          setTimeout(() => { isScrolling = false; }, 100);
+        }
+        
+        // If scrolled to the beginning, jump to end of middle section
+        if (scrollLeft <= 50) {
+          isScrolling = true;
+          container.scrollLeft = totalWidth + scrollLeft;
+          setTimeout(() => { isScrolling = false; }, 100);
+        }
+      });
+      
+      // Start at middle section for seamless scrolling
+      container.scrollLeft = originalLength * 140; // Approximate starting position
+    }
+    
+    // Render empty states
+    function renderNoTrendingMessage() {
+      const container = document.getElementById('trendingCarousel');
+      if (!container) return;
+      
+      container.classList.add('has-banner');
+      container.innerHTML = `
+        <div class="no-promotions">
+          <div class="empty-icon">💎</div>
+          <p class="empty-title">Premium Offers Coming Soon</p>
+          <p class="empty-text">Exclusive deals from our partners are on the way</p>
+        </div>
+      `;
+    }
+    
+    function renderNoDealsMessage() {
+      const container = document.getElementById('allDealsGrid');
+      if (!container) return;
+      
+      container.classList.add('has-banner');
+      container.innerHTML = `
+        <div class="no-deals">
+          <div class="empty-icon">🎁</div>
+          <p class="empty-title">New Deals Added Daily</p>
+          <p class="empty-text">Local partners are joining regularly - check back soon!</p>
+        </div>
+      `;
+    }
+    
+    
+    // Load category tabs
+    function loadCategoryTabs() {
+      const container = document.getElementById('categoryTabsContainer');
+      if (!container) return;
+      
+      const categories = [
+        { key: 'all', label: 'All' },
+        { key: 'dining', label: 'Dining' },
+        { key: 'events', label: 'Events' },
+        { key: 'wellness', label: 'Wellness' },
+        { key: 'spa', label: 'Spa & Salon' },
+        { key: 'travel', label: 'Travel' },
+        { key: 'healthcare', label: 'Healthcare' }
+      ];
+      
+      container.innerHTML = categories.map((cat, index) => `
+        <div class="category-tab ${index === 0 ? 'active' : ''}" 
+             data-category="${cat.key}"
+             onclick="selectCategory('${cat.key}')">
+          ${cat.label}
+        </div>
+      `).join('');
+    }
+    
+    window.selectCategory = function(category) {
+      // Update active state
+      document.querySelectorAll('.category-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.category === category);
+      });
+      
+      // TODO: Filter deals by category
+      console.log('Selected category:', category);
+    };
+    
+    // Load bottom navigation - Modern Design
+    function loadBottomNav() {
+      const container = document.getElementById('categoryGrid');
+      if (!container) return;
+      
+      const activeScreen = document.querySelector('.screen.active');
+      const currentKey = activeScreen ? activeScreen.dataset.screen || 'home' : 'home';
+      
+      const navItems = [
+        { key: 'home', icon: '🏠', label: 'Home' },
+        { key: 'dining', icon: '🍽️', label: 'Dining' },
+        { key: 'events', icon: '🎉', label: 'Events' },
+        { key: 'healthcare', icon: '🩺', label: 'Health' },
+        { key: 'wellness', icon: '🧘', label: 'Wellness' },
+        { key: 'others', icon: '📦', label: 'More' }
+      ];
+      
+      container.innerHTML = navItems.map((item) => {
+        const isActive = item.key === currentKey;
+        return `
+          <div class="category-item ${isActive ? 'active' : ''}" 
+               onclick="navigateTo('${item.key}')">
+            <div class="category-icon">${item.icon}</div>
+            <div class="category-label">${item.label}</div>
+          </div>
+        `;
+      }).join('');
+      
+      console.log(`✅ Rendered ${navItems.length} navigation items`);
+    }
+    
+    // Filter functions - Make globally available immediately
+    window.filterByCategory = function(category) {
+      console.log('Filtering by category:', category);
+      activeSlug = category || 'all';
+      
+      // Update active state for category chips (landing page)
+      document.querySelectorAll('.category-chip').forEach(chip => {
+        chip.classList.remove('active');
+        if (chip.dataset.category === category) {
+          chip.classList.add('active');
+        }
+      });
+      
+      // Update active tab (home screen)
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.dataset.category === category) {
+          tab.classList.add('active');
+        }
+      });
+      
+      // Map category to service_type
+      const categoryToServiceType = {
+        'dining': 'dining',
+        'events': 'events',
+        'healthcare': 'healthcare',
+        'spa': 'spa-and-salon',
+        'wellness': 'wellness',
+        'travel': 'travel',
+        'others': 'others'
+      };
+      
+      const serviceType = category === 'all' ? null : (categoryToServiceType[category] || null);
+      currentServiceTypeFilter = serviceType;
+      
+      // Load experiences for landing page if on onboarding screen
+      const onboardingScreen = document.getElementById('onboardingScreen');
+      if (onboardingScreen && !onboardingScreen.classList.contains('hidden')) {
+        loadLandingExperiences(category);
+      } else {
+        // Filter deals on home screen
+        const homeScreen = document.getElementById('homeScreen');
+        if (homeScreen && !homeScreen.classList.contains('hidden')) {
+          // Filter both Featured and Partner Deals
+          loadTrendingDeals(serviceType);
+          loadAllDeals(serviceType);
+        }
+      }
+    };
+    
+    function toggleFilter(filterType) {
+      const chip = event.target.closest('.filter-chip');
+      if (chip) {
+        chip.classList.toggle('active');
+      }
+      console.log('Toggle filter:', filterType);
+      // TODO: Implement filter logic
+    }
+    
+    function clearFilters() {
+      document.querySelectorAll('.filter-chip').forEach(chip => {
+        chip.classList.remove('active');
+      });
+      console.log('Cleared all filters');
+      // TODO: Reset filtered data
+    }
+    
+    window.openDeal = function(dealId) {
+      // Legacy support - redirect to new offer details
+      openOfferDetails(dealId);
+    };
+    
+    // Open offer details modal
+    window.openOfferDetails = async function(offerId) {
+      const API_BASE = window.API_BASE || 
+                       (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
+                       'http://localhost:5001';
+      
+      let offer = allDealsData.find(o => o.id === offerId) || 
+                  trendingDealsData.find(o => o.id === offerId) ||
+                  landingExperiencesData.find(o => o.id === offerId);
+      
+      if (!offer) {
+        console.warn(`Offer ${offerId} not found in cached collections. Fetching from API...`);
+        try {
+          const response = await fetch(`${API_BASE}/api/v1/offers?admin=true&limit=1000`);
+          if (response.ok) {
+            const data = await response.json();
+            const offersArray = Array.isArray(data?.data) ? data.data : [];
+            if (offersArray.length > 0) {
+              // Merge into caches for future lookups
+              allDealsData = offersArray;
+              offer = offersArray.find(o => o.id === offerId);
+            }
+          } else {
+            console.error('Failed to fetch offers for modal fallback:', response.status, response.statusText);
+          }
+        } catch (fetchError) {
+          console.error('Error fetching offer for modal:', fetchError);
+        }
+      }
+      
+      if (!offer) {
+        alert('Offer not found');
+        return;
+      }
+      
+      // Normalize image URL (supports API_BASE-less paths)
+      const normalizedImageUrl = (() => {
+        if (!offer.image_url) return '/assets/default-offer.jpg';
+        if (offer.image_url.startsWith('http')) return offer.image_url;
+        return `${API_BASE}${offer.image_url}`;
+      })();
+      
+      const modalContent = `
+        <div class="offer-modal">
+          <div class="offer-modal-header">
+                 <img src="${normalizedImageUrl}" alt="${offer.title}" class="offer-modal-image"
+                 onerror="this.src='/assets/default-offer.jpg'">
+            ${offer.is_promoted ? '<div class="trending-badge">🔥 TRENDING</div>' : ''}
+            <button class="modal-close-btn" onclick="closeOfferModal()">&times;</button>
+          </div>
+          <div class="offer-modal-body">
+            <h2>${offer.title}</h2>
+            <p class="partner-name">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+              </svg>
+              ${offer.partner_name}
+            </p>
+            
+            ${offer.description ? `<p class="offer-description">${offer.description}</p>` : ''}
+            
+            <div class="offer-details">
+              ${(() => {
+                const summary = computeDiscountSummary(offer);
+                if (summary.percent > 0) {
+                  return `<div class="detail-item">
+                    <span class="detail-label">Discount</span>
+                    <span class="detail-value discount-highlight">${summary.percent % 1 === 0 ? summary.percent.toFixed(0) : summary.percent.toFixed(2)}% OFF</span>
+                  </div>`;
+                } else if (summary.amount > 0) {
+                  return `<div class="detail-item">
+                    <span class="detail-label">Discount</span>
+                    <span class="detail-value discount-highlight">₹${summary.amount.toFixed(2)} OFF</span>
+                  </div>`;
+                }
+                return '';
+              })()}
+
+              ${(() => {
+                const summary = computeDiscountSummary(offer);
+                if (summary.original > 0 || summary.discounted > 0) {
+                  return `<div class="detail-item">
+                    <span class="detail-label">Price</span>
+                    <div class="price-info">
+                      ${summary.hasDiscount ? `<span class="original-price">₹${summary.original.toFixed(2)}</span>` : ''}
+                      <span class="discounted-price">₹${summary.discounted.toFixed(2)}</span>
+                      ${summary.hasDiscount ? `<span class="discount-note" style="display:block; font-size:12px; color:#10b981;">You save ₹${summary.savings.toFixed(2)} • ${summary.ezt.toFixed(2)} EZT</span>` : ''}
+                    </div>
+                  </div>`;
+                }
+                return '';
+              })()}
+
+              ${offer.promo_code ? 
+                `<div class="detail-item promo-code-item">
+                  <span class="detail-label">Promo Code</span>
+                  <div class="promo-code-box">
+                    <code>${offer.promo_code}</code>
+                    <button onclick="copyPromoCode('${offer.promo_code}')" class="copy-btn">Copy</button>
+                  </div>
+                </div>` : ''}
+              
+              <div class="detail-item">
+                <span class="detail-label">Valid Until</span>
+                <span class="detail-value">${new Date(offer.end_date).toLocaleDateString('en-IN', {day: '2-digit', month: 'short', year: 'numeric'})}</span>
+              </div>
+              
+              ${offer.max_redemptions ? 
+                `<div class="detail-item">
+                  <span class="detail-label">Redemptions</span>
+                  <span class="detail-value">${offer.current_redemptions || 0} / ${offer.max_redemptions}</span>
+                </div>` : ''}
+            </div>
+            
+            ${offer.terms_conditions ? 
+              `<div class="terms-section">
+                <h3>Terms & Conditions</h3>
+                <p>${offer.terms_conditions}</p>
+              </div>` : ''}
+            
+            <div class="modal-actions">
+              <button class="btn btn-primary book-now-btn" data-deal-id="${offer.id}" data-item-type="${offer.item_type || 'offer'}" style="width: 100%; margin-bottom: 0.5rem;">
+                📅 Book Now
+              </button>
+              <button class="btn btn-secondary" onclick="closeOfferModal()" style="width: 100%;">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      const modal = document.getElementById('offerDetailsModal') || createOfferModal();
+      modal.innerHTML = modalContent;
+      modal.style.display = 'flex';
+      
+      // Use event delegation for Book Now button to avoid timing issues
+      const bookNowBtn = modal.querySelector('.book-now-btn');
+      if (bookNowBtn) {
+        bookNowBtn.addEventListener('click', function() {
+          const dealId = this.getAttribute('data-deal-id');
+          const itemType = this.getAttribute('data-item-type') || 'offer';
+          if (typeof window.initiateBooking === 'function') {
+            window.initiateBooking(dealId, itemType);
+          } else {
+            alert('Booking system is loading. Please try again in a moment.');
+          }
+        });
+      }
+    };
+    
+    function createOfferModal() {
+      const modal = document.createElement('div');
+      modal.id = 'offerDetailsModal';
+      modal.className = 'modal';
+      document.body.appendChild(modal);
+      return modal;
+    }
+    
+    window.closeOfferModal = function() {
+      const modal = document.getElementById('offerDetailsModal');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    };
+    
+    window.copyPromoCode = function(code) {
+      navigator.clipboard.writeText(code).then(() => {
+        showNotification('Promo code copied!', 'success');
+      }).catch(err => {
+        console.error('Failed to copy promo code:', err);
+      });
+    };
+    
+    window.redeemOffer = async function(offerId) {
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/offers/${offerId}/redeem`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          showNotification('Offer redeemed successfully!', 'success');
+          closeOfferModal();
+          // Reload deals to update redemption counts
+          loadAllDeals();
+        } else {
+          showNotification(result.error || 'Failed to redeem offer', 'error');
+        }
+      } catch (error) {
+        console.error('Error redeeming offer:', error);
+        showNotification('Error redeeming offer', 'error');
+      }
+    };
+    
+    // ============================================
+    // BOOK NOW FUNCTIONALITY
+    // ============================================
+    
+    let currentBookingDeal = null;
+    let currentBookingAvailability = null;
+    let userEztBalance = 0;
+    
+    // Override the early stub with full implementation
+    window.initiateBooking = async function(dealId, itemType = 'offer') {
+      console.log('✅ Full initiateBooking implementation called for deal:', dealId);
+      try {
+        // Check authentication
+        // Get token - handle both JSON stringified and plain string formats
+        let token = localStorage.getItem('token');
+        if (token) {
+          // If token is JSON stringified (from setStorageItem), parse it
+          try {
+            const parsed = JSON.parse(token);
+            if (typeof parsed === 'string') {
+              token = parsed;
+            }
+          } catch {
+            // Token is already a plain string, use as is
+          }
+        }
+        
+        if (!token || token === 'null' || token === 'undefined') {
+          alert('Please login to book deals');
+          if (typeof navigateTo === 'function') {
+            navigateTo('login');
+          } else if (typeof window.navigateTo === 'function') {
+            window.navigateTo('login');
+          }
+          return;
+        }
+        
+        // Get API base URL (try multiple sources)
+        const API_BASE = window.API_BASE || 
+                        (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
+                        'http://localhost:5001';
+        
+        // Clean token - remove quotes if JSON stringified
+        const cleanToken = token.replace(/^["']|["']$/g, '');
+        
+        console.log('📡 Using API_BASE:', API_BASE);
+        console.log('📡 Token:', cleanToken ? `${cleanToken.substring(0, 20)}...` : 'MISSING');
+        console.log('📡 Token length:', cleanToken ? cleanToken.length : 0);
+        console.log('📡 Fetching availability for deal:', dealId);
+        
+        // First, try to get the deal from offers endpoint (no auth required for this)
+        let dealData;
+        let deal;
+        try {
+          const dealRes = await fetch(`${API_BASE}/api/v1/offers?admin=true&limit=1000`);
+          
+          if (!dealRes.ok) {
+            const errorText = await dealRes.text();
+            console.error('❌ Deal fetch error:', dealRes.status, errorText.substring(0, 200));
+            throw new Error(`Failed to load deal: ${dealRes.status} ${dealRes.statusText}`);
+          }
+          
+          // Check if response is JSON
+          const contentType = dealRes.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            const errorText = await dealRes.text();
+            console.error('❌ Deal response is not JSON:', contentType, errorText.substring(0, 200));
+            throw new Error('Server returned non-JSON response. Please check if the backend is running.');
+          }
+          
+          dealData = await dealRes.json();
+          deal = Array.isArray(dealData.data) ? 
+            dealData.data.find(d => d.id === dealId) : 
+            (dealData.data?.id === dealId ? dealData.data : null);
+          
+          if (!deal) {
+            throw new Error('Deal not found');
+          }
+        } catch (err) {
+          console.error('❌ Error fetching deals:', err);
+          throw new Error(`Failed to fetch deals: ${err.message}`);
+        }
+        
+        // Now fetch availability and profile (both require auth)
+        // If availability endpoint doesn't exist, we'll create a simple response
+        let availabilityData = { success: true, data: { has_slots: false, slots: [] } };
+        let profileData = { success: true, data: { ezt_balance: 0 } };
+        
+        try {
+          const availabilityRes = await fetch(`${API_BASE}/api/v1/deals/${dealId}/availability`, {
+            headers: { 'Authorization': `Bearer ${cleanToken}` }
+          });
+          
+          if (availabilityRes.ok) {
+            // Check if response is JSON
+            const contentType = availabilityRes.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+              availabilityData = await availabilityRes.json();
+            } else {
+              console.warn('⚠️ Availability response is not JSON, using default');
+            }
+          } else if (availabilityRes.status === 404) {
+            console.warn('⚠️ Availability endpoint not found (404), using default');
+            // Endpoint doesn't exist yet, use default
+            availabilityData = { 
+              success: true, 
+              data: { 
+                has_slots: false, 
+                slots: [],
+                deal: {
+                  id: deal.id,
+                  title: deal.title,
+                  partner_name: deal.partner_name,
+                  category: deal.category_name,
+                  base_price: parseFloat(deal.discounted_price || deal.original_price || 0)
+                }
+              } 
+            };
+          } else {
+            const errorText = await availabilityRes.text();
+            console.error('❌ Availability fetch error:', availabilityRes.status, errorText.substring(0, 200));
+            // Don't throw, just use default
+            console.warn('⚠️ Using default availability data');
+          }
+        } catch (err) {
+          console.warn('⚠️ Availability endpoint error, using default:', err.message);
+        }
+        
+        try {
+          const profileRes = await fetch(`${API_BASE}/api/v1/user/profile`, {
+            headers: { 'Authorization': `Bearer ${cleanToken}` }
+          });
+          
+          if (profileRes.ok) {
+            // Check if response is JSON
+            const contentType = profileRes.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+              profileData = await profileRes.json();
+            } else {
+              console.warn('⚠️ Profile response is not JSON, using default');
+              profileData = { success: true, data: { ezt_balance: 0 } };
+            }
+          } else {
+            const errorText = await profileRes.text();
+            console.error('❌ Profile fetch error:', profileRes.status, errorText.substring(0, 200));
+            if (profileRes.status === 403) {
+              console.warn('⚠️ Token may be invalid or expired. Please login again.');
+            }
+            // Don't throw, just use default
+            profileData = { success: true, data: { ezt_balance: 0 } };
+          }
+        } catch (err) {
+          console.warn('⚠️ Profile fetch error, using default:', err.message);
+          profileData = { success: true, data: { ezt_balance: 0 } };
+        }
+        
+        currentBookingDeal = deal;
+        currentBookingAvailability = availabilityData.data || { has_slots: false, slots: [] };
+        userEztBalance = parseFloat(profileData.data?.ezt_balance || 0);
+        
+        // Show booking modal
+        showBookingModal(deal, availabilityData.data);
+      } catch (error) {
+        console.error('Error initiating booking:', error);
+        alert(`Failed to load booking: ${error.message}`);
+      }
+    };
+    
+    function showBookingModal(deal, availability) {
+      if (typeof closeOfferModal === 'function') {
+        closeOfferModal();
+      }
+      const modal = document.getElementById('bookingModal') || createBookingModal();
+      
+      // Ensure availability has proper structure
+      if (!availability) {
+        availability = { has_slots: false, slots: [] };
+      }
+      
+      const fallbackPrice = parseFloat(deal.price || deal.base_price || deal.menu_price || deal.item_price || 0);
+      let originalPrice = parseFloat(deal.original_price || fallbackPrice || 0);
+      let discountedPrice = parseFloat(deal.discounted_price || originalPrice || fallbackPrice || 0);
+      const discountPercentage = parseFloat(deal.discount_percentage || 0);
+      
+      let unitDiscountAmount = parseFloat(deal.discount_amount || 0);
+      if (!unitDiscountAmount && discountPercentage > 0 && originalPrice > 0) {
+        unitDiscountAmount = (originalPrice * discountPercentage) / 100;
+      }
+      if (!unitDiscountAmount && originalPrice > 0 && discountedPrice > 0) {
+        unitDiscountAmount = Math.max(0, originalPrice - discountedPrice);
+      }
+      if (!originalPrice && fallbackPrice) {
+        originalPrice = fallbackPrice;
+      }
+      if (!discountedPrice && originalPrice) {
+        discountedPrice = Math.max(0, originalPrice - unitDiscountAmount);
+      }
+      unitDiscountAmount = Math.min(unitDiscountAmount, originalPrice);
+      const hasDiscount = unitDiscountAmount > 0;
+      
+      const initialQuantity = 1;
+      const initialTotalOriginal = originalPrice * initialQuantity;
+      const initialTotalDiscount = Math.min(unitDiscountAmount * initialQuantity, initialTotalOriginal);
+      const initialTotalEzt = initialTotalDiscount / 100;
+      const initialFinalAmount = Math.max(0, initialTotalOriginal - initialTotalDiscount);
+      
+      window.currentBookingPricing = {
+        unitOriginal: originalPrice,
+        unitDiscount: unitDiscountAmount,
+        unitEzt: unitDiscountAmount / 100
+      };
+      window.currentBookingPricingSnapshot = { ...window.currentBookingPricing };
+      
+      const isFixedDateEvent = deal.service_type === 'events' && deal.start_date && deal.end_date && deal.start_date === deal.end_date;
+      let bookingDateValueAttr = '';
+      let bookingDateDisabledAttr = '';
+
+      if (deal.service_type === 'events' && deal.start_date) {
+        const startDateISO = new Date(deal.start_date).toISOString().split('T')[0];
+        bookingDateValueAttr = ` value="${startDateISO}"`;
+        bookingDateDisabledAttr = deal.end_date && new Date(deal.start_date).toISOString().split('T')[0] === new Date(deal.end_date).toISOString().split('T')[0]
+          ? ' disabled'
+          : '';
+      }
+
+      modal.innerHTML = `
+        <div class="booking-modal-content" style="
+          background: white;
+          border-radius: 16px;
+          max-width: 500px;
+          width: 90%;
+          max-height: 90vh;
+          overflow-y: auto;
+          position: relative;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        ">
+          <div style="padding: 24px; border-bottom: 1px solid #e5e7eb;">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+              <div>
+                <h2 style="margin: 0; font-size: 24px; font-weight: 700; color: #111827;">Book Now</h2>
+                <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 14px;">${deal.partner_name}</p>
+              </div>
+              <button onclick="closeBookingModal()" style="
+                background: none;
+                border: none;
+                font-size: 28px;
+                color: #6b7280;
+                cursor: pointer;
+                padding: 0;
+                width: 32px;
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+                transition: all 0.2s;
+              " onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">&times;</button>
+            </div>
+            <div style="font-size: 18px; font-weight: 600; color: #111827;">${deal.title}</div>
+            ${hasDiscount ? `
+              <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                <span style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 4px 12px; border-radius: 6px; font-size: 14px; font-weight: 600;">
+                  ${discountPercentage}% OFF
+                </span>
+                ${originalPrice > discountedPrice ? `
+                  <span style="text-decoration: line-through; color: #9ca3af; font-size: 14px;">₹${originalPrice.toFixed(2)}</span>
+                  <span style="color: #10b981; font-size: 16px; font-weight: 600;">₹${discountedPrice.toFixed(2)}</span>
+                ` : ''}
+              </div>
+            ` : ''}
+          </div>
+          
+          <div style="padding: 24px;">
+            <!-- Date Selection -->
+            <div style="margin-bottom: 20px;">
+              <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Select Date *</label>
+              <input type="date" id="bookingDate" class="booking-input" 
+                     min="${deal.service_type === 'events' && deal.start_date ? new Date(deal.start_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}"
+                     max="${deal.service_type === 'events' && deal.end_date ? new Date(deal.end_date).toISOString().split('T')[0] : ''}"
+                     required
+                     onchange="updateBookingPrice()"${bookingDateValueAttr}${bookingDateDisabledAttr}>
+              <small style="display: block; margin-top: 4px; color: #6b7280; font-size: 12px;">
+                ${deal.service_type === 'events' ? 'Event date is fixed for this experience' : 'Select your preferred booking date'}
+              </small>
+            </div>
+            
+            <!-- Time Slot Selection (if available) -->
+            ${availability.has_slots && availability.slots.length > 0 ? `
+              <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Select Time Slot</label>
+                <select id="bookingTimeSlot" class="booking-input" onchange="updateBookingPrice()">
+                  <option value="">Select time slot</option>
+                  ${availability.slots.map(slot => `
+                    <option value="${slot.id}" data-price="${slot.price}" data-available="${slot.available_count}">
+                      ${slot.time_slot || 'All Day'} - ₹${slot.price.toFixed(2)} (${slot.available_count} available)
+                    </option>
+                  `).join('')}
+                </select>
+              </div>
+            ` : `
+              <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Time Slot</label>
+                <input type="text" id="bookingTimeSlot" class="booking-input" placeholder="Optional (e.g., 7:00 PM)">
+              </div>
+            `}
+            
+            <!-- Quantity Selection -->
+            <div style="margin-bottom: 20px;">
+              <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Quantity *</label>
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <button onclick="decreaseQuantity()" style="
+                  width: 40px;
+                  height: 40px;
+                  border: 2px solid #e5e7eb;
+                  background: white;
+                  border-radius: 8px;
+                  font-size: 20px;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                ">-</button>
+                <input type="number" id="bookingQuantity" value="1" min="1" max="10" 
+                       class="booking-input" style="flex: 1; text-align: center;" 
+                       onchange="updateBookingPrice()">
+                <button onclick="increaseQuantity()" style="
+                  width: 40px;
+                  height: 40px;
+                  border: 2px solid #e5e7eb;
+                  background: white;
+                  border-radius: 8px;
+                  font-size: 20px;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                ">+</button>
+              </div>
+            </div>
+            
+            <!-- EZT Summary -->
+            ${userEztBalance > 0 ? `
+              <div style="margin-bottom: 20px; padding: 16px; background: #f0fdf4; border-radius: 8px; border: 1px solid #86efac;">
+                <div style="font-weight: 600; color: #166534;">Available EZT Balance</div>
+                <div style="font-size: 24px; font-weight: 700; color: #059669;">${userEztBalance.toFixed(5)} EZT</div>
+                <div id="eztRequiredDisplay" style="font-size: 12px; color: #166534; margin-top: 8px;">
+                  This booking will use ${initialTotalEzt.toFixed(5)} EZT (₹${initialTotalDiscount.toFixed(2)} discount)
+                </div>
+              </div>
+            ` : `
+              <div style="margin-bottom: 20px; padding: 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+                <div style="font-size: 12px; color: #6b7280;">
+                  Discounts are automatically funded by EZT (1 EZT = ₹100). Please ensure your wallet has sufficient balance.
+                </div>
+              </div>
+            `}
+            
+            <!-- Price Summary -->
+            <div style="margin-bottom: 20px; padding: 16px; background: #f9fafb; border-radius: 8px; border: 1px solid #e5e7eb;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span style="color: #6b7280;">Original Amount</span>
+                <span id="basePriceDisplay" style="font-weight: 600;">₹${initialTotalOriginal.toFixed(2)}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span style="color: #6b7280;">Discount (EZT-funded)</span>
+                <span id="eztDiscountDisplay" style="color: #059669; font-weight: 600;">-₹${initialTotalDiscount.toFixed(2)}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                <span style="color: #6b7280;">EZT Redeemed</span>
+                <span id="eztTokensDisplay" style="color: #059669; font-weight: 600;">${initialTotalEzt.toFixed(5)} EZT</span>
+              </div>
+              <div style="border-top: 2px solid #e5e7eb; padding-top: 12px; margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 700; font-size: 20px; color: #111827;">Total Payable</span>
+                <span id="totalPriceDisplay" style="font-weight: 700; font-size: 24px; color: #059669;">₹${initialFinalAmount.toFixed(2)}</span>
+              </div>
+            </div>
+            
+            <!-- Special Requests -->
+            <div style="margin-bottom: 20px;">
+              <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Special Requests (Optional)</label>
+              <textarea id="specialRequests" class="booking-input" rows="3" 
+                        placeholder="Any special requirements or notes..."></textarea>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div style="display: flex; gap: 12px;">
+              <button onclick="closeBookingModal()" style="
+                flex: 1;
+                padding: 14px;
+                border: 2px solid #e5e7eb;
+                background: white;
+                border-radius: 8px;
+                font-weight: 600;
+                cursor: pointer;
+                color: #374151;
+              ">Cancel</button>
+              <button onclick="confirmBooking()" id="confirmBookingBtn" style="
+                flex: 2;
+                padding: 14px;
+                border: none;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                border-radius: 8px;
+                font-weight: 600;
+                font-size: 16px;
+                cursor: pointer;
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                transition: all 0.2s;
+              " onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.4)'" 
+                 onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)'">
+                <span>📅</span>
+                <span>Confirm Booking</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      modal.style.display = 'flex';
+      updateBookingPrice();
+    }
+    
+    function createBookingModal() {
+      const modal = document.createElement('div');
+      modal.id = 'bookingModal';
+      modal.className = 'modal';
+      modal.style.cssText = `
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 10000;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+      `;
+      document.body.appendChild(modal);
+      return modal;
+    }
+    
+    window.closeBookingModal = function() {
+      const modal = document.getElementById('bookingModal');
+      if (modal) {
+        modal.style.display = 'none';
+        currentBookingDeal = null;
+        currentBookingAvailability = null;
+      }
+    };
+    
+    window.increaseQuantity = function() {
+      const qtyInput = document.getElementById('bookingQuantity');
+      if (qtyInput) {
+        const current = parseInt(qtyInput.value) || 1;
+        qtyInput.value = Math.min(10, current + 1);
+        updateBookingPrice();
+      }
+    };
+    
+    window.decreaseQuantity = function() {
+      const qtyInput = document.getElementById('bookingQuantity');
+      if (qtyInput) {
+        const current = parseInt(qtyInput.value) || 1;
+        qtyInput.value = Math.max(1, current - 1);
+        updateBookingPrice();
+      }
+    };
+    
+    window.updateBookingPrice = function() {
+      if (!currentBookingDeal) return;
+      
+      const quantity = parseInt(document.getElementById('bookingQuantity')?.value || 1);
+      const timeSlotSelect = document.getElementById('bookingTimeSlot');
+      const pricingSource = window.currentBookingPricingSnapshot || window.currentBookingPricing || {
+        unitOriginal: parseFloat(currentBookingDeal.original_price || currentBookingDeal.price || 0),
+        unitDiscount: 0,
+        unitEzt: 0
+      };
+      const pricing = pricingSource;
+      
+      let unitOriginal = pricingSource.unitOriginal || 0;
+      let unitDiscount = pricingSource.unitDiscount || 0;
+      let unitEzt = pricingSource.unitEzt || 0;
+      
+      if (timeSlotSelect && timeSlotSelect.value && timeSlotSelect.tagName === 'SELECT') {
+        const selectedOption = timeSlotSelect.options[timeSlotSelect.selectedIndex];
+        if (selectedOption && selectedOption.dataset.price) {
+          const slotPrice = parseFloat(selectedOption.dataset.price);
+          if (!isNaN(slotPrice) && slotPrice > 0) {
+            const computedDiscount = Math.max(0, unitOriginal - slotPrice);
+            unitDiscount = computedDiscount;
+            unitEzt = computedDiscount / 100;
+          }
+        }
+      }
+      
+      const totalOriginal = unitOriginal * quantity;
+      const totalDiscount = Math.min(unitDiscount * quantity, totalOriginal);
+      const totalEzt = unitEzt * quantity;
+      const finalAmount = Math.max(0, totalOriginal - totalDiscount);
+      
+      window.currentBookingPricingSnapshot = {
+        unitOriginal,
+        unitDiscount,
+        unitEzt
+      };
+      
+      const basePriceDisplay = document.getElementById('basePriceDisplay');
+      const eztDiscountDisplay = document.getElementById('eztDiscountDisplay');
+      const eztTokensDisplay = document.getElementById('eztTokensDisplay');
+      const eztRequiredDisplay = document.getElementById('eztRequiredDisplay');
+      const totalPriceDisplay = document.getElementById('totalPriceDisplay');
+      
+      if (basePriceDisplay) {
+        basePriceDisplay.textContent = `₹${totalOriginal.toFixed(2)}`;
+      }
+      if (eztDiscountDisplay) {
+        eztDiscountDisplay.textContent = `-₹${totalDiscount.toFixed(2)}`;
+      }
+      if (eztTokensDisplay) {
+        eztTokensDisplay.textContent = `${totalEzt.toFixed(5)} EZT`;
+      }
+      if (eztRequiredDisplay) {
+        eztRequiredDisplay.textContent = `This booking will use ${totalEzt.toFixed(5)} EZT (₹${totalDiscount.toFixed(2)} discount)`;
+      }
+      if (totalPriceDisplay) {
+        totalPriceDisplay.textContent = `₹${finalAmount.toFixed(2)}`;
+        totalPriceDisplay.style.fontSize = '24px';
+        totalPriceDisplay.style.fontWeight = '700';
+        totalPriceDisplay.style.color = '#059669';
+      }
+    };
+    
+    function normalizeTimeSlotInput(value) {
+      if (!value) return null;
+      const trimmed = String(value).trim();
+      if (!trimmed) return null;
+      
+      // ISO-like formats
+      const isoMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (isoMatch) {
+        const hours = Math.min(Math.max(parseInt(isoMatch[1], 10), 0), 23);
+        const minutes = Math.min(Math.max(parseInt(isoMatch[2], 10), 0), 59);
+        const seconds = isoMatch[3] ? Math.min(Math.max(parseInt(isoMatch[3], 10), 0), 59) : 0;
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      }
+      
+      // Plain hour
+      if (/^\d{1,2}$/.test(trimmed)) {
+        const hours = Math.min(Math.max(parseInt(trimmed, 10), 0), 23);
+        return `${String(hours).padStart(2, '0')}:00:00`;
+      }
+      
+      // AM/PM formats
+      const meridianMatch = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*([APap][Mm])$/);
+      if (meridianMatch) {
+        let hours = parseInt(meridianMatch[1], 10);
+        const minutes = meridianMatch[2] ? parseInt(meridianMatch[2], 10) : 0;
+        const meridian = meridianMatch[3].toUpperCase();
+        if (hours === 12) {
+          hours = meridian === 'AM' ? 0 : 12;
+        } else if (meridian === 'PM') {
+          hours += 12;
+        }
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+      }
+      
+      // Fallback: try native Date parsing
+      const parsed = new Date(`1970-01-01 ${trimmed}`);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString().substring(11, 19);
+      }
+      
+      return null;
+    }
+    
+    window.confirmBooking = async function() {
+      if (!currentBookingDeal) {
+        alert('Booking information not available');
+        return;
+      }
+      
+      const date = document.getElementById('bookingDate')?.value;
+      const rawTimeSlot = document.getElementById('bookingTimeSlot')?.value;
+      const quantity = parseInt(document.getElementById('bookingQuantity')?.value || 1);
+      const specialRequests = document.getElementById('specialRequests')?.value;
+      const pricingSource = window.currentBookingPricingSnapshot || window.currentBookingPricing || {
+        unitOriginal: parseFloat(currentBookingDeal.original_price || currentBookingDeal.price || 0),
+        unitDiscount: 0,
+        unitEzt: 0
+      };
+      const pricing = pricingSource;
+      
+      if (!date) {
+        alert('Please select a date');
+        return;
+      }
+      
+      const confirmBtn = document.getElementById('confirmBookingBtn');
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Processing...';
+      }
+      
+      try {
+        // Get token - handle both JSON stringified and plain string formats
+        let token = localStorage.getItem('token');
+        if (token) {
+          // If token is JSON stringified (from setStorageItem), parse it
+          try {
+            const parsed = JSON.parse(token);
+            if (typeof parsed === 'string') {
+              token = parsed;
+            }
+          } catch {
+            // Token is already a plain string, use as is
+          }
+        }
+        
+        if (!token || token === 'null' || token === 'undefined') {
+          alert('Please login to book deals');
+          if (typeof navigateTo === 'function') {
+            navigateTo('login');
+          } else if (typeof window.navigateTo === 'function') {
+            window.navigateTo('login');
+          }
+          return;
+        }
+        
+        // Get API base URL
+        const API_BASE = window.API_BASE || 
+                        (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
+                        'http://localhost:5001';
+        
+        // Determine slot_id if time slot selected
+        let slotId = null;
+        let formattedTimeSlot = null;
+        if (rawTimeSlot && currentBookingAvailability?.slots && currentBookingAvailability.slots.length > 0) {
+          const selectedSlot = currentBookingAvailability.slots.find(s => s.id === rawTimeSlot || s.time_slot === rawTimeSlot);
+          if (selectedSlot) {
+            slotId = selectedSlot.id;
+            formattedTimeSlot = normalizeTimeSlotInput(selectedSlot.time_slot) ?? selectedSlot.time_slot ?? null;
+          } else {
+            formattedTimeSlot = normalizeTimeSlotInput(rawTimeSlot);
+          }
+        } else {
+          formattedTimeSlot = normalizeTimeSlotInput(rawTimeSlot);
+        }
+        
+        // Clean token - remove quotes if JSON stringified
+        const cleanToken = token.replace(/^["']|["']$/g, '');
+        
+        let unitOriginal = pricingSource.unitOriginal || 0;
+        let unitDiscount = pricingSource.unitDiscount || 0;
+        let unitEzt = pricingSource.unitEzt || 0;
+        
+        if (slotId && currentBookingAvailability?.slots && currentBookingAvailability.slots.length > 0) {
+          const selectedSlot = currentBookingAvailability.slots.find(s => String(s.id) === String(slotId));
+          if (selectedSlot && selectedSlot.price) {
+            const slotPrice = parseFloat(selectedSlot.price);
+            const computedDiscount = Math.max(0, unitOriginal - slotPrice);
+            unitDiscount = computedDiscount;
+            unitEzt = computedDiscount / 100;
+          }
+        } else if (formattedTimeSlot && !slotId) {
+          const fallbackPrice = parseFloat(currentBookingDeal.discounted_price || currentBookingDeal.price || unitOriginal);
+          const computedDiscount = Math.max(0, unitOriginal - fallbackPrice);
+          unitDiscount = computedDiscount;
+          unitEzt = computedDiscount / 100;
+        }
+        
+        const totalDiscount = Math.min(unitDiscount * quantity, unitOriginal * quantity || 0);
+        const totalEzt = unitEzt * quantity;
+        
+        console.log('📤 Sending booking request:', {
+          dealId: currentBookingDeal.id,
+          date,
+          rawTimeSlot,
+          formattedTimeSlot,
+          quantity,
+          expectedDiscount: totalDiscount,
+          expectedEzt: totalEzt,
+          tokenLength: cleanToken.length,
+          tokenPreview: cleanToken.substring(0, 20) + '...'
+        });
+        
+        const response = await fetch(`${API_BASE}/api/v1/deals/${currentBookingDeal.id}/book`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${cleanToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            date,
+            time_slot: formattedTimeSlot,
+            quantity,
+            special_requests: specialRequests || null,
+            slot_id: slotId
+          })
+        });
+        
+        console.log('📥 Booking response status:', response.status, response.statusText);
+        
+        // Check if response is OK
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ Booking error response:', errorText.substring(0, 500));
+          console.error('❌ Response status:', response.status, response.statusText);
+          
+          // Try to parse as JSON if it looks like JSON
+          let errorMessage = `Booking failed: ${response.status} ${response.statusText}`;
+          if (errorText.trim().startsWith('{')) {
+            try {
+              const errorJson = JSON.parse(errorText);
+              errorMessage = errorJson.error || errorJson.message || errorJson.data || errorMessage;
+              console.error('❌ Parsed error JSON:', errorJson);
+            } catch {
+              // Not JSON, use the text
+              if (errorText.includes('<!DOCTYPE')) {
+                errorMessage = 'Server returned an error page. Please check if the backend is running and the booking endpoint exists.';
+              } else {
+                errorMessage = errorText.substring(0, 200);
+              }
+            }
+          } else if (errorText.includes('<!DOCTYPE')) {
+            errorMessage = 'Server returned an error page. Please check if the backend is running and the booking endpoint exists.';
+          } else if (errorText.trim()) {
+            // Try to extract meaningful error from HTML or plain text
+            errorMessage = errorText.substring(0, 300);
+          }
+          
+          throw new Error(errorMessage);
+        }
+        
+        // Check Content-Type before parsing JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const errorText = await response.text();
+          console.error('❌ Response is not JSON:', contentType, errorText.substring(0, 200));
+          throw new Error('Server returned non-JSON response. Please check if the backend is running correctly.');
+        }
+        
+        const result = await response.json();
+        console.log('✅ Booking response:', result);
+        
+        if (result.success) {
+          const bookingData = result.data || {};
+          const voucher = bookingData.voucher || null;
+          showNotification('Booking confirmed successfully!', 'success');
+          closeBookingModal();
+
+          if (voucher) {
+            showVoucherModal({
+              code: voucher.code,
+              qr: voucher.qr_code_data || voucher.qr_code_url || null,
+              status: voucher.status,
+              expiresAt: voucher.expires_at,
+              redeemedAt: voucher.redeemed_at,
+              bookingReference: bookingData.booking_reference,
+              dealTitle: bookingData.deal_title,
+              bookingDate: date,
+              quantity,
+              amount: bookingData.fiat_amount ?? bookingData.final_amount ?? finalAmount
+            });
+          } else {
+            alert(`✅ Booking Confirmed!\n\nReference: ${bookingData.booking_reference}\nDeal: ${bookingData.deal_title}\nDate: ${date}\nQuantity: ${quantity}\nTotal Payable: ₹${(bookingData.fiat_amount ?? bookingData.final_amount ?? finalAmount).toFixed(2)}\n\n${bookingData.ezt_redeemed > 0 ? `EZT Redeemed: ${bookingData.ezt_redeemed.toFixed(5)} EZT\n` : ''}`);
+          }
+          
+          // Reload deals to update availability
+          if (typeof loadTrendingDeals === 'function') {
+            loadTrendingDeals();
+          }
+          if (typeof loadAllDeals === 'function') {
+            loadAllDeals();
+          }
+        } else {
+          throw new Error(result.error || result.message || 'Failed to confirm booking');
+        }
+      } catch (error) {
+        console.error('❌ Booking error:', error);
+        let errorMessage = error.message || 'Failed to confirm booking';
+        
+        // Provide more helpful error messages
+        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          errorMessage = 'Network error. Please check if the backend server is running on http://localhost:5001';
+        } else if (error.message.includes('Unexpected token') || error.message.includes('<!DOCTYPE')) {
+          errorMessage = 'Server returned an error page instead of JSON. The booking endpoint may not exist or the server may have crashed.';
+        } else if (error.message.includes('Invalid token') || error.message.includes('403') || error.message.includes('401')) {
+          errorMessage = 'Your session has expired or the token is invalid. Please login again to continue.';
+          // Clear invalid token and redirect to login
+          localStorage.removeItem('token');
+          setTimeout(() => {
+            if (typeof navigateTo === 'function') {
+              navigateTo('login');
+            } else if (typeof window.navigateTo === 'function') {
+              window.navigateTo('login');
+            } else {
+              window.location.href = 'index.html#login';
+            }
+          }, 2000);
+        }
+        
+        alert(`Failed to confirm booking: ${errorMessage}`);
+      } finally {
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = 'Confirm Booking';
+        }
+      }
+    };
+
+  function showVoucherModal(details = {}) {
+    const modal = document.getElementById('voucherModal');
+    if (!modal) return;
+
+    const {
+      code = '',
+      qr = null,
+      status = 'active',
+      expiresAt = null,
+      redeemedAt = null,
+      bookingReference = '',
+      dealTitle = '',
+      bookingDate = '',
+      quantity = 1,
+      amount = 0
+    } = details;
+
+    const expiresLabel = expiresAt
+      ? new Date(expiresAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : 'No expiry';
+    const redeemedLabel = redeemedAt
+      ? new Date(redeemedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : 'Not redeemed';
+    const bookingDateLabel = bookingDate
+      ? new Date(bookingDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+      : '—';
+
+    modal.innerHTML = `
+      <div class="voucher-modal-content">
+        <div class="voucher-header">
+          <h2>Voucher Ready 🎟️</h2>
+          <p>Your booking has been confirmed. Present this voucher at the venue to redeem your experience.</p>
+        </div>
+        <div class="voucher-content">
+          <div class="voucher-code-box">
+            <label>Voucher Code</label>
+            <div class="voucher-code-display">
+              <strong>${code || 'Unavailable'}</strong>
+              <button class="btn btn-sm btn-secondary" onclick="copyVoucherCode('${code || ''}')">Copy</button>
+            </div>
+          </div>
+          <div class="voucher-details">
+            <div class="voucher-info-item">
+              <span>Booking Reference</span>
+              <strong>${bookingReference || 'N/A'}</strong>
+            </div>
+            <div class="voucher-info-item">
+              <span>Deal</span>
+              <strong>${dealTitle || 'N/A'}</strong>
+            </div>
+            <div class="voucher-info-item">
+              <span>Booking Date</span>
+              <strong>${bookingDateLabel}</strong>
+            </div>
+            <div class="voucher-info-item">
+              <span>Quantity</span>
+              <strong>${quantity}</strong>
+            </div>
+            <div class="voucher-info-item">
+              <span>Total Paid</span>
+              <strong>₹${(parseFloat(amount) || 0).toFixed(2)}</strong>
+            </div>
+            <div class="voucher-info-item">
+              <span>Status</span>
+              <strong style="text-transform: capitalize;">${status}</strong>
+            </div>
+            <div class="voucher-info-item">
+              <span>Expires</span>
+              <strong>${expiresLabel}</strong>
+            </div>
+            <div class="voucher-info-item">
+              <span>Redeemed At</span>
+              <strong>${redeemedLabel}</strong>
+            </div>
+          </div>
+          ${qr ? `
+            <div class="voucher-qr">
+              <img src="${qr}" alt="Voucher QR Code" />
+              <button class="btn btn-secondary" onclick="downloadVoucherQR('${qr}', '${code || 'voucher'}')">Download QR</button>
+            </div>
+          ` : `
+            <div class="voucher-qr">
+              <p style="color: var(--text-muted);">QR code not available. Please use the voucher code above.</p>
+            </div>
+          `}
+        </div>
+        <div class="voucher-actions">
+          <button class="btn btn-primary" onclick="closeVoucherModal()">Done</button>
+        </div>
+      </div>
+    `;
+    modal.style.display = 'flex';
+  }
+
+  window.closeVoucherModal = function() {
+    const modal = document.getElementById('voucherModal');
+    if (modal) {
+      modal.style.display = 'none';
+      modal.innerHTML = '';
+    }
+  };
+
+  window.downloadVoucherQR = function(qrData, code = 'voucher') {
+    if (!qrData) return;
+    const link = document.createElement('a');
+    link.href = qrData;
+    link.download = `${code}-qr.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  window.copyVoucherCode = async function(code) {
+    if (!code) {
+      alert('Voucher code unavailable');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(code);
+      showNotification('Voucher code copied to clipboard', 'success');
+    } catch (err) {
+      console.error('Failed to copy voucher code:', err);
+      alert(`Voucher Code: ${code}`);
+    }
+  };
+    
+    function showNotification(message, type = 'success') {
+      const notification = document.createElement('div');
+      notification.className = `notification notification-${type}`;
+      notification.textContent = message;
+      notification.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 10001;
+        background: ${type === 'success' ? '#10b981' : '#ef4444'};
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideIn 0.3s ease;
+      `;
+      
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease';
+        setTimeout(() => {
+          document.body.removeChild(notification);
+        }, 300);
+      }, 3000);
+    }
+    
+    // Initialize on home screen
+    window.loadHomeScreenDeals = async function(serviceType = null) {
+      currentServiceTypeFilter = serviceType;
+      await Promise.all([
+        loadPromotedDeals(serviceType),
+        loadAllDeals(serviceType)
+      ]);
+    };
+    
+    // Main function to load all home screen data
+    async function loadHomeScreenData() {
+      console.log('Loading monetizable two-tier home screen...');
+      
+      // Load trending deals (monetizable spotlight)
+      await loadTrendingDeals();
+      
+      // Load all organic deals
+      await loadAllDeals();
+      
+      // Load bottom navigation
+      loadBottomNav();
+      
+      console.log('✅ Two-tier deals system loaded successfully');
+    }
+    
+    // Make functions globally available
+    // validatePhoneInput and handleContinueClick are already global (defined in non-module script above)
+    window.sendOTPFromLoginScreen = sendOTPFromLoginScreen;
+    window.loadHomeScreenData = loadHomeScreenData;
+    window.loadBottomNav = loadBottomNav;
+    // Stub function for handleNotifyPremium (if referenced but not implemented)
+    window.handleNotifyPremium = function() {
+      console.warn('handleNotifyPremium called but not implemented');
+      // Optional: Show a notification or modal
+      // showNotification('Premium feature notification', 'info');
+    };
+    window.handleBrowsePartners = handleBrowsePartners;
+    // filterByCategory is already assigned to window above
+    window.toggleFilter = toggleFilter;
+    window.clearFilters = clearFilters;
+
+    // Load experiences for landing page (trending offers)
+    async function loadLandingExperiences(category = 'all') {
+      const container = document.getElementById('landingExperiencesContainer');
+      if (!container) return;
+
+      try {
+        container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading trending experiences...</div>';
+
+        // Always fetch trending offers for trending experiences
+        let url = 'http://localhost:5001/api/v1/offers?trending=true&limit=20&is_active=true';
+        
+        // Optionally filter by service type if category is specified
+        if (category !== 'all') {
+          const categoryToServiceType = {
+            'dining': 'dining',
+            'events': 'events',
+            'healthcare': 'healthcare',
+            'spa': 'spa',
+            'wellness': 'wellness',
+            'travel': 'travel',
+            'others': 'others'
+          };
+          const serviceType = categoryToServiceType[category];
+          if (serviceType) {
+            url += `&service_type=${serviceType}`;
+          }
+        }
+
+        const response = await fetch(url);
+        const result = await response.json();
+
+        if (result.success && result.data && result.data.length > 0) {
+          landingExperiencesData = result.data;
+          renderLandingExperiences(result.data);
+        } else {
+          container.innerHTML = `
+            <div class="experience-placeholder">
+              <p class="placeholder-text">No trending experiences found. Try a different category or search term.</p>
+            </div>
+          `;
+        }
+      } catch (error) {
+        console.error('Error loading landing experiences:', error);
+        container.innerHTML = `
+          <div class="experience-placeholder">
+            <p class="placeholder-text">No trending experiences found. Try a different category or search term.</p>
+          </div>
+        `;
+      }
+    }
+
+    function renderLandingExperiences(experiences) {
+      const container = document.getElementById('landingExperiencesContainer');
+      if (!container) return;
+
+      const API_BASE = 'http://localhost:5001';
+
+      container.innerHTML = experiences.map(exp => {
+        const imageUrl = exp.image_url ? 
+          (exp.image_url.startsWith('http') ? exp.image_url : `${API_BASE}${exp.image_url}`) :
+          '/assets/default-offer.jpg';
+
+        const summary = computeDiscountSummary(exp);
+        const hasDifferentPrices = summary.hasDiscount;
+
+        let priceHTML = '';
+        if (hasDifferentPrices) {
+          priceHTML = `
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem;">
+              <span style="text-decoration: line-through; color: #9ca3af; font-size: 0.875rem;">₹${summary.original.toFixed(2)}</span>
+              <span style="color: #004F4A; font-weight: 600;">₹${summary.discounted.toFixed(2)}</span>
+            </div>
+            <div style="font-size: 0.75rem; color: #047857; margin-top: 0.25rem;">
+              You save ₹${summary.savings.toFixed(2)} • ${summary.ezt.toFixed(2)} EZT
+            </div>
+          `;
+        } else if (summary.original > 0 || summary.discounted > 0) {
+          const finalPrice = summary.discounted > 0 ? summary.discounted : summary.original;
+          priceHTML = `<div style="margin-top: 0.5rem; color: #004F4A; font-weight: 600;">₹${finalPrice.toFixed(2)}</div>`;
+        }
+
+        // Add trending badge if applicable
+        const trendingBadge = exp.is_promoted ? '<span style="background: #CBB26A; color: #1f2937; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem; display: inline-block;">🔥 TRENDING</span>' : '';
+
+        return `
+          <div class="experience-card" onclick="openOfferDetails('${exp.id}')">
+            <img src="${imageUrl}" alt="${exp.title}" class="experience-card-image" onerror="this.src='/assets/default-offer.jpg'">
+            <div class="experience-card-content">
+              ${trendingBadge}
+              <h3 class="experience-card-title">${exp.title}</h3>
+              <p class="experience-card-meta">${exp.partner_name || ''}</p>
+              ${priceHTML}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // filterByCategory is already defined above and assigned to window
+    // No need to redefine it here
+    
+    // Initialize app when DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('🚀 Elizian App Initialized');
+      console.log('📱 Version:', VERSION.app);
+      console.log('🌍 Environment:', ENV.isDevelopment ? 'Development' : 'Production');
+      console.log('⚙️ Config:', CONFIG);
+      
+      // Load landing experiences if on onboarding screen
+      const landingOnboardingScreen = document.getElementById('onboardingScreen');
+      if (landingOnboardingScreen && !landingOnboardingScreen.classList.contains('hidden')) {
+        loadLandingExperiences('all');
+      }
+      
+      // Clear phone input to prevent browser autofill
+      const phoneInput = document.getElementById('phoneInput');
+      if (phoneInput) {
+        phoneInput.value = '';
+        phoneInput.setAttribute('value', '');
+        // Disable continue button initially
+        const continueBtn = document.getElementById('continueBtn');
+        if (continueBtn) {
+          continueBtn.disabled = true;
+          continueBtn.classList.remove('active');
+        }
+        
+        // Add additional event listeners to ensure validation works
+        phoneInput.addEventListener('input', function(e) {
+          validatePhoneInput(e.target);
+        });
+        
+        phoneInput.addEventListener('keyup', function(e) {
+          validatePhoneInput(e.target);
+        });
+        
+        phoneInput.addEventListener('paste', function(e) {
+          // Wait for paste to complete
+          setTimeout(() => {
+            validatePhoneInput(e.target);
+          }, 10);
+        });
+        
+        // Validate when input gets focus (in case user types before focusing)
+        phoneInput.addEventListener('focus', function(e) {
+          if (e.target.value) {
+            validatePhoneInput(e.target);
+          }
+        });
+      }
+      
+      // Also validate when onboarding screen becomes visible
+      const onboardingScreen = document.getElementById('onboardingScreen');
+      if (onboardingScreen) {
+        // Use MutationObserver to detect when screen becomes visible
+        const observer = new MutationObserver(function(mutations) {
+          mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+              const isVisible = onboardingScreen.classList.contains('active') && 
+                               !onboardingScreen.classList.contains('hidden');
+              if (isVisible) {
+                const phoneInput = document.getElementById('phoneInput');
+                if (phoneInput && phoneInput.value) {
+                  validatePhoneInput(phoneInput);
+                }
+              }
+            }
+          });
+        });
+        observer.observe(onboardingScreen, { attributes: true, attributeFilter: ['class'] });
+      }
+      
+      // Setup event listeners
+      setupEventListeners();
+      
+      // Initialize screens & tiers UI
+      initializeScreens();
+      initHomeInteractions();
+      renderHome('for-you');
+      
+      // Keep existing module demos for other screens
+      loadEventsFromBackend().then(events => { renderEventsList(events); });
+      loadRestaurantsFromBackend().then(restaurants => { renderRestaurantsList(restaurants); });
+      
+      // Update profile if user is logged in
+      const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
+      const currentTier = userInfo.current_tier || 'Ather';
+      updateNextTierPlaceholder(currentTier);
+      renderTierStack(currentTier);
+      if (userInfo.first_name) {
+        updateWelcomeText();
+        updateProfileInfo();
+      }
+
+      // Load user bookings if on profile screen
+      const token = localStorage.getItem('userToken');
+      if (token) {
+        const profileScreen = document.getElementById('profileScreen');
+        if (profileScreen && !profileScreen.classList.contains('hidden')) {
+          loadUserBookings();
+          loadUserLoyalty();
+        }
+      }
+    });
+  </script>
+
+  <script>
+    // Logout function (works for both user and partner)
+    function logoutGlobal() {
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('userInfo');
+      localStorage.removeItem('partnerToken');
+      localStorage.removeItem('partnerInfo');
+      localStorage.removeItem('verifiedOTP');
+      localStorage.removeItem('token');
+      window.location.href = 'partner-login.html'; // adjust if your login page name differs
+    }
+
+    // Auto-update header with user name & show/hide logout
+    document.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('userToken') || localStorage.getItem('partnerToken') || localStorage.getItem('token');
+      const userInfo = localStorage.getItem('userInfo') || localStorage.getItem('partnerInfo');
+      const userNameEl = document.getElementById('headerUserName');
+      const globalHeader = document.getElementById('globalHeader');
+      const logoutBtn = document.getElementById('globalLogoutBtn');
+
+      // Only show header on non-onboarding screens
+      const currentScreen = document.querySelector('.screen.active');
+      const isOnboarding = currentScreen && currentScreen.id === 'onboardingScreen';
+
+      if (token && !isOnboarding) {
+        globalHeader.style.display = 'block';
+        
+        if (userInfo) {
+          try {
+            const user = JSON.parse(userInfo);
+            userNameEl.textContent = user.first_name || user.name || user.email || 'Logged In';
+          } catch {
+            userNameEl.textContent = 'Logged In';
+          }
+        } else {
+          userNameEl.textContent = 'Logged In';
+        }
+        
+        if (logoutBtn) {
+          logoutBtn.style.display = 'inline-flex';
+        }
+      } else {
+        globalHeader.style.display = 'none';
+      }
+    });
+
+    // Make logoutGlobal available to onclick handlers
+    window.logoutGlobal = logoutGlobal;
+
+    // ============================================
+    // AUTH HANDLERS (Login & Signup)
+    // ============================================
+
+    // Handle OTP Login (Send OTP)
+    async function handleOTPLogin(event) {
+      event.preventDefault();
+      
+      const phoneInput = document.getElementById('loginPhoneInput');
+      const submitBtn = event.target ? event.target.querySelector('.auth-submit-btn') : document.getElementById('sendOtpBtn');
+      
+      if (!phoneInput || !phoneInput.value) {
+        alert('Please enter your phone number');
+        return;
+      }
+
+      const phone = phoneInput.value.trim();
+      
+      // Validate phone number
+      const cleaned = phone.replace(/\D/g, '');
+      if (cleaned.length !== 10) {
+        alert('Please enter a valid 10-digit mobile number');
+        return;
+      }
+
+      try {
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Sending OTP...';
+        }
+
+        // Use the existing sendOTPFromForm function
+        if (typeof sendOTPFromForm === 'function') {
+          await sendOTPFromForm(cleaned);
+          // sendOTPFromForm will handle navigation to OTP screen
+        } else {
+          // Fallback: direct API call
+          const response = await fetch('http://localhost:5001/api/v1/auth/send-otp', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              phone_number: cleaned
+            })
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            alert(`OTP sent successfully to ${cleaned}`);
+            showScreen('otp');
+          } else {
+            alert(result.error || 'Failed to send OTP. Please try again.');
+          }
+        }
+      } catch (error) {
+        console.error('OTP send error:', error);
+        alert('Failed to send OTP. Please check if the backend server is running.');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Send OTP';
+        }
+      }
+    }
+
+    // Resend OTP function
+    window.resendOTP = async function() {
+      const phoneInput = document.getElementById('loginPhoneInput') || document.getElementById('phoneInput');
+      if (!phoneInput || !phoneInput.value) {
+        alert('Please go back and enter your phone number first');
+        return;
+      }
+      
+      const phone = phoneInput.value.trim().replace(/\D/g, '');
+      if (phone.length !== 10) {
+        alert('Invalid phone number');
+        return;
+      }
+      
+      try {
+        if (typeof sendOTPFromForm === 'function') {
+          await sendOTPFromForm(phone);
+        } else {
+          const response = await fetch('http://localhost:5001/api/v1/auth/send-otp', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              phone_number: phone
+            })
+          });
+
+          const result = await response.json();
+          if (result.success) {
+            alert(`OTP resent successfully to ${phone}`);
+          } else {
+            alert(result.error || 'Failed to resend OTP');
+          }
+        }
+      } catch (error) {
+        console.error('Resend OTP error:', error);
+        alert('Failed to resend OTP');
+      }
+    };
+
+    // Handle Signup Form Submission
+    async function handleSignup(event) {
+      event.preventDefault();
+      
+      const name = document.getElementById('signupNameInput').value;
+    const phone = (document.getElementById('signupPhoneInput')?.value || '').trim();
+      const email = document.getElementById('signupEmailInput').value;
+      const password = document.getElementById('signupPasswordInput').value;
+      const role = document.getElementById('signupRoleSelect').value;
+      const submitBtn = event.target.querySelector('.auth-submit-btn');
+      
+      // OTP-first: only name is mandatory here. Phone is taken from OTP verification.
+      if (!name) {
+        alert('Please enter your name');
+        return;
+      }
+
+      // If password is provided, ensure basic length; otherwise ignore
+      if (password && password.length < 6) {
+        alert('Password must be at least 6 characters long');
+        return;
+      }
+
+    // OTP verification logic:
+    // - If OTP is verified in this session, always proceed (use the verified phone)
+    // - If OTP is not verified and user typed a phone, ask them to verify first
+    var registrationPhone = localStorage.getItem('registrationPhone') || '';
+    var otpVerifiedRaw = localStorage.getItem('otpVerified') || '';
+    // Accept JSON-stringified '"true"' or plain 'true'
+    var otpVerified = otpVerifiedRaw.replace(/\"/g,'') === 'true';
+    if (!otpVerified && phone) {
+      alert('Please verify OTP for this mobile number before signing up.');
+      return;
+    }
+
+      try {
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Creating account...';
+        }
+
+    // Include phone number from OTP verification if available
+        const body = {
+          name: name,
+          role: role
+        };
+        if (email) body.email = email;
+        if (password) body.password = password;
+    // Clean phone number helper function
+    function cleanPhoneNumber(phoneNum) {
+      if (!phoneNum) return '';
+      // Remove all non-digits
+      let cleaned = String(phoneNum).replace(/\D/g, '');
+      // Remove leading country code (91 for India) if present
+      if (cleaned.startsWith('91') && cleaned.length === 12) {
+        cleaned = cleaned.substring(2);
+      }
+      return cleaned;
+    }
+
+    // Use verified phone from OTP, or fall back to form input if provided (but cleaned)
+    let finalPhoneNumber = null;
+    if (otpVerified && registrationPhone) {
+      // Clean the stored phone (it might have been stored with extra characters)
+      finalPhoneNumber = cleanPhoneNumber(registrationPhone);
+    } else if (phone && phone.trim()) {
+      // Clean the form input
+      finalPhoneNumber = cleanPhoneNumber(phone);
+    }
+    
+    // Validate and use the cleaned phone number
+    if (finalPhoneNumber && finalPhoneNumber.length === 10 && /^\d{10}$/.test(finalPhoneNumber)) {
+      body.phone_number = finalPhoneNumber;
+    } else if (finalPhoneNumber) {
+      // Phone number is invalid
+      alert(`Invalid phone number format. Must be exactly 10 digits.\n\nYou entered: "${phone || registrationPhone}"\nCleaned: "${finalPhoneNumber}"\nLength: ${finalPhoneNumber.length}`);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign Up';
+      }
+      return;
+    } else {
+      // No phone number provided at all
+      alert('Phone number is required. Please verify OTP first or enter a phone number.');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Sign Up';
+      }
+      return;
+    }
+
+        const response = await fetch('http://localhost:5001/api/v1/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+
+        const result = await response.json();
+
+        if (result.success && result.token) {
+          // Store token and user info
+          localStorage.setItem('userToken', result.token);
+          localStorage.setItem('userInfo', JSON.stringify(result.user || {}));
+          
+          // Show success message
+          alert('Account created successfully!');
+          
+          // Redirect to home screen
+          showScreen('home');
+          if (typeof loadHomeScreenData === 'function') {
+            loadHomeScreenData();
+          }
+        } else {
+          alert(result.error || 'Registration failed. Please try again.');
+        }
+      } catch (error) {
+        console.error('Signup error:', error);
+        alert('Registration failed. Please check if the backend server is running.');
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign Up';
+        }
+      }
+    }
+
+    // OTP handling functions for signup form
+    window.handleSignupOTPInput = function(index, event) {
+      const input = document.getElementById(`signupOtp${index}`);
+      if (!input) return;
+      
+      const value = input.value.replace(/\D/g, '');
+      input.value = value.slice(-1);
+      
+      // Auto-focus next input
+      if (value && index < 5) {
+        document.getElementById(`signupOtp${index + 1}`)?.focus();
+      }
+      
+      // Check if all filled
+      const allFilled = [0,1,2,3,4,5].every(i => document.getElementById(`signupOtp${i}`)?.value);
+      if (allFilled) {
+        verifySignupOTP();
+      }
+    };
+    
+    window.handleSignupOTPKeydown = function(index, event) {
+      const input = document.getElementById(`signupOtp${index}`);
+      if (!input) return;
+      
+      // Backspace: clear and go to previous
+      if (event.key === 'Backspace' && !input.value && index > 0) {
+        document.getElementById(`signupOtp${index - 1}`)?.focus();
+      }
+      
+      // Arrow keys
+      if (event.key === 'ArrowLeft' && index > 0) {
+        document.getElementById(`signupOtp${index - 1}`)?.focus();
+      }
+      if (event.key === 'ArrowRight' && index < 5) {
+        document.getElementById(`signupOtp${index + 1}`)?.focus();
+      }
+    };
+    
+    window.verifySignupOTP = async function() {
+      const otpInputs = [0,1,2,3,4,5].map(i => document.getElementById(`signupOtp${i}`)?.value || '').join('');
+      
+      if (otpInputs.length !== 6) {
+        alert('Please enter the complete 6-digit OTP');
+        return;
+      }
+      
+      const phoneInput = document.getElementById('signupPhoneInput');
+      if (!phoneInput || !phoneInput.value) {
+        alert('Phone number is required');
+        return;
+      }
+      
+      const phone = phoneInput.value.trim().replace(/\D/g, '');
+      if (phone.length !== 10) {
+        alert('Invalid phone number');
+        return;
+      }
+      
+      const verifyBtn = document.getElementById('verifySignupOtpBtn');
+      if (verifyBtn) {
+        verifyBtn.disabled = true;
+        verifyBtn.textContent = 'Verifying...';
+      }
+      
+      try {
+        const response = await fetch('http://localhost:5001/api/v1/auth/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone_number: phone,
+            otp_code: otpInputs
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // Store verified phone and OTP status
+          localStorage.setItem('registrationPhone', phone);
+          localStorage.setItem('otpVerified', 'true');
+          
+          // Show success and hide OTP section (keep it visible but show success message)
+          const otpGroup = document.getElementById('signupOtpGroup');
+          if (otpGroup) {
+            const successMsg = document.createElement('p');
+            successMsg.style.cssText = 'color: #059669; font-weight: 600; margin-top: 0.5rem; text-align: center;';
+            successMsg.textContent = '✓ OTP verified successfully!';
+            otpGroup.appendChild(successMsg);
+            setTimeout(() => successMsg.remove(), 3000);
+          }
+          
+          alert('OTP verified successfully! You can now complete your registration.');
+        } else {
+          alert(result.error || 'Invalid OTP. Please try again.');
+          // Clear OTP inputs
+          [0,1,2,3,4,5].forEach(i => {
+            const input = document.getElementById(`signupOtp${i}`);
+            if (input) input.value = '';
+          });
+          document.getElementById('signupOtp0')?.focus();
+        }
+      } catch (error) {
+        console.error('OTP verification error:', error);
+        alert('Failed to verify OTP. Please check your connection.');
+      } finally {
+        if (verifyBtn) {
+          verifyBtn.disabled = false;
+          verifyBtn.textContent = 'Verify OTP';
+        }
+      }
+    };
+    
+    window.resendSignupOTP = async function() {
+      // Clear previous OTP inputs
+      [0,1,2,3,4,5].forEach(i => {
+        const input = document.getElementById(`signupOtp${i}`);
+        if (input) input.value = '';
+      });
+      
+      // Resend OTP using the same function
+      await window.sendSignupOTP();
+      
+      // Focus first OTP input after resend
+      setTimeout(() => document.getElementById('signupOtp0')?.focus(), 200);
+    };
+    
+    // Send OTP for signup form (shows inline OTP section instead of navigating)
+    window.sendSignupOTP = async function() {
+      const phoneInput = document.getElementById('signupPhoneInput');
+      if (!phoneInput || !phoneInput.value) {
+        alert('Please enter your phone number first');
+        return;
+      }
+      
+      const phone = phoneInput.value.trim().replace(/\D/g, '');
+      if (phone.length !== 10) {
+        alert('Please enter a valid 10-digit mobile number');
+        return;
+      }
+      
+      const sendBtn = document.getElementById('sendSignupOtpBtn');
+      if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Sending...';
+      }
+      
+      try {
+        const response = await fetch('http://localhost:5001/api/v1/auth/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone_number: phone })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // Show OTP input section
+          const otpGroup = document.getElementById('signupOtpGroup');
+          if (otpGroup) {
+            otpGroup.style.display = 'block';
+            // Focus first OTP input
+            setTimeout(() => document.getElementById('signupOtp0')?.focus(), 100);
+          }
+          
+          alert(`OTP sent successfully to ${phone}`);
+        } else {
+          alert(result.error || 'Failed to send OTP. Please try again.');
+        }
+      } catch (error) {
+        console.error('Send OTP error:', error);
+        alert('Failed to send OTP. Please check your connection.');
+      } finally {
+        if (sendBtn) {
+          sendBtn.disabled = false;
+          sendBtn.textContent = 'Send OTP';
+        }
+      }
+    };
+
+    // Make handlers globally available
+    window.handleLogin = handleLogin;
+    window.handleSignup = handleSignup;
+  </script>
+
+  <!-- Load Navigation Module -->
+  <script src="/js/ui/navigation-bar.js"></script>
+
+  <!-- LocalStorage helpers to read values saved via setStorageItem(JSON) -->
+  <script>
+    function getBoolLS(key) {
+      var v = localStorage.getItem(key);
+      if (v === null || v === undefined) return false;
+      try {
+        var p = JSON.parse(v);
+        if (typeof p === 'boolean') return p;
+        if (typeof p === 'string') return p === 'true';
+      } catch (e) {}
+      return v === 'true' || v === '"true"';
+    }
+    function getStrLS(key) {
+      var v = localStorage.getItem(key);
+      if (v === null || v === undefined) return '';
+      try {
+        var p = JSON.parse(v);
+        if (typeof p === 'string') return p;
+      } catch (e) {}
+      return String(v).replace(/^"|"$/g, '');
+    }
+  </script>
+  
+  <!-- CSS Animations for Notifications -->
+  <style>
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    @keyframes slideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(100%); opacity: 0; }
+    }
+  </style>
+</body>
+</html>
+
+
