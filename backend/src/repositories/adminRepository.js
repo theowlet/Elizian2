@@ -1,6 +1,6 @@
 const { getPool } = require('../config/db');
 const { logError } = require('../../utils/logger');
-const { createAuditLogEntry } = require('../utils/audit');
+const { createAuditLogEntry } = require('../../utils/audit');
 
 const pool = getPool();
 
