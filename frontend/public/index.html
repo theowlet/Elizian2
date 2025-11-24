@@ -3202,6 +3202,7 @@
           totalOriginal,
           expectedDiscount: totalDiscount,
           expectedEzt: totalEzt,
+          ezt_to_redeem: totalEzt > 0 ? totalEzt : null,
           finalAmount,
           tokenLength: cleanToken.length,
           tokenPreview: cleanToken.substring(0, 20) + '...'
@@ -3217,6 +3218,8 @@
             offer_id: currentBookingDeal.id,
             num_tickets: quantity,
             special_requests: specialRequests || null,
+            // EZT token redemption (CRITICAL: must match backend calculation)
+            ezt_to_redeem: totalEzt > 0 ? totalEzt : null,
             // Bank offer (if selected)
             ...(window.selectedBankOffer ? {
               bank_offer_id: window.selectedBankOffer.bank_id,
