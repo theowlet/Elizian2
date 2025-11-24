@@ -697,6 +697,7 @@ async function getUserProfile(userId) {
     userResult = await pool.query(
       `SELECT u.id, u.first_name, u.last_name, u.email, u.phone_number, 
               u.current_tier_id, u.profile_photo_url, u.created_at, u.last_login,
+              u.available_tokens, u.total_tokens_earned, u.total_tokens_spent,
               r.role_name, r.id as role_id
        FROM users u
        LEFT JOIN roles r ON u.role_id = r.id
@@ -712,7 +713,8 @@ async function getUserProfile(userId) {
     if (isRoleIdError) {
       userResult = await pool.query(
         `SELECT u.id, u.first_name, u.last_name, u.email, u.phone_number, 
-                u.current_tier_id, u.profile_photo_url, u.created_at, u.last_login
+                u.current_tier_id, u.profile_photo_url, u.created_at, u.last_login,
+                u.available_tokens, u.total_tokens_earned, u.total_tokens_spent
          FROM users u
          WHERE u.id = $1`,
         [userId]
@@ -758,7 +760,11 @@ async function getUserProfile(userId) {
     current_tier_id: user.current_tier_id,
     tier_name: tierName,
     created_at: user.created_at,
-    last_login: user.last_login
+    last_login: user.last_login,
+    // EZT Token balances (frontend expects these field names)
+    ezt_balance: parseFloat(user.available_tokens || 0),
+    ezt_total_earned: parseFloat(user.total_tokens_earned || 0),
+    ezt_total_spent: parseFloat(user.total_tokens_spent || 0)
   };
 }
 
