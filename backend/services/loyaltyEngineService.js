@@ -66,6 +66,17 @@ async function recordActivity({
       ]
     );
 
+    // Map source to valid transaction_type for loyalty_points table
+    // Valid types: 'earned', 'redeemed', 'adjusted', 'expired'
+    let transactionType = 'earned'; // default
+    if (pointsSpent > 0) {
+      transactionType = 'redeemed';
+    } else if (source === 'adjustment' || source === 'admin_adjustment') {
+      transactionType = 'adjusted';
+    } else if (source === 'expiry' || source === 'expire') {
+      transactionType = 'expired';
+    }
+    
     await pool.query(
       `INSERT INTO loyalty_points (user_id, booking_id, points_earned, points_balance, transaction_type, description)
        VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -74,7 +85,7 @@ async function recordActivity({
         referenceId || null,
         pointsEarned || 0,
         balanceAfter,
-        source,
+        transactionType,
         description
       ]
     );
