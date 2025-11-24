@@ -3187,8 +3187,10 @@
           unitEzt = computedDiscount / 100;
         }
         
-        const totalDiscount = Math.min(unitDiscount * quantity, unitOriginal * quantity || 0);
+        const totalOriginal = unitOriginal * quantity;
+        const totalDiscount = Math.min(unitDiscount * quantity, totalOriginal);
         const totalEzt = unitEzt * quantity;
+        const finalAmount = Math.max(0, totalOriginal - totalDiscount);
         
         console.log('📤 Sending booking request:', {
           dealId: currentBookingDeal.id,
@@ -3196,8 +3198,11 @@
           rawTimeSlot,
           formattedTimeSlot,
           quantity,
+          unitOriginal,
+          totalOriginal,
           expectedDiscount: totalDiscount,
           expectedEzt: totalEzt,
+          finalAmount,
           tokenLength: cleanToken.length,
           tokenPreview: cleanToken.substring(0, 20) + '...'
         });
@@ -3290,6 +3295,10 @@
           showNotification('Booking confirmed successfully!', 'success');
           closeBookingModal();
 
+          // Extract amounts from booking response with proper fallbacks
+          const displayAmount = parseFloat(bookingData.fiat_amount || bookingData.total_price || finalAmount || 0);
+          const eztRedeemed = parseFloat(bookingData.ezt_redeemed || 0);
+
           if (voucher) {
             showVoucherModal({
               code: voucher.code,
@@ -3298,13 +3307,24 @@
               expiresAt: voucher.expires_at,
               redeemedAt: voucher.redeemed_at,
               bookingReference: bookingData.booking_reference,
-              dealTitle: bookingData.deal_title,
+              dealTitle: bookingData.deal_title || currentBookingDeal.title,
               bookingDate: date,
               quantity,
-              amount: bookingData.fiat_amount ?? bookingData.final_amount ?? finalAmount
+              amount: displayAmount
             });
           } else {
-            alert(`✅ Booking Confirmed!\n\nReference: ${bookingData.booking_reference}\nDeal: ${bookingData.deal_title}\nDate: ${date}\nQuantity: ${quantity}\nTotal Payable: ₹${(bookingData.fiat_amount ?? bookingData.final_amount ?? finalAmount).toFixed(2)}\n\n${bookingData.ezt_redeemed > 0 ? `EZT Redeemed: ${bookingData.ezt_redeemed.toFixed(5)} EZT\n` : ''}`);
+            const confirmationMessage = [
+              '✅ Booking Confirmed!',
+              '',
+              `Reference: ${bookingData.booking_reference || 'N/A'}`,
+              `Deal: ${bookingData.deal_title || currentBookingDeal.title || 'N/A'}`,
+              `Date: ${date}`,
+              `Quantity: ${quantity}`,
+              `Total Payable: ₹${displayAmount.toFixed(2)}`,
+              eztRedeemed > 0 ? `EZT Redeemed: ${eztRedeemed.toFixed(5)} EZT` : ''
+            ].filter(line => line).join('\n');
+            
+            alert(confirmationMessage);
           }
           
           // Reload deals to update availability

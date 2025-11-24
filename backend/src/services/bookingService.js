@@ -365,7 +365,17 @@ async function createBooking(bookingData) {
     booking.points_earned = pointsEarned;
     booking.loyalty_balance = loyaltyResult.balanceAfter;
 
-    // Add reservation and pre-order info to booking response
+    // Enrich booking response with deal/offer title
+    let dealTitle = null;
+    if (offer_id) {
+      const offer = await offerRepository.getOfferById(offer_id);
+      dealTitle = offer?.title || null;
+    } else if (event_id) {
+      const event = await eventRepository.getEventById(event_id);
+      dealTitle = event?.title || null;
+    }
+
+    // Add additional info to booking response
     if (reservation) {
       booking.reservation = reservation;
     }
@@ -374,6 +384,9 @@ async function createBooking(bookingData) {
     }
     if (bankOfferDiscount > 0) {
       booking.bank_offer_discount = bankOfferDiscount;
+    }
+    if (dealTitle) {
+      booking.deal_title = dealTitle;
     }
 
     return booking;
