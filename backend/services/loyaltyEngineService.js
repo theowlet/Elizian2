@@ -67,13 +67,12 @@ async function recordActivity({
     );
 
     await pool.query(
-      `INSERT INTO loyalty_points (user_id, booking_id, points_earned, points_spent, points_balance, transaction_type, description)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO loyalty_points (user_id, booking_id, points_earned, points_balance, transaction_type, description)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
       [
         userId,
         referenceId || null,
         pointsEarned || 0,
-        pointsSpent || 0,
         balanceAfter,
         source,
         description
