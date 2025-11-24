@@ -240,6 +240,22 @@ app.use('/api/v1', reservationRoutes);
 const preOrderRoutes = require('./routes/preOrderRoutes');
 app.use('/api/v1', preOrderRoutes);
 
+// Import and mount notification routes (in-app notifications, push, etc.)
+const notificationRoutes = require('./routes/notificationRoutes');
+app.use('/api/v1/notifications', notificationRoutes);
+
+// Import and mount achievement routes (gamification system)
+const achievementRoutes = require('./routes/achievementRoutes');
+app.use('/api/v1/achievements', achievementRoutes);
+
+// Import and mount referral routes (referral program)
+const referralRoutes = require('./routes/referralRoutes');
+app.use('/api/v1/referrals', referralRoutes);
+
+// Import and mount system settings routes (configuration management)
+const systemSettingsRoutes = require('./routes/systemSettingsRoutes');
+app.use('/api/v1/settings', systemSettingsRoutes);
+
 // TODO: Add remaining routes as they are refactored:
 // - app.use('/api/v1/menu', menuRoutes);
 // - app.use('/api/v1', multiTierRoutes);
