@@ -177,6 +177,10 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/loyalty', loyaltyRoutes);
 app.use('/api/v1/theatre', theatreRoutes);
 
+// Account management routes (deletion, preferences, etc.)
+const accountRoutes = require('./routes/accountRoutes');
+app.use('/api/v1/account', accountRoutes);
+
 // Import and mount booking routes
 const bookingRoutes = require('./routes/bookingRoutes');
 app.use('/api/v1/bookings', bookingRoutes);
