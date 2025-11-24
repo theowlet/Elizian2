@@ -557,7 +557,16 @@ async function listAdminDeals({ search = '', status = 'all', promo = 'all' } = {
       po.discount_amount,
       po.start_date,
       po.end_date,
-      po.status,
+      -- Compatibility: Use status column if exists, fallback to computed status
+      COALESCE(
+        po.status::text,
+        CASE 
+          WHEN po.is_active = false THEN 'paused'
+          WHEN po.end_date IS NOT NULL AND po.end_date < NOW() THEN 'expired'
+          WHEN po.is_active = true THEN 'active'
+          ELSE 'draft'
+        END
+      ) AS status,
       po.is_promoted,
       po.featured_request_pending,
       po.max_redemptions,

@@ -5,6 +5,16 @@ const { logError } = require('../utils/logger');
 // Create a new booking
 async function createBooking(req, res) {
   try {
+    // Log incoming request for debugging
+    console.log('📥 Booking request received:', {
+      user_id: req.userId,
+      body: {
+        ...req.body,
+        reservation_data: req.body.reservation_data ? '(present)' : '(none)',
+        pre_order_data: req.body.pre_order_data ? '(present)' : '(none)'
+      }
+    });
+    
     const { 
       event_id, 
       offer_id, 
