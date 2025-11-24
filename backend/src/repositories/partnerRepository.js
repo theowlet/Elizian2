@@ -152,28 +152,53 @@ async function getPartnerDashboardStats(partnerId) {
     [partnerId]
   );
 
-  // Get orders stats
+  // Get orders stats (food/pre-orders from orders table)
   const ordersResult = await pool.query(
     `SELECT 
        COUNT(*) as total_orders,
        COUNT(CASE WHEN DATE(created_at) = CURRENT_DATE THEN 1 END) as today_orders,
-       SUM(total_amount) as total_revenue
+       COALESCE(SUM(total_amount), 0) as total_revenue
      FROM orders WHERE partner_id = $1`,
     [partnerId]
   );
 
-  // Get recent orders
-  const recentOrdersResult = await pool.query(
-    `SELECT * FROM orders WHERE partner_id = $1 ORDER BY created_at DESC LIMIT 5`,
+  // Get bookings stats (events/deals from bookings table via partner_offers)
+  const bookingsResult = await pool.query(
+    `SELECT 
+       COUNT(*) as total_bookings,
+       COUNT(CASE WHEN DATE(b.created_at) = CURRENT_DATE THEN 1 END) as today_bookings,
+       COALESCE(SUM(b.total_price), 0) as bookings_revenue
+     FROM bookings b
+     INNER JOIN partner_offers po ON b.deal_id = po.id
+     WHERE po.partner_id = $1`,
     [partnerId]
   );
+
+  // Get recent orders (combine both orders and bookings)
+  const recentOrdersResult = await pool.query(
+    `SELECT 'order' as type, id, customer_name, total_amount as amount, status, created_at 
+     FROM orders 
+     WHERE partner_id = $1
+     UNION ALL
+     SELECT 'booking' as type, b.id, u.first_name || ' ' || u.last_name as customer_name, 
+            b.total_price as amount, b.status, b.created_at
+     FROM bookings b
+     INNER JOIN partner_offers po ON b.deal_id = po.id
+     LEFT JOIN users u ON b.user_id = u.id
+     WHERE po.partner_id = $1
+     ORDER BY created_at DESC LIMIT 5`,
+    [partnerId]
+  );
+
+  const ordersData = ordersResult.rows[0];
+  const bookingsData = bookingsResult.rows[0];
 
   return {
     partner: partnerResult.rows[0],
     menu_items_count: parseInt(menuResult.rows[0].count),
-    total_orders: parseInt(ordersResult.rows[0].total_orders || 0),
-    today_orders: parseInt(ordersResult.rows[0].today_orders || 0),
-    total_revenue: parseFloat(ordersResult.rows[0].total_revenue || 0),
+    total_orders: parseInt(ordersData.total_orders || 0) + parseInt(bookingsData.total_bookings || 0),
+    today_orders: parseInt(ordersData.today_orders || 0) + parseInt(bookingsData.today_bookings || 0),
+    total_revenue: parseFloat(ordersData.total_revenue || 0) + parseFloat(bookingsData.bookings_revenue || 0),
     recent_orders: recentOrdersResult.rows
   };
 }
