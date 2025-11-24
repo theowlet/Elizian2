@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const achievementController = require('../controllers/achievementController');
-const { authenticateToken, authorizeRole } = require('../middleware/auth');
+const authenticateToken = require('../../middleware/authenticateToken');
+const { requireRole } = require('../../middleware/rbac');
 
 /**
  * @route   GET /api/v1/achievements
@@ -36,14 +37,14 @@ router.get('/leaderboard', authenticateToken, achievementController.getLeaderboa
  * @desc    Create new achievement (admin only)
  * @access  Private/Admin
  */
-router.post('/', authenticateToken, authorizeRole('admin'), achievementController.createAchievement);
+router.post('/', authenticateToken, requireRole('super_admin', 'admin'), achievementController.createAchievement);
 
 /**
  * @route   POST /api/v1/achievements/unlock
  * @desc    Manually unlock achievement for user (admin only)
  * @access  Private/Admin
  */
-router.post('/unlock', authenticateToken, authorizeRole('admin'), achievementController.unlockAchievementManually);
+router.post('/unlock', authenticateToken, requireRole('super_admin', 'admin'), achievementController.unlockAchievementManually);
 
 module.exports = router;
 

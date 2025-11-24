@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const referralController = require('../controllers/referralController');
-const { authenticateToken } = require('../middleware/auth');
+const authenticateToken = require('../../middleware/authenticateToken');
 
 /**
  * @route   GET /api/v1/referrals/validate/:code
