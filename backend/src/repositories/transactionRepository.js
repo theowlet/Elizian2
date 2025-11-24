@@ -2,9 +2,14 @@ const { getPool } = require('../config/db');
 
 const pool = getPool();
 
-// Create a transaction record
-async function createTransaction(transactionData) {
-  const result = await pool.query(
+/**
+ * Create a transaction record
+ * @param {Object} transactionData - Transaction details
+ * @param {Object} executor - Database client (for transactions) or pool
+ * @returns {Object} Created transaction record
+ */
+async function createTransaction(transactionData, executor = pool) {
+  const result = await executor.query(
     `INSERT INTO transactions (
       user_id, partner_id, category_id, bill_amount, discount_percentage, discount_amount,
       amount_after_discount, tokens_redeemed, tokens_earned, user_tier_at_transaction,
@@ -29,9 +34,15 @@ async function createTransaction(transactionData) {
   return result.rows[0];
 }
 
-// Update transaction with earned tokens
-async function updateTransactionTokens(transactionId, tokensEarned, netTokenChange) {
-  const result = await pool.query(
+/**
+ * Update transaction with earned tokens
+ * @param {UUID} transactionId 
+ * @param {Number} tokensEarned 
+ * @param {Number} netTokenChange 
+ * @param {Object} executor - Database client (for transactions) or pool
+ */
+async function updateTransactionTokens(transactionId, tokensEarned, netTokenChange, executor = pool) {
+  const result = await executor.query(
     'UPDATE transactions SET tokens_earned = $1, net_token_change = $2 WHERE id = $3 RETURNING *',
     [tokensEarned, netTokenChange, transactionId]
   );

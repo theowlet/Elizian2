@@ -173,7 +173,8 @@ async function createBooking(bookingData) {
         const redeemResult = await tokenService.redeemTokens(user_id, parseFloat(ezt_to_redeem), null, `Redeemed for ${bookingType} booking`);
         eztRedeemed = redeemResult.eztRedeemed;
         eztDiscount = redeemResult.discountAmount;
-        finalAmount = Math.max(0, amount - eztDiscount);
+        // BUG FIX #6: Subtract from already discounted amount (finalAmount), not original amount
+        finalAmount = Math.max(0, finalAmount - eztDiscount);
       } catch (redeemError) {
         await client.query('ROLLBACK');
         throw new AppError(400, `EZT redemption failed: ${redeemError.message}`);
@@ -182,15 +183,19 @@ async function createBooking(bookingData) {
 
     const partner_earning = finalAmount - (finalAmount * commission_percentage / 100);
 
+    // BUG FIX #5: Set booking_type explicitly in payload
+    const bookingType = event_id ? 'event' : (offer_id ? 'offer' : 'show');
+
     // Create booking
     bookingPayload.amount = finalAmount;
     bookingPayload.fiat_amount = amount;  // Original amount before EZT discount
     bookingPayload.ezt_redeemed = eztRedeemed;
     bookingPayload.partner_id = partner_id;
     bookingPayload.reward_eligible = true;
+    bookingPayload.booking_type = bookingType;  // BUG FIX #5: Store booking type
     bookingPayload.commission_percentage = commission_percentage;  // For transaction record
     bookingPayload.partner_earning = partner_earning;  // For transaction record
-    const booking = await bookingRepository.createBooking(bookingPayload);
+    const booking = await bookingRepository.createBooking(bookingPayload, client);  // BUG FIX #2: Pass client for transaction
 
     // Confirm seat booking if this is a show booking
     if (show_id && bookingPayload.seat_template_ids) {
@@ -224,7 +229,7 @@ async function createBooking(bookingData) {
       user_tier_at_transaction: userTierId,
       payment_status: 'completed',
       transaction_type: 'purchase'
-    });
+    }, client);  // BUG FIX #2: Pass client for transaction atomicity
 
     // Update offer redemption count if offer booking
     if (offer_id) {
@@ -302,24 +307,25 @@ async function createBooking(bookingData) {
       }
     }
 
-    await client.query('COMMIT');
+    // ====================================================================
+    // BUG FIX #3, #4, #7: Process tier, loyalty, and enrichment BEFORE COMMIT
+    // ====================================================================
     
-    // Process tier rewards and check for tier upgrade
-    const bookingType = event_id ? 'event' : (offer_id ? 'offer' : 'show');
     let tierResult = null;
     let eztEarned = 0;
     
+    // Process tier rewards and check for tier upgrade
     try {
       // Process tier logic (adds to annual spend, checks for upgrade, calculates EZT reward)
-      tierResult = await tierService.processBookingWithTier(user_id, finalAmount);
+      tierResult = await tierService.processBookingWithTier(user_id, finalAmount, booking.id);
       eztEarned = tierResult.eztEarned;
       
-      // Update booking with tier information
+      // Update booking with tier information (within transaction)
       await bookingRepository.updateBookingTierInfo(booking.id, {
         ezt_earned: eztEarned,
         ezt_reward_percentage: tierResult.rewardPercentage,
         user_tier_at_booking: tierResult.tierAtBooking
-      });
+      }, client);  // BUG FIX #3: Pass client to stay within transaction
       
       log(`Tier processing for booking ${booking.id}: EZT=${eztEarned}, Tier=${tierResult.tierAtBooking}, Upgrade=${tierResult.tierUpgrade ? `${tierResult.tierUpgrade.from}→${tierResult.tierUpgrade.to}` : 'none'}`);
       
@@ -328,10 +334,10 @@ async function createBooking(bookingData) {
         log(`🎉 User ${user_id} upgraded from ${tierResult.tierUpgrade.from} to ${tierResult.tierUpgrade.to} tier!`);
       }
     } catch (tierError) {
-      // Log error but don't fail the booking
-      logError('Error processing tier rewards (booking will still succeed):', tierError);
-      // Fallback to default EZT calculation
-      eztEarned = await tokenService.awardTokens(user_id, finalAmount, transaction.id, `Earned from ${bookingType} booking`);
+      // If tier processing fails, rollback entire booking
+      await client.query('ROLLBACK');
+      logError('Tier processing failed, rolling back booking:', tierError);
+      throw new AppError(500, `Booking failed during tier processing: ${tierError.message}`);
     }
     
     // Award EZT tokens (if tier processing didn't already calculate it)
@@ -339,10 +345,10 @@ async function createBooking(bookingData) {
       eztEarned = await tokenService.awardTokens(user_id, finalAmount, transaction.id, `Earned from ${bookingType} booking`);
     }
     
-    // Update transaction with earned tokens
-    await transactionRepository.updateTransactionTokens(transaction.id, eztEarned, eztEarned - eztRedeemed);
+    // Update transaction with earned tokens (within transaction)
+    await transactionRepository.updateTransactionTokens(transaction.id, eztEarned, eztEarned - eztRedeemed, client);
 
-    // Award loyalty points
+    // BUG FIX #7: Use finalAmount (actual paid amount) for loyalty points calculation
     const earningPreview = await loyaltyEngine.calculateEarning(user_id, finalAmount);
     const pointsEarned = earningPreview.points;
 
@@ -356,7 +362,7 @@ async function createBooking(bookingData) {
       userId: user_id,
       source: 'booking',
       referenceId: booking.id,
-      amount,
+      amount: finalAmount,  // BUG FIX #7: Use finalAmount, not original amount
       pointsEarned,
       description: `Points earned from ${bookingType} booking`,
       metadata: loyaltyMetadata
@@ -365,7 +371,7 @@ async function createBooking(bookingData) {
     booking.points_earned = pointsEarned;
     booking.loyalty_balance = loyaltyResult.balanceAfter;
 
-    // Enrich booking response with deal/offer title
+    // BUG FIX #4: Enrich booking response with deal/offer title (BEFORE commit, inside try)
     let dealTitle = null;
     if (offer_id) {
       const offer = await offerRepository.getOfferById(offer_id);
@@ -388,6 +394,9 @@ async function createBooking(bookingData) {
     if (dealTitle) {
       booking.deal_title = dealTitle;
     }
+
+    // BUG FIX #3: COMMIT only after ALL processing succeeds
+    await client.query('COMMIT');
 
     return booking;
   } catch (err) {

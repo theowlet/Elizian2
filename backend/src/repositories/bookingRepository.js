@@ -2,11 +2,30 @@ const { getPool } = require('../config/db');
 
 const pool = getPool();
 
-// Create a new booking
-async function createBooking(bookingData) {
+/**
+ * Generate unique booking reference
+ * Format: BK-{timestamp}-{random}
+ */
+function generateBookingReference() {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+  return `BK-${timestamp}-${random}`;
+}
+
+/**
+ * Create a new booking
+ * @param {Object} bookingData - Booking details
+ * @param {Object} executor - Database client (for transactions) or pool
+ * @returns {Object} Created booking with booking_reference
+ */
+async function createBooking(bookingData, executor = pool) {
+  // Generate unique booking reference if not provided
+  const bookingReference = bookingData.booking_reference || generateBookingReference();
+  
   // Map the service data to actual table columns
-  const result = await pool.query(
+  const result = await executor.query(
     `INSERT INTO bookings (
+      booking_reference,
       user_id, 
       event_id, 
       deal_id, 
@@ -24,9 +43,10 @@ async function createBooking(bookingData) {
       booking_type,
       reward_eligible
     )
-     VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, CURRENT_TIME, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, CURRENT_TIME, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      RETURNING *`,
     [
+      bookingReference,
       bookingData.user_id,
       bookingData.event_id || null,
       bookingData.deal_id || bookingData.offer_id || null,  // Support both deal_id and offer_id for backwards compatibility
@@ -34,7 +54,7 @@ async function createBooking(bookingData) {
       bookingData.show_id || null,
       bookingData.status || 'pending',
       bookingData.amount || bookingData.total_price || 0,  // total_price
-      bookingData.amount || bookingData.fiat_amount || 0,   // fiat_amount (before EZT discount)
+      bookingData.fiat_amount || bookingData.amount || 0,   // fiat_amount (before EZT discount)
       bookingData.ezt_redeemed || 0,
       bookingData.num_tickets || 1,
       bookingData.num_guests || bookingData.num_tickets || 1,
@@ -162,9 +182,14 @@ async function autoCancelPendingBookings(thresholdDate) {
   return result.rows;
 }
 
-// Update booking with tier information
-async function updateBookingTierInfo(bookingId, tierInfo) {
-  const result = await pool.query(
+/**
+ * Update booking with tier information
+ * @param {UUID} bookingId 
+ * @param {Object} tierInfo 
+ * @param {Object} executor - Database client (for transactions) or pool
+ */
+async function updateBookingTierInfo(bookingId, tierInfo, executor = pool) {
+  const result = await executor.query(
     `UPDATE bookings 
      SET 
        ezt_earned = $1,
@@ -191,6 +216,7 @@ module.exports = {
   updateBookingStatus,
   countBookedTicketsForEvent,
   autoCancelPendingBookings,
-  updateBookingTierInfo
+  updateBookingTierInfo,
+  generateBookingReference
 };
 
