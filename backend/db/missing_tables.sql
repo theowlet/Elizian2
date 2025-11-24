@@ -15,15 +15,90 @@ CREATE TABLE IF NOT EXISTS roles (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Seed roles
-INSERT INTO roles (role_name, description, permissions) VALUES
-  ('super_admin', 'Global control of partners, events, analytics, and loyalty', 
-   '{"read":["*"],"write":["*"],"delete":["*"],"admin":true}'),
-  ('partner_admin', 'Manage own listings, offers, and bookings with scheduling', 
-   '{"read":["own_partner"],"write":["own_offers","own_events"],"scan":["vouchers"]}'),
-  ('user', 'Browse, book, earn loyalty points, and view QR vouchers', 
-   '{"read":["events","offers"],"write":["bookings"]}')
-ON CONFLICT (role_name) DO NOTHING;
+-- Add description column if it doesn't exist
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'roles' AND column_name = 'description'
+  ) THEN
+    ALTER TABLE roles ADD COLUMN description TEXT;
+  END IF;
+  
+  -- Add permissions column if it doesn't exist
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'roles' AND column_name = 'permissions'
+  ) THEN
+    ALTER TABLE roles ADD COLUMN permissions JSONB DEFAULT '{}';
+  END IF;
+END $$;
+
+-- Seed roles (handle missing columns gracefully)
+DO $$
+DECLARE
+  has_permissions BOOLEAN;
+  has_description BOOLEAN;
+BEGIN
+  -- Check if columns exist
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'roles' AND column_name = 'permissions'
+  ) INTO has_permissions;
+  
+  SELECT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'roles' AND column_name = 'description'
+  ) INTO has_description;
+  
+  -- Insert super_admin
+  IF has_permissions AND has_description THEN
+    INSERT INTO roles (role_name, description, permissions) 
+    VALUES ('super_admin', 'Global control of partners, events, analytics, and loyalty', 
+            '{"read":["*"],"write":["*"],"delete":["*"],"admin":true}')
+    ON CONFLICT (role_name) DO NOTHING;
+  ELSIF has_description THEN
+    INSERT INTO roles (role_name, description) 
+    VALUES ('super_admin', 'Global control of partners, events, analytics, and loyalty')
+    ON CONFLICT (role_name) DO NOTHING;
+  ELSE
+    INSERT INTO roles (role_name) 
+    VALUES ('super_admin')
+    ON CONFLICT (role_name) DO NOTHING;
+  END IF;
+  
+  -- Insert partner_admin
+  IF has_permissions AND has_description THEN
+    INSERT INTO roles (role_name, description, permissions) 
+    VALUES ('partner_admin', 'Manage own listings, offers, and bookings with scheduling', 
+            '{"read":["own_partner"],"write":["own_offers","own_events"],"scan":["vouchers"]}')
+    ON CONFLICT (role_name) DO NOTHING;
+  ELSIF has_description THEN
+    INSERT INTO roles (role_name, description) 
+    VALUES ('partner_admin', 'Manage own listings, offers, and bookings with scheduling')
+    ON CONFLICT (role_name) DO NOTHING;
+  ELSE
+    INSERT INTO roles (role_name) 
+    VALUES ('partner_admin')
+    ON CONFLICT (role_name) DO NOTHING;
+  END IF;
+  
+  -- Insert user
+  IF has_permissions AND has_description THEN
+    INSERT INTO roles (role_name, description, permissions) 
+    VALUES ('user', 'Browse, book, earn loyalty points, and view QR vouchers', 
+            '{"read":["events","offers"],"write":["bookings"]}')
+    ON CONFLICT (role_name) DO NOTHING;
+  ELSIF has_description THEN
+    INSERT INTO roles (role_name, description) 
+    VALUES ('user', 'Browse, book, earn loyalty points, and view QR vouchers')
+    ON CONFLICT (role_name) DO NOTHING;
+  ELSE
+    INSERT INTO roles (role_name) 
+    VALUES ('user')
+    ON CONFLICT (role_name) DO NOTHING;
+  END IF;
+END $$;
 
 -- ============================================
 -- 2. BOOKINGS TABLE (dedicated booking system)
@@ -46,7 +121,16 @@ CREATE TABLE IF NOT EXISTS bookings (
 
 CREATE INDEX IF NOT EXISTS idx_bookings_user_id ON bookings(user_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_event_id ON bookings(event_id);
-CREATE INDEX IF NOT EXISTS idx_bookings_offer_id ON bookings(offer_id);
+-- Only create offer_id index if the column exists
+DO $$ 
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'bookings' AND column_name = 'offer_id'
+  ) THEN
+    CREATE INDEX IF NOT EXISTS idx_bookings_offer_id ON bookings(offer_id);
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
 CREATE INDEX IF NOT EXISTS idx_bookings_booking_date ON bookings(booking_date);
 

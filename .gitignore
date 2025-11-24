@@ -48,3 +48,6 @@ otp.log
 /ios
 /android
 .vercel
+
+# Uploaded files (user-generated content)
+frontend/public/uploads/

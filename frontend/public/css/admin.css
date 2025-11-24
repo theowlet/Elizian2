@@ -569,6 +569,70 @@ body {
   font-size: 0.85rem;
 }
 
+/* Inverse styling for approved deals */
+.deal-card.deal-approved {
+  background: linear-gradient(135deg, #5E17EB, #3F2182);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.deal-card.deal-approved .deal-title h3 {
+  color: white;
+}
+
+.deal-card.deal-approved .deal-title .muted {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.deal-card.deal-approved .deal-meta {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.deal-card.deal-approved .deal-meta .muted {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.deal-card.deal-approved .btn-secondary {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.deal-card.deal-approved .btn-secondary:hover:not(.disabled) {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.deal-card.deal-approved .btn-primary {
+  background: var(--accent);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.deal-card.deal-approved .btn-primary:hover:not(.disabled) {
+  background: #c4b35a;
+}
+
+.deal-card.deal-approved .badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.deal-card.deal-approved .badge.bg-success {
+  background: var(--success);
+  color: white;
+}
+
+.deal-card.deal-approved .badge.bg-warning {
+  background: var(--warning);
+  color: var(--text);
+}
+
+.deal-card.deal-approved .badge.badge-accent {
+  background: var(--accent);
+  color: var(--text);
+}
+
 .admin-toast {
   position: fixed;
   right: 1.5rem;

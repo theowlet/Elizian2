@@ -36,6 +36,7 @@ const state = {
     partners: [],
     deals: [],
   },
+  selectedDeals: new Set(),
   registration: {
     phone: '',
     otpVerified: false,
@@ -45,6 +46,65 @@ const state = {
   },
   isAuthenticated: false,
 };
+
+const DEAL_STATUS_LABELS = {
+  draft: 'Draft',
+  pending_approval: 'Pending Approval',
+  active: 'Active',
+  paused: 'Paused',
+  rejected: 'Rejected',
+  expired: 'Expired'
+};
+
+const DEAL_STATUS_BADGES = {
+  draft: 'badge bg-secondary',
+  pending_approval: 'badge bg-warning text-dark',
+  active: 'badge bg-success',
+  paused: 'badge bg-orange text-white',
+  rejected: 'badge bg-danger',
+  expired: 'badge bg-secondary text-muted',
+  default: 'badge bg-secondary'
+};
+
+const DEAL_SCHEDULE_LABELS = {
+  upcoming: 'Upcoming',
+  live: 'Live',
+  expired: 'Expired'
+};
+
+const DEAL_SCHEDULE_BADGES = {
+  upcoming: 'badge bg-info',
+  live: 'badge bg-success',
+  expired: 'badge bg-secondary',
+  default: 'badge bg-secondary'
+};
+
+const DEAL_STATUS_PERMISSIONS = {
+  draft: { approve: false, reject: false, pause: false, promote: false, edit: true },
+  pending_approval: { approve: true, reject: true, pause: false, promote: false, edit: true },
+  active: { approve: false, reject: false, pause: true, promote: true, edit: true }, // Active deals can only be paused, not rejected
+  paused: { approve: true, reject: true, pause: false, promote: true, edit: true },
+  rejected: { approve: true, reject: false, pause: false, promote: false, edit: true }, // Rejected deals can be re-approved
+  expired: { approve: false, reject: false, pause: false, promote: false, edit: false },
+  default: { approve: false, reject: true, pause: false, promote: false, edit: true }
+};
+
+const DEAL_STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'All' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'pending_approval', label: 'Pending Approval' },
+  { value: 'active', label: 'Active' },
+  { value: 'paused', label: 'Paused' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'expired', label: 'Expired' }
+];
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString();
+}
 
 function $(selector) {
   return document.querySelector(selector);
@@ -322,9 +382,14 @@ async function loadPartners() {
       <div class="card partner-card" data-partner="${partner.id}">
         <div class="partner-header">
           <h3>${partner.name}</h3>
-          <span class="badge ${partner.status === 'approved' ? 'badge-success' : partner.status === 'pending' ? 'badge-warning' : 'badge-error'}">
-            ${partner.status.toUpperCase()}
-          </span>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <span class="badge ${partner.status === 'approved' ? 'badge-success' : partner.status === 'pending' ? 'badge-warning' : 'badge-error'}">
+              ${partner.status.toUpperCase()}
+            </span>
+            ${partner.approved_for_featured 
+              ? `<span class="badge badge-success" title="Approved for Featured/Trending content">⭐ Featured</span>`
+              : `<span class="badge badge-secondary" title="Not approved for Featured/Trending content">Featured</span>`}
+          </div>
         </div>
         <div class="partner-meta">
           <div>📧 ${partner.email || '—'}</div>
@@ -342,6 +407,9 @@ async function loadPartners() {
                <button class="btn btn-secondary btn-xs" data-action="rejectPartner" data-id="${partner.id}">Reject</button>`
             : `<button class="btn btn-secondary btn-xs" data-action="changeTier" data-id="${partner.id}">Change Tier</button>
                <button class="btn btn-secondary btn-xs" data-action="suspendPartner" data-id="${partner.id}">${partner.status === 'suspended' ? 'Activate' : 'Suspend'}</button>
+               <button class="btn ${partner.approved_for_featured ? 'btn-warning' : 'btn-success'} btn-xs" data-action="toggleFeaturedEligibility" data-id="${partner.id}" title="${partner.approved_for_featured ? 'Revoke featured eligibility' : 'Approve for featured/trending content'}">
+                 ${partner.approved_for_featured ? '⭐ Revoke Featured' : '⭐ Approve Featured'}
+               </button>
                <button class="btn btn-secondary btn-xs" data-action="viewPartner" data-id="${partner.id}">View Dashboard</button>`}
         </div>
       </div>`).join('');
@@ -352,69 +420,275 @@ async function loadPartners() {
 
 async function loadDeals() {
   const list = $('#dealsList');
+  const dealsSection = $('#dealsSection') || document.body;
+  ensureDealBulkUI(dealsSection);
+
+  if (!list) {
+    console.warn('[Admin] Missing #dealsList container in DOM. Creating fallback element.');
+    const fallback = document.createElement('div');
+    fallback.id = 'dealsList';
+    fallback.className = 'card-list';
+    dealsSection.appendChild(fallback);
+    fallback.addEventListener('click', handleDealAction);
+    state.cache.deals = [];
+    state.selectedDeals.clear();
+    updateDealBulkToolbar();
+    return;
+  }
+
   list.innerHTML = '<div class="card muted">Loading deals…</div>';
   const { search, status, promo } = state.filters.deals;
   const params = new URLSearchParams({ search, status, promo });
   try {
     const { data } = await fetchJSON(`${API_BASE}/api/v1/admin/deals?${params.toString()}`);
     if (!data.length) {
+      state.cache.deals = [];
+      state.selectedDeals.clear();
+      updateDealBulkToolbar();
       list.innerHTML = '<div class="card muted">No deals found.</div>';
       return;
     }
+
     state.cache.deals = data;
-    list.innerHTML = data.map((deal) => {
-      const pendingTrending = !!deal.featured_request_pending;
-      const statusBadge = deal.status
-        ? `<span class="badge ${deal.status === 'active' ? 'badge-success' : deal.status === 'pending' ? 'badge-warning' : 'badge-error'}">${deal.status.toUpperCase()}</span>`
-        : '';
-      const trendingBadge = deal.is_promoted ? '<span class="badge badge-accent">⭐ Promoted</span>' : '';
-      const pendingBadge = pendingTrending ? '<span class="badge badge-warning">Awaiting Trend Approval</span>' : '';
+    const visibleIds = new Set(data.map((deal) => deal.id));
+    state.selectedDeals = new Set([...state.selectedDeals].filter((id) => visibleIds.has(id)));
 
-      const defaultActions = `
-        ${deal.status === 'pending'
-          ? `<button class="btn btn-primary btn-xs" data-action="approveDeal" data-id="${deal.id}" data-partner="${deal.partner_id}">Approve</button>
-             <button class="btn btn-secondary btn-xs" data-action="rejectDeal" data-id="${deal.id}" data-partner="${deal.partner_id}">Reject</button>`
-          : `<button class="btn btn-secondary btn-xs" data-action="${deal.is_promoted ? 'unpromoteDeal' : 'promoteDeal'}" data-id="${deal.id}" data-partner="${deal.partner_id}">
-               ${deal.is_promoted ? 'Unpromote' : 'Promote'}
-             </button>
-             <button class="btn btn-secondary btn-xs" data-action="pauseDeal" data-id="${deal.id}" data-partner="${deal.partner_id}">${deal.status === 'paused' ? 'Activate' : 'Pause'}</button>`}
-        <button class="btn btn-secondary btn-xs" data-action="viewDeal" data-id="${deal.id}" data-partner="${deal.partner_id}">View</button>
-      `;
-
-      const pendingTrendingActions = `
-        <p class="muted" style="margin:0 0 0.5rem;">Partner requested Trending placement.</p>
-        <div class="button-group">
-          <button class="btn btn-primary btn-xs" data-action="approveTrending" data-id="${deal.id}">Approve Trending</button>
-          <button class="btn btn-secondary btn-xs" data-action="rejectTrending" data-id="${deal.id}">Reject Request</button>
-          <button class="btn btn-secondary btn-xs" data-action="viewDeal" data-id="${deal.id}" data-partner="${deal.partner_id}">View</button>
-        </div>
-      `;
-
-      return `
-      <div class="card deal-card" data-deal="${deal.id}">
-        <div class="deal-header">
-          <div class="deal-title">
-            <h3>${deal.title}</h3>
-            <span class="muted">by ${deal.partner_name || 'Unknown partner'}</span>
-          </div>
-          <div class="deal-badges">
-            ${statusBadge}
-            ${trendingBadge}
-            ${pendingBadge}
-          </div>
-        </div>
-        <div class="deal-meta">
-          <div>💰 ₹${Number(deal.original_price || 0).toLocaleString('en-IN')} → ₹${Number(deal.discounted_price || deal.original_price || 0).toLocaleString('en-IN')}</div>
-          <div>📅 ${deal.start_date ? new Date(deal.start_date).toLocaleDateString() : '—'} – ${deal.end_date ? new Date(deal.end_date).toLocaleDateString() : '—'}</div>
-          <div>🎟️ Max: ${deal.max_redemptions || 'Unlimited'} | Used: ${deal.current_redemptions || 0}</div>
-        </div>
-        <div class="deal-actions">
-          ${pendingTrending ? pendingTrendingActions : defaultActions}
-        </div>
-      </div>`;
-    }).join('');
+    list.innerHTML = data.map(renderDealCard).join('');
+    syncDealSelections();
   } catch (error) {
     list.innerHTML = `<div class="card error">Failed to load deals: ${error.message}</div>`;
+  }
+}
+
+function ensureDealBulkUI(container) {
+  let toolbar = $('#dealBulkActions');
+  if (toolbar) return toolbar;
+
+  toolbar = document.createElement('div');
+  toolbar.id = 'dealBulkActions';
+  toolbar.className = 'bulk-actions hidden';
+  toolbar.innerHTML = `
+    <div class="bulk-info">
+      <label class="select-all">
+        <input type="checkbox" id="selectAllDeals">
+        <span>Select All</span>
+      </label>
+      <span id="selectedDealCount" class="muted">No deals selected</span>
+    </div>
+    <div class="button-group">
+      <button class="btn btn-primary btn-xs" id="bulkApproveDealsBtn" disabled>Approve Selected</button>
+      <button class="btn btn-secondary btn-xs" id="bulkRejectDealsBtn" disabled>Reject Selected</button>
+    </div>
+  `;
+  container?.prepend(toolbar);
+  toolbar.addEventListener('click', (event) => {
+    if (event.target.id === 'bulkApproveDealsBtn') {
+      handleBulkDealAction('approve');
+    } else if (event.target.id === 'bulkRejectDealsBtn') {
+      handleBulkDealAction('reject');
+    }
+  });
+  toolbar.addEventListener('change', (event) => {
+    if (event.target.id === 'selectAllDeals') {
+      handleSelectAllDeals(event.target.checked);
+    }
+  });
+  return toolbar;
+}
+
+function renderDealCard(deal) {
+  const statusLabel = DEAL_STATUS_LABELS[deal.status] || (deal.status || 'Unknown').toUpperCase();
+  const statusClass = DEAL_STATUS_BADGES[deal.status] || DEAL_STATUS_BADGES.default;
+  const scheduleLabel = DEAL_SCHEDULE_LABELS[deal.schedule_status] || (deal.schedule_status || 'Unknown');
+  const scheduleClass = DEAL_SCHEDULE_BADGES[deal.schedule_status] || DEAL_SCHEDULE_BADGES.default;
+  const trendingBadge = deal.is_promoted ? '<span class="badge badge-accent">Trending</span>' : '';
+  const pendingTrendingBadge = deal.featured_request_pending ? '<span class="badge bg-warning text-dark">Pending Trending</span>' : '';
+  const perms = DEAL_STATUS_PERMISSIONS[deal.status] || DEAL_STATUS_PERMISSIONS.default;
+  
+  // Disable trending/promotion actions for inactive deals (rejected, expired, draft, pending)
+  const canPromote = deal.status === 'active' || deal.status === 'paused';
+  const disableTrendingActions = deal.status === 'expired' || !canPromote;
+
+  const approveBtn = `<button class="btn btn-primary btn-xs ${perms.approve ? '' : 'disabled'}" data-action="approveDeal" data-id="${deal.id}" data-partner="${deal.partner_id}" ${perms.approve ? '' : 'disabled'}>Approve</button>`;
+  const rejectBtn = `<button class="btn btn-secondary btn-xs ${perms.reject ? '' : 'disabled'}" data-action="rejectDeal" data-id="${deal.id}" data-partner="${deal.partner_id}" ${perms.reject ? '' : 'disabled'}>Reject</button>`;
+  const pauseBtn = `<button class="btn btn-secondary btn-xs ${perms.pause ? '' : 'disabled'}" data-action="pauseDeal" data-id="${deal.id}" data-partner="${deal.partner_id}" ${perms.pause ? '' : 'disabled'}>${deal.status === 'paused' ? 'Resume' : 'Pause'}</button>`;
+  
+  const trendingActions = deal.featured_request_pending
+    ? `
+      <p class="muted" style="margin:0 0 0.5rem;">Partner requested Trending placement.</p>
+      <div class="button-group">
+        <button class="btn btn-primary btn-xs ${disableTrendingActions ? 'disabled' : ''}" data-action="approveTrending" data-id="${deal.id}" ${disableTrendingActions ? 'disabled' : ''}>Approve Trending</button>
+        <button class="btn btn-secondary btn-xs ${disableTrendingActions ? 'disabled' : ''}" data-action="rejectTrending" data-id="${deal.id}" ${disableTrendingActions ? 'disabled' : ''}>Reject Request</button>
+      </div>
+    `
+    : `<button class="btn btn-secondary btn-xs ${disableTrendingActions ? 'disabled' : ''}" data-action="${deal.is_promoted ? 'unpromoteDeal' : 'promoteDeal'}" data-id="${deal.id}" data-partner="${deal.partner_id}" ${disableTrendingActions ? 'disabled' : ''}>
+         ${deal.is_promoted ? 'Unpromote' : 'Promote'}
+       </button>`;
+
+  // Add 'approved' class for inverse styling when deal is active
+  const isApproved = deal.status === 'active';
+  const cardClass = `card deal-card ${isApproved ? 'deal-approved' : ''}`;
+  
+  return `
+    <div class="${cardClass}" data-deal="${deal.id}">
+      <div class="deal-header">
+        <label class="deal-select-wrapper">
+          <input type="checkbox" class="deal-select" data-id="${deal.id}" ${state.selectedDeals.has(deal.id) ? 'checked' : ''}>
+        </label>
+        <div class="deal-title">
+          <h3>${deal.title}</h3>
+          <span class="muted">by ${deal.partner_name || 'Unknown partner'}</span>
+        </div>
+        <div class="deal-badges">
+          <span class="${statusClass}">${statusLabel}</span>
+          <span class="${scheduleClass}">${scheduleLabel}</span>
+          ${trendingBadge}
+          ${pendingTrendingBadge}
+        </div>
+      </div>
+      <div class="deal-meta">
+        <div>💰 ${deal.original_price ? `₹${Number(deal.original_price).toLocaleString('en-IN')} → ` : ''}₹${Number(deal.discounted_price || 0).toLocaleString('en-IN')}</div>
+        <div>📅 ${formatDateTime(deal.start_date)} – ${formatDateTime(deal.end_date)}</div>
+        <div>🎟️ Max: ${deal.max_redemptions || 'Unlimited'} | Used: ${deal.current_redemptions || 0}</div>
+      </div>
+      <div class="deal-actions">
+        <div class="button-group">
+          ${approveBtn}
+          ${rejectBtn}
+          ${pauseBtn}
+          <button class="btn btn-secondary btn-xs" data-action="viewDeal" data-id="${deal.id}" data-partner="${deal.partner_id}">View</button>
+        </div>
+        <div class="button-group">
+          ${trendingActions}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function syncDealSelections() {
+  $all('.deal-select').forEach((checkbox) => {
+    checkbox.checked = state.selectedDeals.has(checkbox.dataset.id);
+  });
+  updateDealBulkToolbar();
+}
+
+function updateDealBulkToolbar() {
+  const toolbar = $('#dealBulkActions');
+  if (!toolbar) return;
+  const count = state.selectedDeals.size;
+  const approveBtn = $('#bulkApproveDealsBtn');
+  const rejectBtn = $('#bulkRejectDealsBtn');
+  const countLabel = $('#selectedDealCount');
+  const selectAll = $('#selectAllDeals');
+  const totalDeals = state.cache.deals.length;
+
+  toolbar.classList.toggle('hidden', totalDeals === 0);
+
+  if (approveBtn) approveBtn.disabled = count === 0;
+  if (rejectBtn) rejectBtn.disabled = count === 0;
+  if (countLabel) {
+    countLabel.textContent = count ? `${count} selected` : 'No deals selected';
+  }
+  if (selectAll) {
+    if (totalDeals === 0) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+    } else {
+      selectAll.checked = count > 0 && count === totalDeals;
+      selectAll.indeterminate = count > 0 && count < totalDeals;
+    }
+  }
+}
+
+function handleSelectAllDeals(checked) {
+  if (!state.cache.deals.length) return;
+  if (checked) {
+    state.cache.deals.forEach((deal) => state.selectedDeals.add(deal.id));
+  } else {
+    state.selectedDeals.clear();
+  }
+  syncDealSelections();
+}
+
+function handleDealSelectionChange(dealId, checked) {
+  if (!dealId) return;
+  if (checked) {
+    state.selectedDeals.add(dealId);
+  } else {
+    state.selectedDeals.delete(dealId);
+  }
+  updateDealBulkToolbar();
+}
+
+async function handleBulkDealAction(action) {
+  const ids = Array.from(state.selectedDeals);
+  if (!ids.length) return;
+
+  // Filter out deals that are already in the target state
+  const deals = state.cache.deals || [];
+  const validIds = [];
+  const skippedIds = [];
+  
+  ids.forEach(id => {
+    const deal = deals.find(d => d.id === id);
+    if (!deal) {
+      validIds.push(id); // Let backend handle missing deals
+      return;
+    }
+    
+    // Skip deals that are already in the target state
+    if (action === 'approve' && deal.status === 'active') {
+      skippedIds.push({ id, reason: 'Deal is already active' });
+    } else if (action === 'reject' && deal.status === 'rejected') {
+      skippedIds.push({ id, reason: 'Deal is already rejected' });
+    } else {
+      validIds.push(id);
+    }
+  });
+
+  // Show warning if some deals were skipped
+  if (skippedIds.length > 0) {
+    const skippedSummary = skippedIds.map(s => s.reason).join(', ');
+    showNotification(`${skippedIds.length} deal(s) skipped: ${skippedSummary}`, 'warning');
+  }
+
+  // If no valid deals remain, return early
+  if (validIds.length === 0) {
+    if (skippedIds.length > 0) {
+      state.selectedDeals.clear();
+      updateDealBulkToolbar();
+    }
+    return;
+  }
+
+  const endpoint = action === 'approve'
+    ? `${API_BASE}/api/v1/admin/deals/bulk-approve`
+    : `${API_BASE}/api/v1/admin/deals/bulk-reject`;
+
+  try {
+    const result = await fetchJSON(endpoint, {
+      method: 'POST',
+      body: JSON.stringify({ ids: validIds })
+    });
+
+    const succeeded = result?.succeeded || [];
+    const failed = result?.failed || [];
+
+    if (succeeded.length) {
+      showNotification(`${succeeded.length} deal(s) ${action === 'approve' ? 'approved' : 'rejected'}.`);
+    }
+
+    if (failed.length) {
+      const reasonSummary = failed.map((entry) => `${entry.id}: ${entry.reason}`).join(', ');
+      showNotification(`Failed to process ${failed.length} deal(s): ${reasonSummary}`, 'error');
+    }
+  } catch (error) {
+    showNotification(`Bulk ${action} failed: ${error.message}`, 'error');
+  } finally {
+    state.selectedDeals.clear();
+    updateDealBulkToolbar();
+    loadDeals();
   }
 }
 
@@ -628,14 +902,17 @@ function attachEventListeners() {
   });
   $('#dealSearch').addEventListener('input', (event) => {
     state.filters.deals.search = event.target.value;
+    state.selectedDeals.clear();
     loadDeals();
   });
   $('#dealStatusFilter').addEventListener('change', (event) => {
     state.filters.deals.status = event.target.value;
+    state.selectedDeals.clear();
     loadDeals();
   });
   $('#dealPromoFilter').addEventListener('change', (event) => {
     state.filters.deals.promo = event.target.value;
+    state.selectedDeals.clear();
     loadDeals();
   });
   $('#analyticsRange').addEventListener('change', (event) => {
@@ -667,6 +944,11 @@ function attachEventListeners() {
   const dealsList = $('#dealsList');
   if (dealsList) {
     dealsList.addEventListener('click', handleDealAction);
+    dealsList.addEventListener('change', (event) => {
+      if (event.target.classList.contains('deal-select')) {
+        handleDealSelectionChange(event.target.dataset.id, event.target.checked);
+      }
+    });
   }
 
   const activityList = $('#activityList');
@@ -1259,6 +1541,9 @@ function handlePartnerAction(event) {
     case 'suspendPartner':
       updatePartnerStatus(partnerId, 'toggle');
       break;
+    case 'toggleFeaturedEligibility':
+      updatePartnerFeaturedEligibility(partnerId);
+      break;
     case 'viewPartner':
       showPartnerDetails(partnerId);
       break;
@@ -1321,6 +1606,79 @@ async function updatePartnerStatus(partnerId, action) {
   }
 }
 
+async function updatePartnerFeaturedEligibility(partnerId) {
+  try {
+    // Get current partner data to determine new state
+    const partners = state.cache.partners || [];
+    let partner = partners.find(p => p.id === partnerId);
+    
+    if (!partner) {
+      // Reload partners if not in cache
+      const { data } = await fetchJSON(`${API_BASE}/api/v1/admin/partners?status=all`);
+      const foundPartner = data.find(p => p.id === partnerId);
+      if (!foundPartner) {
+        throw new Error('Partner not found');
+      }
+      partner = foundPartner;
+    }
+    
+    const currentEligibility = partner.approved_for_featured || false;
+    const newEligibility = !currentEligibility;
+    
+    const reason = prompt(
+      newEligibility 
+        ? 'Approve this partner for featured/trending content?\n\nEnter a reason (optional):'
+        : 'Revoke featured eligibility from this partner?\n\nEnter a reason (optional):'
+    );
+    
+    // If user cancels, reason will be null
+    if (reason === null) {
+      return;
+    }
+    
+    const url = `${API_BASE}/api/v1/admin/partners/${partnerId}/featured-eligibility`;
+    console.log('Updating partner featured eligibility:', { partnerId, approved_for_featured: newEligibility, url });
+    
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: getHeaders(),
+      body: JSON.stringify({ 
+        approved_for_featured: newEligibility,
+        reason: reason || null
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = errorText || response.statusText;
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.error || errorJson.message || errorMessage;
+      } catch (e) {
+        // Not JSON, use text as is
+      }
+      throw new Error(errorMessage);
+    }
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.error || result.message || 'Update failed');
+    }
+
+    showNotification(
+      newEligibility 
+        ? 'Partner approved for featured/trending content successfully.'
+        : 'Partner featured eligibility revoked successfully.',
+      'success'
+    );
+    loadPartners();
+  } catch (error) {
+    console.error('Partner featured eligibility update error:', error);
+    const errorMessage = error.message || 'Failed to update featured eligibility';
+    showNotification(`Failed to update featured eligibility: ${errorMessage}`, 'error');
+  }
+}
+
 async function showPartnerDetails(partnerId) {
   try {
     const { data } = await fetchJSON(`${API_BASE}/api/v1/partners/${partnerId}`);
@@ -1345,10 +1703,12 @@ async function showPartnerDetails(partnerId) {
 function handleDealAction(event) {
   const button = event.target.closest('button[data-action]');
   if (!button) return;
+  if (button.disabled || button.classList.contains('disabled')) return;
   const dealId = button.dataset.id;
   const partnerId = button.dataset.partner;
   if (!dealId) return;
   const action = button.dataset.action;
+  console.log('[Admin] Deal action clicked:', action, dealId, partnerId);
 
   switch (action) {
     case 'approveDeal':
@@ -1381,19 +1741,81 @@ function handleDealAction(event) {
 }
 
 async function updateDealStatus(dealId, partnerId, action) {
+  // Check if deal is already in target state (prevent unnecessary API calls)
+  const deal = state.cache.deals?.find(d => d.id === dealId);
+  if (deal) {
+    if (action === 'approve' && deal.status === 'active') {
+      showNotification('Deal is already active.', 'warning');
+      return;
+    }
+    if (action === 'reject' && deal.status === 'rejected') {
+      showNotification('Deal is already rejected.', 'warning');
+      return;
+    }
+    // Active deals cannot be rejected - they can only be paused
+    if (action === 'reject' && deal.status === 'active') {
+      showNotification('Active deals cannot be rejected. Use Pause instead.', 'warning');
+      return;
+    }
+    if (action === 'toggle' && deal.status === 'paused' && deal.status === 'active') {
+      // This is handled by the backend, but we can add a check here too
+    }
+  }
+
   try {
-    await fetchJSON(`${API_BASE}/api/v1/admin/deals/${dealId}/status`, {
+    const response = await fetch(`${API_BASE}/api/v1/admin/deals/${dealId}/status`, {
       method: 'PATCH',
+      headers: getHeaders(),
       body: JSON.stringify({ action, partner_id: partnerId })
     });
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error('[Admin] Deal status update failed', {
+        dealId,
+        partnerId,
+        action,
+        status: response.status,
+        body: errorBody
+      });
+      let message = `HTTP ${response.status}`;
+      try {
+        const parsed = JSON.parse(errorBody);
+        message = parsed?.message || parsed?.error || message;
+      } catch (err) {
+        message = errorBody || message;
+      }
+      throw new Error(message);
+    }
     showNotification('Deal updated successfully.');
     loadDeals();
   } catch (error) {
-    showNotification(`Failed to update deal: ${error.message}`, 'error');
+    console.error('[Admin] updateDealStatus error:', error);
+    // Provide user-friendly error messages
+    let userMessage = error.message;
+    if (error.message.includes('Invalid transition') && error.message.includes('active → active')) {
+      userMessage = 'This deal is already active. No action needed.';
+    } else if (error.message.includes('Active deals cannot be rejected')) {
+      userMessage = 'Active deals cannot be rejected. Use Pause instead.';
+    } else if (error.message.includes('Rejected deals cannot be reactivated')) {
+      // This should no longer happen after backend fix, but keep for backwards compatibility
+      userMessage = 'This deal was rejected. Please contact support if you need to re-approve it.';
+    } else if (error.message.includes('Invalid transition')) {
+      userMessage = 'This action is not allowed for deals in this status.';
+    }
+    showNotification(`Failed to update deal: ${userMessage}`, 'error');
   }
 }
 
 async function toggleDealPromotion(dealId, promote) {
+  // Check if deal can be promoted (must be active or paused)
+  const deal = state.cache.deals?.find(d => d.id === dealId);
+  if (deal && promote) {
+    if (deal.status !== 'active' && deal.status !== 'paused') {
+      showNotification(`Cannot promote deal: Deal must be active or paused (current status: ${deal.status})`, 'error');
+      return;
+    }
+  }
+
   try {
     await fetchJSON(`${API_BASE}/api/v1/admin/offers/${dealId}/feature`, {
       method: 'PUT',
@@ -1402,7 +1824,11 @@ async function toggleDealPromotion(dealId, promote) {
     showNotification(promote ? 'Deal promoted successfully.' : 'Deal unpromoted.');
     loadDeals();
   } catch (error) {
-    showNotification(`Failed to update promotion: ${error.message}`, 'error');
+    let userMessage = error.message;
+    if (error.message.includes('Cannot promote an inactive or expired deal')) {
+      userMessage = 'Only active or paused deals can be promoted.';
+    }
+    showNotification(`Failed to update promotion: ${userMessage}`, 'error');
   }
 }
 
@@ -1438,7 +1864,7 @@ async function showDealDetails(dealId) {
       <div style="display:flex;flex-direction:column;gap:0.75rem;">
         <h2 style="margin:0;">${deal.title}</h2>
         <div><strong>Partner:</strong> ${deal.partner_name || '—'}</div>
-        <div><strong>Pricing:</strong> ₹${deal.original_price} → ₹${deal.discounted_price}</div>
+        <div><strong>Pricing:</strong> ${deal.original_price ? `₹${deal.original_price} → ` : ''}₹${deal.discounted_price || 0}</div>
         <div><strong>Validity:</strong> ${deal.start_date || '—'} to ${deal.end_date || '—'}</div>
         <div><strong>Description:</strong><br>${deal.description || '—'}</div>
       </div>

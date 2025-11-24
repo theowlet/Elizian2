@@ -4,6 +4,9 @@
 
 import { CONFIG } from './config.js';
 
+// Constants
+const OTP_VERIFICATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
+
 const TIER_ICON_MAP = {
   ather: '/assets/Aether.png',
   nova: '/assets/nova.png',
@@ -217,24 +220,27 @@ export async function verifyOTPFromForm() {
       throw new Error(verifyData.error || 'Invalid OTP');
     }
 
+    // Extract data from response (backend wraps in { success, message, data })
+    const data = verifyData.data || verifyData;
+
     // Step 2: Check if user exists or needs registration
-    if (verifyData.token) {
+    if (data.token) {
       // Existing user - login successful
-      setStorageItem('token', verifyData.token);
-      setStorageItem('userInfo', verifyData.user);
+      // Store token as plain string (not JSON stringified)
+      localStorage.setItem('token', data.token);
+      setStorageItem('userInfo', data.user);
       
-      alert(`Welcome back, ${verifyData.user.first_name}!`);
+      alert(`Welcome back, ${data.user.first_name}!`);
       navigateTo('home');
-    } else if (verifyData.requiresRegistration) {
+    } else if (data.requiresRegistration) {
       // New user - needs registration
-      // Store phone and verification status (NOT the OTP!)
-      setStorageItem('registrationPhone', currentPhone);
-      setStorageItem('otpVerified', 'true');
-      setStorageItem('otpVerifiedAt', Date.now().toString());
+      // Store phone temporarily in sessionStorage (not localStorage)
+      sessionStorage.setItem('tempRegistrationPhone', currentPhone);
       
       alert('OTP verified! Please complete your registration');
       navigateTo('signup');
     } else {
+      console.error('Unexpected response structure:', verifyData);
       throw new Error('Unexpected response from server');
     }
   } catch (error) {
@@ -268,47 +274,34 @@ export async function registerNewUser() {
     return;
   }
 
-  // Check if OTP was recently verified
-  const otpVerified = getStorageItem('otpVerified');
-  const otpVerifiedAt = getStorageItem('otpVerifiedAt');
-  const registrationPhone = getStorageItem('registrationPhone');
-  
-  if (!otpVerified || !otpVerifiedAt || registrationPhone !== phone) {
-    alert('Please verify your OTP first');
+  // Get phone from sessionStorage (backend handles OTP verification)
+  const tempPhone = sessionStorage.getItem('tempRegistrationPhone');
+  if (!tempPhone || tempPhone !== phone) {
+    alert('Please verify your phone number first');
+    navigateTo('login');
     return;
   }
   
-  // Check if verification is not too old (5 minutes)
-  const verificationAge = Date.now() - parseInt(otpVerifiedAt);
-  if (verificationAge > 5 * 60 * 1000) {
-    alert('OTP verification expired. Please verify again.');
-    removeStorageItem('otpVerified');
-    removeStorageItem('otpVerifiedAt');
-    removeStorageItem('registrationPhone');
-    return;
-  }
+  // Clear after use
+  sessionStorage.removeItem('tempRegistrationPhone');
 
   disableButton('registerBtn');
 
   try {
+    // Backend verifies OTP from the verified session, no need to send otp_code
     const data = await apiCall('/auth/register', 'POST', {
       phone_number: cleanPhoneNumber(phone),
       email,
       first_name: firstName,
       last_name: lastName,
-      password,
-      otp_code: otp
+      password
     });
 
     if (data.success) {
-      // Clear verification data
-      removeStorageItem('otpVerified');
-      removeStorageItem('otpVerifiedAt');
-      removeStorageItem('registrationPhone');
-      
       // Store user info and token
-      setStorageItem('token', data.token);
-      setStorageItem('userInfo', data.user);
+      // Store token as plain string (not JSON stringified)
+      localStorage.setItem('token', data.data?.token || data.token);
+      setStorageItem('userInfo', data.data?.user || data.user);
       
       alert(`Welcome to Elizian, ${firstName}!`);
       navigateTo('home');

@@ -1,0 +1,50 @@
+# TOP PRIORITY FILES FOR CODE REVIEW
+# Upload these files to Claude FIRST for debugging
+
+## 🔴 TIER 1: CRITICAL (Upload These First)
+
+### Phase 1: Core Workflows
+1. backend/src/repositories/adminRepository.js
+2. backend/src/services/adminService.js
+3. backend/src/services/bookingService.js
+4. backend/src/services/voucherService.js
+
+### Phase 2: Supporting Critical Logic
+5. backend/src/repositories/voucherRepository.js
+6. backend/src/repositories/bookingRepository.js
+7. backend/src/services/tierService.js
+8. backend/src/repositories/tierRepository.js
+
+## 🟠 TIER 2: HIGH PRIORITY (Upload Second)
+
+9. backend/src/services/bankOfferService.js
+10. backend/src/services/offerService.js
+11. backend/src/repositories/offerRepository.js
+12. backend/src/services/partnerService.js
+
+## 🟡 TIER 3: MEDIUM PRIORITY (Upload Third)
+
+13. backend/src/controllers/adminController.js
+14. backend/src/controllers/bookingController.js
+15. backend/src/controllers/voucherController.js
+16. backend/src/services/reservationService.js
+17. backend/src/services/preOrderService.js
+
+## 🔵 TIER 4: CONTEXT FILES (Upload for Reference)
+
+18. backend/db/elizian_schema.sql
+19. backend/src/utils/dealRules.js
+20. backend/src/utils/audit.js
+21. backend/middleware/authenticateToken.js
+
+---
+
+## QUICK START: Upload These 4 Files First
+
+1. backend/src/repositories/adminRepository.js
+2. backend/src/services/adminService.js
+3. backend/src/services/bookingService.js
+4. backend/src/services/voucherService.js
+
+These 4 files contain 90% of the critical business logic and are most likely to have bugs.
+

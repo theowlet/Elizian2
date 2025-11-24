@@ -14,6 +14,63 @@
   
   <!-- Custom Styles -->
   <link rel="stylesheet" href="css/styles.css">
+  
+  <!-- Global Error Handler - Must be first script to catch all errors -->
+  <script>
+    // Prevent exposing internal file paths in error messages
+    (function() {
+      // Sanitize error messages to remove file paths
+      function sanitizeError(error) {
+        if (typeof error === 'string') {
+          // Remove absolute file paths
+          return error
+            .replace(/\/Users\/[^\s]+/g, '[internal path]')
+            .replace(/[A-Z]:\\[^\s]+/g, '[internal path]')
+            .replace(/node_modules[^\s]*/g, '[module]')
+            .replace(/\/[^\s]*node_modules[^\s]*/g, '[module]');
+        }
+        if (error && error.message) {
+          error.message = sanitizeError(error.message);
+        }
+        if (error && error.stack) {
+          error.stack = sanitizeError(error.stack);
+        }
+        return error;
+      }
+      
+      // Catch unhandled errors
+      window.addEventListener('error', function(event) {
+        event.preventDefault();
+        console.error('Unhandled error (sanitized):', sanitizeError(event.error || event.message));
+        // Don't show alert for module loading errors
+        if (event.message && (
+          event.message.includes('node_modules') || 
+          event.message.includes('Failed to fetch dynamically imported module') ||
+          event.message.includes('Loading chunk') ||
+          event.filename && event.filename.includes('node_modules')
+        )) {
+          console.warn('Module loading error suppressed (this is usually a development-only issue)');
+          return;
+        }
+      }, true);
+      
+      // Catch unhandled promise rejections
+      window.addEventListener('unhandledrejection', function(event) {
+        event.preventDefault();
+        const error = event.reason;
+        console.error('Unhandled promise rejection (sanitized):', sanitizeError(error));
+        // Don't show alert for module loading errors
+        if (error && (
+          (typeof error === 'string' && error.includes('node_modules')) ||
+          (error.message && error.message.includes('node_modules')) ||
+          (error.stack && error.stack.includes('node_modules'))
+        )) {
+          console.warn('Module loading error suppressed (this is usually a development-only issue)');
+          return;
+        }
+      });
+    })();
+  </script>
 </head>
 <body>
   <!-- Global Header -->
@@ -266,23 +323,31 @@
             <button class="profile-btn" onclick="navigateTo('profile')">👤</button>
           </header>
 
-          <!-- Fixed Search Bar -->
+          <!-- Smart Search Bar -->
           <div class="search-container">
             <div class="search-wrapper">
               <span class="search-icon">🔍</span>
               <input 
                 type="text" 
                 class="search-input" 
-                placeholder="Search events, restaurants, services..."
+                placeholder="Search restaurants, events, cuisines..."
                 id="searchInput"
+                oninput="handleSmartSearch(this.value)"
               >
+              <button class="search-filter-btn" onclick="showAdvancedFilters()" title="Filters">
+                <span>⚙️</span>
+              </button>
             </div>
           </div>
           
           <!-- Fixed Category Tabs -->
           <div class="category-tabs-wrapper">
             <nav class="category-tabs" id="categoryTabs">
-              <button class="tab active" data-category="dining" onclick="filterByCategory('dining')">
+              <button class="tab active" data-category="all" onclick="filterByCategory('all')">
+                <span class="tab-icon">🌟</span>
+                <span class="tab-label">All</span>
+            </button>
+              <button class="tab" data-category="dining" onclick="filterByCategory('dining')">
                 <span class="tab-icon">🍽️</span>
                 <span class="tab-label">Dining</span>
             </button>
@@ -315,9 +380,26 @@
           
           <!-- Main Content (Scrollable) -->
           <main class="app-container">
+            <!-- Featured Banner Carousel -->
+            <section id="featuredBanner" class="featured-banner-section">
+              <div id="featuredBannerCarousel" class="featured-banner-carousel">
+                <!-- Will be populated by JS -->
+                <div class="banner-slide active">
+                  <div class="banner-content">
+                    <h3>🎉 Steal the Deal</h3>
+                    <p>Up to 50% OFF on all dining experiences</p>
+                    <button class="banner-cta">Explore Now →</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
             <!-- Featured & Promoted Section -->
             <section id="promotionsContainer" class="promo-section">
-              <h2 class="section-heading">⭐ FEATURED</h2>
+              <div class="section-header">
+                <h2 class="section-heading">🔥 Trending Now</h2>
+                <span class="section-subtitle">Popular this week</span>
+              </div>
               <div id="trendingCarousel" class="trending-carousel">
                 <!-- Will be populated by JS or show empty state -->
                 <div class="loading">
@@ -327,9 +409,56 @@
         </div>
             </section>
 
+            <!-- BanQ Section -->
+            <section id="bankOffersSection" class="bank-offers-section">
+              <div class="section-header">
+                <h2 class="section-heading">💳 BanQ</h2>
+                <span class="section-subtitle">Extra savings with your card</span>
+              </div>
+              <div id="bankOffersGrid" class="bank-offers-grid">
+                <!-- Will be populated by JS -->
+              </div>
+            </section>
+
+            <!-- Top Restaurants Near You -->
+            <section id="nearbyRestaurantsSection" class="nearby-section">
+              <div class="section-header">
+                <h2 class="section-heading">🍽️ Top Restaurants Near You</h2>
+                <button class="view-all-btn" onclick="filterByCategory('dining')">View All →</button>
+              </div>
+              <div id="nearbyRestaurantsGrid" class="restaurants-grid">
+                <!-- Will be populated by JS -->
+              </div>
+            </section>
+
+            <!-- Ongoing Events (Currently Active) -->
+            <section id="ongoingEventsSection" class="events-section">
+              <div class="section-header">
+                <h2 class="section-heading">🎪 Live Now</h2>
+                <span class="section-subtitle">Events happening right now</span>
+              </div>
+              <div id="ongoingEventsGrid" class="events-grid">
+                <!-- Will be populated by JS -->
+              </div>
+            </section>
+
+            <!-- Upcoming Events -->
+            <section id="upcomingEventsSection" class="events-section">
+              <div class="section-header">
+                <h2 class="section-heading">🎭 Upcoming Events</h2>
+                <button class="view-all-btn" onclick="filterByCategory('events')">View All →</button>
+              </div>
+              <div id="upcomingEventsGrid" class="events-grid">
+                <!-- Will be populated by JS -->
+              </div>
+            </section>
+
             <!-- Organic Deals Section -->
             <section id="dealsContainer" class="deals-section">
-              <h2 class="section-heading">🎁 PARTNER DEALS</h2>
+              <div class="section-header">
+                <h2 class="section-heading">🎁 All Partner Deals</h2>
+                <span class="section-subtitle">Discover amazing offers</span>
+              </div>
               <div id="allDealsGrid" class="deals-grid">
                 <!-- Will be populated by JS or show empty state -->
                 <div class="loading">
@@ -1748,15 +1877,26 @@
           (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
           '/assets/default-offer.jpg';
         
+        const summary = computeDiscountSummary(deal);
+        const daysRemaining = deal.end_date ? Math.ceil((new Date(deal.end_date) - new Date()) / (1000 * 60 * 60 * 24)) : null;
+        const isUrgent = daysRemaining !== null && daysRemaining < 7 && daysRemaining > 0;
+        const isHotDeal = summary.percent > 40;
+        
+        // Calculate distance (mock for now - would come from location API)
+        const distance = '2.3 km'; // TODO: Calculate from user location
+        const rating = '4.5'; // TODO: Get from partner/booking data
+        const cuisine = deal.service_type === 'dining' ? 'Italian' : deal.category_name || '';
+        
         return `
-          <div class="deal-card" onclick="openOfferDetails('${deal.id}')" data-index="${index}">
+          <div class="deal-card enhanced-deal-card" onclick="openOfferDetails('${deal.id}')" data-index="${index}">
             <div class="deal-image-wrapper">
               <img src="${imageUrl}" class="deal-image" alt="${deal.title}"
                    onerror="this.src='/assets/default-offer.jpg'">
               ${deal.is_promoted ? 
                 `<div class="trending-badge">🔥 TRENDING</div>` : ''}
+              ${isHotDeal ? 
+                `<div class="hot-deal-badge">HOT DEAL</div>` : ''}
               ${(() => {
-                const summary = computeDiscountSummary(deal);
                 if (summary.hasDiscount) {
                   return `<div class="discount-badge">${summary.percent > 0 ? `${summary.percent % 1 === 0 ? summary.percent.toFixed(0) : summary.percent.toFixed(2)}% OFF` : `₹${summary.savings.toFixed(2)} OFF`}</div>`;
                 }
@@ -1764,28 +1904,40 @@
               })()}
             </div>
             <div class="deal-info">
-              <h4>${deal.title}</h4>
-              <p class="partner-name">${deal.partner_name}</p>
-              ${deal.category_name ? 
-                `<span class="category-badge">${deal.category_name}</span>` : ''}
-              ${(() => {
-                const summary = computeDiscountSummary(deal);
-                if (summary.hasDiscount) {
-                  return `<div class="price-info">
-                    <span class="original-price" style="text-decoration: line-through; opacity: 0.6; margin-right: 6px;">₹${summary.original.toFixed(2)}</span>
-                    <span class="discounted-price">₹${summary.discounted.toFixed(2)}</span>
-                    <span class="discount-note" style="display:block; font-size:12px; color:#10b981;">You save ₹${summary.savings.toFixed(2)} • ${summary.ezt.toFixed(2)} EZT</span>
-                  </div>`;
-                } else if (summary.percent > 0 && summary.original === 0) {
-                  return `<div class="discount-text">${summary.percent % 1 === 0 ? summary.percent.toFixed(0) : summary.percent.toFixed(2)}% OFF</div>`;
-                } else if (summary.original > 0 || summary.discounted > 0) {
-                  const finalPrice = summary.discounted > 0 ? summary.discounted : summary.original;
-                  return `<div class="price-info">
-                    <span class="final-price">₹${finalPrice.toFixed(2)}</span>
-                  </div>`;
-                }
-                return '';
-              })()}
+              <h3 class="restaurant-name">${deal.partner_name || 'Partner'}</h3>
+              <h4 class="deal-title">${deal.title}</h4>
+              
+              <div class="meta-info">
+                ${rating ? `<span class="rating">⭐ ${rating}</span>` : ''}
+                ${distance ? `<span class="distance">📍 ${distance}</span>` : ''}
+                ${cuisine ? `<span class="cuisine">🍽️ ${cuisine}</span>` : ''}
+              </div>
+              
+              ${summary.hasDiscount ? `
+                <div class="discount-banner">
+                  <span class="discount-amount">${summary.percent > 0 ? `${summary.percent % 1 === 0 ? summary.percent.toFixed(0) : summary.percent.toFixed(2)}% OFF` : ''}</span>
+                  ${summary.savings > 0 ? `<span class="savings">Save ₹${summary.savings.toFixed(2)}</span>` : ''}
+                </div>
+              ` : ''}
+              
+              <div class="price-row">
+                ${summary.original > 0 ? 
+                  `<span class="original-price">₹${summary.original.toFixed(2)}</span>` : ''}
+                <span class="discounted-price">₹${summary.discounted > 0 ? summary.discounted.toFixed(2) : (summary.original > 0 ? summary.original.toFixed(2) : '0.00')}</span>
+                ${deal.service_type === 'dining' ? `<span class="per-person">per person</span>` : ''}
+              </div>
+              
+              ${deal.end_date ? `
+                <div class="validity-info">
+                  <span class="valid-until">Valid till ${new Date(deal.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                  ${isUrgent ? `<span class="urgency">⏰ Only ${daysRemaining} days left!</span>` : ''}
+                </div>
+              ` : ''}
+              
+              <button class="btn-book-now" onclick="event.stopPropagation(); openOfferDetails('${deal.id}')">
+                ${deal.service_type === 'dining' ? 'Book Table' : deal.service_type === 'events' ? 'Book Event' : 'Book Now'}
+                <span class="icon">→</span>
+              </button>
             </div>
           </div>
         `;
@@ -1928,8 +2080,32 @@
         tab.classList.toggle('active', tab.dataset.category === category);
       });
       
-      // TODO: Filter deals by category
-      console.log('Selected category:', category);
+      // Filter deals by category using the existing filterByCategory function
+      if (typeof window.filterByCategory === 'function') {
+        window.filterByCategory(category);
+      } else {
+        console.log('Selected category:', category);
+        // Fallback: manually filter deals
+        const categoryToServiceType = {
+          'all': null,
+          'dining': 'dining',
+          'events': 'events',
+          'healthcare': 'healthcare',
+          'spa': 'spa-and-salon',
+          'wellness': 'wellness',
+          'travel': 'travel',
+          'others': 'others'
+        };
+        const serviceType = categoryToServiceType[category] || null;
+        currentServiceTypeFilter = serviceType;
+        
+        // Reload deals with the selected category filter
+        const homeScreen = document.getElementById('homeScreen');
+        if (homeScreen && !homeScreen.classList.contains('hidden')) {
+          loadTrendingDeals(serviceType);
+          loadAllDeals(serviceType);
+        }
+      }
     };
     
     // Load bottom navigation - Modern Design
@@ -1994,6 +2170,24 @@
         'travel': 'travel',
         'others': 'others'
       };
+      
+      // Handle trending category specially
+      if (category === 'trending') {
+        const homeScreen = document.getElementById('homeScreen');
+        if (homeScreen && !homeScreen.classList.contains('hidden')) {
+          // Show only trending/promoted deals
+          loadTrendingDeals(null);
+          // Filter all deals to show only promoted ones
+          if (allDealsData && allDealsData.length > 0) {
+            const trendingDeals = allDealsData.filter(d => d.is_promoted);
+            const container = document.getElementById('allDealsGrid');
+            if (container) {
+              renderPartnerDealsInfiniteScroll(trendingDeals);
+            }
+          }
+        }
+        return;
+      }
       
       const serviceType = category === 'all' ? null : (categoryToServiceType[category] || null);
       currentServiceTypeFilter = serviceType;
@@ -2609,6 +2803,90 @@
               </div>
             </div>
             
+            <!-- Bank Offer Selection -->
+            <div style="margin-bottom: 20px;" id="bankOfferSection">
+              <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">💳 BanQ (Optional)</label>
+              <button type="button" onclick="showBankOffersModal()" style="
+                width: 100%;
+                padding: 12px;
+                border: 2px dashed #d1d5db;
+                background: #f9fafb;
+                border-radius: 8px;
+                font-weight: 500;
+                color: #6b7280;
+                cursor: pointer;
+                text-align: center;
+              ">
+                ${window.selectedBankOffer ? `✓ ${window.selectedBankOffer.bank_code} Selected` : 'Select Bank Offer'}
+              </button>
+              <small style="display: block; margin-top: 4px; color: #6b7280; font-size: 12px;">
+                Get additional discounts with your bank card
+              </small>
+            </div>
+            
+            <!-- Table Reservation (for dining offers) -->
+            ${deal.service_type === 'dining' || deal.service_type === 'restaurant' ? `
+              <div style="margin-bottom: 20px; padding: 16px; background: #f0f9ff; border-radius: 8px; border: 1px solid #bae6fd;">
+                <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #0369a1;">🍽️ Table Reservation</h3>
+                
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151; font-size: 14px;">Reservation Time *</label>
+                  <input type="time" id="reservationTime" class="booking-input" required>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151; font-size: 14px;">Party Size *</label>
+                  <input type="number" id="partySize" class="booking-input" value="${quantity}" min="1" max="20" required>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151; font-size: 14px;">Occasion (Optional)</label>
+                  <select id="occasion" class="booking-input">
+                    <option value="">None</option>
+                    <option value="birthday">🎂 Birthday</option>
+                    <option value="anniversary">💑 Anniversary</option>
+                    <option value="date_night">🌹 Date Night</option>
+                    <option value="business">💼 Business Dinner</option>
+                    <option value="family">👨‍👩‍👧‍👦 Family Gathering</option>
+                  </select>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                  <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151; font-size: 14px;">Seating Preference (Optional)</label>
+                  <select id="seatingPreference" class="booking-input">
+                    <option value="">No preference</option>
+                    <option value="window">🪟 Window</option>
+                    <option value="outdoor">🌳 Outdoor</option>
+                    <option value="private">🔒 Private</option>
+                    <option value="bar">🍸 Bar</option>
+                  </select>
+                </div>
+              </div>
+            ` : ''}
+            
+            <!-- Pre-Ordering (Echelon tier only) -->
+            <div style="margin-bottom: 20px; display: none;" id="preOrderSection">
+              <div style="padding: 16px; background: #fef3c7; border-radius: 8px; border: 1px solid #fcd34d;">
+                <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: #92400e;">👑 Pre-Order Food (Echelon Exclusive)</h3>
+                <p style="margin: 0 0 12px 0; font-size: 14px; color: #78350f;">
+                  As an Echelon member, you can pre-order food to be ready when you arrive!
+                </p>
+                <button type="button" onclick="showPreOrderModal()" style="
+                  width: 100%;
+                  padding: 10px;
+                  border: 2px solid #f59e0b;
+                  background: white;
+                  border-radius: 6px;
+                  font-weight: 500;
+                  color: #92400e;
+                  cursor: pointer;
+                ">
+                  + Add Pre-Order Items
+                </button>
+                <div id="preOrderItemsList" style="margin-top: 12px; font-size: 14px; color: #78350f;"></div>
+              </div>
+            </div>
+            
             <!-- Special Requests -->
             <div style="margin-bottom: 20px;">
               <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Special Requests (Optional)</label>
@@ -2924,18 +3202,41 @@
           tokenPreview: cleanToken.substring(0, 20) + '...'
         });
         
-        const response = await fetch(`${API_BASE}/api/v1/deals/${currentBookingDeal.id}/book`, {
+        const response = await fetch(`${API_BASE}/api/v1/bookings`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${cleanToken}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            date,
-            time_slot: formattedTimeSlot,
-            quantity,
+            offer_id: currentBookingDeal.id,
+            num_tickets: quantity,
             special_requests: specialRequests || null,
-            slot_id: slotId
+            // Bank offer (if selected)
+            ...(window.selectedBankOffer ? {
+              bank_offer_id: window.selectedBankOffer.bank_id,
+              bank_offer_rule_id: window.selectedBankOffer.rule_id
+            } : {}),
+            // Table reservation (for dining offers)
+            ...((currentBookingDeal.service_type === 'dining' || currentBookingDeal.service_type === 'restaurant') ? {
+              reservation_data: {
+                date: date,
+                time: document.getElementById('reservationTime')?.value || formattedTimeSlot,
+                partySize: parseInt(document.getElementById('partySize')?.value || quantity),
+                occasion: document.getElementById('occasion')?.value || null,
+                specialRequests: specialRequests || null,
+                seatingPreference: document.getElementById('seatingPreference')?.value || null
+              }
+            } : {}),
+            // Pre-order (if Echelon user and items added)
+            ...(window.preOrderItems && window.preOrderItems.length > 0 ? {
+              pre_order_data: {
+                items: window.preOrderItems,
+                totalAmount: window.preOrderTotal || null,
+                specialInstructions: document.getElementById('preOrderInstructions')?.value || null,
+                dietaryRequirements: document.getElementById('preOrderDietary')?.value || null
+              }
+            } : {})
           })
         });
         
@@ -3214,19 +3515,335 @@
     
     // Main function to load all home screen data
     async function loadHomeScreenData() {
-      console.log('Loading monetizable two-tier home screen...');
+      console.log('Loading enhanced home screen...');
       
-      // Load trending deals (monetizable spotlight)
-      await loadTrendingDeals();
+      // Ensure "All" category is selected by default
+      currentServiceTypeFilter = null;
       
-      // Load all organic deals
-      await loadAllDeals();
+      // Update active tab to "All" if category tabs exist
+      const categoryTabs = document.querySelectorAll('#categoryTabs .tab[data-category]');
+      categoryTabs.forEach(tab => {
+        if (tab.dataset.category === 'all') {
+          tab.classList.add('active');
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+      
+      // Quick access bar removed - category tabs handle filtering
+      
+      // Load all sections
+      await Promise.all([
+        loadFeaturedBanner(),
+        loadTrendingDeals(null),
+        loadBankOffers(),
+        loadNearbyRestaurants(),
+        loadOngoingEvents(),
+        loadUpcomingEvents(),
+        loadAllDeals(null)
+      ]);
       
       // Load bottom navigation
       loadBottomNav();
       
-      console.log('✅ Two-tier deals system loaded successfully');
+      console.log('✅ Enhanced home screen loaded successfully');
     }
+    
+    // Load Featured Banner Carousel
+    async function loadFeaturedBanner() {
+      const container = document.getElementById('featuredBannerCarousel');
+      if (!container) return;
+      
+      const banners = [
+        {
+          title: '🎉 Steal the Deal',
+          subtitle: 'Up to 50% OFF on all dining experiences',
+          cta: 'Explore Now',
+          action: 'filterByCategory(\'dining\')'
+        },
+        {
+          title: '💳 BanQ',
+          subtitle: 'Extra 20% with HDFC, ICICI & more',
+          cta: 'View Offers',
+          action: 'document.getElementById(\'bankOffersSection\')?.scrollIntoView({ behavior: \'smooth\' })'
+        }
+      ];
+      
+      container.innerHTML = banners.map((banner, index) => `
+        <div class="banner-slide ${index === 0 ? 'active' : ''}" onclick="${banner.action}">
+          <div class="banner-content">
+            <h3>${banner.title}</h3>
+            <p>${banner.subtitle}</p>
+            <button class="banner-cta" onclick="event.stopPropagation(); ${banner.action}">${banner.cta} →</button>
+          </div>
+        </div>
+      `).join('');
+      
+      // Auto-rotate banners every 5 seconds
+      let currentBanner = 0;
+      setInterval(() => {
+        const slides = container.querySelectorAll('.banner-slide');
+        if (slides.length > 1) {
+          slides[currentBanner].classList.remove('active');
+          currentBanner = (currentBanner + 1) % slides.length;
+          slides[currentBanner].classList.add('active');
+        }
+      }, 5000);
+    }
+    
+    // Load BanQ from API (dynamic, not hardcoded)
+    async function loadBankOffers() {
+      const container = document.getElementById('bankOffersGrid');
+      if (!container) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/bank-offers`);
+        const result = await response.json();
+        
+        if (result.success && result.data && result.data.length > 0) {
+          container.innerHTML = result.data.map(bank => {
+            const firstOffer = bank.offers && bank.offers.length > 0 ? bank.offers[0] : null;
+            const offerText = firstOffer ? firstOffer.description : 'Special offers available';
+            
+            return `
+              <div class="bank-card" onclick="selectBankOffer('${bank.bank_code}', '${bank.id}', ${firstOffer ? `'${firstOffer.id}'` : 'null'})">
+                ${bank.logo_url ? `<img src="${bank.logo_url}" alt="${bank.bank_name}" class="bank-logo-img">` : `<div class="bank-logo">💳</div>`}
+                <div class="bank-name">${bank.bank_name}</div>
+                <div class="bank-offer-text">${offerText}</div>
+              </div>
+            `;
+          }).join('');
+        } else {
+          container.innerHTML = '<p class="empty-state">No BanQ offers available</p>';
+        }
+      } catch (error) {
+        console.error('Error loading bank offers:', error);
+        container.innerHTML = '<p class="empty-state">Unable to load BanQ offers</p>';
+      }
+    }
+    
+    // Load Nearby Restaurants
+    async function loadNearbyRestaurants() {
+      const container = document.getElementById('nearbyRestaurantsGrid');
+      if (!container) return;
+      
+      try {
+        const url = `${API_BASE}/api/v1/offers?limit=5&service_type=dining&is_active=true`;
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success && result.data && result.data.length > 0) {
+          const restaurants = result.data.slice(0, 5);
+          container.innerHTML = restaurants.map(deal => {
+            const imageUrl = deal.image_url ? 
+              (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
+              '/assets/default-offer.jpg';
+            const summary = computeDiscountSummary(deal);
+            
+            return `
+              <div class="restaurant-card" onclick="openOfferDetails('${deal.id}')">
+                <img src="${imageUrl}" alt="${deal.title}" onerror="this.src='/assets/default-offer.jpg'">
+                <div class="restaurant-info">
+                  <h4>${deal.partner_name}</h4>
+                  <p class="restaurant-cuisine">${deal.category_name || 'Restaurant'}</p>
+                  <div class="restaurant-meta">
+                    <span>⭐ 4.5</span>
+                    <span>📍 2.3 km</span>
+                  </div>
+                  ${summary.hasDiscount ? `
+                    <div class="restaurant-discount">${summary.percent > 0 ? `${summary.percent.toFixed(0)}% OFF` : ''}</div>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          }).join('');
+        } else {
+          container.innerHTML = '<p class="empty-state">No restaurants nearby</p>';
+        }
+      } catch (error) {
+        console.error('Error loading nearby restaurants:', error);
+        container.innerHTML = '<p class="empty-state">Unable to load restaurants</p>';
+      }
+    }
+    
+    // Load Ongoing Events (Events that have started but not ended)
+    async function loadOngoingEvents() {
+      const container = document.getElementById('ongoingEventsGrid');
+      if (!container) return;
+      
+      try {
+        const url = `${API_BASE}/api/v1/offers?limit=20&service_type=events&is_active=true`;
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success && result.data && result.data.length > 0) {
+          // Filter for ongoing events (started but not ended)
+          const now = new Date();
+          const ongoingEvents = result.data.filter(deal => {
+            if (!deal.start_date) return false; // Exclude events with no start date
+            const startDate = new Date(deal.start_date);
+            const endDate = deal.end_date ? new Date(deal.end_date) : null;
+            
+            // Event has started (start_date <= now) and hasn't ended yet
+            return startDate <= now && (!endDate || endDate >= now);
+          }).slice(0, 5); // Take first 5 ongoing events
+          
+          if (ongoingEvents.length > 0) {
+            container.innerHTML = ongoingEvents.map(deal => {
+              const imageUrl = deal.image_url ? 
+                (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
+                '/assets/default-offer.jpg';
+              const summary = computeDiscountSummary(deal);
+              const endDate = deal.end_date ? new Date(deal.end_date).toLocaleDateString('en-IN', { 
+                day: 'numeric', 
+                month: 'short',
+                year: 'numeric'
+              }) : 'Ongoing';
+              
+              return `
+                <div class="event-card ongoing-event" onclick="openOfferDetails('${deal.id}')">
+                  <img src="${imageUrl}" alt="${deal.title}" onerror="this.src='/assets/default-offer.jpg'">
+                  <div class="event-info">
+                    <span class="live-badge">🔴 LIVE</span>
+                    <h4>${deal.title}</h4>
+                    <p class="event-date">⏰ Until ${endDate}</p>
+                    ${summary.hasDiscount ? `
+                      <div class="event-discount">${summary.percent > 0 ? `${summary.percent.toFixed(0)}% OFF` : ''}</div>
+                    ` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('');
+          } else {
+            container.innerHTML = '<p class="empty-state">No ongoing events</p>';
+          }
+        } else {
+          container.innerHTML = '<p class="empty-state">No ongoing events</p>';
+        }
+      } catch (error) {
+        console.error('Error loading ongoing events:', error);
+        container.innerHTML = '<p class="empty-state">Unable to load events</p>';
+      }
+    }
+
+    // Load Upcoming Events
+    async function loadUpcomingEvents() {
+      const container = document.getElementById('upcomingEventsGrid');
+      if (!container) return;
+      
+      try {
+        const url = `${API_BASE}/api/v1/offers?limit=20&service_type=events&is_active=true`;
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success && result.data && result.data.length > 0) {
+          // Filter for truly upcoming events (start_date in the future)
+          const now = new Date();
+          const upcomingEvents = result.data.filter(deal => {
+            if (!deal.start_date) return true; // Include events with no start date
+            const startDate = new Date(deal.start_date);
+            return startDate > now; // Only include events that haven't started yet
+          }).slice(0, 5); // Take first 5 upcoming events
+          
+          if (upcomingEvents.length > 0) {
+            container.innerHTML = upcomingEvents.map(deal => {
+            const imageUrl = deal.image_url ? 
+              (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
+              '/assets/default-offer.jpg';
+            const summary = computeDiscountSummary(deal);
+            const eventDate = deal.start_date ? new Date(deal.start_date).toLocaleDateString('en-IN', { 
+              day: 'numeric', 
+              month: 'short',
+              year: 'numeric'
+            }) : 'TBA';
+            
+            return `
+              <div class="event-card" onclick="openOfferDetails('${deal.id}')">
+                <img src="${imageUrl}" alt="${deal.title}" onerror="this.src='/assets/default-offer.jpg'">
+                <div class="event-info">
+                  <h4>${deal.title}</h4>
+                  <p class="event-date">📅 ${eventDate}</p>
+                  ${summary.hasDiscount ? `
+                    <div class="event-discount">${summary.percent > 0 ? `${summary.percent.toFixed(0)}% OFF` : ''}</div>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          }).join('');
+          } else {
+            container.innerHTML = '<p class="empty-state">No upcoming events</p>';
+          }
+        } else {
+          container.innerHTML = '<p class="empty-state">No upcoming events</p>';
+        }
+      } catch (error) {
+        console.error('Error loading upcoming events:', error);
+        container.innerHTML = '<p class="empty-state">Unable to load events</p>';
+      }
+    }
+    
+    // Smart Search Handler
+    window.handleSmartSearch = function(query) {
+      if (!query || query.length < 2) {
+        // Reset to all deals if search is cleared
+        if (query.length === 0) {
+          loadAllDeals(currentServiceTypeFilter);
+        }
+        return;
+      }
+      
+      // Filter deals by search query
+      const filtered = allDealsData.filter(deal => 
+        deal.title.toLowerCase().includes(query.toLowerCase()) ||
+        deal.partner_name.toLowerCase().includes(query.toLowerCase()) ||
+        (deal.description && deal.description.toLowerCase().includes(query.toLowerCase()))
+      );
+      
+      const container = document.getElementById('allDealsGrid');
+      if (container && filtered.length > 0) {
+        renderPartnerDealsInfiniteScroll(filtered);
+      } else if (container) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <p>No deals found for "${query}"</p>
+            <button class="btn btn-secondary" onclick="document.getElementById('searchInput').value=''; handleSmartSearch('');">Clear Search</button>
+          </div>
+        `;
+      }
+    };
+    
+    // Advanced Filters
+    window.showAdvancedFilters = function() {
+      // TODO: Implement advanced filter modal
+      alert('Advanced filters coming soon!\n\nYou\'ll be able to filter by:\n- Cuisine type\n- Price range\n- Distance\n- Rating\n- Dietary preferences');
+    };
+    
+    // Bank Offer Selection (stores selected offer for booking)
+    window.selectedBankOffer = null;
+    window.selectBankOffer = function(bankCode, bankId, ruleId) {
+      if (!ruleId) {
+        showNotification('Please select a specific offer', 'error');
+        return;
+      }
+      window.selectedBankOffer = {
+        bank_code: bankCode,
+        bank_id: bankId,
+        rule_id: ruleId
+      };
+      
+      // Update UI to show selected state
+      document.querySelectorAll('.bank-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+      event?.currentTarget?.classList.add('selected');
+      
+      showNotification(`${bankCode} offer selected. Will be applied at checkout!`, 'success');
+      
+      // Update booking price if modal is open
+      if (typeof updateBookingPrice === 'function') {
+        updateBookingPrice();
+      }
+    };
     
     // Make functions globally available
     // validatePhoneInput and handleContinueClick are already global (defined in non-module script above)
@@ -3941,6 +4558,131 @@
         if (typeof p === 'string') return p;
       } catch (e) {}
       return String(v).replace(/^"|"$/g, '');
+    }
+    
+    // Show BanQ Modal
+    window.showBankOffersModal = async function() {
+      const modal = document.createElement('div');
+      modal.id = 'bankOffersModal';
+      modal.className = 'modal';
+      modal.style.cssText = 'display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center;';
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/bank-offers`);
+        const result = await response.json();
+        
+        const offers = result.success && result.data ? result.data : [];
+        
+        modal.innerHTML = `
+          <div style="background: white; border-radius: 16px; padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; position: relative;">
+            <button onclick="this.closest('.modal').remove()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+            <h2 style="margin: 0 0 20px 0;">Select BanQ Offer</h2>
+            ${offers.length > 0 ? offers.map(bank => {
+              const firstOffer = bank.offers && bank.offers.length > 0 ? bank.offers[0] : null;
+              if (!firstOffer) return '';
+              return `
+                <div class="bank-card" onclick="selectBankOffer('${bank.bank_code}', '${bank.id}', '${firstOffer.id}'); this.closest('.modal').remove();" style="
+                  padding: 16px; border: 2px solid #e5e7eb; border-radius: 8px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s;
+                " onmouseover="this.style.borderColor='#667eea'; this.style.background='#f0f4ff';" onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='white';">
+                  <div style="font-weight: 600; font-size: 18px; margin-bottom: 8px;">${bank.bank_name}</div>
+                  <div style="color: #6b7280; font-size: 14px;">${firstOffer.description}</div>
+                </div>
+              `;
+            }).join('') : '<p>No BanQ offers available</p>'}
+          </div>
+        `;
+        
+        document.body.appendChild(modal);
+      } catch (error) {
+        console.error('Error loading bank offers:', error);
+        modal.innerHTML = `
+          <div style="background: white; border-radius: 16px; padding: 24px; max-width: 500px; width: 90%; position: relative;">
+            <button onclick="this.closest('.modal').remove()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+            <p>Error loading BanQ offers. Please try again.</p>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      }
+    };
+    
+    // Pre-order management
+    window.preOrderItems = [];
+    window.preOrderTotal = 0;
+    
+    window.showPreOrderModal = function() {
+      // Simple pre-order modal (can be enhanced later)
+      const itemName = prompt('Enter item name:');
+      if (!itemName) return;
+      
+      const quantity = parseInt(prompt('Enter quantity:', '1')) || 1;
+      const price = parseFloat(prompt('Enter price per item:', '0')) || 0;
+      
+      const item = {
+        item_name: itemName,
+        quantity: quantity,
+        price: price,
+        special_instructions: ''
+      };
+      
+      window.preOrderItems.push(item);
+      window.preOrderTotal += price * quantity;
+      
+      // Update UI
+      const listEl = document.getElementById('preOrderItemsList');
+      if (listEl) {
+        listEl.innerHTML = window.preOrderItems.map((item, idx) => `
+          <div style="padding: 8px; background: white; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between;">
+            <span>${item.quantity}x ${item.item_name} - ₹${(item.price * item.quantity).toFixed(2)}</span>
+            <button onclick="window.preOrderItems.splice(${idx}, 1); window.preOrderTotal -= ${item.price * item.quantity}; updatePreOrderList();" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer;">Remove</button>
+          </div>
+        `).join('');
+      }
+      
+      showNotification('Item added to pre-order', 'success');
+    };
+    
+    window.updatePreOrderList = function() {
+      const listEl = document.getElementById('preOrderItemsList');
+      if (listEl) {
+        listEl.innerHTML = window.preOrderItems.map((item, idx) => `
+          <div style="padding: 8px; background: white; border-radius: 4px; margin-bottom: 4px; display: flex; justify-content: space-between;">
+            <span>${item.quantity}x ${item.item_name} - ₹${(item.price * item.quantity).toFixed(2)}</span>
+            <button onclick="window.preOrderItems.splice(${idx}, 1); window.preOrderTotal -= ${item.price * item.quantity}; updatePreOrderList();" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer;">Remove</button>
+          </div>
+        `).join('');
+      }
+    };
+    
+    // Check if user is Echelon tier and show pre-order section
+    async function checkEchelonTier() {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        const cleanToken = token.replace(/^["']|["']$/g, '');
+        const response = await fetch(`${API_BASE}/api/v1/pre-orders/can-order`, {
+          headers: { 'Authorization': `Bearer ${cleanToken}` }
+        });
+        const result = await response.json();
+        
+        if (result.success && result.data && result.data.canPreOrder) {
+          const preOrderSection = document.getElementById('preOrderSection');
+          if (preOrderSection) {
+            preOrderSection.style.display = 'block';
+          }
+        }
+      } catch (error) {
+        console.error('Error checking Echelon tier:', error);
+      }
+    }
+    
+    // Call checkEchelonTier when booking modal opens
+    const originalShowBookingModal = window.showBookingModal;
+    if (originalShowBookingModal) {
+      window.showBookingModal = function(...args) {
+        originalShowBookingModal.apply(this, args);
+        setTimeout(checkEchelonTier, 100);
+      };
     }
   </script>
   

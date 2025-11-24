@@ -259,6 +259,18 @@
             box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
         }
 
+        .form-input.error,
+        .form-textarea.error {
+            border-color: var(--error);
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+        }
+
+        .form-input.error:focus,
+        .form-textarea.error:focus {
+            border-color: var(--error);
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+        }
+
         .form-textarea {
             min-height: 100px;
             resize: vertical;
@@ -619,8 +631,17 @@
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label" for="venueAddress">Address</label>
-                            <textarea id="venueAddress" class="form-input form-textarea" required></textarea>
+                            <label class="form-label" for="venueAddress">Address *</label>
+                            <textarea id="venueAddress" class="form-input form-textarea" 
+                                      required 
+                                      minlength="10" 
+                                      maxlength="500"
+                                      placeholder="Enter complete venue address (street, city, state, pincode)"
+                                      oninput="validateAddress()"></textarea>
+                            <small class="form-hint" id="addressHint" style="display: none; color: #6b7280; font-size: 12px; margin-top: 4px;">
+                                Address must be at least 10 characters and include street, city, and pincode
+                            </small>
+                            <small class="form-error" id="addressError" style="display: none; color: #ef4444; font-size: 12px; margin-top: 4px;"></small>
                         </div>
 
                         <div class="form-grid">
@@ -1491,12 +1512,81 @@
             document.getElementById('venueEmail').value = currentPartner.email || '';
             document.getElementById('venuePhone').value = currentPartner.phone_number || currentPartner.phone || '';
             document.getElementById('venueGST').value = currentPartner.gst_number || currentPartner.gst || '';
-            document.getElementById('venueAddress').value = currentPartner.address || '';
+            
+            // Load address from registration (automatically captured during partner registration)
+            // Address is stored in partners.address during registration and fetched from API
+            const addressValue = currentPartner.address || '';
+            const addressInput = document.getElementById('venueAddress');
+            addressInput.value = addressValue;
+            
+            // Clear any previous validation errors
+            const addressError = document.getElementById('addressError');
+            const addressHint = document.getElementById('addressHint');
+            if (addressError) addressError.style.display = 'none';
+            if (addressHint && addressValue.length >= 10) addressHint.style.display = 'none';
+            addressInput.classList.remove('error');
+            
             document.getElementById('venueType').value = currentPartner.partner_category_type || currentPartner.cuisine_type || '';
             document.getElementById('discountPercentage').value = currentPartner.partner_discount_percentage || currentPartner.discount_percentage || 0;
             document.getElementById('venueDescription').value = currentPartner.description || '';
+            
+            // Validate address on load if it exists
+            if (addressValue) {
+                validateAddress();
+            }
         }
 
+        // Address validation function
+        function validateAddress() {
+            const addressInput = document.getElementById('venueAddress');
+            const addressError = document.getElementById('addressError');
+            const addressHint = document.getElementById('addressHint');
+            const address = addressInput.value.trim();
+            
+            // Hide previous errors
+            if (addressError) addressError.style.display = 'none';
+            if (addressHint) addressHint.style.display = 'none';
+            
+            // Remove error styling
+            addressInput.classList.remove('error');
+            
+            // Validation rules
+            if (address.length === 0) {
+                return false; // Required field, browser will handle
+            }
+            
+            if (address.length < 10) {
+                if (addressError) {
+                    addressError.textContent = 'Address must be at least 10 characters long';
+                    addressError.style.display = 'block';
+                }
+                addressInput.classList.add('error');
+                return false;
+            }
+            
+            if (address.length > 500) {
+                if (addressError) {
+                    addressError.textContent = 'Address must not exceed 500 characters';
+                    addressError.style.display = 'block';
+                }
+                addressInput.classList.add('error');
+                return false;
+            }
+            
+            // Check for basic address components (street, city, pincode)
+            const hasStreet = /\d+/.test(address); // Contains at least one number (likely street number)
+            const hasCity = /[a-zA-Z]{3,}/.test(address); // Contains at least one word with 3+ letters
+            const hasPincode = /\b\d{6}\b/.test(address); // Contains 6-digit pincode
+            
+            if (!hasStreet && !hasPincode) {
+                if (addressHint) {
+                    addressHint.style.display = 'block';
+                }
+            }
+            
+            return true;
+        }
+        
         async function saveProfile() {
             console.log('Save profile function called');
             console.log('Current partner:', currentPartner);
@@ -1506,17 +1596,51 @@
                 return;
             }
             
+            // Validate address before saving
+            const addressInput = document.getElementById('venueAddress');
+            const address = addressInput.value.trim();
+            
+            if (!address || address.length < 10) {
+                showNotification('Please enter a valid address (minimum 10 characters)', 'error');
+                validateAddress();
+                addressInput.focus();
+                return;
+            }
+            
+            if (address.length > 500) {
+                showNotification('Address is too long (maximum 500 characters)', 'error');
+                validateAddress();
+                addressInput.focus();
+                return;
+            }
+            
             try {
                 const profileData = {
-                    name: document.getElementById('venueName').value,
-                    email: document.getElementById('venueEmail').value,
-                    phone_number: document.getElementById('venuePhone').value,
-                    gst_number: document.getElementById('venueGST').value,
-                    address: document.getElementById('venueAddress').value,
+                    name: document.getElementById('venueName').value.trim(),
+                    email: document.getElementById('venueEmail').value.trim(),
+                    phone_number: document.getElementById('venuePhone').value.trim(),
+                    gst_number: document.getElementById('venueGST').value.trim(),
+                    address: address,
                     partner_category_type: document.getElementById('venueType').value,
-                    partner_discount_percentage: parseFloat(document.getElementById('discountPercentage').value),
-                    description: document.getElementById('venueDescription').value
+                    partner_discount_percentage: parseFloat(document.getElementById('discountPercentage').value) || 0,
+                    description: document.getElementById('venueDescription').value.trim()
                 };
+
+                // Additional validation
+                if (!profileData.name || profileData.name.length < 2) {
+                    showNotification('Venue name must be at least 2 characters', 'error');
+                    return;
+                }
+                
+                if (!profileData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileData.email)) {
+                    showNotification('Please enter a valid email address', 'error');
+                    return;
+                }
+                
+                if (!profileData.phone_number || !/^[+]?[\d\s\-()]{7,20}$/.test(profileData.phone_number)) {
+                    showNotification('Please enter a valid phone number', 'error');
+                    return;
+                }
 
                 console.log('Profile data to save:', profileData);
 
@@ -1538,9 +1662,20 @@
                 if (result.success) {
                     currentPartner = { ...currentPartner, ...result.data };
                     document.getElementById('partnerName').textContent = currentPartner.name;
-                    showNotification('Profile updated successfully', 'success');
+                    
+                    // Clear any validation errors
+                    const addressError = document.getElementById('addressError');
+                    if (addressError) addressError.style.display = 'none';
+                    addressInput.classList.remove('error');
+                    
+                    showNotification('Profile updated successfully. Address changes will be reflected in admin console.', 'success');
+                    
+                    // Reload profile to ensure data is fresh
+                    setTimeout(() => {
+                        loadPartnerData(currentPartner.id);
+                    }, 500);
                 } else {
-                    showNotification('Failed to update profile: ' + result.error, 'error');
+                    showNotification('Failed to update profile: ' + (result.error || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Error saving profile:', error);
@@ -1828,11 +1963,30 @@
                     eventTimeInfo = `<div style="font-size: 12px; color: var(--text-muted);">📅 ${dateStr} ${timeStr ? '🕐 ' + timeStr : ''}</div>`;
                 }
                 
+                // Handle image URL for display
+                // Normalize image URL - handle both full paths and filenames
+                let itemImageUrl = null;
+                if (item.image_url) {
+                    if (item.image_url.startsWith('http')) {
+                        itemImageUrl = item.image_url;
+                    } else if (item.image_url.startsWith('/uploads/')) {
+                        itemImageUrl = API_BASE + item.image_url;
+                    } else if (item.image_url.includes('/')) {
+                        itemImageUrl = API_BASE + item.image_url;
+                    } else {
+                        itemImageUrl = API_BASE + '/uploads/menu/' + item.image_url;
+                    }
+                }
+                
                 return `
                 <tr style="${item.computed_status === 'expired' ? 'opacity: 0.7; background: rgba(255, 193, 7, 0.05);' : ''}">
                     <td>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="font-size: 16px;">${item.service_category_icon || '🍽️'}</span>
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            ${itemImageUrl 
+                                ? `<img src="${itemImageUrl}" alt="${item.name}" style="width: 48px; height: 48px; object-fit: cover; border-radius: 6px; border: 1px solid #eee;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                   <div style="display: none; width: 48px; height: 48px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 6px; align-items: center; justify-content: center; font-size: 20px;">${item.service_category_icon || '🍽️'}</div>`
+                                : `<span style="font-size: 16px;">${item.service_category_icon || '🍽️'}</span>`
+                            }
                             <div>
                                 <div style="font-weight: 600;">${item.name}</div>
                                 <div style="font-size: 12px; color: var(--text-muted);">${item.service_category_name || item.service_type || 'Food'}</div>
@@ -2102,7 +2256,20 @@
 
             // Image preview and persistence
             const preview = document.getElementById('itemImagePreview');
-            preview.src = item.image_url ? (item.image_url.startsWith('http') ? item.image_url : `${API_BASE}${item.image_url}`) : '';
+            // Normalize image URL - handle both full paths and filenames
+            if (item.image_url) {
+                if (item.image_url.startsWith('http')) {
+                    preview.src = item.image_url;
+                } else if (item.image_url.startsWith('/uploads/')) {
+                    preview.src = API_BASE + item.image_url;
+                } else if (item.image_url.includes('/')) {
+                    preview.src = API_BASE + item.image_url;
+                } else {
+                    preview.src = API_BASE + '/uploads/menu/' + item.image_url;
+                }
+            } else {
+                preview.src = '';
+            }
             const formEl = document.getElementById('menuItemForm');
             formEl.dataset.existingImageUrl = item.image_url || '';
             delete formEl.dataset.imageBase64;
@@ -2624,11 +2791,24 @@ ${itemsText}
                     <tr data-offer-id="${offer.id}" style="${!isActive ? 'opacity: 0.6;' : ''}">
                         <td>
                             <div style="display: flex; align-items: center; gap: 12px;">
-                                ${offer.image_url ? 
-                                    `<img src="${API_BASE}${offer.image_url}" alt="${offer.title}" 
-                                          style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;">` :
-                                    `<div style="width: 60px; height: 60px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">🎁</div>`
-                                }
+                                ${(() => {
+                                    if (!offer.image_url) {
+                                        return `<div style="width: 60px; height: 60px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">🎁</div>`;
+                                    }
+                                    let imgUrl = offer.image_url;
+                                    if (!imgUrl.startsWith('http')) {
+                                        if (imgUrl.startsWith('/uploads/')) {
+                                            imgUrl = API_BASE + imgUrl;
+                                        } else if (imgUrl.includes('/')) {
+                                            imgUrl = API_BASE + imgUrl;
+                                        } else {
+                                            imgUrl = API_BASE + '/uploads/offers/' + imgUrl;
+                                        }
+                                    }
+                                    return `<img src="${imgUrl}" alt="${offer.title}" 
+                                          style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px;"
+                                          onerror="this.onerror=null; this.parentElement.innerHTML='<div style=\\'width: 60px; height: 60px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;\\'>🎁</div>';">`;
+                                })()}
                                 <div>
                                     <div style="font-weight: 600;">${offer.title}</div>
                                     ${offer.promo_code ? 
@@ -3160,30 +3340,42 @@ ${itemsText}
                         discountAmountInput.required = offerTypeValue === 'fixed_amount';
                     }
 
-                    const originalVal = parseFloat(document.getElementById('offerOriginalPrice').value) || 0;
+                    // original_price is optional - use null if empty, otherwise parse
+                    const originalPriceInput = document.getElementById('offerOriginalPrice').value.trim();
+                    const originalVal = originalPriceInput ? parseFloat(originalPriceInput) : null;
                     const percentVal = parseFloat(document.getElementById('offerDiscountPercentage').value) || 0;
                     const amountVal = parseFloat(document.getElementById('offerDiscountAmount').value) || 0;
                     const discountedFieldValRaw = document.getElementById('offerDiscountedPrice').value;
                     const discountedFieldVal = discountedFieldValRaw ? parseFloat(discountedFieldValRaw) : null;
                     let savingsVal = 0;
-                    let discountedVal = originalVal;
+                    // Use 0 as fallback for calculations if original_price is null
+                    let discountedVal = originalVal !== null ? originalVal : 0;
 
-                    if (percentVal > 0) {
-                        savingsVal = (originalVal * percentVal) / 100;
-                        discountedVal = originalVal - savingsVal;
-                    } else if (amountVal > 0) {
-                        savingsVal = amountVal;
-                        discountedVal = originalVal - amountVal;
+                    // Calculate discount based on available values
+                    if (originalVal !== null && originalVal > 0) {
+                        // If original price is provided, use it for calculations
+                        if (percentVal > 0) {
+                            savingsVal = (originalVal * percentVal) / 100;
+                            discountedVal = originalVal - savingsVal;
+                        } else if (amountVal > 0) {
+                            savingsVal = amountVal;
+                            discountedVal = originalVal - amountVal;
+                        } else if (discountedFieldVal !== null && !Number.isNaN(discountedFieldVal)) {
+                            discountedVal = Math.max(0, discountedFieldVal);
+                            savingsVal = Math.max(0, originalVal - discountedVal);
+                        }
                     } else if (discountedFieldVal !== null && !Number.isNaN(discountedFieldVal)) {
+                        // If no original price, use discounted price directly
                         discountedVal = Math.max(0, discountedFieldVal);
-                        savingsVal = Math.max(0, originalVal - discountedVal);
+                        savingsVal = 0; // Can't calculate savings without original price
                     }
 
                     if (discountedVal < 0) discountedVal = 0;
 
                     const eztVal = savingsVal > 0 ? savingsVal / 100 : 0;
 
-                    const formattedOriginal = parseFloat(originalVal.toFixed(2));
+                    // Format original_price as null if not provided, otherwise format as number
+                    const formattedOriginal = originalVal !== null ? parseFloat(originalVal.toFixed(2)) : null;
                     const formattedDiscounted = parseFloat(discountedVal.toFixed(2));
                     const formattedSavings = parseFloat(savingsVal.toFixed(2));
                     const formattedEzt = parseFloat(eztVal.toFixed(5));
@@ -3426,7 +3618,18 @@ ${itemsText}
             
             if (offer.image_url) {
                 const preview = document.getElementById('offerImagePreview');
-                preview.src = `${API_BASE}${offer.image_url}`;
+                // Normalize image URL - handle both full paths and filenames
+                let imgUrl = offer.image_url;
+                if (!imgUrl.startsWith('http')) {
+                    if (imgUrl.startsWith('/uploads/')) {
+                        imgUrl = API_BASE + imgUrl;
+                    } else if (imgUrl.includes('/')) {
+                        imgUrl = API_BASE + imgUrl;
+                    } else {
+                        imgUrl = API_BASE + '/uploads/offers/' + imgUrl;
+                    }
+                }
+                preview.src = imgUrl;
                 preview.style.display = 'block';
             }
             

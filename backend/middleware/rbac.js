@@ -2,7 +2,8 @@
 // ROLE-BASED ACCESS CONTROL (RBAC) MIDDLEWARE
 // ============================================
 
-const { pool } = require('../config/database');
+const { getPool } = require('../src/config/db');
+const pool = getPool();
 
 /**
  * Get user role from database

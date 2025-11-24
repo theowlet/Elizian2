@@ -143,7 +143,9 @@ export function formatDistance(distance) {
 // ==================================
 export function setStorageItem(key, value) {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    // Store strings as-is, objects as JSON
+    const toStore = typeof value === 'string' ? value : JSON.stringify(value);
+    localStorage.setItem(key, toStore);
     return true;
   } catch (error) {
     console.error('Storage error:', error);
@@ -154,7 +156,20 @@ export function setStorageItem(key, value) {
 export function getStorageItem(key, defaultValue = null) {
   try {
     const item = localStorage.getItem(key);
-    return item ? JSON.parse(item) : defaultValue;
+    if (!item) return defaultValue;
+    
+    // Try to parse as JSON first
+    try {
+      return JSON.parse(item);
+    } catch (parseError) {
+      // If parsing fails, it might be a plain string (like a JWT token)
+      // Check if it looks like a JWT token (starts with "eyJ")
+      if (item.startsWith('eyJ')) {
+        return item; // Return as-is for JWT tokens
+      }
+      // Otherwise, return the raw string
+      return item;
+    }
   } catch (error) {
     console.error('Storage error:', error);
     return defaultValue;
