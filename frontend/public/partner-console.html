@@ -2480,7 +2480,7 @@
                     : order.orderTime || '';
 
                 const paymentStatus = order.payment_status || (order.status === 'confirmed' ? 'paid' : 'pending');
-                const ticketCount = order.ticket_count || order.quantity || itemsArray?.[0]?.quantity || '-';
+                const ticketCount = order.num_tickets || order.ticket_count || order.quantity || '-';
 
                 return `
                     <tr>
