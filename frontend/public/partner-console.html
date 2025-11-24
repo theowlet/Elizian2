@@ -2392,25 +2392,52 @@
         // Orders Functions
         async function loadOrders(status = '') {
             try {
-                let url = `${API_BASE}/api/v1/partners/${currentPartner.id}/orders`;
-                if (status) {
-                    url += `?status=${status}`;
+                // Fetch both orders (food) and bookings (events/deals) in parallel
+                const ordersUrl = `${API_BASE}/api/v1/partners/${currentPartner.id}/orders${status ? `?status=${status}` : ''}`;
+                const bookingsUrl = `${API_BASE}/api/v1/partners/${currentPartner.id}/bookings${status ? `?status=${status}` : ''}`;
+                
+                const [ordersResponse, bookingsResponse] = await Promise.all([
+                    fetch(ordersUrl, { headers: getAuthHeaders() }),
+                    fetch(bookingsUrl, { headers: getAuthHeaders() })
+                ]);
+                
+                const ordersResult = await ordersResponse.json();
+                const bookingsResult = await bookingsResponse.json();
+                
+                // Merge orders and bookings
+                let allOrders = [];
+                
+                if (ordersResult.success && ordersResult.data) {
+                    allOrders = allOrders.concat(ordersResult.data.map(order => ({
+                        ...order,
+                        type: 'order', // food/pre-order
+                        order_id: order.id,
+                        items_text: Array.isArray(order.order_items) 
+                            ? order.order_items.map(item => `${item.name} (${item.quantity}x)`).join(', ')
+                            : '—'
+                    })));
                 }
                 
-                const response = await fetch(url, {
-                    headers: getAuthHeaders()
-                });
-                const result = await response.json();
-                
-                if (result.success) {
-                    orders = result.data;
-                    updateOrdersTable();
-                } else {
-                    showNotification('Failed to load orders: ' + result.error, 'error');
+                if (bookingsResult.success && bookingsResult.data) {
+                    const bookings = bookingsResult.data.bookings || bookingsResult.data;
+                    allOrders = allOrders.concat(bookings.map(booking => ({
+                        ...booking,
+                        type: 'booking', // event/deal booking
+                        order_id: booking.id,
+                        items_text: `${booking.deal_title} (${booking.num_tickets || 1} ticket${(booking.num_tickets || 1) > 1 ? 's' : ''})`,
+                        customer_name: booking.customer_name || 'Guest',
+                        total_amount: booking.total_price || booking.fiat_amount
+                    })));
                 }
+                
+                // Sort by created_at (newest first)
+                allOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                
+                orders = allOrders;
+                updateOrdersTable();
             } catch (error) {
                 console.error('Error loading orders:', error);
-                showNotification('Error loading orders', 'error');
+                showNotification('Error loading orders/bookings', 'error');
             }
         }
 
@@ -2426,19 +2453,22 @@
             }
 
             tableBody.innerHTML = orders.map(order => {
-                const rawItems = order.items || order.order_items || [];
-                const itemsArray = Array.isArray(rawItems)
-                    ? rawItems
-                    : (rawItems && typeof rawItems === 'object' ? [rawItems] : []);
-                const itemsText = itemsArray.length > 0
-                    ? itemsArray.map(item => {
-                        if (typeof item === 'object') {
-                            const qty = item.quantity || item.qty || 1;
-                            return `${item.name || item.title || 'Item'} (${qty}x)`;
-                        }
-                        return item;
-                    }).join(', ')
-                    : '—';
+                // Use pre-computed items_text or fall back to old logic
+                const itemsText = order.items_text || (() => {
+                    const rawItems = order.items || order.order_items || [];
+                    const itemsArray = Array.isArray(rawItems)
+                        ? rawItems
+                        : (rawItems && typeof rawItems === 'object' ? [rawItems] : []);
+                    return itemsArray.length > 0
+                        ? itemsArray.map(item => {
+                            if (typeof item === 'object') {
+                                const qty = item.quantity || item.qty || 1;
+                                return `${item.name || item.title || 'Item'} (${qty}x)`;
+                            }
+                            return item;
+                        }).join(', ')
+                        : '—';
+                })();
                 
                 const orderTime = order.created_at 
                     ? new Date(order.created_at).toLocaleString('en-IN', { 
@@ -2519,18 +2549,19 @@
             `).join('');
         }
 
-        async function updateOrderStatus(orderId) {
-            const order = orders.find(o => o.id === orderId);
+        async function updateOrderStatus(orderId, newStatus, type = 'order') {
+            if (!newStatus) return; // User selected "Change Status" option
+            
+            const order = orders.find(o => (o.order_id || o.id) === orderId);
             if (!order) return;
 
-            const statuses = ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'];
-            const currentIndex = statuses.indexOf(order.status);
-            const nextIndex = (currentIndex + 1) % statuses.length;
-            const newStatus = statuses[nextIndex];
-
             try {
-                // Make API call to update order status
-                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/orders/${orderId}`, {
+                // Choose endpoint based on type
+                const endpoint = type === 'booking' 
+                    ? `${API_BASE}/api/v1/partners/${currentPartner.id}/bookings/${orderId}/status`
+                    : `${API_BASE}/api/v1/partners/${currentPartner.id}/orders/${orderId}`;
+                
+                const response = await fetch(endpoint, {
                     method: 'PUT',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({ status: newStatus })
@@ -2541,13 +2572,13 @@
                 if (result.success) {
                     order.status = newStatus;
                     updateOrdersTable();
-                    showNotification(`Order ${orderId} status updated to ${newStatus}`, 'success');
+                    showNotification(`${type === 'booking' ? 'Booking' : 'Order'} status updated to ${newStatus}`, 'success');
                 } else {
-                    showNotification('Failed to update order status: ' + result.error, 'error');
+                    showNotification('Failed to update status: ' + result.error, 'error');
                 }
             } catch (error) {
-                console.error('Error updating order status:', error);
-                showNotification('Error updating order status', 'error');
+                console.error('Error updating status:', error);
+                showNotification('Error updating status', 'error');
             }
         }
 

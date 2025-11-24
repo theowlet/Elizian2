@@ -39,10 +39,17 @@ router.post('/:id/offers', offerController.createOffer);
 router.put('/:partnerId/offers/:offerId', offerController.updateOffer);
 router.delete('/:partnerId/offers/:offerId', offerController.deleteOffer);
 
-// Partner orders routes
+// Partner orders routes (food/pre-orders)
 const orderController = require('../controllers/orderController');
 router.get('/:id/orders', orderController.listOrders);
 router.put('/:id/orders/:orderId', orderController.updateOrderStatus);
+
+// Partner bookings routes (events/deals)
+const partnerBookingController = require('../controllers/partnerBookingController');
+router.get('/:id/bookings', partnerBookingController.listPartnerBookings);
+router.get('/:id/bookings/stats', partnerBookingController.getBookingStats);
+router.get('/:id/bookings/:bookingId', partnerBookingController.getPartnerBooking);
+router.put('/:id/bookings/:bookingId/status', partnerBookingController.updateBookingStatus);
 
 module.exports = router;
 
