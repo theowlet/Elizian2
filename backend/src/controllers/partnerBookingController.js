@@ -19,7 +19,7 @@ async function listPartnerBookings(req, res) {
         b.deal_id,
         b.user_id,
         b.booking_date,
-        b.time_slot,
+        b.booking_time as time_slot,
         b.num_tickets,
         b.total_price,
         b.fiat_amount,
@@ -30,7 +30,6 @@ async function listPartnerBookings(req, res) {
         b.updated_at,
         po.title as deal_title,
         po.service_type,
-        po.category_id,
         u.first_name || ' ' || u.last_name as customer_name,
         u.email as customer_email,
         u.phone_number as customer_phone
@@ -71,15 +70,15 @@ async function listPartnerBookings(req, res) {
     const countResult = await pool.query(countQuery, countParams);
     const total = parseInt(countResult.rows[0].count);
 
-    return successResponse(res, {
+    return successResponse(res, 200, 'Bookings retrieved successfully', {
       bookings: result.rows,
       total,
       limit: parseInt(limit),
       offset: parseInt(offset)
-    }, 'Bookings retrieved successfully');
+    });
   } catch (err) {
     logError('❌ Partner bookings retrieval error:', err);
-    return errorResponse(res, err);
+    return errorResponse(res, err.statusCode || 500, err.message || 'Failed to retrieve bookings');
   }
 }
 
@@ -93,10 +92,27 @@ async function getPartnerBooking(req, res) {
 
     const query = `
       SELECT 
-        b.*,
+        b.id,
+        b.deal_id,
+        b.user_id,
+        b.booking_date,
+        b.booking_time as time_slot,
+        b.num_tickets,
+        b.num_guests,
+        b.total_price,
+        b.fiat_amount,
+        b.ezt_redeemed,
+        b.status,
+        b.special_requests,
+        b.booking_type,
+        b.booking_reference,
+        b.confirmed_at,
+        b.cancelled_at,
+        b.cancellation_reason,
+        b.created_at,
+        b.updated_at,
         po.title as deal_title,
         po.service_type,
-        po.category_id,
         po.partner_id,
         u.first_name || ' ' || u.last_name as customer_name,
         u.email as customer_email,
@@ -111,13 +127,13 @@ async function getPartnerBooking(req, res) {
     const result = await pool.query(query, [bookingId, partnerId]);
 
     if (result.rows.length === 0) {
-      return errorResponse(res, { statusCode: 404, message: 'Booking not found' });
+      return errorResponse(res, 404, 'Booking not found');
     }
 
-    return successResponse(res, result.rows[0], 'Booking retrieved successfully');
+    return successResponse(res, 200, 'Booking retrieved successfully', result.rows[0]);
   } catch (err) {
     logError('❌ Partner booking retrieval error:', err);
-    return errorResponse(res, err);
+    return errorResponse(res, err.statusCode || 500, err.message || 'Failed to retrieve booking');
   }
 }
 
@@ -135,10 +151,7 @@ async function updateBookingStatus(req, res) {
     // Valid statuses
     const validStatuses = ['confirmed', 'cancelled', 'completed', 'no_show'];
     if (!validStatuses.includes(status)) {
-      return errorResponse(res, { 
-        statusCode: 400, 
-        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 
-      });
+      return errorResponse(res, 400, `Invalid status. Must be one of: ${validStatuses.join(', ')}`);
     }
 
     await client.query('BEGIN');
@@ -154,7 +167,7 @@ async function updateBookingStatus(req, res) {
 
     if (checkResult.rows.length === 0) {
       await client.query('ROLLBACK');
-      return errorResponse(res, { statusCode: 404, message: 'Booking not found' });
+      return errorResponse(res, 404, 'Booking not found');
     }
 
     // Update booking
@@ -173,11 +186,11 @@ async function updateBookingStatus(req, res) {
 
     await client.query('COMMIT');
 
-    return successResponse(res, updateResult.rows[0], 'Booking status updated successfully');
+    return successResponse(res, 200, 'Booking status updated successfully', updateResult.rows[0]);
   } catch (err) {
     await client.query('ROLLBACK');
     logError('❌ Booking status update error:', err);
-    return errorResponse(res, err);
+    return errorResponse(res, err.statusCode || 500, err.message || 'Failed to update booking');
   } finally {
     client.release();
   }
@@ -218,10 +231,10 @@ async function getBookingStats(req, res) {
 
     const result = await pool.query(query, params);
 
-    return successResponse(res, result.rows[0], 'Booking statistics retrieved successfully');
+    return successResponse(res, 200, 'Booking statistics retrieved successfully', result.rows[0]);
   } catch (err) {
     logError('❌ Booking stats retrieval error:', err);
-    return errorResponse(res, err);
+    return errorResponse(res, err.statusCode || 500, err.message || 'Failed to retrieve booking stats');
   }
 }
 
