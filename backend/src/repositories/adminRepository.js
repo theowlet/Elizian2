@@ -1024,14 +1024,61 @@ async function getAdminActivity() {
 }
 
 // Get admin users
-async function listAdminUsers() {
-  const result = await pool.query(`
+async function listAdminUsers(filters = {}) {
+  const { search = '', role = 'all', status = 'all', limit = 20, offset = 0 } = filters;
+  
+  const params = [];
+  const conditions = [];
+  let paramCounter = 1;
+
+  // Search filter (name, email, phone)
+  if (search && search.trim() !== '') {
+    const searchPattern = `%${search.trim()}%`;
+    conditions.push(`(
+      CONCAT(u.first_name, ' ', u.last_name) ILIKE $${paramCounter} OR
+      u.email ILIKE $${paramCounter} OR
+      u.phone_number ILIKE $${paramCounter}
+    )`);
+    params.push(searchPattern);
+    paramCounter++;
+  }
+
+  // Role filter
+  if (role && role !== 'all') {
+    conditions.push(`r.role_name = $${paramCounter}`);
+    params.push(role);
+    paramCounter++;
+  }
+
+  // Status filter (is_active)
+  if (status && status !== 'all') {
+    const isActive = status === 'active';
+    conditions.push(`u.is_active = $${paramCounter}`);
+    params.push(isActive);
+    paramCounter++;
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  // Get total count
+  const countQuery = `
+    SELECT COUNT(*)::int as total
+    FROM users u
+    LEFT JOIN roles r ON u.role_id = r.id
+    ${whereClause}
+  `;
+  const countResult = await pool.query(countQuery, params);
+  const total = countResult.rows[0].total;
+
+  // Get paginated results
+  const dataQuery = `
     SELECT 
       u.id,
       u.first_name,
       u.last_name,
       u.email,
       u.phone_number,
+      u.is_active,
       u.created_at,
       u.last_login,
       r.role_name,
@@ -1047,21 +1094,33 @@ async function listAdminUsers() {
       FROM bookings
       GROUP BY user_id
     ) AS booking_stats ON booking_stats.user_id = u.id
+    ${whereClause}
     ORDER BY u.created_at DESC
-    LIMIT 100
-  `);
+    LIMIT $${paramCounter} OFFSET $${paramCounter + 1}
+  `;
+  params.push(limit, offset);
 
-  return result.rows.map((row) => ({
-    id: row.id,
-    name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.email,
-    email: row.email,
-    phone_number: row.phone_number,
-    role: row.role_name || 'user',
-    created_at: row.created_at,
-    last_login: row.last_login,
-    total_bookings: row.total_bookings,
-    total_spent: parseFloat(row.total_spent || 0)
-  }));
+  const result = await pool.query(dataQuery, params);
+
+  return {
+    items: result.rows.map((row) => ({
+      id: row.id,
+      first_name: row.first_name,
+      last_name: row.last_name,
+      name: `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.email,
+      email: row.email,
+      phone_number: row.phone_number,
+      role: row.role_name || 'user',
+      is_active: row.is_active !== false,
+      created_at: row.created_at,
+      last_login: row.last_login,
+      total_bookings: row.total_bookings,
+      total_spent: parseFloat(row.total_spent || 0)
+    })),
+    total,
+    limit,
+    offset
+  };
 }
 
 // Get admin analytics

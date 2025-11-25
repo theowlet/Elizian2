@@ -340,8 +340,8 @@ async function getActivity(filters = {}) {
 }
 
 // List admin users
-async function listUsers() {
-  return await adminRepository.listAdminUsers();
+async function listUsers(filters = {}) {
+  return await adminRepository.listAdminUsers(filters);
 }
 
 // Get admin analytics

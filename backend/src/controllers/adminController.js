@@ -211,7 +211,14 @@ async function getActivity(req, res) {
 // List admin users
 async function listUsers(req, res) {
   try {
-    const users = await adminService.listUsers();
+    const { search = '', role = 'all', status = 'all', limit = 20, offset = 0 } = req.query;
+    const users = await adminService.listUsers({
+      search,
+      role,
+      status,
+      limit: parseInt(limit, 10),
+      offset: parseInt(offset, 10)
+    });
     successResponse(res, 200, "Users retrieved successfully", users);
   } catch (err) {
     logError("❌ Admin users fetch error:", err);
