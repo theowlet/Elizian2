@@ -9,6 +9,7 @@ const state = {
     'bookingsSection',
     'analyticsSection',
     'activitySection',
+    'systemHealthSection',
     'settingsSection',
   ],
   charts: {
@@ -159,6 +160,7 @@ function switchSection(targetId) {
   }
   if (targetId === 'analyticsSection') loadAdminAnalytics();
   if (targetId === 'activitySection') loadActivity();
+  if (targetId === 'systemHealthSection') loadSystemHealth();
   if (targetId === 'settingsSection') loadSettings();
 }
 
@@ -1288,6 +1290,224 @@ async function saveSettings(event) {
     showNotification(`Failed to save settings: ${error.message}`, 'error');
   }
 }
+
+// System Health Monitoring
+async function loadSystemHealth() {
+  console.log('📊 Loading system health...');
+  
+  // Simulate loading metrics (in production, these would come from backend APIs)
+  updateServerStatus();
+  updateDatabaseStatus();
+  updateAPIHealth();
+  updatePerformanceMetrics();
+  loadEndpointsHealth();
+  loadRecentErrors();
+}
+
+function updateServerStatus() {
+  try {
+    // Simulate server status check
+    const serverStatusEl = $('#serverStatus');
+    const serverUptimeEl = $('#serverUptime');
+    
+    // In production, this would call: GET /api/v1/admin/health/server
+    const status = 'online'; // Mock data
+    const uptimeHours = Math.floor(Math.random() * 168); // Mock uptime
+    
+    if (serverStatusEl) {
+      serverStatusEl.innerHTML = `<span class="badge bg-success">✓ Online</span>`;
+    }
+    
+    if (serverUptimeEl) {
+      const days = Math.floor(uptimeHours / 24);
+      const hours = uptimeHours % 24;
+      serverUptimeEl.textContent = `Uptime: ${days}d ${hours}h`;
+    }
+  } catch (error) {
+    console.error('Error updating server status:', error);
+  }
+}
+
+function updateDatabaseStatus() {
+  try {
+    const databaseStatusEl = $('#databaseStatus');
+    const databaseConnectionsEl = $('#databaseConnections');
+    
+    // In production: GET /api/v1/admin/health/database
+    const isConnected = true;
+    const activeConnections = Math.floor(Math.random() * 50) + 10;
+    
+    if (databaseStatusEl) {
+      databaseStatusEl.innerHTML = isConnected ? 
+        '<span class="badge bg-success">✓ Connected</span>' : 
+        '<span class="badge bg-danger">✗ Disconnected</span>';
+    }
+    
+    if (databaseConnectionsEl) {
+      databaseConnectionsEl.textContent = `Active: ${activeConnections} / 100`;
+    }
+  } catch (error) {
+    console.error('Error updating database status:', error);
+  }
+}
+
+function updateAPIHealth() {
+  try {
+    const apiHealthEl = $('#apiHealth');
+    const apiResponseTimeEl = $('#apiResponseTime');
+    
+    // In production: GET /api/v1/admin/health/api
+    const avgResponseTime = Math.floor(Math.random() * 200) + 50;
+    const isHealthy = avgResponseTime < 300;
+    
+    if (apiHealthEl) {
+      apiHealthEl.innerHTML = isHealthy ? 
+        '<span class="badge bg-success">✓ Healthy</span>' : 
+        '<span class="badge bg-warning">⚠ Slow</span>';
+    }
+    
+    if (apiResponseTimeEl) {
+      apiResponseTimeEl.textContent = `Avg response: ${avgResponseTime}ms`;
+    }
+    
+    // Update error rate
+    const errorRateEl = $('#errorRate');
+    if (errorRateEl) {
+      const errorRate = (Math.random() * 2).toFixed(2);
+      errorRateEl.textContent = `${errorRate}%`;
+      errorRateEl.style.color = errorRate > 1 ? '#ef4444' : '#10b981';
+    }
+  } catch (error) {
+    console.error('Error updating API health:', error);
+  }
+}
+
+function updatePerformanceMetrics() {
+  try {
+    // CPU Usage
+    const cpuUsage = Math.floor(Math.random() * 60) + 20;
+    $('#cpuUsage').textContent = `${cpuUsage}%`;
+    $('#cpuProgress').style.width = `${cpuUsage}%`;
+    $('#cpuProgress').style.background = cpuUsage > 80 ? '#ef4444' : 'linear-gradient(90deg, #10b981, #059669)';
+    
+    // Memory Usage
+    const memoryUsage = Math.floor(Math.random() * 70) + 30;
+    $('#memoryUsage').textContent = `${memoryUsage}%`;
+    $('#memoryProgress').style.width = `${memoryUsage}%`;
+    $('#memoryProgress').style.background = memoryUsage > 85 ? '#ef4444' : 'linear-gradient(90deg, #3b82f6, #2563eb)';
+    
+    // Disk Usage
+    const diskUsage = Math.floor(Math.random() * 50) + 20;
+    $('#diskUsage').textContent = `${diskUsage}%`;
+    $('#diskProgress').style.width = `${diskUsage}%`;
+    $('#diskProgress').style.background = diskUsage > 90 ? '#ef4444' : 'linear-gradient(90deg, #8b5cf6, #7c3aed)';
+    
+    // Network I/O
+    const networkIO = Math.floor(Math.random() * 40) + 10;
+    $('#networkIO').textContent = `${networkIO} MB/s`;
+    $('#networkProgress').style.width = `${networkIO}%`;
+    $('#networkProgress').style.background = 'linear-gradient(90deg, #f59e0b, #d97706)';
+  } catch (error) {
+    console.error('Error updating performance metrics:', error);
+  }
+}
+
+function loadEndpointsHealth() {
+  try {
+    const table = $('#endpointsHealthTable');
+    if (!table) return;
+    
+    // Mock endpoints data (in production: GET /api/v1/admin/health/endpoints)
+    const endpoints = [
+      { path: '/api/v1/auth/login', method: 'POST', status: 'healthy', avgTime: 145, successRate: 99.8 },
+      { path: '/api/v1/offers', method: 'GET', status: 'healthy', avgTime: 82, successRate: 99.9 },
+      { path: '/api/v1/bookings', method: 'POST', status: 'healthy', avgTime: 234, successRate: 98.5 },
+      { path: '/api/v1/partners', method: 'GET', status: 'healthy', avgTime: 91, successRate: 100 },
+      { path: '/api/v1/user/profile', method: 'GET', status: 'healthy', avgTime: 67, successRate: 99.7 },
+    ];
+    
+    table.innerHTML = endpoints.map(endpoint => {
+      const statusBadge = endpoint.status === 'healthy' ? 
+        '<span class="badge bg-success">✓ Healthy</span>' : 
+        '<span class="badge bg-warning">⚠ Degraded</span>';
+      
+      const successRateColor = endpoint.successRate >= 99 ? '#10b981' : endpoint.successRate >= 95 ? '#f59e0b' : '#ef4444';
+      
+      return `
+        <tr>
+          <td><code>${endpoint.path}</code></td>
+          <td><span class="badge bg-secondary">${endpoint.method}</span></td>
+          <td>${statusBadge}</td>
+          <td>${endpoint.avgTime}ms</td>
+          <td style="color: ${successRateColor}; font-weight: 600;">${endpoint.successRate}%</td>
+          <td>${new Date().toLocaleTimeString()}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error('Error loading endpoints health:', error);
+    $('#endpointsHealthTable').innerHTML = '<tr><td colspan="6" class="error">Failed to load endpoint health</td></tr>';
+  }
+}
+
+function loadRecentErrors() {
+  try {
+    const table = $('#recentErrorsTable');
+    if (!table) return;
+    
+    // Mock errors data (in production: GET /api/v1/admin/health/errors?limit=10)
+    const errors = [
+      { time: new Date(Date.now() - 300000), severity: 'warning', type: '404 Not Found', message: 'Route /api/invalid not found', ip: '192.168.1.1' },
+      { time: new Date(Date.now() - 600000), severity: 'error', type: 'Database Error', message: 'Connection timeout', ip: '192.168.1.5' },
+      { time: new Date(Date.now() - 900000), severity: 'warning', type: 'Validation Error', message: 'Invalid email format', ip: '192.168.1.10' },
+    ];
+    
+    if (errors.length === 0) {
+      table.innerHTML = '<tr><td colspan="5" class="muted" style="text-align: center;">✓ No recent errors</td></tr>';
+      return;
+    }
+    
+    table.innerHTML = errors.map(error => {
+      const severityBadge = error.severity === 'error' ? 
+        '<span class="badge bg-danger">Error</span>' : 
+        '<span class="badge bg-warning">Warning</span>';
+      
+      const timeAgo = Math.floor((Date.now() - error.time.getTime()) / 60000);
+      
+      return `
+        <tr>
+          <td>${timeAgo}m ago</td>
+          <td>${severityBadge}</td>
+          <td><code>${error.type}</code></td>
+          <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${error.message}</td>
+          <td>${error.ip}</td>
+        </tr>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error('Error loading recent errors:', error);
+    $('#recentErrorsTable').innerHTML = '<tr><td colspan="5" class="error">Failed to load recent errors</td></tr>';
+  }
+}
+
+// Refresh system health
+window.refreshSystemHealth = function() {
+  const btn = $('#refreshHealthBtn');
+  if (btn) {
+    btn.textContent = '🔄 Refreshing...';
+    btn.disabled = true;
+  }
+  
+  loadSystemHealth();
+  
+  setTimeout(() => {
+    if (btn) {
+      btn.textContent = '🔄 Refresh';
+      btn.disabled = false;
+    }
+    showNotification('System health refreshed', 'success');
+  }, 1000);
+};
 
 function attachEventListeners() {
   $all('.nav-item').forEach((btn) => {

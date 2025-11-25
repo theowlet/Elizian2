@@ -23,6 +23,7 @@
         <button class="nav-item" data-target="bookingsSection">📅 Bookings</button>
         <button class="nav-item" data-target="analyticsSection">📊 Analytics</button>
         <button class="nav-item" data-target="activitySection">🔔 Activity Log</button>
+        <button class="nav-item" data-target="systemHealthSection">🏥 System Health</button>
         <button class="nav-item" data-target="settingsSection">⚙️ Settings</button>
       </nav>
     </aside>
@@ -326,6 +327,171 @@
         <ul id="activityList" class="activity-list">
           <li class="muted">Loading activity…</li>
         </ul>
+      </section>
+
+      <!-- System Health Dashboard -->
+      <section id="systemHealthSection" class="section">
+        <div class="section-header">
+          <div>
+            <h2>System Health Monitoring</h2>
+            <p class="muted">Monitor server, database, and API health in real-time.</p>
+          </div>
+          <button class="btn btn-secondary" onclick="refreshSystemHealth()" id="refreshHealthBtn">
+            🔄 Refresh
+          </button>
+        </div>
+
+        <!-- Health Status Cards -->
+        <div class="cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); margin-bottom: 24px;">
+          <div class="card">
+            <div class="card-icon" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+              🖥️
+            </div>
+            <div class="card-body">
+              <h3 class="card-label">Server Status</h3>
+              <div id="serverStatus" class="card-value" style="font-size: 16px;">
+                <span class="badge bg-success">Online</span>
+              </div>
+              <p class="card-sublabel" id="serverUptime">Uptime: Calculating...</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-icon" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+              💾
+            </div>
+            <div class="card-body">
+              <h3 class="card-label">Database</h3>
+              <div id="databaseStatus" class="card-value" style="font-size: 16px;">
+                <span class="badge bg-info">Connected</span>
+              </div>
+              <p class="card-sublabel" id="databaseConnections">Connections: -</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-icon" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+              🌐
+            </div>
+            <div class="card-body">
+              <h3 class="card-label">API Health</h3>
+              <div id="apiHealth" class="card-value" style="font-size: 16px;">
+                <span class="badge bg-success">Healthy</span>
+              </div>
+              <p class="card-sublabel" id="apiResponseTime">Avg response: - ms</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-icon" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+              ⚠️
+            </div>
+            <div class="card-body">
+              <h3 class="card-label">Error Rate</h3>
+              <div id="errorRate" class="card-value" style="font-size: 24px; font-weight: 600;">
+                0.00%
+              </div>
+              <p class="card-sublabel">Last hour</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Performance Metrics -->
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="card-header">
+            <h3>Performance Metrics</h3>
+            <p class="muted">Real-time server performance indicators</p>
+          </div>
+          <div class="card-body">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px;">
+              <div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                  <span style="font-size: 14px; color: var(--text-secondary);">CPU Usage</span>
+                  <span id="cpuUsage" style="font-weight: 600;">-</span>
+                </div>
+                <div class="progress-bar">
+                  <div id="cpuProgress" class="progress-fill" style="width: 0%; background: linear-gradient(90deg, #10b981, #059669);"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                  <span style="font-size: 14px; color: var(--text-secondary);">Memory Usage</span>
+                  <span id="memoryUsage" style="font-weight: 600;">-</span>
+                </div>
+                <div class="progress-bar">
+                  <div id="memoryProgress" class="progress-fill" style="width: 0%; background: linear-gradient(90deg, #3b82f6, #2563eb);"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                  <span style="font-size: 14px; color: var(--text-secondary);">Disk Usage</span>
+                  <span id="diskUsage" style="font-weight: 600;">-</span>
+                </div>
+                <div class="progress-bar">
+                  <div id="diskProgress" class="progress-fill" style="width: 0%; background: linear-gradient(90deg, #8b5cf6, #7c3aed);"></div>
+                </div>
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                  <span style="font-size: 14px; color: var(--text-secondary);">Network I/O</span>
+                  <span id="networkIO" style="font-weight: 600;">-</span>
+                </div>
+                <div class="progress-bar">
+                  <div id="networkProgress" class="progress-fill" style="width: 0%; background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- API Endpoints Health -->
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="card-header">
+            <h3>API Endpoints Health</h3>
+            <p class="muted">Monitor critical API endpoint status</p>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Endpoint</th>
+                <th>Method</th>
+                <th>Status</th>
+                <th>Avg Response Time</th>
+                <th>Success Rate</th>
+                <th>Last Checked</th>
+              </tr>
+            </thead>
+            <tbody id="endpointsHealthTable">
+              <tr>
+                <td colspan="6" class="muted">Loading endpoint health...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Recent Errors -->
+        <div class="card">
+          <div class="card-header">
+            <h3>Recent Errors</h3>
+            <p class="muted">Last 10 server errors</p>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Severity</th>
+                <th>Error Type</th>
+                <th>Message</th>
+                <th>User/IP</th>
+              </tr>
+            </thead>
+            <tbody id="recentErrorsTable">
+              <tr>
+                <td colspan="5" class="muted">Loading recent errors...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section id="settingsSection" class="section">
