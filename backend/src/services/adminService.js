@@ -468,7 +468,7 @@ async function listBookings({ status, search, startDate, endDate, page, limit })
         CONCAT(u.first_name, ' ', u.last_name) as user_name,
         u.email as user_email,
         u.phone_number as user_phone,
-        p.business_name as partner_name,
+        p.name as partner_name,
         po.title as deal_title,
         po.service_type as deal_type
       FROM bookings b
@@ -493,7 +493,7 @@ async function listBookings({ status, search, startDate, endDate, page, limit })
       query += ` AND (
         CONCAT(u.first_name, ' ', u.last_name) ILIKE $${paramCounter} OR
         u.email ILIKE $${paramCounter} OR
-        p.business_name ILIKE $${paramCounter} OR
+        p.name ILIKE $${paramCounter} OR
         b.booking_reference ILIKE $${paramCounter} OR
         po.title ILIKE $${paramCounter}
       )`;
@@ -550,9 +550,9 @@ async function getBookingDetails(bookingId) {
         u.email as user_email,
         u.phone_number as user_phone,
         u.current_tier_id as user_tier,
-        p.business_name as partner_name,
+        p.name as partner_name,
         p.email as partner_email,
-        p.phone as partner_phone,
+        p.phone_number as partner_phone,
         p.address as partner_address,
         po.title as deal_title,
         po.description as deal_description,
