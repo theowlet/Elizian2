@@ -372,56 +372,471 @@ function renderUsersPagination(total) {
   container.innerHTML = buttons.join('');
 }
 
+// Partner state
+const partnerState = {
+  search: '',
+  sortBy: 'newest',
+  selectedPartners: new Set()
+};
+
 async function loadPartners() {
   const status = state.filters.partners.status;
   const list = $('#partnersList');
   list.innerHTML = '<div class="card muted">Loading partners…</div>';
+  
   try {
     const { data } = await fetchJSON(`${API_BASE}/api/v1/admin/partners?status=${status}`);
     if (!data.length) {
       list.innerHTML = '<div class="card muted">No partners found.</div>';
+      updatePartnerStats([]);
+      updatePartnerBulkToolbar();
       return;
     }
+    
     state.cache.partners = data;
-    list.innerHTML = data.map((partner) => `
-      <div class="card partner-card" data-partner="${partner.id}">
-        <div class="partner-header">
-          <h3>${partner.name}</h3>
-          <div style="display: flex; gap: 0.5rem; align-items: center;">
-            <span class="badge ${partner.status === 'approved' ? 'badge-success' : partner.status === 'pending' ? 'badge-warning' : 'badge-error'}">
-              ${partner.status.toUpperCase()}
-            </span>
-            ${partner.approved_for_featured 
-              ? `<span class="badge badge-success" title="Approved for Featured/Trending content">⭐ Featured</span>`
-              : `<span class="badge badge-secondary" title="Not approved for Featured/Trending content">Featured</span>`}
-          </div>
-        </div>
-        <div class="partner-meta">
-          <div>📧 ${partner.email || '—'}</div>
-          <div>📞 ${partner.phone_number || '—'}</div>
-          <div>📍 ${partner.address || '—'}</div>
-        </div>
-        <div class="partner-stats">
-          <span>Tier: ${partner.tier || '—'}</span>
-          <span>Active Deals: ${partner.active_deals || 0}</span>
-          <span>Total Bookings: ${partner.total_bookings || 0}</span>
-        </div>
-        <div class="partner-actions">
-          ${partner.status === 'pending'
-            ? `<button class="btn btn-primary btn-xs" data-action="approvePartner" data-id="${partner.id}">Approve</button>
-               <button class="btn btn-secondary btn-xs" data-action="rejectPartner" data-id="${partner.id}">Reject</button>`
-            : `<button class="btn btn-secondary btn-xs" data-action="changeTier" data-id="${partner.id}">Change Tier</button>
-               <button class="btn btn-secondary btn-xs" data-action="suspendPartner" data-id="${partner.id}">${partner.status === 'suspended' ? 'Activate' : 'Suspend'}</button>
-               <button class="btn ${partner.approved_for_featured ? 'btn-warning' : 'btn-success'} btn-xs" data-action="toggleFeaturedEligibility" data-id="${partner.id}" title="${partner.approved_for_featured ? 'Revoke featured eligibility' : 'Approve for featured/trending content'}">
-                 ${partner.approved_for_featured ? '⭐ Revoke Featured' : '⭐ Approve Featured'}
-               </button>
-               <button class="btn btn-secondary btn-xs" data-action="viewPartner" data-id="${partner.id}">View Dashboard</button>`}
-        </div>
-      </div>`).join('');
+    
+    // Apply search filter
+    let filteredPartners = data;
+    if (partnerState.search) {
+      const searchLower = partnerState.search.toLowerCase();
+      filteredPartners = data.filter(p => 
+        (p.name || '').toLowerCase().includes(searchLower) ||
+        (p.email || '').toLowerCase().includes(searchLower) ||
+        (p.business_name || '').toLowerCase().includes(searchLower) ||
+        (p.address || '').toLowerCase().includes(searchLower)
+      );
+    }
+    
+    // Apply sorting
+    filteredPartners = sortPartners(filteredPartners, partnerState.sortBy);
+    
+    // Update stats
+    updatePartnerStats(data);
+    
+    // Render partner cards
+    list.innerHTML = filteredPartners.map(renderPartnerCard).join('');
+    
+    // Update bulk actions toolbar
+    updatePartnerBulkToolbar();
+    
   } catch (error) {
     list.innerHTML = `<div class="card error">Failed to load partners: ${error.message}</div>`;
   }
 }
+
+function sortPartners(partners, sortBy) {
+  const sorted = [...partners];
+  switch (sortBy) {
+    case 'newest':
+      return sorted.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    case 'oldest':
+      return sorted.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+    case 'priority':
+      // Priority: pending > needs_info > approved > suspended
+      const priority = { pending: 1, needs_info: 2, approved: 3, suspended: 4 };
+      return sorted.sort((a, b) => (priority[a.status] || 5) - (priority[b.status] || 5));
+    default:
+      return sorted;
+  }
+}
+
+function renderPartnerCard(partner) {
+  const isSelected = partnerState.selectedPartners.has(partner.id);
+  const isPending = partner.status === 'pending';
+  
+  return `
+    <div class="card partner-card ${isSelected ? 'selected' : ''}" data-partner="${partner.id}">
+      ${isPending ? `
+        <div class="partner-selector">
+          <input type="checkbox" 
+                 class="partner-checkbox" 
+                 data-id="${partner.id}" 
+                 ${isSelected ? 'checked' : ''}>
+        </div>
+      ` : ''}
+      <div class="partner-header">
+        <h3>${escapeHtml(partner.name || partner.business_name || 'Unnamed Partner')}</h3>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <span class="badge ${partner.status === 'approved' ? 'badge-success' : partner.status === 'pending' ? 'badge-warning' : 'badge-error'}">
+            ${(partner.status || 'unknown').toUpperCase()}
+          </span>
+          ${partner.approved_for_featured 
+            ? `<span class="badge badge-success" title="Approved for Featured/Trending content">⭐ Featured</span>`
+            : ''}
+        </div>
+      </div>
+      <div class="partner-meta">
+        <div>📧 ${escapeHtml(partner.email || '—')}</div>
+        <div>📞 ${escapeHtml(partner.phone_number || '—')}</div>
+        <div>📍 ${escapeHtml(partner.address || '—')}</div>
+      </div>
+      <div class="partner-stats">
+        <span>Tier: ${escapeHtml(partner.tier || 'Standard')}</span>
+        <span>Active Deals: ${partner.active_deals || 0}</span>
+        <span>Total Bookings: ${partner.total_bookings || 0}</span>
+      </div>
+      <div class="partner-actions">
+        ${partner.status === 'pending'
+          ? `<button class="btn btn-primary btn-xs" data-action="reviewPartner" data-id="${partner.id}">📋 Review</button>
+             <button class="btn btn-success btn-xs" data-action="approvePartner" data-id="${partner.id}">✓ Quick Approve</button>
+             <button class="btn btn-danger btn-xs" data-action="rejectPartner" data-id="${partner.id}">✗ Reject</button>`
+          : `<button class="btn btn-primary btn-xs" data-action="reviewPartner" data-id="${partner.id}">📋 View Details</button>
+             <button class="btn btn-secondary btn-xs" data-action="changeTier" data-id="${partner.id}">Change Tier</button>
+             <button class="btn btn-secondary btn-xs" data-action="suspendPartner" data-id="${partner.id}">${partner.status === 'suspended' ? 'Activate' : 'Suspend'}</button>
+             <button class="btn ${partner.approved_for_featured ? 'btn-warning' : 'btn-success'} btn-xs" data-action="toggleFeaturedEligibility" data-id="${partner.id}" title="${partner.approved_for_featured ? 'Revoke featured eligibility' : 'Approve for featured/trending content'}">
+               ${partner.approved_for_featured ? '⭐ Revoke Featured' : '⭐ Approve Featured'}
+             </button>`}
+      </div>
+    </div>
+  `;
+}
+
+function updatePartnerStats(partners) {
+  const total = partners.length;
+  const pending = partners.filter(p => p.status === 'pending').length;
+  const approved = partners.filter(p => p.status === 'approved').length;
+  const featuredEligible = partners.filter(p => p.approved_for_featured).length;
+  
+  $('#totalPartners').textContent = total;
+  $('#pendingPartners').textContent = pending;
+  $('#approvedPartners').textContent = approved;
+  $('#featuredEligiblePartners').textContent = featuredEligible;
+}
+
+function updatePartnerBulkToolbar() {
+  const bulkApprove = $('#bulkApprovePartners');
+  const bulkReject = $('#bulkRejectPartners');
+  const selectedCount = partnerState.selectedPartners.size;
+  
+  if (bulkApprove && bulkReject) {
+    if (selectedCount > 0) {
+      bulkApprove.style.display = 'inline-block';
+      bulkReject.style.display = 'inline-block';
+      bulkApprove.textContent = `✓ Approve Selected (${selectedCount})`;
+      bulkReject.textContent = `✗ Reject Selected (${selectedCount})`;
+    } else {
+      bulkApprove.style.display = 'none';
+      bulkReject.style.display = 'none';
+    }
+  }
+}
+
+function handlePartnerCheckboxChange(partnerId, checked) {
+  if (checked) {
+    partnerState.selectedPartners.add(partnerId);
+  } else {
+    partnerState.selectedPartners.delete(partnerId);
+  }
+  updatePartnerBulkToolbar();
+  
+  // Update card visual state
+  const card = document.querySelector(`.partner-card[data-partner="${partnerId}"]`);
+  if (card) {
+    card.classList.toggle('selected', checked);
+  }
+}
+
+// ============================================
+// PARTNER REVIEW MODAL
+// ============================================
+
+let currentReviewPartnerId = null;
+let currentReviewDecisionType = null;
+
+async function showPartnerReviewModal(partnerId) {
+  try {
+    // Fetch partner details
+    const { data } = await fetchJSON(`${API_BASE}/api/v1/partners/${partnerId}`);
+    
+    if (!data) {
+      showNotification('Partner not found.', 'error');
+      return;
+    }
+    
+    currentReviewPartnerId = partnerId;
+    
+    // Populate basic information
+    $('#reviewPartnerName').textContent = data.business_name || data.name || 'Unnamed Partner';
+    $('#reviewPartnerStatus').textContent = (data.status || 'unknown').toUpperCase();
+    $('#reviewPartnerStatus').className = `partner-review-status badge ${
+      data.status === 'approved' ? 'badge-success' : 
+      data.status === 'pending' ? 'badge-warning' : 
+      'badge-error'
+    }`;
+    
+    $('#reviewAppliedDate').textContent = formatDate(data.created_at);
+    $('#reviewPriority').textContent = data.status === 'pending' ? 'High' : 'Normal';
+    
+    // Info Tab
+    $('#reviewBusinessName').textContent = data.business_name || data.name || '—';
+    $('#reviewCategory').textContent = data.category || '—';
+    $('#reviewAddress').textContent = data.address || '—';
+    $('#reviewCity').textContent = data.city || '—';
+    $('#reviewState').textContent = data.state || '—';
+    $('#reviewContactPerson').textContent = data.contact_person || data.name || '—';
+    $('#reviewEmail').textContent = data.email || '—';
+    $('#reviewPhone').textContent = data.phone || data.phone_number || '—';
+    $('#reviewWebsite').textContent = data.website || '—';
+    $('#reviewGST').textContent = data.gst_number || '—';
+    $('#reviewPAN').textContent = data.pan_number || '—';
+    $('#reviewBankAccount').textContent = data.bank_account_number || '—';
+    $('#reviewIFSC').textContent = data.ifsc_code || '—';
+    $('#reviewDescription').textContent = data.description || 'No description provided.';
+    
+    // Documents Tab (placeholder - would need backend support)
+    $('#reviewDocumentsList').innerHTML = `
+      <div class="muted" style="padding: 2rem; text-align: center;">
+        <p>Document management feature coming soon.</p>
+        <p style="font-size: 0.875rem;">Documents will be reviewed manually for now.</p>
+      </div>
+    `;
+    
+    // History Tab (placeholder - would need audit log)
+    $('#reviewActivityTimeline').innerHTML = `
+      <div class="timeline-item">
+        <div class="timeline-marker"></div>
+        <div class="timeline-content">
+          <div class="timeline-time">${formatDate(data.created_at)}</div>
+          <div class="timeline-text">Partner application submitted</div>
+        </div>
+      </div>
+      ${data.updated_at && data.updated_at !== data.created_at ? `
+        <div class="timeline-item">
+          <div class="timeline-marker"></div>
+          <div class="timeline-content">
+            <div class="timeline-time">${formatDate(data.updated_at)}</div>
+            <div class="timeline-text">Partner information updated</div>
+          </div>
+        </div>
+      ` : ''}
+    `;
+    
+    // Reset checklist
+    resetVerificationChecklist();
+    
+    // Hide decision form
+    $('#reviewDecisionForm').classList.add('hidden');
+    
+    // Show/hide action buttons based on status
+    const approveBtn = $('#reviewApprove');
+    const rejectBtn = $('#reviewReject');
+    
+    if (data.status === 'pending') {
+      approveBtn.style.display = 'inline-block';
+      rejectBtn.style.display = 'inline-block';
+    } else {
+      approveBtn.style.display = 'none';
+      rejectBtn.style.display = data.status === 'approved' ? 'none' : 'inline-block';
+    }
+    
+    // Show modal
+    $('#partnerReviewModal').classList.remove('hidden');
+    
+  } catch (error) {
+    console.error('Error loading partner review:', error);
+    showNotification(`Failed to load partner details: ${error.message}`, 'error');
+  }
+}
+
+function closePartnerReviewModal() {
+  $('#partnerReviewModal').classList.add('hidden');
+  currentReviewPartnerId = null;
+  currentReviewDecisionType = null;
+  $('#reviewDecisionForm').classList.add('hidden');
+  $('#decisionReason').value = '';
+}
+
+function switchReviewTab(tabName) {
+  // Update tab buttons
+  $all('.review-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+  
+  // Update tab content
+  $all('.review-tab-content').forEach(content => {
+    content.classList.remove('active');
+  });
+  
+  const targetContent = $(`#reviewTab${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`);
+  if (targetContent) {
+    targetContent.classList.add('active');
+  }
+}
+
+function resetVerificationChecklist() {
+  $all('.checklist-checkbox').forEach(checkbox => {
+    checkbox.checked = false;
+  });
+  updateChecklistProgress();
+}
+
+function updateChecklistProgress() {
+  const checkboxes = $all('.checklist-checkbox');
+  const total = checkboxes.length;
+  const completed = Array.from(checkboxes).filter(cb => cb.checked).length;
+  const percentage = total > 0 ? (completed / total) * 100 : 0;
+  
+  $('#checklistProgress').style.width = `${percentage}%`;
+  $('#checklistCompleted').textContent = completed;
+}
+
+function showReviewDecisionForm(type) {
+  currentReviewDecisionType = type;
+  
+  const form = $('#reviewDecisionForm');
+  const title = $('#decisionFormTitle');
+  
+  if (type === 'approve') {
+    title.textContent = 'Approve Partner';
+    $('#decisionReason').placeholder = 'Optional: Add approval notes or instructions for the partner...';
+  } else {
+    title.textContent = 'Reject Partner';
+    $('#decisionReason').placeholder = 'Required: Explain why this partner application is being rejected...';
+  }
+  
+  form.classList.remove('hidden');
+  $('#decisionReason').focus();
+}
+
+async function submitPartnerDecision() {
+  if (!currentReviewPartnerId || !currentReviewDecisionType) return;
+  
+  const reason = $('#decisionReason').value.trim();
+  
+  if (currentReviewDecisionType === 'reject' && !reason) {
+    showNotification('Please provide a reason for rejection.', 'error');
+    return;
+  }
+  
+  try {
+    const action = currentReviewDecisionType === 'approve' ? 'approve' : 'reject';
+    
+    await fetchJSON(`${API_BASE}/api/v1/admin/partners/${currentReviewPartnerId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action, reason })
+    });
+    
+    showNotification(
+      `Partner ${action === 'approve' ? 'approved' : 'rejected'} successfully.`,
+      'success'
+    );
+    
+    closePartnerReviewModal();
+    loadPartners();
+    
+    // Refresh dashboard if on dashboard
+    if ($('#dashboardSection')?.classList.contains('visible')) {
+      loadDashboard();
+    }
+    
+  } catch (error) {
+    console.error('Partner decision error:', error);
+    showNotification(`Failed to ${currentReviewDecisionType} partner: ${error.message}`, 'error');
+  }
+}
+
+async function bulkApprovePartners() {
+  if (partnerState.selectedPartners.size === 0) {
+    showNotification('No partners selected.', 'warning');
+    return;
+  }
+  
+  const count = partnerState.selectedPartners.size;
+  const confirmed = confirm(`Are you sure you want to approve ${count} partner(s)?`);
+  
+  if (!confirmed) return;
+  
+  try {
+    const ids = Array.from(partnerState.selectedPartners);
+    
+    await fetchJSON(`${API_BASE}/api/v1/admin/partners/bulk-approve`, {
+      method: 'POST',
+      body: JSON.stringify({ ids })
+    });
+    
+    showNotification(`${count} partner(s) approved successfully.`, 'success');
+    
+    // Clear selection
+    partnerState.selectedPartners.clear();
+    
+    // Reload partners
+    loadPartners();
+    
+    // Refresh dashboard
+    if ($('#dashboardSection')?.classList.contains('visible')) {
+      loadDashboard();
+    }
+    
+  } catch (error) {
+    console.error('Bulk approve error:', error);
+    showNotification(`Failed to approve partners: ${error.message}`, 'error');
+  }
+}
+
+async function bulkRejectPartners() {
+  if (partnerState.selectedPartners.size === 0) {
+    showNotification('No partners selected.', 'warning');
+    return;
+  }
+  
+  const count = partnerState.selectedPartners.size;
+  const reason = prompt(`Please provide a reason for rejecting ${count} partner(s):`);
+  
+  if (reason === null) return; // User cancelled
+  
+  if (!reason.trim()) {
+    showNotification('Please provide a reason for rejection.', 'error');
+    return;
+  }
+  
+  try {
+    const ids = Array.from(partnerState.selectedPartners);
+    
+    // We'll need to loop through each one since bulk reject might not exist yet
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const id of ids) {
+      try {
+        await fetchJSON(`${API_BASE}/api/v1/admin/partners/${id}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ action: 'reject', reason: reason.trim() })
+        });
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to reject partner ${id}:`, error);
+        errorCount++;
+      }
+    }
+    
+    if (successCount > 0) {
+      showNotification(`${successCount} partner(s) rejected successfully.`, 'success');
+    }
+    
+    if (errorCount > 0) {
+      showNotification(`Failed to reject ${errorCount} partner(s).`, 'error');
+    }
+    
+    // Clear selection
+    partnerState.selectedPartners.clear();
+    
+    // Reload partners
+    loadPartners();
+    
+    // Refresh dashboard
+    if ($('#dashboardSection')?.classList.contains('visible')) {
+      loadDashboard();
+    }
+    
+  } catch (error) {
+    console.error('Bulk reject error:', error);
+    showNotification(`Failed to reject partners: ${error.message}`, 'error');
+  }
+}
+
+// Make functions globally accessible
+window.showPartnerReviewModal = showPartnerReviewModal;
+window.closePartnerReviewModal = closePartnerReviewModal;
 
 async function loadDeals() {
   const list = $('#dealsList');
@@ -903,8 +1318,105 @@ function attachEventListeners() {
   });
   $('#partnerTabFilter').addEventListener('change', (event) => {
     state.filters.partners.status = event.target.value;
+    partnerState.selectedPartners.clear();
     loadPartners();
   });
+  
+  // Partner Search
+  const partnerSearch = $('#partnerSearch');
+  if (partnerSearch) {
+    partnerSearch.addEventListener('input', (event) => {
+      partnerState.search = event.target.value;
+      loadPartners();
+    });
+  }
+  
+  // Partner Sort
+  const partnerSortBy = $('#partnerSortBy');
+  if (partnerSortBy) {
+    partnerSortBy.addEventListener('change', (event) => {
+      partnerState.sortBy = event.target.value;
+      loadPartners();
+    });
+  }
+  
+  // Bulk Partner Actions
+  const bulkApprovePartnersBtn = $('#bulkApprovePartners');
+  if (bulkApprovePartnersBtn) {
+    bulkApprovePartnersBtn.addEventListener('click', bulkApprovePartners);
+  }
+  
+  const bulkRejectPartnersBtn = $('#bulkRejectPartners');
+  if (bulkRejectPartnersBtn) {
+    bulkRejectPartnersBtn.addEventListener('click', bulkRejectPartners);
+  }
+  
+  // Partner Review Modal Event Listeners
+  const partnerReviewModalClose = $('#partnerReviewModalClose');
+  if (partnerReviewModalClose) {
+    partnerReviewModalClose.addEventListener('click', closePartnerReviewModal);
+  }
+  
+  const partnerReviewModal = $('#partnerReviewModal');
+  if (partnerReviewModal) {
+    partnerReviewModal.addEventListener('click', (event) => {
+      if (event.target === partnerReviewModal) {
+        closePartnerReviewModal();
+      }
+    });
+  }
+  
+  // Review Tab Switching
+  $all('.review-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      switchReviewTab(tab.dataset.tab);
+    });
+  });
+  
+  // Verification Checklist
+  $all('.checklist-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', updateChecklistProgress);
+  });
+  
+  // Review Action Buttons
+  const reviewApprove = $('#reviewApprove');
+  if (reviewApprove) {
+    reviewApprove.addEventListener('click', () => showReviewDecisionForm('approve'));
+  }
+  
+  const reviewReject = $('#reviewReject');
+  if (reviewReject) {
+    reviewReject.addEventListener('click', () => showReviewDecisionForm('reject'));
+  }
+  
+  const reviewSendEmail = $('#reviewSendEmail');
+  if (reviewSendEmail) {
+    reviewSendEmail.addEventListener('click', () => {
+      showNotification('Email notification feature coming soon.', 'info');
+    });
+  }
+  
+  const reviewRequestDocs = $('#reviewRequestDocs');
+  if (reviewRequestDocs) {
+    reviewRequestDocs.addEventListener('click', () => {
+      showNotification('Document request feature coming soon.', 'info');
+    });
+  }
+  
+  // Decision Form Buttons
+  const submitDecision = $('#submitDecision');
+  if (submitDecision) {
+    submitDecision.addEventListener('click', submitPartnerDecision);
+  }
+  
+  const cancelDecision = $('#cancelDecision');
+  if (cancelDecision) {
+    cancelDecision.addEventListener('click', () => {
+      $('#reviewDecisionForm').classList.add('hidden');
+      $('#decisionReason').value = '';
+      currentReviewDecisionType = null;
+    });
+  }
   $('#dealSearch').addEventListener('input', (event) => {
     state.filters.deals.search = event.target.value;
     state.selectedDeals.clear();
@@ -1945,6 +2457,14 @@ function exportUsersCSV() {
 }
 
 function handlePartnerAction(event) {
+  // Handle checkbox clicks
+  if (event.target.classList.contains('partner-checkbox')) {
+    const partnerId = event.target.dataset.id;
+    const checked = event.target.checked;
+    handlePartnerCheckboxChange(partnerId, checked);
+    return;
+  }
+  
   const button = event.target.closest('button[data-action]');
   if (!button) return;
   const partnerId = button.dataset.id || button.dataset.partner;
@@ -1952,6 +2472,9 @@ function handlePartnerAction(event) {
   if (!partnerId || !action) return;
 
   switch (action) {
+    case 'reviewPartner':
+      showPartnerReviewModal(partnerId);
+      break;
     case 'approvePartner':
       updatePartnerStatus(partnerId, 'approve');
       break;

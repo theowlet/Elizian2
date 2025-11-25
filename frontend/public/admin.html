@@ -136,15 +136,44 @@
             <p class="muted">Approve partners, change tiers, suspend accounts.</p>
           </div>
           <div class="section-actions">
+            <input type="text" id="partnerSearch" class="input" placeholder="Search partners…">
             <select id="partnerTabFilter" class="select">
               <option value="all">All</option>
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="suspended">Suspended</option>
             </select>
-            <button id="addPartner" class="btn btn-primary">Add Partner</button>
+            <select id="partnerSortBy" class="select">
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="priority">Priority</option>
+            </select>
+            <button id="bulkApprovePartners" class="btn btn-success" style="display:none;">✓ Approve Selected</button>
+            <button id="bulkRejectPartners" class="btn btn-danger" style="display:none;">✗ Reject Selected</button>
+            <button id="addPartner" class="btn btn-primary">+ Add Partner</button>
           </div>
         </div>
+        
+        <!-- Partner Stats -->
+        <div class="partner-stats-cards" id="partnerStatsCards">
+          <div class="stat-card">
+            <div class="stat-label">Total Partners</div>
+            <div class="stat-value" id="totalPartners">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Pending Approval</div>
+            <div class="stat-value stat-warning" id="pendingPartners">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Approved</div>
+            <div class="stat-value stat-success" id="approvedPartners">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Featured Eligible</div>
+            <div class="stat-value" id="featuredEligiblePartners">—</div>
+          </div>
+        </div>
+
         <div id="partnersList" class="card-list">
           <div class="card muted">Loading partners…</div>
         </div>
@@ -481,6 +510,207 @@
             <button type="button" id="cancelRefund" class="btn btn-secondary">Cancel</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Partner Review Modal -->
+  <div id="partnerReviewModal" class="modal hidden">
+    <div class="modal-content modal-large">
+      <button class="modal-close" id="partnerReviewModalClose">×</button>
+      <div id="partnerReviewModalBody">
+        <div class="partner-review-header">
+          <div>
+            <h2 id="reviewPartnerName">Partner Review</h2>
+            <span class="partner-review-status" id="reviewPartnerStatus">—</span>
+          </div>
+          <div class="partner-review-meta">
+            <span class="review-meta-item">
+              <strong>Applied:</strong> <span id="reviewAppliedDate">—</span>
+            </span>
+            <span class="review-meta-item">
+              <strong>Priority:</strong> <span id="reviewPriority">—</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="partner-review-tabs">
+          <button class="review-tab active" data-tab="info">📋 Information</button>
+          <button class="review-tab" data-tab="documents">📄 Documents</button>
+          <button class="review-tab" data-tab="checklist">✓ Verification</button>
+          <button class="review-tab" data-tab="history">📜 History</button>
+        </div>
+
+        <div class="partner-review-content">
+          <!-- Information Tab -->
+          <div class="review-tab-content active" id="reviewTabInfo">
+            <div class="review-section-grid">
+              <div class="review-section">
+                <h3>Business Information</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Business Name:</span>
+                  <span class="detail-value" id="reviewBusinessName">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Category:</span>
+                  <span class="detail-value" id="reviewCategory">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Address:</span>
+                  <span class="detail-value" id="reviewAddress">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">City:</span>
+                  <span class="detail-value" id="reviewCity">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">State:</span>
+                  <span class="detail-value" id="reviewState">—</span>
+                </div>
+              </div>
+
+              <div class="review-section">
+                <h3>Contact Information</h3>
+                <div class="detail-row">
+                  <span class="detail-label">Contact Person:</span>
+                  <span class="detail-value" id="reviewContactPerson">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Email:</span>
+                  <span class="detail-value" id="reviewEmail">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Phone:</span>
+                  <span class="detail-value" id="reviewPhone">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Website:</span>
+                  <span class="detail-value" id="reviewWebsite">—</span>
+                </div>
+              </div>
+
+              <div class="review-section">
+                <h3>Business Details</h3>
+                <div class="detail-row">
+                  <span class="detail-label">GST Number:</span>
+                  <span class="detail-value" id="reviewGST">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">PAN:</span>
+                  <span class="detail-value" id="reviewPAN">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Bank Account:</span>
+                  <span class="detail-value" id="reviewBankAccount">—</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">IFSC Code:</span>
+                  <span class="detail-value" id="reviewIFSC">—</span>
+                </div>
+              </div>
+
+              <div class="review-section">
+                <h3>Description</h3>
+                <p id="reviewDescription" class="review-description">—</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Documents Tab -->
+          <div class="review-tab-content" id="reviewTabDocuments">
+            <div class="documents-grid" id="reviewDocumentsList">
+              <div class="document-card">
+                <div class="document-icon">📄</div>
+                <div class="document-info">
+                  <div class="document-name">Business Registration</div>
+                  <div class="document-status">Pending Review</div>
+                </div>
+                <button class="btn btn-sm btn-primary">View</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Verification Checklist Tab -->
+          <div class="review-tab-content" id="reviewTabChecklist">
+            <div class="verification-checklist">
+              <div class="checklist-item">
+                <input type="checkbox" id="check1" class="checklist-checkbox">
+                <label for="check1">Business registration verified</label>
+              </div>
+              <div class="checklist-item">
+                <input type="checkbox" id="check2" class="checklist-checkbox">
+                <label for="check2">GST number validated</label>
+              </div>
+              <div class="checklist-item">
+                <input type="checkbox" id="check3" class="checklist-checkbox">
+                <label for="check3">Bank details confirmed</label>
+              </div>
+              <div class="checklist-item">
+                <input type="checkbox" id="check4" class="checklist-checkbox">
+                <label for="check4">Contact information verified</label>
+              </div>
+              <div class="checklist-item">
+                <input type="checkbox" id="check5" class="checklist-checkbox">
+                <label for="check5">Physical location confirmed</label>
+              </div>
+              <div class="checklist-item">
+                <input type="checkbox" id="check6" class="checklist-checkbox">
+                <label for="check6">Documents uploaded and verified</label>
+              </div>
+              <div class="checklist-item">
+                <input type="checkbox" id="check7" class="checklist-checkbox">
+                <label for="check7">Background check completed</label>
+              </div>
+              <div class="checklist-item">
+                <input type="checkbox" id="check8" class="checklist-checkbox">
+                <label for="check8">Terms & conditions accepted</label>
+              </div>
+            </div>
+            <div class="checklist-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" id="checklistProgress" style="width: 0%"></div>
+              </div>
+              <div class="progress-text">
+                <span id="checklistCompleted">0</span> of 8 items completed
+              </div>
+            </div>
+          </div>
+
+          <!-- History Tab -->
+          <div class="review-tab-content" id="reviewTabHistory">
+            <div class="activity-timeline" id="reviewActivityTimeline">
+              <div class="timeline-item">
+                <div class="timeline-marker"></div>
+                <div class="timeline-content">
+                  <div class="timeline-time">2 hours ago</div>
+                  <div class="timeline-text">Partner application submitted</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="partner-review-actions">
+          <div class="review-actions-left">
+            <button id="reviewSendEmail" class="btn btn-secondary">📧 Send Email</button>
+            <button id="reviewRequestDocs" class="btn btn-secondary">📎 Request Documents</button>
+          </div>
+          <div class="review-actions-right">
+            <button id="reviewReject" class="btn btn-danger">✗ Reject</button>
+            <button id="reviewApprove" class="btn btn-success">✓ Approve</button>
+          </div>
+        </div>
+
+        <!-- Approval/Rejection Form -->
+        <div id="reviewDecisionForm" class="review-decision-form hidden">
+          <h3 id="decisionFormTitle">Provide Reason</h3>
+          <textarea id="decisionReason" class="input" rows="4" placeholder="Enter your reason or comments..."></textarea>
+          <div class="form-actions">
+            <button id="submitDecision" class="btn btn-primary">Submit</button>
+            <button id="cancelDecision" class="btn btn-secondary">Cancel</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
