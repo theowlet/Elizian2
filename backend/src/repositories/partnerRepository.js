@@ -294,6 +294,18 @@ async function getPartnerAnalytics(partnerId, daysWindow = 30) {
   };
 }
 
+// Update partner menu images (scrollable menu viewer)
+async function updatePartnerMenuImages(partnerId, menuImages) {
+  const query = `
+    UPDATE partners
+    SET menu_images = $1, updated_at = CURRENT_TIMESTAMP
+    WHERE id = $2
+    RETURNING *
+  `;
+  const result = await pool.query(query, [JSON.stringify(menuImages), partnerId]);
+  return result.rows[0];
+}
+
 module.exports = {
   listPartners,
   getPartnerById,
@@ -303,5 +315,6 @@ module.exports = {
   updatePartner,
   deletePartner,
   getPartnerDashboardStats,
-  getPartnerAnalytics
+  getPartnerAnalytics,
+  updatePartnerMenuImages
 };

@@ -185,6 +185,80 @@ async function resendOtp(req, res) {
   }
 }
 
+// Upload menu images (scrollable menu viewer)
+async function uploadMenuImages(req, res) {
+  try {
+    const { id } = req.params;
+    
+    if (!req.files || req.files.length === 0) {
+      return errorResponse(res, 400, "No images uploaded");
+    }
+    
+    // Get partner's current menu images
+    const partner = await partnerService.getPartnerById(id);
+    const currentImages = partner.menu_images || [];
+    
+    // Add new image paths
+    const newImagePaths = req.files.map(file => `/uploads/menu/${file.filename}`);
+    const updatedImages = [...currentImages, ...newImagePaths];
+    
+    // Update partner record
+    await partnerService.updatePartnerMenuImages(id, updatedImages);
+    
+    successResponse(res, 200, "Menu images uploaded successfully", {
+      uploadedCount: newImagePaths.length,
+      totalImages: updatedImages.length,
+      images: updatedImages
+    });
+  } catch (err) {
+    logError("❌ Menu images upload error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to upload menu images");
+  }
+}
+
+// Delete a menu image by index
+async function deleteMenuImage(req, res) {
+  try {
+    const { id, index } = req.params;
+    const imageIndex = parseInt(index);
+    
+    if (isNaN(imageIndex) || imageIndex < 0) {
+      return errorResponse(res, 400, "Invalid image index");
+    }
+    
+    // Get partner's current menu images
+    const partner = await partnerService.getPartnerById(id);
+    const currentImages = partner.menu_images || [];
+    
+    if (imageIndex >= currentImages.length) {
+      return errorResponse(res, 404, "Image not found");
+    }
+    
+    // Remove image from array
+    const updatedImages = currentImages.filter((_, idx) => idx !== imageIndex);
+    
+    // Delete physical file
+    const fs = require('fs');
+    const path = require('path');
+    const imagePath = path.join(__dirname, '../../', currentImages[imageIndex]);
+    
+    if (fs.existsSync(imagePath)) {
+      fs.unlinkSync(imagePath);
+    }
+    
+    // Update partner record
+    await partnerService.updatePartnerMenuImages(id, updatedImages);
+    
+    successResponse(res, 200, "Menu image deleted successfully", {
+      remainingImages: updatedImages.length,
+      images: updatedImages
+    });
+  } catch (err) {
+    logError("❌ Menu image delete error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to delete menu image");
+  }
+}
+
 module.exports = {
   listPartners,
   getPartner,
@@ -197,6 +271,8 @@ module.exports = {
   getAnalytics,
   forgotPassword,
   resetPassword,
-  resendOtp
+  resendOtp,
+  uploadMenuImages,
+  deleteMenuImage
 };
 

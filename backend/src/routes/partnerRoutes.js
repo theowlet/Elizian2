@@ -32,6 +32,35 @@ router.post('/:id/menu', menuController.createMenuItem);
 router.put('/:id/menu/:itemId', menuController.updateMenuItem);
 router.delete('/:id/menu/:itemId', menuController.deleteMenuItem);
 
+// Partner menu images routes (scrollable menu viewer)
+const multer = require('multer');
+const path = require('path');
+
+const menuImageStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, '../../uploads/menu'));
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'menu-' + req.params.id + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const menuImageUpload = multer({
+  storage: menuImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+});
+
+router.post('/:id/menu-images', menuImageUpload.array('menuImages', 20), partnerController.uploadMenuImages);
+router.delete('/:id/menu-images/:index', partnerController.deleteMenuImage);
+
 // Partner offers routes
 const offerController = require('../controllers/offerController');
 router.get('/:id/offers', offerController.listOffers);

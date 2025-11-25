@@ -216,6 +216,11 @@ async function getPartnerAnalytics(partnerId, period = '30') {
   return await partnerRepository.getPartnerAnalytics(partnerId, daysWindow);
 }
 
+// Update partner menu images (scrollable menu viewer)
+async function updatePartnerMenuImages(partnerId, menuImages) {
+  return await partnerRepository.updatePartnerMenuImages(partnerId, menuImages);
+}
+
 module.exports = {
   listPartners,
   getPartnerById,
@@ -225,6 +230,7 @@ module.exports = {
   loginPartner,
   registerPartner,
   getPartnerDashboard,
-  getPartnerAnalytics
+  getPartnerAnalytics,
+  updatePartnerMenuImages
 };
 
