@@ -317,8 +317,8 @@
             <div class="location-selector">
               <span class="location-icon">📍</span>
               <div class="location-text">
-                <div class="location-main" id="locationName">Sector 47 <span style="font-size: 10px; opacity: 0.6;">▼</span></div>
-                <div class="location-sub" id="locationCity">Gurugram</div>
+                <div class="location-main" id="locationName">Getting location... <span style="font-size: 10px; opacity: 0.6;">▼</span></div>
+                <div class="location-sub" id="locationCity">Please wait</div>
         </div>
         </div>
             <button class="profile-btn" onclick="navigateTo('profile')">👤</button>
@@ -1413,12 +1413,14 @@
       if (!feed) return;
       feed.innerHTML = '<div class="loading"><div class="spinner"></div> Loading nearby picks…</div>';
 
-      // determine location
-      const loc = await getUserLocation().catch(() => null);
-      if (loc) {
-        const text = `${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}`;
-        const el = document.getElementById('homeLocation');
-        if (el) el.textContent = `Around you • ${text}`;
+      // determine location using LocationService
+      let loc = null;
+      if (window.locationService) {
+        loc = window.locationService.getCurrentLocation();
+        if (loc) {
+          const el = document.getElementById('homeLocation');
+          if (el) el.textContent = `Around ${loc.area} • ${loc.city}`;
+        }
       }
 
       if (category === 'dining') {
@@ -4650,6 +4652,9 @@
 
   <!-- Load Navigation Module -->
   <script src="/js/ui/navigation-bar.js"></script>
+
+  <!-- Load Location Service -->
+  <script src="/js/services/locationService.js"></script>
 
   <!-- LocalStorage helpers to read values saved via setStorageItem(JSON) -->
   <script>
