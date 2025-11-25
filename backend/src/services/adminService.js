@@ -465,9 +465,9 @@ async function listBookings({ status, search, startDate, endDate, page, limit })
         b.ezt_redeemed,
         b.booking_type,
         b.created_at,
-        u.full_name as user_name,
+        CONCAT(u.first_name, ' ', u.last_name) as user_name,
         u.email as user_email,
-        u.phone as user_phone,
+        u.phone_number as user_phone,
         p.business_name as partner_name,
         po.title as deal_title,
         po.service_type as deal_type
@@ -491,7 +491,7 @@ async function listBookings({ status, search, startDate, endDate, page, limit })
     // Search by user name, email, partner name, or booking reference
     if (search) {
       query += ` AND (
-        u.full_name ILIKE $${paramCounter} OR
+        CONCAT(u.first_name, ' ', u.last_name) ILIKE $${paramCounter} OR
         u.email ILIKE $${paramCounter} OR
         p.business_name ILIKE $${paramCounter} OR
         b.booking_reference ILIKE $${paramCounter} OR
@@ -546,10 +546,10 @@ async function getBookingDetails(bookingId) {
     const query = `
       SELECT 
         b.*,
-        u.full_name as user_name,
+        CONCAT(u.first_name, ' ', u.last_name) as user_name,
         u.email as user_email,
-        u.phone as user_phone,
-        u.tier as user_tier,
+        u.phone_number as user_phone,
+        u.current_tier_id as user_tier,
         p.business_name as partner_name,
         p.email as partner_email,
         p.phone as partner_phone,
