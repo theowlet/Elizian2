@@ -14,6 +14,7 @@
   
   <!-- Custom Styles -->
   <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/enhanced.css">
   
   <!-- Global Error Handler - Must be first script to catch all errors -->
   <script>
@@ -1757,7 +1758,7 @@
       
       container.classList.remove('has-banner');
       
-      // Render deal cards
+      // Render deal cards with enhanced design system
       container.innerHTML = deals.map(deal => {
         const imageUrl = deal.image_url ? 
           (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
@@ -1767,34 +1768,50 @@
         const formattedAmount = amount > 0 ? (amount % 1 === 0 ? amount.toFixed(0) : amount.toFixed(2)) : null;
         
         return `
-          <div class="trending-card" onclick="openOfferDetails('${deal.id}')">
-            <div class="trending-image-wrapper">
-              <img src="${imageUrl}" class="trending-image" alt="${deal.title}" 
-                   onerror="this.src='/assets/default-offer.jpg'">
-              <div class="trending-badge">🔥 TRENDING</div>
-              ${hasDiscount ? 
-                `<div class="discount-badge">${formattedPercent ? `${formattedPercent}% OFF` : `₹${formattedAmount} OFF`}</div>` : ''}
+          <div class="card-enhanced trending-card" onclick="openOfferDetails('${deal.id}')">
+            <div class="card-image-container">
+              <img src="${imageUrl}" class="card-image" alt="${deal.title}" 
+                   onerror="this.src='/assets/default-offer.jpg'" loading="lazy">
+              <div class="card-badges">
+                <span class="badge badge-trending">🔥 TRENDING</span>
+                ${hasDiscount ? 
+                  `<span class="badge badge-discount">${formattedPercent ? `${formattedPercent}% OFF` : `₹${formattedAmount} OFF`}</span>` : ''}
+              </div>
+              <button class="btn-icon-floating" onclick="event.stopPropagation(); toggleFavorite('${deal.id}')" aria-label="Add to favorites">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10 17.5L3 11C1 9 1 5 4 3C6 2 8 2 10 4C12 2 14 2 16 3C19 5 19 9 17 11L10 17.5Z"/>
+                </svg>
+              </button>
             </div>
-            <div class="trending-card-content">
-              <h3>${deal.title}</h3>
-              <p class="partner-name">${deal.partner_name}</p>
-              ${(() => {
-                if (hasDiscount) {
-                  return `<div class="price-info">
-                    <span class="original-price" style="text-decoration: line-through; opacity: 0.6; margin-right: 6px;">₹${original.toFixed(2)}</span>
-                    <span class="discounted-price">₹${discounted.toFixed(2)}</span>
-                    <span class="discount-note" style="display:block; font-size:12px; color:#10b981;">You save ₹${savings.toFixed(2)} • ${ezt.toFixed(2)} EZT</span>
-                  </div>`;
-                } else if (percent > 0 && original === 0) {
-                  return `<div class="discount-highlight">${formattedPercent}% OFF</div>`;
-                } else if (original > 0 || discounted > 0) {
-                  const finalPrice = discounted > 0 ? discounted : original;
-                  return `<div class="price-info">
-                    <span class="final-price">₹${finalPrice.toFixed(2)}</span>
-                  </div>`;
-                }
-                return '';
-              })()}
+            <div class="card-content">
+              <h3 class="card-title">${deal.title}</h3>
+              <div class="flex items-center gap-2 mb-4">
+                ${deal.rating ? `
+                  <span class="rating-badge">
+                    ⭐ ${deal.rating.toFixed(1)}
+                  </span>
+                ` : ''}
+                <span class="text-secondary text-sm">${deal.partner_name}</span>
+              </div>
+              ${hasDiscount ? `
+                <div class="price-row">
+                  <div class="price-group">
+                    <span class="price-original">₹${original.toFixed(0)}</span>
+                    <span class="price-current">₹${discounted.toFixed(0)}</span>
+                  </div>
+                  <span class="savings">Save ₹${savings.toFixed(0)}</span>
+                </div>
+              ` : original > 0 || discounted > 0 ? `
+                <div class="price-row">
+                  <span class="price-current">₹${(discounted > 0 ? discounted : original).toFixed(0)}</span>
+                </div>
+              ` : ''}
+              <button class="btn-primary" onclick="event.stopPropagation(); openOfferDetails('${deal.id}')">
+                <span>View Details</span>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </button>
             </div>
           </div>
         `;
@@ -2276,6 +2293,30 @@
     window.openDeal = function(dealId) {
       // Legacy support - redirect to new offer details
       openOfferDetails(dealId);
+    };
+    
+    // Toggle favorite status (placeholder for future implementation)
+    window.toggleFavorite = async function(dealId) {
+      try {
+        const button = event.currentTarget;
+        const svg = button.querySelector('svg');
+        const isFavorited = button.classList.contains('favorited');
+        
+        if (isFavorited) {
+          button.classList.remove('favorited');
+          svg.setAttribute('fill', 'none');
+          console.log('Removed from favorites:', dealId);
+        } else {
+          button.classList.add('favorited');
+          svg.setAttribute('fill', 'currentColor');
+          console.log('Added to favorites:', dealId);
+        }
+        
+        // TODO: API call to save favorite state
+        // await fetch(`${API_BASE}/api/v1/favorites/${dealId}`, { method: isFavorited ? 'DELETE' : 'POST' });
+      } catch (error) {
+        console.error('Error toggling favorite:', error);
+      }
     };
     
     // Open offer details modal
