@@ -95,6 +95,107 @@ async function updateOfferFeaturedStatus(req, res) {
   }
 }
 
+// ============================================
+// BOOKING MANAGEMENT
+// ============================================
+
+// List all bookings with filters
+async function listBookings(req, res) {
+  try {
+    const { 
+      status = 'all', 
+      search = '', 
+      startDate = '', 
+      endDate = '', 
+      page = 1, 
+      limit = 20 
+    } = req.query;
+    
+    const result = await adminService.listBookings({ 
+      status, 
+      search, 
+      startDate, 
+      endDate, 
+      page: parseInt(page), 
+      limit: parseInt(limit) 
+    });
+    
+    successResponse(res, 200, "Bookings retrieved successfully", result);
+  } catch (err) {
+    logError("❌ Admin bookings fetch error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to retrieve bookings");
+  }
+}
+
+// Get booking details
+async function getBookingDetails(req, res) {
+  try {
+    const { id } = req.params;
+    const booking = await adminService.getBookingDetails(id);
+    successResponse(res, 200, "Booking details retrieved successfully", booking);
+  } catch (err) {
+    logError("❌ Admin booking details error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to retrieve booking details");
+  }
+}
+
+// Update booking status
+async function updateBookingStatus(req, res) {
+  try {
+    const { id } = req.params;
+    const { status, reason } = req.body || {};
+    const actorRole = await getUserRoleById(req.userId);
+    
+    const booking = await adminService.updateBookingStatus(
+      id, 
+      status, 
+      reason, 
+      req.userId, 
+      actorRole
+    );
+    
+    successResponse(res, 200, "Booking status updated successfully", booking);
+  } catch (err) {
+    logError("❌ Booking status update error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to update booking status");
+  }
+}
+
+// Process refund
+async function processRefund(req, res) {
+  try {
+    const { id } = req.params;
+    const { amount, reason, refund_type } = req.body || {};
+    const actorRole = await getUserRoleById(req.userId);
+    
+    const refund = await adminService.processRefund(
+      id, 
+      amount, 
+      reason, 
+      refund_type, 
+      req.userId, 
+      actorRole
+    );
+    
+    successResponse(res, 200, "Refund processed successfully", refund);
+  } catch (err) {
+    logError("❌ Refund processing error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to process refund");
+  }
+}
+
+// Get booking statistics
+async function getBookingStats(req, res) {
+  try {
+    const { range = '30' } = req.query;
+    const stats = await adminService.getBookingStats(range);
+    successResponse(res, 200, "Booking statistics retrieved successfully", stats);
+  } catch (err) {
+    logError("❌ Booking stats error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to retrieve booking statistics");
+  }
+}
+
 // Get admin activity
 async function getActivity(req, res) {
   try {
@@ -285,6 +386,12 @@ module.exports = {
   getSessions,
   getArchives,
   reactivateArchive,
-  archiveExpired
+  archiveExpired,
+  // Booking management
+  listBookings,
+  getBookingDetails,
+  updateBookingStatus,
+  processRefund,
+  getBookingStats
 };
 

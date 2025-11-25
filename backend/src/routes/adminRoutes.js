@@ -135,5 +135,12 @@ router.post('/archives/:id/reactivate', adminController.reactivateArchive);
 router.post('/archive-expired', adminController.archiveExpired);
 router.post('/partners/bulk-approve', adminController.bulkApprovePartners);
 
+// Booking management
+router.get('/bookings', adminController.listBookings);
+router.get('/bookings/stats', adminController.getBookingStats);
+router.get('/bookings/:id', adminController.getBookingDetails);
+router.put('/bookings/:id/status', adminController.updateBookingStatus);
+router.post('/bookings/:id/refund', adminController.processRefund);
+
 module.exports = router;
 

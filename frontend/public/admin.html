@@ -19,6 +19,7 @@
         <button class="nav-item" data-target="usersSection">👥 Users</button>
         <button class="nav-item" data-target="partnersSection">🏢 Partners</button>
         <button class="nav-item" data-target="dealsSection">🎫 Deals</button>
+        <button class="nav-item" data-target="bookingsSection">📅 Bookings</button>
         <button class="nav-item" data-target="analyticsSection">📊 Analytics</button>
         <button class="nav-item" data-target="activitySection">🔔 Activity Log</button>
         <button class="nav-item" data-target="settingsSection">⚙️ Settings</button>
@@ -176,6 +177,78 @@
         </div>
       </section>
 
+      <section id="bookingsSection" class="section">
+        <div class="section-header">
+          <div>
+            <h2>Booking Management</h2>
+            <p class="muted">View, manage, and process bookings, cancellations & refunds.</p>
+          </div>
+          <div class="section-actions">
+            <input type="text" id="bookingSearch" class="input" placeholder="Search bookings…">
+            <select id="bookingStatusFilter" class="select">
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="no_show">No Show</option>
+            </select>
+            <input type="date" id="bookingStartDate" class="input" placeholder="Start date">
+            <input type="date" id="bookingEndDate" class="input" placeholder="End date">
+            <button id="exportBookings" class="btn btn-secondary">Export</button>
+            <button id="refreshBookings" class="btn btn-primary">🔄 Refresh</button>
+          </div>
+        </div>
+        
+        <div class="booking-stats-cards" id="bookingStatsCards">
+          <div class="stat-card">
+            <div class="stat-label">Total Bookings</div>
+            <div class="stat-value" id="totalBookings">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Confirmed</div>
+            <div class="stat-value" id="confirmedBookings">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Pending</div>
+            <div class="stat-value" id="pendingBookings">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Cancelled</div>
+            <div class="stat-value" id="cancelledBookings">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Revenue</div>
+            <div class="stat-value" id="totalBookingRevenue">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Avg Booking Value</div>
+            <div class="stat-value" id="avgBookingValue">—</div>
+          </div>
+        </div>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Reference</th>
+              <th>User</th>
+              <th>Partner</th>
+              <th>Deal</th>
+              <th>Date & Time</th>
+              <th>Tickets</th>
+              <th>Amount</th>
+              <th>EZT</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="bookingsTable">
+            <tr><td colspan="10" class="muted">Loading bookings…</td></tr>
+          </tbody>
+        </table>
+        <div class="pagination" id="bookingsPagination"></div>
+      </section>
+
       <section id="analyticsSection" class="section">
         <div class="section-header">
           <div>
@@ -272,6 +345,143 @@
     <div class="modal-content">
       <button class="modal-close" id="modalClose">×</button>
       <div id="modalBody">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Booking Details Modal -->
+  <div id="bookingModal" class="modal hidden">
+    <div class="modal-content modal-large">
+      <button class="modal-close" id="bookingModalClose">×</button>
+      <div id="bookingModalBody">
+        <div class="booking-details-header">
+          <h2>Booking Details</h2>
+          <span class="booking-ref" id="modalBookingRef">—</span>
+        </div>
+        
+        <div class="booking-details-grid">
+          <div class="booking-detail-section">
+            <h3>Customer Information</h3>
+            <div class="detail-row">
+              <span class="detail-label">Name:</span>
+              <span class="detail-value" id="modalUserName">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Email:</span>
+              <span class="detail-value" id="modalUserEmail">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Phone:</span>
+              <span class="detail-value" id="modalUserPhone">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Tier:</span>
+              <span class="detail-value" id="modalUserTier">—</span>
+            </div>
+          </div>
+
+          <div class="booking-detail-section">
+            <h3>Partner Information</h3>
+            <div class="detail-row">
+              <span class="detail-label">Business:</span>
+              <span class="detail-value" id="modalPartnerName">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Email:</span>
+              <span class="detail-value" id="modalPartnerEmail">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Phone:</span>
+              <span class="detail-value" id="modalPartnerPhone">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Address:</span>
+              <span class="detail-value" id="modalPartnerAddress">—</span>
+            </div>
+          </div>
+
+          <div class="booking-detail-section">
+            <h3>Booking Information</h3>
+            <div class="detail-row">
+              <span class="detail-label">Deal:</span>
+              <span class="detail-value" id="modalDealTitle">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Type:</span>
+              <span class="detail-value" id="modalBookingType">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Date:</span>
+              <span class="detail-value" id="modalBookingDate">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Time:</span>
+              <span class="detail-value" id="modalBookingTime">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Tickets:</span>
+              <span class="detail-value" id="modalNumTickets">—</span>
+            </div>
+          </div>
+
+          <div class="booking-detail-section">
+            <h3>Payment Information</h3>
+            <div class="detail-row">
+              <span class="detail-label">Total Price:</span>
+              <span class="detail-value" id="modalTotalPrice">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Fiat Amount:</span>
+              <span class="detail-value" id="modalFiatAmount">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">EZT Redeemed:</span>
+              <span class="detail-value" id="modalEztRedeemed">—</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Created:</span>
+              <span class="detail-value" id="modalCreatedAt">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="booking-actions">
+          <button id="modalConfirmBooking" class="btn btn-success">✓ Confirm</button>
+          <button id="modalCancelBooking" class="btn btn-danger">✗ Cancel</button>
+          <button id="modalCompleteBooking" class="btn btn-primary">✓ Mark Complete</button>
+          <button id="modalRefundBooking" class="btn btn-warning">💰 Process Refund</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Refund Modal -->
+  <div id="refundModal" class="modal hidden">
+    <div class="modal-content">
+      <button class="modal-close" id="refundModalClose">×</button>
+      <div id="refundModalBody">
+        <h2>Process Refund</h2>
+        <form id="refundForm">
+          <div class="form-group">
+            <label for="refundAmount">Refund Amount (₹)</label>
+            <input type="number" id="refundAmount" class="input" step="0.01" min="0" required>
+          </div>
+          <div class="form-group">
+            <label for="refundType">Refund Type</label>
+            <select id="refundType" class="select" required>
+              <option value="full">Full Refund</option>
+              <option value="partial">Partial Refund</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="refundReason">Reason</label>
+            <textarea id="refundReason" class="input" rows="3" required></textarea>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Process Refund</button>
+            <button type="button" id="cancelRefund" class="btn btn-secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 

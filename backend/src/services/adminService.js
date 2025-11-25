@@ -443,6 +443,397 @@ async function archiveExpiredItems() {
   return await adminRepository.archiveExpiredItems();
 }
 
+// ============================================
+// BOOKING MANAGEMENT SERVICES
+// ============================================
+
+// List all bookings with advanced filters
+async function listBookings({ status, search, startDate, endDate, page, limit }) {
+  try {
+    const offset = (page - 1) * limit;
+    
+    let query = `
+      SELECT 
+        b.id,
+        b.booking_reference,
+        b.booking_date,
+        b.booking_time,
+        b.num_tickets,
+        b.status,
+        b.total_price,
+        b.fiat_amount,
+        b.ezt_redeemed,
+        b.booking_type,
+        b.created_at,
+        u.full_name as user_name,
+        u.email as user_email,
+        u.phone as user_phone,
+        p.business_name as partner_name,
+        po.title as deal_title,
+        po.service_type as deal_type
+      FROM bookings b
+      LEFT JOIN users u ON b.user_id = u.id
+      LEFT JOIN partners p ON b.partner_id = p.id
+      LEFT JOIN partner_offers po ON b.deal_id = po.id
+      WHERE 1=1
+    `;
+    
+    const params = [];
+    let paramCounter = 1;
+    
+    // Filter by status
+    if (status && status !== 'all') {
+      query += ` AND b.status = $${paramCounter}`;
+      params.push(status);
+      paramCounter++;
+    }
+    
+    // Search by user name, email, partner name, or booking reference
+    if (search) {
+      query += ` AND (
+        u.full_name ILIKE $${paramCounter} OR
+        u.email ILIKE $${paramCounter} OR
+        p.business_name ILIKE $${paramCounter} OR
+        b.booking_reference ILIKE $${paramCounter} OR
+        po.title ILIKE $${paramCounter}
+      )`;
+      params.push(`%${search}%`);
+      paramCounter++;
+    }
+    
+    // Filter by date range
+    if (startDate) {
+      query += ` AND b.booking_date >= $${paramCounter}`;
+      params.push(startDate);
+      paramCounter++;
+    }
+    
+    if (endDate) {
+      query += ` AND b.booking_date <= $${paramCounter}`;
+      params.push(endDate);
+      paramCounter++;
+    }
+    
+    // Get total count
+    const countQuery = `SELECT COUNT(*) FROM (${query}) as filtered_bookings`;
+    const countResult = await pool.query(countQuery, params);
+    const total = parseInt(countResult.rows[0].count);
+    
+    // Add ordering and pagination
+    query += ` ORDER BY b.created_at DESC LIMIT $${paramCounter} OFFSET $${paramCounter + 1}`;
+    params.push(limit, offset);
+    
+    const result = await pool.query(query, params);
+    
+    return {
+      bookings: result.rows,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
+  } catch (err) {
+    logError('Error listing bookings:', err);
+    throw new AppError(500, 'Failed to retrieve bookings');
+  }
+}
+
+// Get detailed booking information
+async function getBookingDetails(bookingId) {
+  try {
+    const query = `
+      SELECT 
+        b.*,
+        u.full_name as user_name,
+        u.email as user_email,
+        u.phone as user_phone,
+        u.tier as user_tier,
+        p.business_name as partner_name,
+        p.email as partner_email,
+        p.phone as partner_phone,
+        p.address as partner_address,
+        po.title as deal_title,
+        po.description as deal_description,
+        po.service_type as deal_type,
+        po.price as deal_price,
+        po.discount_percentage as deal_discount,
+        tl.transaction_type as payment_method,
+        tl.amount as payment_amount,
+        tl.created_at as payment_date
+      FROM bookings b
+      LEFT JOIN users u ON b.user_id = u.id
+      LEFT JOIN partners p ON b.partner_id = p.id
+      LEFT JOIN partner_offers po ON b.deal_id = po.id
+      LEFT JOIN token_ledger tl ON b.id = tl.booking_id AND tl.transaction_type = 'redeemed'
+      WHERE b.id = $1
+    `;
+    
+    const result = await pool.query(query, [bookingId]);
+    
+    if (result.rows.length === 0) {
+      throw new AppError(404, 'Booking not found');
+    }
+    
+    const booking = result.rows[0];
+    
+    // Get tier information if it exists
+    if (booking.tier_achieved_at_booking) {
+      const tierQuery = `
+        SELECT * FROM tier_benefits 
+        WHERE tier = $1
+      `;
+      const tierResult = await pool.query(tierQuery, [booking.tier_achieved_at_booking]);
+      booking.tier_info = tierResult.rows[0] || null;
+    }
+    
+    // Get transaction history for this booking
+    const transactionQuery = `
+      SELECT * FROM transactions
+      WHERE booking_id = $1
+      ORDER BY created_at DESC
+    `;
+    const transactionResult = await pool.query(transactionQuery, [bookingId]);
+    booking.transactions = transactionResult.rows;
+    
+    return booking;
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    logError('Error getting booking details:', err);
+    throw new AppError(500, 'Failed to retrieve booking details');
+  }
+}
+
+// Update booking status
+async function updateBookingStatus(bookingId, status, reason, actorId, actorRole) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Get current booking
+    const bookingResult = await client.query(
+      'SELECT * FROM bookings WHERE id = $1 FOR UPDATE',
+      [bookingId]
+    );
+    
+    if (bookingResult.rows.length === 0) {
+      throw new AppError(404, 'Booking not found');
+    }
+    
+    const currentBooking = bookingResult.rows[0];
+    const previousStatus = currentBooking.status;
+    
+    // Validate status transition
+    const validStatuses = ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'];
+    if (!validStatuses.includes(status)) {
+      throw new AppError(400, `Invalid status: ${status}`);
+    }
+    
+    // Update booking status
+    const updateResult = await client.query(
+      `UPDATE bookings 
+       SET status = $1, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $2 
+       RETURNING *`,
+      [status, bookingId]
+    );
+    
+    // Log audit
+    await writeAudit(client, {
+      actor_user_id: actorId,
+      actor_role: actorRole,
+      action: 'booking_status_update',
+      entity_type: 'booking',
+      entity_id: bookingId,
+      meta: {
+        previous_status: previousStatus,
+        new_status: status,
+        reason: reason || null,
+        booking_reference: currentBooking.booking_reference
+      }
+    });
+    
+    // If status is cancelled, process refund logic here if needed
+    if (status === 'cancelled' && currentBooking.status !== 'cancelled') {
+      // TODO: Trigger refund process if applicable
+      log(`Booking ${bookingId} cancelled - refund process may be required`);
+    }
+    
+    await client.query('COMMIT');
+    
+    return updateResult.rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err instanceof AppError) throw err;
+    logError('Error updating booking status:', err);
+    throw new AppError(500, 'Failed to update booking status');
+  } finally {
+    client.release();
+  }
+}
+
+// Process refund for a booking
+async function processRefund(bookingId, amount, reason, refundType, actorId, actorRole) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Get booking details
+    const bookingResult = await client.query(
+      'SELECT * FROM bookings WHERE id = $1 FOR UPDATE',
+      [bookingId]
+    );
+    
+    if (bookingResult.rows.length === 0) {
+      throw new AppError(404, 'Booking not found');
+    }
+    
+    const booking = bookingResult.rows[0];
+    
+    // Validate refund amount
+    const refundAmount = parseFloat(amount);
+    if (isNaN(refundAmount) || refundAmount <= 0) {
+      throw new AppError(400, 'Invalid refund amount');
+    }
+    
+    if (refundAmount > parseFloat(booking.fiat_amount || booking.total_price)) {
+      throw new AppError(400, 'Refund amount exceeds booking amount');
+    }
+    
+    // Create refund record in transactions table
+    const transactionResult = await client.query(
+      `INSERT INTO transactions 
+       (user_id, booking_id, amount, transaction_type, description, created_at)
+       VALUES ($1, $2, $3, 'refund', $4, CURRENT_TIMESTAMP)
+       RETURNING *`,
+      [booking.user_id, bookingId, refundAmount, reason || 'Admin refund']
+    );
+    
+    // If EZT was redeemed, credit it back
+    if (booking.ezt_redeemed && parseFloat(booking.ezt_redeemed) > 0) {
+      await client.query(
+        `UPDATE users 
+         SET available_tokens = available_tokens + $1 
+         WHERE id = $2`,
+        [booking.ezt_redeemed, booking.user_id]
+      );
+      
+      // Log token credit
+      await client.query(
+        `INSERT INTO token_ledger 
+         (user_id, booking_id, amount, transaction_type, description, created_at)
+         VALUES ($1, $2, $3, 'refund_credit', $4, CURRENT_TIMESTAMP)`,
+        [booking.user_id, bookingId, booking.ezt_redeemed, 'EZT refund for cancelled booking']
+      );
+    }
+    
+    // Update booking status to cancelled
+    await client.query(
+      `UPDATE bookings 
+       SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $1`,
+      [bookingId]
+    );
+    
+    // Log audit
+    await writeAudit(client, {
+      actor_user_id: actorId,
+      actor_role: actorRole,
+      action: 'refund_processed',
+      entity_type: 'booking',
+      entity_id: bookingId,
+      meta: {
+        refund_amount: refundAmount,
+        refund_type: refundType || 'full',
+        reason: reason || null,
+        ezt_refunded: booking.ezt_redeemed || 0,
+        booking_reference: booking.booking_reference
+      }
+    });
+    
+    await client.query('COMMIT');
+    
+    return {
+      refund: transactionResult.rows[0],
+      booking: booking,
+      ezt_refunded: booking.ezt_redeemed || 0
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err instanceof AppError) throw err;
+    logError('Error processing refund:', err);
+    throw new AppError(500, 'Failed to process refund');
+  } finally {
+    client.release();
+  }
+}
+
+// Get booking statistics
+async function getBookingStats(range = '30') {
+  try {
+    const days = parseInt(range);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    const query = `
+      SELECT 
+        COUNT(*) as total_bookings,
+        COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed_bookings,
+        COUNT(*) FILTER (WHERE status = 'pending') as pending_bookings,
+        COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled_bookings,
+        COUNT(*) FILTER (WHERE status = 'completed') as completed_bookings,
+        COUNT(*) FILTER (WHERE status = 'no_show') as no_show_bookings,
+        COALESCE(SUM(total_price), 0) as total_revenue,
+        COALESCE(SUM(fiat_amount), 0) as total_fiat_revenue,
+        COALESCE(SUM(ezt_redeemed), 0) as total_ezt_redeemed,
+        COALESCE(AVG(total_price), 0) as avg_booking_value,
+        COUNT(*) FILTER (WHERE booking_date >= CURRENT_DATE) as upcoming_bookings,
+        COUNT(*) FILTER (WHERE booking_date < CURRENT_DATE AND status NOT IN ('completed', 'cancelled')) as overdue_bookings
+      FROM bookings
+      WHERE created_at >= $1
+    `;
+    
+    const result = await pool.query(query, [startDate]);
+    const stats = result.rows[0];
+    
+    // Get daily breakdown
+    const dailyQuery = `
+      SELECT 
+        DATE(created_at) as date,
+        COUNT(*) as count,
+        COALESCE(SUM(total_price), 0) as revenue
+      FROM bookings
+      WHERE created_at >= $1
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+    `;
+    
+    const dailyResult = await pool.query(dailyQuery, [startDate]);
+    stats.daily_breakdown = dailyResult.rows;
+    
+    // Get booking type breakdown
+    const typeQuery = `
+      SELECT 
+        booking_type,
+        COUNT(*) as count,
+        COALESCE(SUM(total_price), 0) as revenue
+      FROM bookings
+      WHERE created_at >= $1
+      GROUP BY booking_type
+      ORDER BY count DESC
+    `;
+    
+    const typeResult = await pool.query(typeQuery, [startDate]);
+    stats.type_breakdown = typeResult.rows;
+    
+    return stats;
+  } catch (err) {
+    logError('Error getting booking stats:', err);
+    throw new AppError(500, 'Failed to retrieve booking statistics');
+  }
+}
+
 module.exports = {
   getDashboard,
   listPartners,
@@ -465,7 +856,13 @@ module.exports = {
   getArchives,
   reactivateArchive,
   archiveExpiredItems,
-  validateStatusTransition
+  validateStatusTransition,
+  // Booking management
+  listBookings,
+  getBookingDetails,
+  updateBookingStatus,
+  processRefund,
+  getBookingStats
 };
 
 

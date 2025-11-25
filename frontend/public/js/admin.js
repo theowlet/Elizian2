@@ -6,6 +6,7 @@ const state = {
     'usersSection',
     'partnersSection',
     'dealsSection',
+    'bookingsSection',
     'analyticsSection',
     'activitySection',
     'settingsSection',
@@ -152,6 +153,10 @@ function switchSection(targetId) {
   if (targetId === 'usersSection') loadUsers();
   if (targetId === 'partnersSection') loadPartners();
   if (targetId === 'dealsSection') loadDeals();
+  if (targetId === 'bookingsSection') {
+    loadBookings();
+    loadBookingStats();
+  }
   if (targetId === 'analyticsSection') loadAdminAnalytics();
   if (targetId === 'activitySection') loadActivity();
   if (targetId === 'settingsSection') loadSettings();
@@ -983,8 +988,113 @@ function attachEventListeners() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       closeModal();
+      closeBookingModal();
+      closeRefundModal();
     }
   });
+  
+  // Booking Management Event Listeners
+  const bookingSearch = $('#bookingSearch');
+  if (bookingSearch) {
+    bookingSearch.addEventListener('input', applyBookingFilters);
+  }
+  
+  const bookingStatusFilter = $('#bookingStatusFilter');
+  if (bookingStatusFilter) {
+    bookingStatusFilter.addEventListener('change', applyBookingFilters);
+  }
+  
+  const bookingStartDate = $('#bookingStartDate');
+  if (bookingStartDate) {
+    bookingStartDate.addEventListener('change', applyBookingFilters);
+  }
+  
+  const bookingEndDate = $('#bookingEndDate');
+  if (bookingEndDate) {
+    bookingEndDate.addEventListener('change', applyBookingFilters);
+  }
+  
+  const refreshBookings = $('#refreshBookings');
+  if (refreshBookings) {
+    refreshBookings.addEventListener('click', () => {
+      loadBookings();
+      loadBookingStats();
+    });
+  }
+  
+  const exportBookingsBtn = $('#exportBookings');
+  if (exportBookingsBtn) {
+    exportBookingsBtn.addEventListener('click', exportBookings);
+  }
+  
+  // Booking Modal Event Listeners
+  const bookingModalClose = $('#bookingModalClose');
+  if (bookingModalClose) {
+    bookingModalClose.addEventListener('click', closeBookingModal);
+  }
+  
+  const bookingModal = $('#bookingModal');
+  if (bookingModal) {
+    bookingModal.addEventListener('click', (event) => {
+      if (event.target === bookingModal) {
+        closeBookingModal();
+      }
+    });
+  }
+  
+  const modalConfirmBooking = $('#modalConfirmBooking');
+  if (modalConfirmBooking) {
+    modalConfirmBooking.addEventListener('click', () => {
+      updateBookingStatus('confirmed');
+    });
+  }
+  
+  const modalCancelBooking = $('#modalCancelBooking');
+  if (modalCancelBooking) {
+    modalCancelBooking.addEventListener('click', () => {
+      const reason = prompt('Reason for cancellation:');
+      if (reason !== null) {
+        updateBookingStatus('cancelled', reason);
+      }
+    });
+  }
+  
+  const modalCompleteBooking = $('#modalCompleteBooking');
+  if (modalCompleteBooking) {
+    modalCompleteBooking.addEventListener('click', () => {
+      updateBookingStatus('completed');
+    });
+  }
+  
+  const modalRefundBooking = $('#modalRefundBooking');
+  if (modalRefundBooking) {
+    modalRefundBooking.addEventListener('click', showRefundModal);
+  }
+  
+  // Refund Modal Event Listeners
+  const refundModalClose = $('#refundModalClose');
+  if (refundModalClose) {
+    refundModalClose.addEventListener('click', closeRefundModal);
+  }
+  
+  const refundModal = $('#refundModal');
+  if (refundModal) {
+    refundModal.addEventListener('click', (event) => {
+      if (event.target === refundModal) {
+        closeRefundModal();
+      }
+    });
+  }
+  
+  const refundForm = $('#refundForm');
+  if (refundForm) {
+    refundForm.addEventListener('submit', processRefund);
+  }
+  
+  const cancelRefund = $('#cancelRefund');
+  if (cancelRefund) {
+    cancelRefund.addEventListener('click', closeRefundModal);
+  }
   
   // Logout button
   const logoutBtn = $('#adminLogout');
@@ -1444,6 +1554,316 @@ function handleLogout() {
     window.location.reload();
   }, 500);
 }
+
+// ============================================
+// BOOKING MANAGEMENT
+// ============================================
+
+let currentBookingId = null;
+const bookingState = {
+  page: 1,
+  limit: 20,
+  status: 'all',
+  search: '',
+  startDate: '',
+  endDate: ''
+};
+
+async function loadBookings() {
+  const table = $('#bookingsTable');
+  if (!table) return;
+  
+  table.innerHTML = '<tr><td colspan="10" class="muted">Loading bookings…</td></tr>';
+  
+  try {
+    const params = new URLSearchParams({
+      status: bookingState.status,
+      search: bookingState.search,
+      page: bookingState.page,
+      limit: bookingState.limit
+    });
+    
+    if (bookingState.startDate) params.append('startDate', bookingState.startDate);
+    if (bookingState.endDate) params.append('endDate', bookingState.endDate);
+    
+    const { data } = await fetchJSON(`${API_BASE}/api/v1/admin/bookings?${params}`);
+    
+    if (!data || !data.bookings || data.bookings.length === 0) {
+      table.innerHTML = '<tr><td colspan="10" class="muted">No bookings found.</td></tr>';
+      return;
+    }
+    
+    table.innerHTML = data.bookings.map(booking => `
+      <tr>
+        <td><code>${escapeHtml(booking.booking_reference || '—')}</code></td>
+        <td>
+          <div>${escapeHtml(booking.user_name || '—')}</div>
+          <small class="muted">${escapeHtml(booking.user_email || '—')}</small>
+        </td>
+        <td>${escapeHtml(booking.partner_name || '—')}</td>
+        <td>${escapeHtml(booking.deal_title || '—')}</td>
+        <td>
+          <div>${formatDate(booking.booking_date)}</div>
+          <small class="muted">${escapeHtml(booking.booking_time || '—')}</small>
+        </td>
+        <td>${booking.num_tickets || 0}</td>
+        <td>₹${parseFloat(booking.total_price || 0).toFixed(2)}</td>
+        <td>
+          ${booking.ezt_redeemed && parseFloat(booking.ezt_redeemed) > 0 
+            ? `<span class="badge bg-primary">${parseFloat(booking.ezt_redeemed).toFixed(2)} EZT</span>` 
+            : '—'}
+        </td>
+        <td>${renderBookingStatusBadge(booking.status)}</td>
+        <td>
+          <button class="btn btn-sm btn-primary" onclick="showBookingDetails('${booking.id}')">
+            View
+          </button>
+        </td>
+      </tr>
+    `).join('');
+    
+    // Update pagination
+    updateBookingPagination(data.pagination);
+    
+  } catch (error) {
+    console.error('Error loading bookings:', error);
+    table.innerHTML = '<tr><td colspan="10" class="error">Failed to load bookings.</td></tr>';
+    showNotification(`Failed to load bookings: ${error.message}`, 'error');
+  }
+}
+
+async function loadBookingStats() {
+  try {
+    const { data } = await fetchJSON(`${API_BASE}/api/v1/admin/bookings/stats?range=30`);
+    
+    if (!data) return;
+    
+    // Update stat cards
+    $('#totalBookings').textContent = data.total_bookings || 0;
+    $('#confirmedBookings').textContent = data.confirmed_bookings || 0;
+    $('#pendingBookings').textContent = data.pending_bookings || 0;
+    $('#cancelledBookings').textContent = data.cancelled_bookings || 0;
+    $('#totalBookingRevenue').textContent = `₹${parseFloat(data.total_revenue || 0).toFixed(2)}`;
+    $('#avgBookingValue').textContent = `₹${parseFloat(data.avg_booking_value || 0).toFixed(2)}`;
+    
+  } catch (error) {
+    console.error('Error loading booking stats:', error);
+  }
+}
+
+async function showBookingDetails(bookingId) {
+  try {
+    const { data } = await fetchJSON(`${API_BASE}/api/v1/admin/bookings/${bookingId}`);
+    
+    if (!data) {
+      showNotification('Booking not found.', 'error');
+      return;
+    }
+    
+    currentBookingId = bookingId;
+    
+    // Populate modal fields
+    $('#modalBookingRef').textContent = data.booking_reference || '—';
+    $('#modalUserName').textContent = data.user_name || '—';
+    $('#modalUserEmail').textContent = data.user_email || '—';
+    $('#modalUserPhone').textContent = data.user_phone || '—';
+    $('#modalUserTier').textContent = data.user_tier || 'Aether';
+    $('#modalPartnerName').textContent = data.partner_name || '—';
+    $('#modalPartnerEmail').textContent = data.partner_email || '—';
+    $('#modalPartnerPhone').textContent = data.partner_phone || '—';
+    $('#modalPartnerAddress').textContent = data.partner_address || '—';
+    $('#modalDealTitle').textContent = data.deal_title || '—';
+    $('#modalBookingType').textContent = data.booking_type || '—';
+    $('#modalBookingDate').textContent = formatDate(data.booking_date);
+    $('#modalBookingTime').textContent = data.booking_time || '—';
+    $('#modalNumTickets').textContent = data.num_tickets || 0;
+    $('#modalTotalPrice').textContent = `₹${parseFloat(data.total_price || 0).toFixed(2)}`;
+    $('#modalFiatAmount').textContent = `₹${parseFloat(data.fiat_amount || 0).toFixed(2)}`;
+    $('#modalEztRedeemed').textContent = data.ezt_redeemed ? `${parseFloat(data.ezt_redeemed).toFixed(2)} EZT` : '0 EZT';
+    $('#modalCreatedAt').textContent = formatDate(data.created_at);
+    
+    // Show/hide action buttons based on status
+    const confirmBtn = $('#modalConfirmBooking');
+    const cancelBtn = $('#modalCancelBooking');
+    const completeBtn = $('#modalCompleteBooking');
+    const refundBtn = $('#modalRefundBooking');
+    
+    confirmBtn.style.display = data.status === 'pending' ? 'inline-block' : 'none';
+    cancelBtn.style.display = ['pending', 'confirmed'].includes(data.status) ? 'inline-block' : 'none';
+    completeBtn.style.display = data.status === 'confirmed' ? 'inline-block' : 'none';
+    refundBtn.style.display = ['confirmed', 'completed'].includes(data.status) ? 'inline-block' : 'none';
+    
+    // Show modal
+    $('#bookingModal').classList.remove('hidden');
+    
+  } catch (error) {
+    console.error('Error loading booking details:', error);
+    showNotification(`Failed to load booking details: ${error.message}`, 'error');
+  }
+}
+
+async function updateBookingStatus(status, reason = null) {
+  if (!currentBookingId) return;
+  
+  try {
+    await fetchJSON(`${API_BASE}/api/v1/admin/bookings/${currentBookingId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status, reason })
+    });
+    
+    showNotification(`Booking ${status} successfully.`, 'success');
+    closeBookingModal();
+    loadBookings();
+    loadBookingStats();
+    
+  } catch (error) {
+    console.error('Error updating booking status:', error);
+    showNotification(`Failed to update booking: ${error.message}`, 'error');
+  }
+}
+
+function showRefundModal() {
+  closeBookingModal();
+  $('#refundModal').classList.remove('hidden');
+  
+  // Pre-fill the refund amount with the booking's fiat amount
+  const fiatAmount = $('#modalFiatAmount').textContent.replace('₹', '').trim();
+  $('#refundAmount').value = parseFloat(fiatAmount || 0);
+}
+
+async function processRefund(event) {
+  event.preventDefault();
+  
+  if (!currentBookingId) return;
+  
+  const amount = parseFloat($('#refundAmount').value);
+  const type = $('#refundType').value;
+  const reason = $('#refundReason').value;
+  
+  if (!amount || amount <= 0) {
+    showNotification('Please enter a valid refund amount.', 'error');
+    return;
+  }
+  
+  if (!reason) {
+    showNotification('Please provide a reason for the refund.', 'error');
+    return;
+  }
+  
+  try {
+    await fetchJSON(`${API_BASE}/api/v1/admin/bookings/${currentBookingId}/refund`, {
+      method: 'POST',
+      body: JSON.stringify({ amount, refund_type: type, reason })
+    });
+    
+    showNotification('Refund processed successfully.', 'success');
+    closeRefundModal();
+    loadBookings();
+    loadBookingStats();
+    
+  } catch (error) {
+    console.error('Error processing refund:', error);
+    showNotification(`Failed to process refund: ${error.message}`, 'error');
+  }
+}
+
+function closeBookingModal() {
+  $('#bookingModal').classList.add('hidden');
+  currentBookingId = null;
+}
+
+function closeRefundModal() {
+  $('#refundModal').classList.add('hidden');
+  $('#refundForm').reset();
+}
+
+function renderBookingStatusBadge(status) {
+  const badges = {
+    pending: 'badge bg-warning text-dark',
+    confirmed: 'badge bg-success',
+    cancelled: 'badge bg-danger',
+    completed: 'badge bg-primary',
+    no_show: 'badge bg-secondary'
+  };
+  
+  const labels = {
+    pending: 'Pending',
+    confirmed: 'Confirmed',
+    cancelled: 'Cancelled',
+    completed: 'Completed',
+    no_show: 'No Show'
+  };
+  
+  return `<span class="${badges[status] || 'badge bg-secondary'}">${labels[status] || status}</span>`;
+}
+
+function updateBookingPagination(pagination) {
+  const container = $('#bookingsPagination');
+  if (!container || !pagination) return;
+  
+  const { page, totalPages } = pagination;
+  
+  if (totalPages <= 1) {
+    container.innerHTML = '';
+    return;
+  }
+  
+  let html = '<div class="pagination-controls">';
+  
+  // Previous button
+  if (page > 1) {
+    html += `<button class="btn btn-sm btn-secondary" onclick="changeBookingPage(${page - 1})">Previous</button>`;
+  }
+  
+  // Page info
+  html += `<span class="pagination-info">Page ${page} of ${totalPages}</span>`;
+  
+  // Next button
+  if (page < totalPages) {
+    html += `<button class="btn btn-sm btn-secondary" onclick="changeBookingPage(${page + 1})">Next</button>`;
+  }
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function changeBookingPage(page) {
+  bookingState.page = page;
+  loadBookings();
+}
+
+function applyBookingFilters() {
+  bookingState.page = 1; // Reset to first page
+  bookingState.status = $('#bookingStatusFilter').value || 'all';
+  bookingState.search = $('#bookingSearch').value || '';
+  bookingState.startDate = $('#bookingStartDate').value || '';
+  bookingState.endDate = $('#bookingEndDate').value || '';
+  loadBookings();
+}
+
+function exportBookings() {
+  showNotification('Booking export feature coming soon.', 'info');
+}
+
+function formatDate(dateString) {
+  if (!dateString) return '—';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  } catch (e) {
+    return dateString;
+  }
+}
+
+// Make functions globally accessible
+window.showBookingDetails = showBookingDetails;
+window.changeBookingPage = changeBookingPage;
+window.applyBookingFilters = applyBookingFilters;
+window.exportBookings = exportBookings;
 
 function init() {
   attachEventListeners();
