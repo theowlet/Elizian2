@@ -399,7 +399,15 @@
             <section id="promotionsContainer" class="promo-section">
               <div class="section-header">
                 <h2 class="section-heading">🔥 Trending Now</h2>
-                <span class="section-subtitle">Popular this week</span>
+                <div class="flex items-center gap-2">
+                  <button id="nearMeFilterBtn" class="category-pill" onclick="toggleNearMeFilter()" style="border: 2px solid var(--brand-primary); color: var(--brand-primary);">
+                    📍 Near Me
+                  </button>
+                  <button id="sortByDistanceBtn" class="category-pill" onclick="toggleSortByDistance()" style="display: none;">
+                    ↕️ Sort by Distance
+                  </button>
+                  <span class="section-subtitle">Popular this week</span>
+                </div>
               </div>
               <div id="trendingCarousel" class="trending-carousel">
                 <!-- Will be populated by JS or show empty state -->
@@ -1769,6 +1777,17 @@
         const formattedPercent = percent > 0 ? (percent % 1 === 0 ? percent.toFixed(0) : percent.toFixed(2)) : null;
         const formattedAmount = amount > 0 ? (amount % 1 === 0 ? amount.toFixed(0) : amount.toFixed(2)) : null;
         
+        // Calculate distance if location service available and deal has coordinates
+        let distanceHTML = '';
+        if (window.locationService && deal.latitude && deal.longitude) {
+          const distance = window.locationService.getDistanceToPartner(deal.latitude, deal.longitude);
+          if (distance) {
+            distanceHTML = `<span class="meta-item" style="color: var(--text-secondary); font-size: 13px;">
+              📍 ${distance.formatted} away
+            </span>`;
+          }
+        }
+        
         return `
           <div class="card-enhanced trending-card" onclick="openOfferDetails('${deal.id}')">
             <div class="card-image-container">
@@ -1795,6 +1814,7 @@
                 ` : ''}
                 <span class="text-secondary text-sm">${deal.partner_name}</span>
               </div>
+              ${distanceHTML ? `<div class="mb-4">${distanceHTML}</div>` : ''}
               ${hasDiscount ? `
                 <div class="price-row">
                   <div class="price-group">
@@ -1887,6 +1907,109 @@
         const walk = (x - startX) * 2;
         container.scrollLeft = scrollLeft - walk;
       });
+    }
+    
+    // Location-based filtering state
+    let isNearMeFilterActive = false;
+    let isSortByDistanceActive = false;
+    const NEAR_ME_RADIUS_KM = 10;
+    
+    // Toggle "Near Me" filter
+    window.toggleNearMeFilter = function() {
+      isNearMeFilterActive = !isNearMeFilterActive;
+      const btn = document.getElementById('nearMeFilterBtn');
+      
+      if (isNearMeFilterActive) {
+        btn.classList.add('active');
+        btn.style.background = 'var(--brand-primary)';
+        btn.style.color = 'white';
+        console.log(`📍 Near Me filter activated (${NEAR_ME_RADIUS_KM}km radius)`);
+      } else {
+        btn.classList.remove('active');
+        btn.style.background = '';
+        btn.style.color = 'var(--brand-primary)';
+        console.log('📍 Near Me filter deactivated');
+      }
+      
+      // Re-render with filter
+      applyLocationFilters();
+    };
+    
+    // Toggle sort by distance
+    window.toggleSortByDistance = function() {
+      isSortByDistanceActive = !isSortByDistanceActive;
+      const btn = document.getElementById('sortByDistanceBtn');
+      
+      if (isSortByDistanceActive) {
+        btn.classList.add('active');
+        btn.style.background = 'var(--brand-primary)';
+        btn.style.color = 'white';
+        console.log('↕️ Sort by distance activated');
+      } else {
+        btn.classList.remove('active');
+        btn.style.background = '';
+        btn.style.color = 'var(--brand-primary)';
+        console.log('↕️ Sort by distance deactivated');
+      }
+      
+      // Re-render with sort
+      applyLocationFilters();
+    };
+    
+    // Apply location-based filters to trending deals
+    function applyLocationFilters() {
+      if (!window.locationService || !trendingDealsData || trendingDealsData.length === 0) {
+        return;
+      }
+      
+      let filteredDeals = [...trendingDealsData];
+      
+      // Apply "Near Me" filter
+      if (isNearMeFilterActive) {
+        filteredDeals = filteredDeals.filter(deal => {
+          if (!deal.latitude || !deal.longitude) return false;
+          return window.locationService.isWithinRange(
+            deal.latitude,
+            deal.longitude,
+            NEAR_ME_RADIUS_KM
+          );
+        });
+        console.log(`📍 Filtered to ${filteredDeals.length} deals within ${NEAR_ME_RADIUS_KM}km`);
+      }
+      
+      // Apply sort by distance
+      if (isSortByDistanceActive) {
+        filteredDeals = window.locationService.sortByDistance(filteredDeals);
+        console.log('↕️ Sorted deals by distance');
+      }
+      
+      // Re-render
+      if (filteredDeals.length > 0) {
+        renderTrendingCarousel(filteredDeals);
+      } else {
+        const container = document.getElementById('trendingCarousel');
+        if (container) {
+          container.innerHTML = `
+            <div class="deals-placeholder-message" style="
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              padding: 60px 24px;
+              text-align: center;
+              color: var(--text-muted);
+            ">
+              <div style="font-size: 48px; margin-bottom: 16px;">📍</div>
+              <div style="font-size: 18px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">
+                No deals nearby
+              </div>
+              <div style="font-size: 14px; color: var(--text-secondary);">
+                Try turning off the "Near Me" filter to see more deals
+              </div>
+            </div>
+          `;
+        }
+      }
     }
     
     // Load all partner deals (includes both promoted and non-promoted)
@@ -3748,12 +3871,25 @@
         const result = await response.json();
         
         if (result.success && result.data && result.data.length > 0) {
-          const restaurants = result.data.slice(0, 5);
+          // Sort restaurants by distance if location service available
+          let sortedRestaurants = result.data;
+          if (window.locationService) {
+            sortedRestaurants = window.locationService.sortByDistance(result.data);
+          }
+          const restaurants = sortedRestaurants.slice(0, 5);
+          
           container.innerHTML = restaurants.map(deal => {
             const imageUrl = deal.image_url ? 
               (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
               '/assets/default-offer.jpg';
             const summary = computeDiscountSummary(deal);
+            
+            // Calculate real distance
+            let distanceText = '';
+            if (window.locationService && deal.latitude && deal.longitude) {
+              const distance = window.locationService.getDistanceToPartner(deal.latitude, deal.longitude);
+              distanceText = distance ? distance.formatted : '';
+            }
             
             return `
               <div class="restaurant-card" onclick="openOfferDetails('${deal.id}')">
@@ -3762,8 +3898,8 @@
                   <h4>${deal.partner_name}</h4>
                   <p class="restaurant-cuisine">${deal.category_name || 'Restaurant'}</p>
                   <div class="restaurant-meta">
-                    <span>⭐ 4.5</span>
-                    <span>📍 2.3 km</span>
+                    <span>⭐ ${deal.rating ? deal.rating.toFixed(1) : '4.5'}</span>
+                    ${distanceText ? `<span>📍 ${distanceText}</span>` : ''}
                   </div>
                   ${summary.hasDiscount ? `
                     <div class="restaurant-discount">${summary.percent > 0 ? `${summary.percent.toFixed(0)}% OFF` : ''}</div>
