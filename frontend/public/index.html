@@ -2505,6 +2505,16 @@
             
             ${offer.description ? `<p class="offer-description">${offer.description}</p>` : ''}
             
+            ${(offer.service_type === 'dining' || offer.service_type === 'restaurant' || offer.category_name?.toLowerCase().includes('dining') || offer.category_name?.toLowerCase().includes('restaurant')) ? 
+              `<div id="menuImagesSection-${offer.id}" class="menu-images-section" style="margin: 20px 0;">
+                <h3 style="margin-bottom: 12px; color: #374151; font-size: 16px; font-weight: 600;">
+                  📖 Restaurant Menu
+                </h3>
+                <div class="menu-images-loading" style="text-align: center; padding: 20px; color: #9CA3AF;">
+                  Loading menu...
+                </div>
+              </div>` : ''}
+            
             <div class="offer-details">
               ${(() => {
                 const summary = computeDiscountSummary(offer);
@@ -2580,6 +2590,12 @@
       modal.innerHTML = modalContent;
       modal.style.display = 'flex';
       
+      // Load menu images for dining/restaurant offers
+      if (offer.service_type === 'dining' || offer.service_type === 'restaurant' || 
+          offer.category_name?.toLowerCase().includes('dining') || offer.category_name?.toLowerCase().includes('restaurant')) {
+        loadMenuImages(offer.partner_id, offer.id);
+      }
+      
       // Use event delegation for Book Now button to avoid timing issues
       const bookNowBtn = modal.querySelector('.book-now-btn');
       if (bookNowBtn) {
@@ -2594,6 +2610,326 @@
         });
       }
     };
+    
+    // Load and display menu images for dining/restaurant partners
+    async function loadMenuImages(partnerId, offerId) {
+      const API_BASE = window.API_BASE || 
+                       (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
+                       'http://localhost:5001';
+      
+      const menuSection = document.getElementById(`menuImagesSection-${offerId}`);
+      if (!menuSection) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/partners/${partnerId}`);
+        if (!response.ok) throw new Error('Failed to fetch partner data');
+        
+        const result = await response.json();
+        const partner = result.data || result;
+        
+        const menuImages = partner.menu_images || [];
+        
+        if (menuImages.length === 0) {
+          menuSection.innerHTML = `
+            <h3 style="margin-bottom: 12px; color: #374151; font-size: 16px; font-weight: 600;">
+              📖 Restaurant Menu
+            </h3>
+            <p style="text-align: center; padding: 20px; color: #9CA3AF; font-size: 14px;">
+              Menu not available yet
+            </p>
+          `;
+          return;
+        }
+        
+        // Create scrollable menu viewer (like District.in)
+        menuSection.innerHTML = `
+          <h3 style="margin-bottom: 12px; color: #374151; font-size: 16px; font-weight: 600;">
+            📖 Restaurant Menu
+          </h3>
+          <div class="menu-scrollable-container" style="
+            position: relative;
+            overflow-x: auto;
+            overflow-y: hidden;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: #5E17EB #E5E7EB;
+            padding-bottom: 8px;
+          ">
+            <div class="menu-images-wrapper" style="
+              display: inline-flex;
+              gap: 12px;
+            ">
+              ${menuImages.map((img, index) => {
+                const imgUrl = img.startsWith('http') ? img : `${API_BASE}${img}`;
+                return `
+                  <div class="menu-image-item" style="
+                    flex: 0 0 auto;
+                    width: 280px;
+                    height: 400px;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    cursor: pointer;
+                    transition: transform 0.2s;
+                  " 
+                  onclick="openMenuImageViewer(${JSON.stringify(menuImages).replace(/"/g, '&quot;')}, ${index})"
+                  onmouseover="this.style.transform='scale(1.03)'"
+                  onmouseout="this.style.transform='scale(1)'">
+                    <img src="${imgUrl}" 
+                         alt="Menu page ${index + 1}" 
+                         style="width: 100%; height: 100%; object-fit: cover;"
+                         onerror="this.src='/assets/default-menu.jpg'; this.onerror=null;">
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+          <p style="margin-top: 8px; font-size: 12px; color: #6B7280; text-align: center;">
+            Scroll to view all pages • Click to enlarge
+          </p>
+        `;
+        
+        // Custom scrollbar styling
+        const style = document.createElement('style');
+        style.textContent = `
+          .menu-scrollable-container::-webkit-scrollbar {
+            height: 8px;
+          }
+          .menu-scrollable-container::-webkit-scrollbar-track {
+            background: #E5E7EB;
+            border-radius: 4px;
+          }
+          .menu-scrollable-container::-webkit-scrollbar-thumb {
+            background: #5E17EB;
+            border-radius: 4px;
+          }
+          .menu-scrollable-container::-webkit-scrollbar-thumb:hover {
+            background: #4C0FC9;
+          }
+        `;
+        if (!document.getElementById('menu-scrollbar-style')) {
+          style.id = 'menu-scrollbar-style';
+          document.head.appendChild(style);
+        }
+        
+      } catch (error) {
+        console.error('Error loading menu images:', error);
+        menuSection.innerHTML = `
+          <h3 style="margin-bottom: 12px; color: #374151; font-size: 16px; font-weight: 600;">
+            📖 Restaurant Menu
+          </h3>
+          <p style="text-align: center; padding: 20px; color: #EF4444; font-size: 14px;">
+            Unable to load menu. Please try again later.
+          </p>
+        `;
+      }
+    }
+    
+    // Full-screen menu image viewer
+    window.openMenuImageViewer = function(images, startIndex = 0) {
+      const API_BASE = window.API_BASE || 
+                       (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
+                       'http://localhost:5001';
+      
+      let currentIndex = startIndex;
+      
+      const viewerHTML = `
+        <div id="menuImageViewer" style="
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.95);
+          z-index: 10000;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        ">
+          <div style="
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 12px;
+            z-index: 10001;
+          ">
+            <button onclick="downloadMenuImage()" style="
+              background: rgba(255,255,255,0.9);
+              border: none;
+              padding: 12px 20px;
+              border-radius: 8px;
+              cursor: pointer;
+              font-size: 14px;
+              font-weight: 600;
+              color: #374151;
+            ">
+              📥 Download
+            </button>
+            <button onclick="closeMenuImageViewer()" style="
+              background: rgba(255,255,255,0.9);
+              border: none;
+              width: 44px;
+              height: 44px;
+              border-radius: 8px;
+              cursor: pointer;
+              font-size: 24px;
+              color: #374151;
+            ">
+              ×
+            </button>
+          </div>
+          
+          <div style="
+            position: relative;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          ">
+            ${images.length > 1 ? `
+              <button onclick="prevMenuImage()" style="
+                position: absolute;
+                left: -60px;
+                background: rgba(255,255,255,0.9);
+                border: none;
+                width: 48px;
+                height: 48px;
+                border-radius: 50%;
+                cursor: pointer;
+                font-size: 24px;
+                color: #374151;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              ">
+                ‹
+              </button>
+            ` : ''}
+            
+            <img id="menuViewerImage" src="${images[currentIndex].startsWith('http') ? images[currentIndex] : API_BASE + images[currentIndex]}" 
+                 style="
+                   max-width: 100%;
+                   max-height: 90vh;
+                   border-radius: 8px;
+                   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+                 "
+                 alt="Menu page">
+            
+            ${images.length > 1 ? `
+              <button onclick="nextMenuImage()" style="
+                position: absolute;
+                right: -60px;
+                background: rgba(255,255,255,0.9);
+                border: none;
+                width: 48px;
+                height: 48px;
+                border-radius: 50%;
+                cursor: pointer;
+                font-size: 24px;
+                color: #374151;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+              ">
+                ›
+              </button>
+            ` : ''}
+          </div>
+          
+          ${images.length > 1 ? `
+            <div style="
+              position: absolute;
+              bottom: 30px;
+              background: rgba(255,255,255,0.9);
+              padding: 8px 16px;
+              border-radius: 20px;
+              font-size: 14px;
+              font-weight: 600;
+              color: #374151;
+            ">
+              <span id="menuPageIndicator">${currentIndex + 1}</span> / ${images.length}
+            </div>
+          ` : ''}
+        </div>
+      `;
+      
+      document.body.insertAdjacentHTML('beforeend', viewerHTML);
+      
+      // Store images and current index globally for navigation
+      window.menuViewerImages = images;
+      window.menuViewerCurrentIndex = currentIndex;
+      
+      // Keyboard navigation
+      document.addEventListener('keydown', handleMenuViewerKeyboard);
+    };
+    
+    window.closeMenuImageViewer = function() {
+      const viewer = document.getElementById('menuImageViewer');
+      if (viewer) {
+        viewer.remove();
+      }
+      document.removeEventListener('keydown', handleMenuViewerKeyboard);
+    };
+    
+    window.prevMenuImage = function() {
+      if (window.menuViewerCurrentIndex > 0) {
+        window.menuViewerCurrentIndex--;
+        updateMenuViewerImage();
+      }
+    };
+    
+    window.nextMenuImage = function() {
+      if (window.menuViewerCurrentIndex < window.menuViewerImages.length - 1) {
+        window.menuViewerCurrentIndex++;
+        updateMenuViewerImage();
+      }
+    };
+    
+    window.downloadMenuImage = function() {
+      const API_BASE = window.API_BASE || 
+                       (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
+                       'http://localhost:5001';
+      
+      const currentImg = window.menuViewerImages[window.menuViewerCurrentIndex];
+      const imgUrl = currentImg.startsWith('http') ? currentImg : API_BASE + currentImg;
+      
+      // Create temporary link and trigger download
+      const a = document.createElement('a');
+      a.href = imgUrl;
+      a.download = `menu-page-${window.menuViewerCurrentIndex + 1}.jpg`;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    };
+    
+    function updateMenuViewerImage() {
+      const API_BASE = window.API_BASE || 
+                       (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
+                       'http://localhost:5001';
+      
+      const img = document.getElementById('menuViewerImage');
+      const indicator = document.getElementById('menuPageIndicator');
+      
+      if (img) {
+        const currentImg = window.menuViewerImages[window.menuViewerCurrentIndex];
+        img.src = currentImg.startsWith('http') ? currentImg : API_BASE + currentImg;
+      }
+      
+      if (indicator) {
+        indicator.textContent = window.menuViewerCurrentIndex + 1;
+      }
+    }
+    
+    function handleMenuViewerKeyboard(e) {
+      if (e.key === 'Escape') {
+        closeMenuImageViewer();
+      } else if (e.key === 'ArrowLeft') {
+        prevMenuImage();
+      } else if (e.key === 'ArrowRight') {
+        nextMenuImage();
+      }
+    }
     
     function createOfferModal() {
       const modal = document.createElement('div');
