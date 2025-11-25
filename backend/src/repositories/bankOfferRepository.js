@@ -8,15 +8,23 @@ async function getAllActiveBankOffers() {
   try {
     const result = await pool.query(
       `SELECT 
-         bo.*,
+         b.id,
+         b.bank_name,
+         b.bank_code,
+         b.logo_url,
+         b.priority,
+         b.is_active,
          json_agg(
            json_build_object(
              'id', bor.id,
-             'offer_type', bor.offer_type,
-             'offer_value', bor.offer_value,
+             'rule_name', bor.rule_name,
+             'discount_type', bor.discount_type,
+             'discount_value', bor.discount_value,
              'max_discount', bor.max_discount,
-             'min_order_amount', bor.min_order_amount,
+             'min_transaction_amount', bor.min_transaction_amount,
              'description', bor.description,
+             'display_text', bor.display_text,
+             'terms_conditions', bor.terms_conditions,
              'valid_from', bor.valid_from,
              'valid_until', bor.valid_until
            )
@@ -24,11 +32,11 @@ async function getAllActiveBankOffers() {
            AND (bor.valid_from IS NULL OR bor.valid_from <= CURRENT_TIMESTAMP)
            AND (bor.valid_until IS NULL OR bor.valid_until >= CURRENT_TIMESTAMP)
          ) as offers
-       FROM bank_offers bo
-       LEFT JOIN bank_offer_rules bor ON bo.id = bor.bank_offer_id
-       WHERE bo.is_active = true
-       GROUP BY bo.id
-       ORDER BY bo.priority DESC, bo.bank_name ASC`
+       FROM banks b
+       LEFT JOIN bank_offer_rules bor ON b.id = bor.bank_id
+       WHERE b.is_active = true
+       GROUP BY b.id
+       ORDER BY b.priority DESC, b.bank_name ASC`
     );
     return result.rows;
   } catch (error) {
@@ -52,24 +60,24 @@ async function getApplicableBankOffers(orderAmount, userId = null, partnerId = n
 
     const result = await pool.query(
       `SELECT 
-         bo.id as bank_offer_id,
-         bo.bank_name,
-         bo.bank_code,
-         bo.logo_url,
+         b.id as bank_offer_id,
+         b.bank_name,
+         b.bank_code,
+         b.logo_url,
          bor.id as rule_id,
-         bor.offer_type,
-         bor.offer_value,
+         bor.discount_type as offer_type,
+         bor.discount_value as offer_value,
          bor.max_discount,
-         bor.min_order_amount,
+         bor.min_transaction_amount as min_order_amount,
          bor.description,
+         bor.display_text,
          bor.applicable_categories,
-         bor.applicable_partners,
-         bor.applicable_tiers
-       FROM bank_offers bo
-       INNER JOIN bank_offer_rules bor ON bo.id = bor.bank_offer_id
-       WHERE bo.is_active = true
+         bor.applicable_partners
+       FROM banks b
+       INNER JOIN bank_offer_rules bor ON b.id = bor.bank_id
+       WHERE b.is_active = true
          AND bor.is_active = true
-         AND bor.min_order_amount <= $1
+         AND bor.min_transaction_amount <= $1
          AND (bor.valid_from IS NULL OR bor.valid_from <= CURRENT_TIMESTAMP)
          AND (bor.valid_until IS NULL OR bor.valid_until >= CURRENT_TIMESTAMP)
          AND (
@@ -80,12 +88,8 @@ async function getApplicableBankOffers(orderAmount, userId = null, partnerId = n
            bor.applicable_partners IS NULL 
            OR $3::text = ANY(SELECT jsonb_array_elements_text(bor.applicable_partners))
          )
-         AND (
-           bor.applicable_tiers IS NULL 
-           OR $4::text = ANY(SELECT jsonb_array_elements_text(bor.applicable_tiers))
-         )
-       ORDER BY bo.priority DESC, bor.max_discount DESC`,
-      [orderAmount, categoryId, partnerId, userTier]
+       ORDER BY b.priority DESC, bor.max_discount DESC`,
+      [orderAmount, categoryId, partnerId]
     );
     return result.rows;
   } catch (error) {
@@ -98,7 +102,7 @@ async function getApplicableBankOffers(orderAmount, userId = null, partnerId = n
 async function calculateBankOfferDiscount(ruleId, orderAmount) {
   try {
     const result = await pool.query(
-      `SELECT offer_type, offer_value, max_discount, min_order_amount
+      `SELECT discount_type, discount_value, max_discount, min_transaction_amount
        FROM bank_offer_rules
        WHERE id = $1 AND is_active = true
          AND (valid_from IS NULL OR valid_from <= CURRENT_TIMESTAMP)
@@ -112,35 +116,31 @@ async function calculateBankOfferDiscount(ruleId, orderAmount) {
 
     const rule = result.rows[0];
 
-    if (orderAmount < parseFloat(rule.min_order_amount)) {
+    if (orderAmount < parseFloat(rule.min_transaction_amount)) {
       return { 
         discount: 0, 
-        error: `Minimum order amount ₹${rule.min_order_amount} required` 
+        error: `Minimum order amount ₹${rule.min_transaction_amount} required` 
       };
     }
 
     let discount = 0;
 
-    switch (rule.offer_type) {
-      case 'discount':
-        discount = (orderAmount * parseFloat(rule.offer_value)) / 100;
+    switch (rule.discount_type) {
+      case 'percentage':
+        discount = (orderAmount * parseFloat(rule.discount_value)) / 100;
         if (rule.max_discount) {
           discount = Math.min(discount, parseFloat(rule.max_discount));
         }
         break;
       case 'cashback':
-        discount = (orderAmount * parseFloat(rule.offer_value)) / 100;
+        discount = (orderAmount * parseFloat(rule.discount_value)) / 100;
         if (rule.max_discount) {
           discount = Math.min(discount, parseFloat(rule.max_discount));
         }
         // Cashback is credited later, not as instant discount
         break;
-      case 'flat_off':
-        discount = parseFloat(rule.offer_value);
-        break;
-      case 'bogo':
-        // BOGO logic handled separately
-        discount = 0;
+      case 'flat':
+        discount = parseFloat(rule.discount_value);
         break;
       default:
         discount = 0;
@@ -148,7 +148,7 @@ async function calculateBankOfferDiscount(ruleId, orderAmount) {
 
     return {
       discount: parseFloat(discount.toFixed(2)),
-      offerType: rule.offer_type,
+      offerType: rule.discount_type,
       maxDiscount: rule.max_discount ? parseFloat(rule.max_discount) : null
     };
   } catch (error) {
@@ -161,10 +161,10 @@ async function calculateBankOfferDiscount(ruleId, orderAmount) {
 async function recordBankOfferUsage(bookingId, bankOfferId, ruleId, userId, orderAmount, discountApplied, client = pool) {
   try {
     await client.query(
-      `INSERT INTO bank_offer_usage 
-       (booking_id, bank_offer_id, bank_offer_rule_id, user_id, order_amount, discount_applied)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [bookingId, bankOfferId, ruleId, userId, orderAmount, discountApplied]
+      `INSERT INTO user_bank_offer_usage 
+       (user_id, bank_offer_rule_id, booking_id, discount_applied)
+       VALUES ($1, $2, $3, $4)`,
+      [userId, ruleId, bookingId, discountApplied]
     );
     log(`Bank offer ${bankOfferId} (rule ${ruleId}) used for booking ${bookingId}: ₹${discountApplied} discount`);
   } catch (error) {
@@ -176,22 +176,20 @@ async function recordBankOfferUsage(bookingId, bankOfferId, ruleId, userId, orde
 // Admin: Create/Update bank offer
 async function upsertBankOffer(bankData) {
   try {
-    const { bank_code, bank_name, logo_url, is_active, priority, description, terms_and_conditions } = bankData;
+    const { bank_code, bank_name, logo_url, is_active, priority } = bankData;
     
     const result = await pool.query(
-      `INSERT INTO bank_offers (bank_code, bank_name, logo_url, is_active, priority, description, terms_and_conditions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO banks (bank_code, bank_name, logo_url, is_active, priority)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (bank_code) 
        DO UPDATE SET
          bank_name = EXCLUDED.bank_name,
          logo_url = EXCLUDED.logo_url,
          is_active = EXCLUDED.is_active,
          priority = EXCLUDED.priority,
-         description = EXCLUDED.description,
-         terms_and_conditions = EXCLUDED.terms_and_conditions,
          updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
-      [bank_code, bank_name, logo_url, is_active ?? true, priority ?? 0, description, terms_and_conditions]
+      [bank_code, bank_name, logo_url, is_active ?? true, priority ?? 0]
     );
     return result.rows[0];
   } catch (error) {
@@ -204,40 +202,44 @@ async function upsertBankOffer(bankData) {
 async function upsertBankOfferRule(ruleData) {
   try {
     const {
-      bank_offer_id,
-      offer_type,
-      offer_value,
+      bank_id,
+      rule_name,
+      discount_type,
+      discount_value,
       max_discount,
-      min_order_amount,
+      min_transaction_amount,
       applicable_categories,
       applicable_partners,
-      applicable_tiers,
       valid_from,
       valid_until,
       is_active,
-      description
+      description,
+      display_text,
+      terms_conditions
     } = ruleData;
 
     const result = await pool.query(
       `INSERT INTO bank_offer_rules 
-       (bank_offer_id, offer_type, offer_value, max_discount, min_order_amount, 
-        applicable_categories, applicable_partners, applicable_tiers,
-        valid_from, valid_until, is_active, description)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       (bank_id, rule_name, discount_type, discount_value, max_discount, min_transaction_amount, 
+        applicable_categories, applicable_partners,
+        valid_from, valid_until, is_active, description, display_text, terms_conditions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
-        bank_offer_id,
-        offer_type,
-        offer_value,
+        bank_id,
+        rule_name,
+        discount_type,
+        discount_value,
         max_discount,
-        min_order_amount ?? 0,
+        min_transaction_amount ?? 0,
         applicable_categories ? JSON.stringify(applicable_categories) : null,
         applicable_partners ? JSON.stringify(applicable_partners) : null,
-        applicable_tiers ? JSON.stringify(applicable_tiers) : null,
         valid_from,
         valid_until,
         is_active ?? true,
-        description
+        description,
+        display_text,
+        terms_conditions
       ]
     );
     return result.rows[0];
