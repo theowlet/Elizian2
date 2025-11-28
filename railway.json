@@ -1,9 +1,0 @@
-{
-  "$schema": "https://railway.app/railway.schema.json",
-  "projectPath": "backend",
-  "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "npm install",
-    "startCommand": "npm start"
-  }
-}

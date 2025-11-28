@@ -53,6 +53,16 @@ startEventCleanupJob();
 // Import app after all initialization
 const app = require('./app');
 
+// WebSocket integration (feature-flagged, safe to fail)
+let websocketIO = null;
+try {
+  websocketIO = require('./websocket/websocketServer');
+  log('✅ WebSocket module loaded (will initialize if enabled)');
+} catch (error) {
+  // WebSocket not available - graceful degradation
+  log('🟡 WebSocket module not available (optional feature):', error.message);
+}
+
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   logError('💥 Unhandled Rejection at:', promise, 'reason:', reason);
@@ -82,6 +92,15 @@ const gracefulShutdown = async (signal) => {
     if (heartbeatInterval) {
       clearInterval(heartbeatInterval);
       log('✅ Heartbeat cleared');
+    }
+    
+    // Close WebSocket connections (if enabled)
+    if (websocketIO && websocketIO.getIO) {
+      const io = websocketIO.getIO();
+      if (io) {
+        io.close();
+        log('✅ WebSocket server closed');
+      }
     }
     
     // Stop accepting new requests
@@ -125,6 +144,19 @@ if (!config.isVercel) {
     log(`✅ Elizian Backend running on port ${PORT}`);
     log(`📊 Process PID: ${process.pid}`);
     log(`🔄 Auto-restart enabled: ${config.env === 'development' ? 'Yes' : 'No'}`);
+    
+    // Initialize WebSocket (if enabled and available) - SAFE INTEGRATION
+    if (websocketIO && websocketIO.initializeWebSocket) {
+      try {
+        const io = websocketIO.initializeWebSocket(app, server);
+        if (io) {
+          log('✅ WebSocket server initialized');
+        }
+      } catch (error) {
+        logError('WebSocket initialization error:', error);
+        // Continue without WebSocket - graceful degradation
+      }
+    }
   });
 
   server.on('error', (error) => {

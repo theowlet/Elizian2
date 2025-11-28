@@ -311,6 +311,170 @@
             background: var(--bg);
         }
 
+        /* Menu images */
+        .menu-images-section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border: 1px solid rgba(94, 23, 235, 0.15);
+            border-radius: 16px;
+            background: #fefcff;
+        }
+
+        .menu-images-meta {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .menu-images-meta h2 {
+            margin: 0;
+            font-size: 1.25rem;
+        }
+
+        .menu-images-meta p {
+            margin: 0.25rem 0 0;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .menu-images-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .menu-images-count {
+            font-weight: 600;
+            color: #5e17eb;
+        }
+
+        .menu-images-gallery {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: #f9f9fb;
+            border-radius: 16px;
+            border: 1px dashed rgba(94, 23, 235, 0.2);
+            min-height: 200px;
+        }
+
+        .menu-images-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .menu-images-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+
+        .menu-image-card {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+            cursor: pointer;
+            min-height: 260px;
+            background: #111;
+            color: #fff;
+        }
+
+        .menu-image-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .menu-image-card:hover img {
+            transform: scale(1.05);
+        }
+
+        .menu-image-index {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(0, 0, 0, 0.65);
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+        }
+
+        .menu-image-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.75));
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            display: flex;
+            align-items: flex-end;
+            padding: 1rem;
+        }
+
+        .menu-image-card:hover .menu-image-overlay {
+            opacity: 1;
+        }
+
+        .menu-image-actions {
+            display: flex;
+            gap: 0.5rem;
+            width: 100%;
+        }
+
+        .upload-zone {
+            border: 2px dashed rgba(94, 23, 235, 0.3);
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            background: rgba(94, 23, 235, 0.05);
+            transition: border 0.2s, background 0.2s;
+            cursor: pointer;
+        }
+
+        .upload-zone.dragging {
+            border-color: var(--brand1);
+            background: rgba(94, 23, 235, 0.1);
+        }
+
+        .image-preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .image-preview-item {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .image-preview-item img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+        }
+
+        .remove-preview-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            border: none;
+            background: rgba(0, 0, 0, 0.65);
+            color: #fff;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
         /* Status Badges */
         .badge {
             padding: 0.25rem 0.75rem;
@@ -574,6 +738,39 @@
                         </div>
                     </div>
 
+                    <!-- Customer Rewards Analytics -->
+                    <div class="dashboard-card" style="margin-top: 2rem; padding: 1.5rem; background: var(--card); border-radius: 12px; box-shadow: var(--shadow);">
+                        <h3 style="margin: 0 0 1rem 0; font-size: 1.25rem; font-weight: 600;">Customer Rewards Analytics</h3>
+                        
+                        <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                            <div class="stat-card">
+                                <div class="stat-label">Total EZT Distributed</div>
+                                <div class="stat-value" id="totalEztDistributed">—</div>
+                                <div class="stat-subtitle" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">To your customers</div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-label">Loyalty Points Given</div>
+                                <div class="stat-value" id="totalLoyaltyGiven">—</div>
+                                <div class="stat-subtitle" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">From your bookings</div>
+                            </div>
+                            
+                            <div class="stat-card">
+                                <div class="stat-label">Average Customer Tier</div>
+                                <div class="stat-value" id="avgCustomerTier">—</div>
+                                <div class="stat-subtitle" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Your audience quality</div>
+                            </div>
+                        </div>
+                        
+                        <div id="recentRewardedBookings" style="margin-top: 1.5rem;">
+                            <h4 style="margin-bottom: 1rem; font-size: 1rem; font-weight: 600;">Recent Bookings with Rewards</h4>
+                            <div id="recentRewardedBookingsList" class="loading">
+                                <div class="spinner"></div>
+                                Loading rewards data...
+                            </div>
+                        </div>
+                    </div>
+
                     <div style="margin-top: 2rem;">
                         <h3 style="margin-bottom: 1rem;">Recent Orders</h3>
                         <div class="table-container">
@@ -647,7 +844,7 @@
                         <div class="form-grid">
                             <div class="form-group">
                                 <label class="form-label" for="venueType">Venue Type</label>
-                                <select id="venueType" class="form-input">
+                                <select id="venueType" class="form-input" onchange="handleVenueTypeChange(this.value)" required>
                                     <option value="">Select Venue Type</option>
                                     <option value="dining">Dining</option>
                                     <option value="events">Events</option>
@@ -662,6 +859,62 @@
                                 <label class="form-label" for="discountPercentage">Partner Discount %</label>
                                 <input type="number" id="discountPercentage" class="form-input" min="0" max="100" placeholder="e.g., 15">
                             </div>
+                        </div>
+
+                        <!-- Dining-specific fields -->
+                        <div class="form-group" id="cuisineGroup" style="display: none;">
+                            <label class="form-label" for="venueCuisine">Cuisine Type</label>
+                            <select id="venueCuisine" class="form-input" multiple size="5">
+                                <option value="indian">🍛 Indian</option>
+                                <option value="chinese">🥢 Chinese</option>
+                                <option value="italian">🍕 Italian</option>
+                                <option value="mexican">🌮 Mexican</option>
+                                <option value="thai">🍜 Thai</option>
+                                <option value="continental">🍝 Continental</option>
+                                <option value="japanese">🍣 Japanese</option>
+                                <option value="korean">🍱 Korean</option>
+                                <option value="american">🍔 American</option>
+                                <option value="mediterranean">🥗 Mediterranean</option>
+                                <option value="french">🥐 French</option>
+                                <option value="middle-eastern">🥙 Middle Eastern</option>
+                                <option value="south-indian">🍛 South Indian</option>
+                                <option value="north-indian">🍲 North Indian</option>
+                                <option value="street-food">🌯 Street Food</option>
+                                <option value="bakery">🥖 Bakery</option>
+                                <option value="cafe">☕ Cafe</option>
+                                <option value="fast-food">🍟 Fast Food</option>
+                                <option value="seafood">🦞 Seafood</option>
+                                <option value="vegetarian">🥬 Vegetarian</option>
+                                <option value="vegan">🌱 Vegan</option>
+                                <option value="fusion">🍽️ Fusion</option>
+                                <option value="others">📦 Others</option>
+                            </select>
+                            <small class="form-hint" style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">
+                                Hold Ctrl/Cmd to select multiple cuisines
+                            </small>
+                        </div>
+
+                        <div class="form-group" id="dietaryGroup" style="display: none;">
+                            <label class="form-label" for="venueDietary">Dietary Preferences Supported</label>
+                            <select id="venueDietary" class="form-input" multiple size="4">
+                                <option value="vegetarian">🥬 Vegetarian</option>
+                                <option value="vegan">🌱 Vegan</option>
+                                <option value="gluten-free">🌾 Gluten-Free</option>
+                                <option value="halal">🕌 Halal</option>
+                                <option value="jain">🧘 Jain</option>
+                                <option value="keto">🥑 Keto Friendly</option>
+                            </select>
+                            <small class="form-hint" style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">
+                                Select all dietary accommodations you can provide
+                            </small>
+                        </div>
+
+                        <div class="form-group" id="avgCostGroup" style="display: none;">
+                            <label class="form-label" for="avgCostForTwo">Average Cost for Two (₹)</label>
+                            <input type="number" id="avgCostForTwo" class="form-input" min="0" step="50" placeholder="e.g., 2500">
+                            <small class="form-hint" style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">
+                                Helps users estimate the pricing before booking
+                            </small>
                         </div>
 
                         <div class="form-group">
@@ -716,24 +969,26 @@
             <h1 class="content-title">Services & Menu</h1>
             <div style="display: flex; gap: 12px;">
                 <button class="btn btn-primary" onclick="showAddMenuItemModal()">Add New Service</button>
-                <button class="btn btn-secondary" onclick="showMenuImagesUpload()" style="background: #10B981;">
+                <button class="btn btn-secondary" onclick="showUploadMenuModal()" style="background: #10B981;">
                     📖 Upload Menu Images
                 </button>
             </div>
         </div>
 
                     <!-- Menu Images Gallery -->
-                    <div id="menuImagesGallery" style="margin-bottom: 2rem; padding: 1.5rem; background: #F9FAFB; border-radius: 12px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                            <h3 style="margin: 0; color: #374151;">📖 Restaurant Menu Images</h3>
-                            <span id="menuImagesCount" style="color: #6B7280; font-size: 14px;">0 images</span>
+                    <section id="menuImagesSection" class="menu-images-section">
+                        <div class="menu-images-meta">
+                            <div>
+                                <h2>Menu Images</h2>
+                                <p>Help diners browse your offerings before they visit.</p>
+                            </div>
+                            <div class="menu-images-actions">
+                                <span id="menuImagesCount" class="menu-images-count">—</span>
+                                <button class="btn btn-secondary" onclick="showUploadMenuModal()">Manage Images</button>
+                            </div>
                         </div>
-                        <div id="menuImagesContainer" style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px;">
-                            <p style="color: #9CA3AF; text-align: center; width: 100%; padding: 20px;">
-                                No menu images uploaded yet. Click "Upload Menu Images" to add your restaurant menu.
-                            </p>
-                        </div>
-                    </div>
+                        <div id="menuImagesGallery" class="menu-images-gallery"></div>
+                    </section>
 
                     <div class="table-container">
                         <table class="table">
@@ -1364,9 +1619,106 @@
     <script>
         // Configuration
         const API_BASE = 'http://localhost:5001';
+        window.CONFIG = window.CONFIG || {};
+        window.CONFIG.API_BASE = `${API_BASE}/api/v1`;
+        window.CONFIG.FEATURES = {
+            ...(window.CONFIG.FEATURES || {}),
+            ENABLE_REALTIME: true,
+            REALTIME_FALLBACK: true,
+            REALTIME_POLLING_INTERVAL: 30000
+        };
+        const enableRealtime = window.CONFIG.FEATURES.ENABLE_REALTIME;
         let currentPartner = null;
         let menuItems = [];
         let orders = [];
+        let partnerRealtimeBound = false;
+        let partnerRealtimeScriptLoaded = false;
+        
+        function handlePartnerRealtimeBooking(event) {
+            if (!enableRealtime || !event || !currentPartner?.id) return;
+            if (event.partnerId !== currentPartner.id) return;
+            const action = event.action || event.status || 'updated';
+            showNotification(`Booking ${action.replace('_', ' ')} (real-time)`, 'info');
+            loadOrders();
+            if (typeof refreshDashboard === 'function') {
+                refreshDashboard();
+            }
+        }
+        
+        function joinPartnerRealtimeRoom() {
+            if (!enableRealtime || !currentPartner?.id) return;
+            if (!window.realtimeService?.joinRoom) {
+                setTimeout(joinPartnerRealtimeRoom, 1000);
+                return;
+            }
+            window.realtimeService.joinRoom(`partners:${currentPartner.id}`);
+            console.log(`📡 Joined partner realtime room partners:${currentPartner.id}`);
+        }
+        
+        function initializePartnerRealtime() {
+            if (!enableRealtime) return;
+            if (!window.realtimeService?.on) {
+                setTimeout(initializePartnerRealtime, 1000);
+                return;
+            }
+            if (!partnerRealtimeBound) {
+                partnerRealtimeBound = true;
+                window.realtimeService.on('bookings:created', handlePartnerRealtimeBooking);
+                window.realtimeService.on('bookings:status_changed', handlePartnerRealtimeBooking);
+                window.realtimeService.on('bookings:refunded', handlePartnerRealtimeBooking);
+            }
+            joinPartnerRealtimeRoom();
+        }
+        
+        function bootstrapRealtime() {
+            if (!enableRealtime || partnerRealtimeScriptLoaded) {
+                if (enableRealtime) {
+                    initializePartnerRealtime();
+                }
+                return;
+            }
+            partnerRealtimeScriptLoaded = true;
+            const realtimeScript = document.createElement('script');
+            realtimeScript.src = '/js/services/realtimeService.js';
+            realtimeScript.onload = () => initializePartnerRealtime();
+            realtimeScript.onerror = () => console.warn('⚠️ Failed to load realtime service for partner console');
+            document.head.appendChild(realtimeScript);
+        }
+        
+        bootstrapRealtime();
+        
+        // Handle venue type change to show/hide dining-specific fields
+        window.handleVenueTypeChange = function(venueType) {
+            const cuisineGroup = document.getElementById('cuisineGroup');
+            const cuisineSelect = document.getElementById('venueCuisine');
+            const dietaryGroup = document.getElementById('dietaryGroup');
+            const dietarySelect = document.getElementById('venueDietary');
+            const avgCostGroup = document.getElementById('avgCostGroup');
+            const avgCostInput = document.getElementById('avgCostForTwo');
+            
+            const isDining = venueType === 'dining';
+            
+            if (cuisineGroup) {
+                cuisineGroup.style.display = isDining ? 'block' : 'none';
+                if (!isDining && cuisineSelect) {
+                    Array.from(cuisineSelect.options).forEach(option => option.selected = false);
+                }
+            }
+            
+            if (dietaryGroup) {
+                dietaryGroup.style.display = isDining ? 'block' : 'none';
+                if (!isDining && dietarySelect) {
+                    Array.from(dietarySelect.options).forEach(option => option.selected = false);
+                }
+            }
+            
+            if (avgCostGroup) {
+                avgCostGroup.style.display = isDining ? 'block' : 'none';
+                if (!isDining && avgCostInput) {
+                    avgCostInput.value = '';
+                }
+            }
+        };
         
         // Helper functions for day selection - Define globally at the top
         window.selectWeekdays = function() {
@@ -1424,6 +1776,7 @@
                     currentPartner = JSON.parse(partnerInfo);
                     document.getElementById('partnerName').textContent = currentPartner.name || 'Event Venue Name';
                     console.log('Partner Console - Loaded partner from localStorage:', currentPartner);
+                    joinPartnerRealtimeRoom();
                 } catch (e) {
                     console.warn('Invalid partner info in localStorage, fetching from API');
                     await loadPartnerData();
@@ -1469,6 +1822,7 @@
                 if (result.success) {
                     currentPartner = result.data;
                     document.getElementById('partnerName').textContent = currentPartner.name || 'Event Venue Name';
+                    joinPartnerRealtimeRoom();
                     loadDashboard();
                     loadProfile();
                 } else {
@@ -1508,6 +1862,7 @@
                     break;
                 case 'menu':
                     loadMenuItems();
+                    loadMenuImages();
                     break;
                 case 'orders':
                     loadOrders();
@@ -1541,10 +1896,116 @@
                 } else {
                     showNotification('Failed to load dashboard data: ' + result.error, 'error');
                 }
+                
+                // Load rewards analytics
+                loadPartnerRewardsAnalytics();
             } catch (error) {
                 console.error('Error loading dashboard:', error);
                 showNotification('Error loading dashboard data', 'error');
             }
+        }
+
+        // Load partner rewards analytics
+        async function loadPartnerRewardsAnalytics() {
+            if (!currentPartner || !currentPartner.id) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/rewards/analytics`, {
+                    headers: getAuthHeaders()
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    renderPartnerRewardsAnalytics(result.data);
+                } else {
+                    console.error('Error loading partner rewards analytics:', result.error);
+                }
+            } catch (error) {
+                console.error('Error loading partner rewards analytics:', error);
+            }
+        }
+
+        function renderPartnerRewardsAnalytics(data) {
+            // Update stats
+            const totalEztEl = document.getElementById('totalEztDistributed');
+            if (totalEztEl) {
+                totalEztEl.textContent = (data.total_ezt_distributed || 0).toFixed(2) + ' EZT';
+            }
+            
+            const totalLoyaltyEl = document.getElementById('totalLoyaltyGiven');
+            if (totalLoyaltyEl) {
+                totalLoyaltyEl.textContent = (data.total_loyalty_points || 0).toLocaleString('en-IN');
+            }
+            
+            const avgTierEl = document.getElementById('avgCustomerTier');
+            if (avgTierEl) {
+                avgTierEl.textContent = data.avg_customer_tier || 'N/A';
+            }
+            
+            // Render recent rewarded bookings
+            const container = document.getElementById('recentRewardedBookingsList');
+            if (!container) return;
+            
+            if (!data.recent_bookings || data.recent_bookings.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 2rem;">No bookings with rewards yet.</p>';
+                return;
+            }
+            
+            container.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    ${data.recent_bookings.map(booking => `
+                        <div style="
+                            padding: 16px;
+                            background: var(--card);
+                            border: 1px solid var(--border);
+                            border-radius: 8px;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                        ">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; color: var(--text); margin-bottom: 4px;">
+                                    ${booking.customer_name || 'Guest'}
+                                </div>
+                                <div style="font-size: 0.875rem; color: var(--text-muted);">
+                                    ${new Date(booking.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                ${booking.ezt_earned > 0 ? `
+                                    <span style="
+                                        padding: 4px 8px;
+                                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                        color: white;
+                                        border-radius: 6px;
+                                        font-size: 0.75rem;
+                                        font-weight: 600;
+                                    ">+${booking.ezt_earned.toFixed(3)} EZT</span>
+                                ` : ''}
+                                ${booking.loyalty_points_earned > 0 ? `
+                                    <span style="
+                                        padding: 4px 8px;
+                                        background: #f59e0b;
+                                        color: white;
+                                        border-radius: 6px;
+                                        font-size: 0.75rem;
+                                        font-weight: 600;
+                                    ">+${booking.loyalty_points_earned} pts</span>
+                                ` : ''}
+                                <span style="
+                                    padding: 4px 8px;
+                                    background: var(--bg);
+                                    color: var(--text);
+                                    border-radius: 6px;
+                                    font-size: 0.75rem;
+                                    font-weight: 500;
+                                ">${booking.customer_tier || 'Ather'}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
         }
 
         function updateDashboardUI(data) {
@@ -1618,6 +2079,37 @@
             document.getElementById('venueType').value = currentPartner.partner_category_type || currentPartner.cuisine_type || '';
             document.getElementById('discountPercentage').value = currentPartner.partner_discount_percentage || currentPartner.discount_percentage || 0;
             document.getElementById('venueDescription').value = currentPartner.description || '';
+            
+            // Load cuisine types (array)
+            const cuisineSelect = document.getElementById('venueCuisine');
+            if (cuisineSelect && currentPartner.cuisine_types) {
+                const cuisines = Array.isArray(currentPartner.cuisine_types) 
+                    ? currentPartner.cuisine_types 
+                    : (typeof currentPartner.cuisine_types === 'string' ? JSON.parse(currentPartner.cuisine_types) : []);
+                Array.from(cuisineSelect.options).forEach(option => {
+                    option.selected = cuisines.includes(option.value);
+                });
+            }
+
+            // Load dietary preferences
+            const dietarySelect = document.getElementById('venueDietary');
+            if (dietarySelect && currentPartner.dietary_preferences) {
+                const dietary = Array.isArray(currentPartner.dietary_preferences) 
+                    ? currentPartner.dietary_preferences 
+                    : (typeof currentPartner.dietary_preferences === 'string' ? JSON.parse(currentPartner.dietary_preferences) : []);
+                Array.from(dietarySelect.options).forEach(option => {
+                    option.selected = dietary.includes(option.value);
+                });
+            }
+
+            // Load average cost
+            const avgCostInput = document.getElementById('avgCostForTwo');
+            if (avgCostInput) {
+                avgCostInput.value = currentPartner.avg_cost_for_two || '';
+            }
+            
+            // Show/hide cuisine field based on venue type
+            handleVenueTypeChange(document.getElementById('venueType').value);
             
             // Validate address on load if it exists
             if (addressValue) {
@@ -1704,6 +2196,20 @@
             }
             
             try {
+                // Get selected cuisine types
+                const cuisineSelect = document.getElementById('venueCuisine');
+                const selectedCuisines = cuisineSelect 
+                    ? Array.from(cuisineSelect.selectedOptions).map(opt => opt.value)
+                    : [];
+
+                // Get selected dietary preferences
+                const dietarySelect = document.getElementById('venueDietary');
+                const selectedDietary = dietarySelect
+                    ? Array.from(dietarySelect.selectedOptions).map(opt => opt.value)
+                    : [];
+
+                const avgCostValue = document.getElementById('avgCostForTwo').value;
+
                 const profileData = {
                     name: document.getElementById('venueName').value.trim(),
                     email: document.getElementById('venueEmail').value.trim(),
@@ -1712,7 +2218,10 @@
                     address: address,
                     partner_category_type: document.getElementById('venueType').value,
                     partner_discount_percentage: parseFloat(document.getElementById('discountPercentage').value) || 0,
-                    description: document.getElementById('venueDescription').value.trim()
+                    description: document.getElementById('venueDescription').value.trim(),
+                    cuisine_types: selectedCuisines, // Add cuisine types array
+                    dietary_preferences: selectedDietary,
+                    avg_cost_for_two: avgCostValue ? parseFloat(avgCostValue) : null
                 };
 
                 // Additional validation
@@ -1782,13 +2291,16 @@
                 const response = await fetch(`${API_BASE}/api/v1/service-types`);
                 const result = await response.json();
                 
-                if (result.success && result.service_types) {
-                    console.log(`✅ Loaded ${result.count} service types`);
+                const payload = result.data || result;
+                const serviceTypes = payload?.service_types || [];
+                
+                if (result.success && Array.isArray(serviceTypes)) {
+                    console.log(`✅ Loaded ${serviceTypes.length} service types`);
                     const dropdown = document.getElementById('serviceType');
                     if (dropdown) {
                         // Preserve the "Select Service Type" placeholder
                         dropdown.innerHTML = '<option value="">Select Service Type</option>' +
-                            result.service_types.map(type => 
+                            serviceTypes.map(type => 
                                 `<option value="${type.key}">${type.icon} ${type.label}</option>`
                             ).join('');
                         console.log('✅ Service type dropdown populated');
@@ -1808,8 +2320,11 @@
                 const response = await fetch(`${API_BASE}/api/v1/service-categories`);
                 const result = await response.json();
                 
-                if (result.success) {
-                    serviceCategories = result.data;
+                const payload = result.data || result;
+                const categories = payload?.categories || payload?.data || [];
+                
+                if (result.success && Array.isArray(categories)) {
+                    serviceCategories = categories;
                     populateServiceCategoryDropdown();
                 } else {
                     console.error('Error loading service categories:', result.error);
@@ -1822,6 +2337,11 @@
         function populateServiceCategoryDropdown() {
             const dropdown = document.getElementById('serviceCategory');
             dropdown.innerHTML = '<option value="">Select Category</option>';
+            
+            if (!Array.isArray(serviceCategories) || serviceCategories.length === 0) {
+                dropdown.innerHTML += '<option value="" disabled>No categories available</option>';
+                return;
+            }
             
             serviceCategories.forEach(category => {
                 const option = document.createElement('option');
@@ -1996,7 +2516,6 @@
                 if (result.success) {
                     menuItems = result.data;
                     updateMenuItemsTable();
-                    loadMenuImages(); // Also load menu images
                 } else {
                     showNotification('Failed to load menu items: ' + result.error, 'error');
                 }
@@ -2009,249 +2528,219 @@
         // ============================================
         // MENU IMAGES MANAGEMENT
         // ============================================
-        
-        let selectedMenuFiles = [];
-        
+        let menuImageFiles = [];
+
         async function loadMenuImages() {
+            const countEl = document.getElementById('menuImagesCount');
+            const updateCount = (value) => {
+                if (countEl) {
+                    countEl.textContent = typeof value === 'number' ? `${value} image${value === 1 ? '' : 's'}` : value;
+                }
+            };
+
+            if (!currentPartner?.id) {
+                updateCount('—');
+                return;
+            }
+            const gallery = document.getElementById('menuImagesGallery');
+            if (!gallery) return;
+
+            gallery.innerHTML = `
+                <div class="loading" style="text-align:center; padding:2rem;">
+                    <div class="spinner" style="margin:0 auto 1rem;"></div>
+                    Loading menu images...
+                </div>`;
+
             try {
-                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}`, {
+                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/menu-images`, {
                     headers: getAuthHeaders()
                 });
                 const result = await response.json();
-                
-                const partner = result.data || result;
-                const menuImages = partner.menu_images || [];
-                
-                const container = document.getElementById('menuImagesContainer');
-                const countSpan = document.getElementById('menuImagesCount');
-                
-                if (menuImages.length === 0) {
-                    container.innerHTML = `
-                        <p style="color: #9CA3AF; text-align: center; width: 100%; padding: 20px;">
-                            No menu images uploaded yet. Click "Upload Menu Images" to add your restaurant menu.
-                        </p>
-                    `;
-                    countSpan.textContent = '0 images';
-                } else {
-                    container.innerHTML = menuImages.map((img, index) => {
-                        const imgUrl = img.startsWith('http') ? img : `${API_BASE}${img}`;
-                        return `
-                            <div style="position: relative; flex: 0 0 auto; width: 200px; height: 280px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                                <img src="${imgUrl}" alt="Menu page ${index + 1}" style="width: 100%; height: 100%; object-fit: cover;">
-                                <button onclick="deleteMenuImage(${index})" style="
-                                    position: absolute;
-                                    top: 8px;
-                                    right: 8px;
-                                    background: rgba(239, 68, 68, 0.9);
-                                    color: white;
-                                    border: none;
-                                    width: 32px;
-                                    height: 32px;
-                                    border-radius: 50%;
-                                    cursor: pointer;
-                                    font-size: 18px;
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                    transition: background 0.2s;
-                                " onmouseover="this.style.background='rgb(239, 68, 68)'" onmouseout="this.style.background='rgba(239, 68, 68, 0.9)'">
-                                    ×
-                                </button>
-                                <div style="position: absolute; bottom: 8px; left: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; text-align: center;">
-                                    Page ${index + 1}
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-                    countSpan.textContent = `${menuImages.length} image${menuImages.length > 1 ? 's' : ''}`;
+                if (!result.success) throw new Error(result.error || 'Failed to fetch');
+
+                const images = result.data?.menu_images || [];
+                updateCount(images.length);
+                if (!images.length) {
+                    gallery.innerHTML = `
+                        <div style="text-align:center; padding:2.5rem;">
+                            <div style="font-size:56px; margin-bottom:1rem;">📸</div>
+                            <h3>No menu images yet</h3>
+                            <p style="color:var(--text-muted); margin:0.5rem 0 1rem;">
+                                Upload high-quality menu scans for diners to preview.
+                            </p>
+                            <button class="btn btn-primary" onclick="showUploadMenuModal()">Upload Menu Images</button>
+                        </div>`;
+                    return;
                 }
+
+                gallery.innerHTML = `
+                    <div class="menu-images-header">
+                        <div>
+                            <h3 style="margin:0;">📖 Restaurant Menu</h3>
+                            <p style="color:var(--text-muted); margin:0;">${images.length} page${images.length > 1 ? 's' : ''}</p>
+                        </div>
+                        <button class="btn btn-secondary" onclick="showUploadMenuModal()">Add More</button>
+                    </div>
+                    <div class="menu-images-grid">
+                        ${images
+                            .map((imagePath, index) => {
+                                const imageUrl = imagePath.startsWith('http') ? imagePath : `${API_BASE}${imagePath}`;
+                                return `
+                                    <article class="menu-image-card">
+                                        <span class="menu-image-index">Page ${index + 1}</span>
+                                        <img src="${imageUrl}" alt="Menu page ${index + 1}" loading="lazy" onclick="viewMenuImage('${imageUrl}', ${index})">
+                                        <div class="menu-image-overlay">
+                                            <div class="menu-image-actions">
+                                                <button class="btn btn-sm btn-secondary" onclick="viewMenuImage('${imageUrl}', ${index})">View</button>
+                                                <button class="btn btn-sm btn-danger" onclick="deleteMenuImage(${index})">Delete</button>
+                                            </div>
+                                        </div>
+                                    </article>`;
+                            })
+                            .join('')}
+                    </div>`;
             } catch (error) {
                 console.error('Error loading menu images:', error);
+                const message = error.message || 'Unable to load menu images.';
+                gallery.innerHTML = `<p style="color:var(--error); text-align:center;">${message}</p>`;
+                updateCount('—');
             }
         }
-        
-        function showMenuImagesUpload() {
-            selectedMenuFiles = [];
-            document.getElementById('menuImagesInput').value = '';
-            document.getElementById('selectedImagesPreview').style.display = 'none';
-            document.getElementById('menuUploadProgress').style.display = 'none';
-            document.getElementById('uploadMenuImagesBtn').disabled = true;
-            showModal('menuImagesModal');
+
+        function showUploadMenuModal() {
+            menuImageFiles = [];
+            const modal = document.createElement('div');
+            modal.className = 'modal show';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width:720px;">
+                    <div class="modal-header">
+                        <h2 class="modal-title">Upload Menu Images</h2>
+                        <button class="modal-close" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <div class="upload-zone" id="uploadZone">
+                        <div class="upload-icon" style="font-size:48px; margin-bottom:0.5rem;">📸</div>
+                        <h3 style="margin-bottom:0.25rem;">Drag & Drop menu images</h3>
+                        <p style="color:var(--text-muted); margin-bottom:1rem;">or click to browse</p>
+                        <button type="button" class="btn btn-primary" onclick="document.getElementById('menuImageInput').click()">Choose Images</button>
+                        <input type="file" id="menuImageInput" accept="image/*" multiple style="display:none;">
+                        <p style="margin-top:1rem; color:var(--text-muted); font-size:0.875rem;">
+                            Supports JPG, PNG, WebP • Max 10MB each • Up to 20 pages
+                        </p>
+                    </div>
+                    <div id="imagePreviewGrid" class="image-preview-grid" style="display:none;"></div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.75rem; margin-top:2rem;">
+                        <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">Cancel</button>
+                        <button id="uploadMenuBtn" class="btn btn-primary" onclick="uploadMenuImages()" disabled>Upload Images</button>
+                    </div>
+                </div>`;
+
+            document.body.appendChild(modal);
+
+            const uploadZone = modal.querySelector('#uploadZone');
+            const fileInput = modal.querySelector('#menuImageInput');
+
+            uploadZone.addEventListener('click', () => fileInput.click());
+            ['dragenter', 'dragover'].forEach((evt) =>
+                uploadZone.addEventListener(evt, (e) => {
+                    e.preventDefault();
+                    uploadZone.classList.add('dragging');
+                })
+            );
+            ['dragleave', 'drop'].forEach((evt) =>
+                uploadZone.addEventListener(evt, (e) => {
+                    e.preventDefault();
+                    uploadZone.classList.remove('dragging');
+                })
+            );
+            uploadZone.addEventListener('drop', (e) => handleMenuImageFiles(e.dataTransfer.files));
+            fileInput.addEventListener('change', (e) => handleMenuImageFiles(e.target.files));
         }
-        
-        function handleMenuImagesSelect(event) {
-            const files = Array.from(event.target.files);
-            selectedMenuFiles = files;
-            
-            if (files.length === 0) {
-                document.getElementById('selectedImagesPreview').style.display = 'none';
-                document.getElementById('uploadMenuImagesBtn').disabled = true;
-                return;
-            }
-            
-            // Validate files
-            const validFiles = files.filter(file => {
-                if (!file.type.match('image/(jpeg|jpg|png)')) {
-                    showNotification(`${file.name} is not a valid image format`, 'error');
+
+        function handleMenuImageFiles(files) {
+            const validFiles = Array.from(files).filter((file) => {
+                if (!file.type.startsWith('image/')) {
+                    showNotification(`${file.name} is not an image file`, 'error');
                     return false;
                 }
-                if (file.size > 5 * 1024 * 1024) {
-                    showNotification(`${file.name} exceeds 5MB limit`, 'error');
+                if (file.size > 10 * 1024 * 1024) {
+                    showNotification(`${file.name} exceeds 10MB`, 'error');
                     return false;
                 }
                 return true;
             });
-            
-            selectedMenuFiles = validFiles;
-            
-            if (validFiles.length === 0) {
-                document.getElementById('selectedImagesPreview').style.display = 'none';
-                document.getElementById('uploadMenuImagesBtn').disabled = true;
-                return;
-            }
-            
-            // Show preview
-            document.getElementById('selectedImagesPreview').style.display = 'block';
-            document.getElementById('selectedImagesCount').textContent = validFiles.length;
-            document.getElementById('uploadMenuImagesBtn').disabled = false;
-            
-            const previewContainer = document.getElementById('selectedImagesList');
-            previewContainer.innerHTML = validFiles.map((file, index) => {
-                const reader = new FileReader();
-                const previewId = `preview-${index}`;
-                
-                reader.onload = function(e) {
-                    const img = document.getElementById(previewId);
-                    if (img) img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-                
-                return `
-                    <div style="position: relative; aspect-ratio: 2/3; background: #E5E7EB; border-radius: 8px; overflow: hidden;">
-                        <img id="${previewId}" src="" alt="${file.name}" style="width: 100%; height: 100%; object-fit: cover;">
-                        <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.7)); color: white; padding: 8px; font-size: 11px;">
-                            ${file.name}
-                        </div>
-                    </div>
-                `;
-            }).join('');
+
+            if (!validFiles.length) return;
+            menuImageFiles = [...menuImageFiles, ...validFiles].slice(0, 20);
+            renderImagePreviews();
         }
-        
-        async function uploadMenuImages() {
-            if (selectedMenuFiles.length === 0) {
-                showNotification('Please select images to upload', 'error');
+
+        function renderImagePreviews() {
+            const grid = document.getElementById('imagePreviewGrid');
+            const uploadBtn = document.getElementById('uploadMenuBtn');
+            if (!grid) return;
+
+            if (!menuImageFiles.length) {
+                grid.style.display = 'none';
+                if (uploadBtn) uploadBtn.disabled = true;
                 return;
             }
-            
-            const formData = new FormData();
-            selectedMenuFiles.forEach(file => {
-                formData.append('menuImages', file);
-            });
-            
-            // Show progress
-            document.getElementById('menuUploadProgress').style.display = 'block';
-            document.getElementById('uploadMenuImagesBtn').disabled = true;
-            
+
+            grid.style.display = 'grid';
+            if (uploadBtn) uploadBtn.disabled = false;
+            grid.innerHTML = menuImageFiles
+                .map((file, index) => {
+                    const url = URL.createObjectURL(file);
+                    return `
+                        <div class="image-preview-item">
+                            <img src="${url}" alt="Preview ${index + 1}">
+                            <button class="remove-preview-btn" onclick="removeMenuImagePreview(${index})">&times;</button>
+                        </div>`;
+                })
+                .join('');
+        }
+
+        function removeMenuImagePreview(index) {
+            menuImageFiles.splice(index, 1);
+            renderImagePreviews();
+        }
+
+        async function uploadMenuImages() {
+            if (!menuImageFiles.length) {
+                showNotification('Please select at least one image', 'error');
+                return;
+            }
+
+            const uploadBtn = document.getElementById('uploadMenuBtn');
+            if (uploadBtn) {
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Uploading...';
+            }
+
             try {
-                const xhr = new XMLHttpRequest();
-                
-                // Progress handler
-                xhr.upload.addEventListener('progress', (e) => {
-                    if (e.lengthComputable) {
-                        const percentComplete = (e.loaded / e.total) * 100;
-                        document.getElementById('uploadProgressBar').style.width = percentComplete + '%';
-                        document.getElementById('uploadProgressText').textContent = Math.round(percentComplete) + '%';
-                    }
+                const formData = new FormData();
+                menuImageFiles.forEach((file) => formData.append('menuImages', file));
+                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/menu-images`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${localStorage.getItem('partnerToken')}` },
+                    body: formData,
                 });
-                
-                // Response handler
-                xhr.addEventListener('load', function() {
-                    if (xhr.status === 200) {
-                        const result = JSON.parse(xhr.responseText);
-                        if (result.success) {
-                            showNotification('Menu images uploaded successfully!', 'success');
-                            closeModal('menuImagesModal');
-                            loadMenuImages(); // Reload to show new images
-                        } else {
-                            showNotification('Upload failed: ' + result.error, 'error');
-                        }
-                    } else {
-                        showNotification('Upload failed. Please try again.', 'error');
-                    }
-                    document.getElementById('uploadMenuImagesBtn').disabled = false;
-                });
-                
-                xhr.addEventListener('error', function() {
-                    showNotification('Upload failed. Please check your connection.', 'error');
-                    document.getElementById('uploadMenuImagesBtn').disabled = false;
-                });
-                
-                xhr.open('POST', `${API_BASE}/api/v1/partners/${currentPartner.id}/menu-images`);
-                xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('partnerToken')}`);
-                xhr.send(formData);
-                
+                const result = await response.json();
+                if (!result.success) throw new Error(result.message || 'Upload failed');
+
+                showNotification(`Uploaded ${result.uploadedCount} image(s)`, 'success');
+                menuImageFiles = [];
+                document.querySelector('.modal.show')?.remove();
+                loadMenuImages();
             } catch (error) {
                 console.error('Error uploading menu images:', error);
-                showNotification('Upload failed: ' + error.message, 'error');
-                document.getElementById('uploadMenuImagesBtn').disabled = false;
-            }
-        }
-        
-        async function deleteMenuImage(index) {
-            if (!confirm(`Delete menu image page ${index + 1}?`)) return;
-            
-            try {
-                const response = await fetch(`${API_BASE}/api/v1/partners/${currentPartner.id}/menu-images/${index}`, {
-                    method: 'DELETE',
-                    headers: getAuthHeaders()
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showNotification('Menu image deleted successfully', 'success');
-                    loadMenuImages();
-                } else {
-                    showNotification('Failed to delete image: ' + result.error, 'error');
+                showNotification(error.message || 'Upload failed', 'error');
+            } finally {
+                if (uploadBtn) {
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = 'Upload Images';
                 }
-            } catch (error) {
-                console.error('Error deleting menu image:', error);
-                showNotification('Error deleting image', 'error');
             }
-        }
-        
-        // Drag and drop support
-        const dropzone = document.getElementById('menuUploadDropzone');
-        if (dropzone) {
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dropzone.addEventListener(eventName, preventDefaults, false);
-            });
-            
-            function preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-            
-            ['dragenter', 'dragover'].forEach(eventName => {
-                dropzone.addEventListener(eventName, () => {
-                    dropzone.style.borderColor = '#5E17EB';
-                    dropzone.style.background = '#EDE9FE';
-                });
-            });
-            
-            ['dragleave', 'drop'].forEach(eventName => {
-                dropzone.addEventListener(eventName, () => {
-                    dropzone.style.borderColor = '#D1D5DB';
-                    dropzone.style.background = '#F9FAFB';
-                });
-            });
-            
-            dropzone.addEventListener('drop', (e) => {
-                const dt = e.dataTransfer;
-                const files = dt.files;
-                document.getElementById('menuImagesInput').files = files;
-                handleMenuImagesSelect({ target: { files } });
-            });
+
         }
 
         function updateMenuItemsTable() {
@@ -2820,6 +3309,24 @@
                 const paymentStatus = order.payment_status || (order.status === 'confirmed' ? 'paid' : 'pending');
                 const ticketCount = order.num_tickets || order.ticket_count || order.quantity || '-';
 
+                const eztEarned = order.ezt_earned || order.eztEarned || 0;
+                const pointsEarned = order.points_earned || order.pointsEarned || 0;
+                const customerTier = order.customer_tier || order.user_tier_at_booking || 'Ather';
+                const tierColors = {
+                    'Ather': '#B0BEC5',
+                    'Nova': '#64B5F6',
+                    'Luminar': '#9575CD',
+                    'Valiant': '#66BB6A',
+                    'Echelon': '#FFD54F'
+                };
+                const tierColor = tierColors[customerTier] || '#B0BEC5';
+                const rewardsDisplay = (eztEarned > 0 || pointsEarned > 0) 
+                    ? `<div style="font-size: 11px; color: #10b981; margin-top: 4px;">
+                        ${eztEarned > 0 ? `💰 +${parseFloat(eztEarned).toFixed(5)} EZT` : ''}
+                        ${pointsEarned > 0 ? `${eztEarned > 0 ? ' • ' : ''}⭐ +${pointsEarned} pts` : ''}
+                       </div>`
+                    : '';
+
                 return `
                     <tr>
                         <td>
@@ -2829,10 +3336,18 @@
                         <td>
                             <div style="font-weight: 500;">${order.customer_name || order.customer || 'N/A'}</div>
                             <small style="color: var(--text-muted);">${order.customer_phone || order.phone || ''}</small>
+                            <div style="margin-top: 4px;">
+                                <span class="badge" style="background-color: ${tierColor}; color: ${customerTier === 'Echelon' ? '#000' : '#fff'}; font-size: 10px; padding: 2px 6px;">
+                                    ${customerTier} Tier
+                                </span>
+                            </div>
                         </td>
         <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${itemsText}</td>
                         <td style="text-align: center;">${ticketCount}</td>
-                        <td>₹${(order.total_amount || order.total || 0).toFixed ? (order.total_amount || order.total).toFixed(2) : (parseFloat(order.total_amount || order.total || 0).toFixed(2))}</td>
+                        <td>
+                            ₹${(order.total_amount || order.total || 0).toFixed ? (order.total_amount || order.total).toFixed(2) : (parseFloat(order.total_amount || order.total || 0).toFixed(2))}
+                            ${rewardsDisplay}
+                        </td>
                         <td>
                             <span class="badge badge-${paymentStatus === 'paid' ? 'success' : 'warning'}">
                                 ${paymentStatus.toUpperCase()}
@@ -2945,6 +3460,10 @@
                 ? new Date(order.estimated_delivery).toLocaleString()
                 : 'Not specified';
 
+            const eztEarned = order.ezt_earned || order.eztEarned || 0;
+            const pointsEarned = order.points_earned || order.pointsEarned || 0;
+            const customerTier = order.customer_tier || order.user_tier_at_booking || 'Ather';
+            
             let orderDetails = `Order Details:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -2952,6 +3471,8 @@
 👤 Customer: ${order.customer_name || order.customer}
 📞 Phone: ${order.customer_phone || order.phone}
 📧 Email: ${order.customer_email || 'Not provided'}
+🎯 Customer Tier: ${customerTier}
+🎯 Customer Tier: ${customerTier}
 
 🍽️ Items:
 ${itemsText}
@@ -2960,6 +3481,10 @@ ${itemsText}
 💳 Payment Status: ${(order.payment_status || (order.status === 'confirmed' ? 'paid' : 'pending')).toUpperCase()}
 🚚 Order Type: ${order.order_type || 'Delivery'}
 📊 Status: ${order.status}
+
+${eztEarned > 0 || pointsEarned > 0 ? `\n🎁 Rewards Earned by Customer:
+${eztEarned > 0 ? `💰 EZT: +${parseFloat(eztEarned).toFixed(5)} tokens` : ''}
+${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
 
 ⏰ Order Time: ${orderTime}
 🕐 Estimated Delivery: ${estimatedDelivery}`;
@@ -3184,12 +3709,13 @@ ${itemsText}
                                         `<code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 11px;">${offer.promo_code}</code>` : ''}
                                     ${offer.menu_item_id ? 
                                         `<span style="font-size: 11px; color: #6b7280; margin-left: 8px;">🔗 Linked to Menu Item</span>` : ''}
-                                    ${offer.discount_applies_to === 'menu_item' ? 
+                                ${offer.discount_applies_to === 'menu_item' ? 
                                         `<span style="font-size: 11px; color: #059669; margin-left: 8px;">📌 Item-Specific</span>` : 
                                         offer.discount_applies_to === 'service_type' ? 
                                         `<span style="font-size: 11px; color: #0284c7; margin-left: 8px;">📂 Category-Wide</span>` : ''}
-                                    ${offer.is_promoted || offer.is_trending ? 
-                                        `<span class="badge badge-success" style="margin-left: 8px; background: #10b981;">⭐ TRENDING</span>` : ''}
+                                ${Boolean(offer.is_trending || offer.is_promoted)
+                                    ? '<span class="badge badge-success" style="margin-left: 8px; background: #10b981;">⭐ TRENDING</span>'
+                                    : ''}
                                     ${offer.featured_request_pending ? 
                                         `<span class="badge badge-warning" style="margin-left: 8px; background: #f59e0b;">⏳ PENDING APPROVAL</span>` : ''}
                                 </div>
@@ -3214,8 +3740,9 @@ ${itemsText}
                         </td>
                         <td>
                             <div class="actions">
-                                ${!offer.is_promoted && !offer.featured_request_pending && !offer.is_trending ? 
-                                    `<button class="btn btn-sm btn-primary" onclick="promoteOffer(this, '${offer.id}')" title="Request to make this deal Trending">⭐ Make Trending</button>` : ''}
+                                ${(!Boolean(offer.is_trending || offer.is_promoted) && !offer.featured_request_pending)
+                                    ? `<button class="btn btn-sm btn-primary" onclick="promoteOffer(this, '${offer.id}')" title="Request to make this deal Trending">⭐ Make Trending</button>`
+                                    : ''}
                                 <button class="btn btn-sm btn-secondary" onclick="editOffer('${offer.id}')">Edit</button>
                                 <button class="btn btn-sm btn-danger" onclick="deleteOffer('${offer.id}')">Delete</button>
                             </div>
@@ -4052,7 +4579,7 @@ ${itemsText}
                 const response = await fetch(url, {
                     method: 'PUT',
                     headers: headers,
-                    body: JSON.stringify({ is_promoted: true, request_trending: true })
+                    body: JSON.stringify({ is_trending: true, request_trending: true })
                 });
 
                 if (!response.ok) {

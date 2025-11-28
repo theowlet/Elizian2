@@ -1,0 +1,380 @@
+/* ================================================
+   MOBILE ENHANCEMENTS - Phase 2
+   Pull-to-Refresh, Haptic Feedback, Bottom Sheets, Touch Targets
+   ================================================ */
+
+/* ============================================
+   1. PULL-TO-REFRESH
+   ============================================ */
+
+.pull-to-refresh-container {
+  position: relative;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pull-to-refresh-indicator {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4, 16px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-base, 200ms), transform var(--transition-base, 200ms);
+  z-index: var(--z-sticky, 200);
+}
+
+.pull-to-refresh-indicator.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pull-to-refresh-indicator.pulling {
+  transform: translateX(-50%) translateY(0);
+}
+
+.pull-to-refresh-indicator.releasing {
+  transform: translateX(-50%) translateY(0);
+}
+
+.pull-to-refresh-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--neutral-200, #e5e7eb);
+  border-top-color: var(--brand-primary, #5E17EB);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: var(--space-2, 8px);
+}
+
+.pull-to-refresh-text {
+  font-size: var(--font-sm, 14px);
+  color: var(--text-secondary, #6b7280);
+  font-weight: var(--font-medium, 500);
+}
+
+/* ============================================
+   2. BOTTOM SHEET MODAL
+   ============================================ */
+
+.bottom-sheet-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-base, 200ms);
+  z-index: var(--z-modal-backdrop, 400);
+  backdrop-filter: blur(4px);
+}
+
+.bottom-sheet-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-primary, #ffffff);
+  border-radius: var(--radius-xl, 16px) var(--radius-xl, 16px) 0 0;
+  max-height: 90vh;
+  transform: translateY(100%);
+  transition: transform var(--transition-slow, 300ms) cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: var(--z-modal, 500);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.bottom-sheet.active {
+  transform: translateY(0);
+}
+
+.bottom-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--neutral-300, #d1d5db);
+  border-radius: var(--radius-full, 9999px);
+  margin: var(--space-3, 12px) auto;
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.bottom-sheet-handle:active {
+  cursor: grabbing;
+}
+
+.bottom-sheet-header {
+  padding: 0 var(--space-4, 16px) var(--space-4, 16px);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  flex-shrink: 0;
+}
+
+.bottom-sheet-title {
+  font-size: var(--font-xl, 20px);
+  font-weight: var(--font-semibold, 600);
+  color: var(--text-primary, #111827);
+  margin: 0;
+}
+
+.bottom-sheet-subtitle {
+  font-size: var(--font-sm, 14px);
+  color: var(--text-secondary, #6b7280);
+  margin-top: var(--space-1, 4px);
+}
+
+.bottom-sheet-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--space-4, 16px);
+  overscroll-behavior: contain;
+}
+
+.bottom-sheet-footer {
+  padding: var(--space-4, 16px);
+  border-top: 1px solid var(--border-color, #e5e7eb);
+  display: flex;
+  gap: var(--space-3, 12px);
+  flex-shrink: 0;
+  background: var(--bg-primary, #ffffff);
+}
+
+.bottom-sheet-footer .btn {
+  flex: 1;
+}
+
+/* Bottom Sheet Animations */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* ============================================
+   3. TOUCH TARGET SIZES (Minimum 44×44px)
+   ============================================ */
+
+/* Ensure all interactive elements meet minimum touch target size */
+button,
+a,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+select,
+[role="button"],
+[role="link"],
+[tabindex]:not([tabindex="-1"]) {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Small buttons need padding to meet minimum */
+.btn-sm {
+  min-width: 44px;
+  min-height: 44px;
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+}
+
+/* Icon buttons */
+.btn-icon,
+.btn-icon-floating {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+}
+
+/* Category chips/pills */
+.category-chip,
+.category-pill {
+  min-height: 44px;
+  padding: var(--space-2, 8px) var(--space-4, 16px);
+}
+
+/* OTP inputs */
+.otp-input {
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+}
+
+/* Touch-friendly spacing between interactive elements */
+.interactive-group {
+  display: flex;
+  gap: var(--space-3, 12px);
+  align-items: center;
+}
+
+.interactive-group > * {
+  flex-shrink: 0;
+}
+
+/* ============================================
+   4. HAPTIC FEEDBACK VISUAL INDICATORS
+   ============================================ */
+
+.haptic-feedback {
+  position: relative;
+  overflow: hidden;
+}
+
+.haptic-feedback::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.3s ease, height 0.3s ease;
+  pointer-events: none;
+}
+
+.haptic-feedback:active::after {
+  width: 200px;
+  height: 200px;
+}
+
+/* Ripple effect for buttons */
+.btn-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-ripple::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+  transition: width 0.4s ease, height 0.4s ease, opacity 0.4s ease;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.btn-ripple:active::before {
+  width: 300px;
+  height: 300px;
+  opacity: 1;
+}
+
+/* ============================================
+   5. SWIPE GESTURES
+   ============================================ */
+
+.swipeable {
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.swipeable.swiping {
+  transition: transform var(--transition-fast, 150ms);
+}
+
+/* ============================================
+   6. MOBILE-SPECIFIC UTILITIES
+   ============================================ */
+
+/* Safe area insets for notched devices */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-left {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-area-right {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Prevent text selection on mobile (for better UX) */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Prevent pull-to-refresh on specific elements */
+.no-pull-refresh {
+  overscroll-behavior-y: contain;
+}
+
+/* ============================================
+   7. RESPONSIVE ADJUSTMENTS
+   ============================================ */
+
+@media (min-width: 768px) {
+  .bottom-sheet {
+    max-width: 500px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+    border-radius: var(--radius-xl, 16px);
+  }
+  
+  .bottom-sheet.active {
+    transform: translateX(-50%) translateY(0);
+  }
+  
+  .bottom-sheet-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .bottom-sheet,
+  .bottom-sheet-overlay,
+  .pull-to-refresh-indicator,
+  .haptic-feedback::after,
+  .btn-ripple::before {
+    transition: none;
+    animation: none;
+  }
+}
+

@@ -110,13 +110,14 @@ const fs = require('fs');
 
 log(`📁 Serving static uploads from: ${path.resolve(uploadsRoot)}`);
 
-// Static file serving with CORS headers
+// Static file serving with CORS headers - MUST be before helmet
 app.use('/uploads', (req, res, next) => {
   // Set permissive CORS headers for static files
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
   
   // Handle OPTIONS preflight
   if (req.method === 'OPTIONS') {
@@ -125,7 +126,10 @@ app.use('/uploads', (req, res, next) => {
   next();
 }, express.static(uploadsRoot, {
   setHeaders: (res, filePath) => {
-    // Set proper content type
+    // Set proper content type and CORS headers for images
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    
     if (filePath.endsWith('.png')) {
       res.setHeader('Content-Type', 'image/png');
     } else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
@@ -149,7 +153,9 @@ app.use(cors(corsOptions));
 // Security middleware
 app.use(requestContext);
 app.use(helmet({
-  contentSecurityPolicy: false // kept false due to mixed legacy inline scripts; enable after CSP audit
+  contentSecurityPolicy: false, // kept false due to mixed legacy inline scripts; enable after CSP audit
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow images to be loaded cross-origin
+  crossOriginEmbedderPolicy: false // Allow embedding images
 }));
 
 // HTTP logging
@@ -176,6 +182,10 @@ app.get('/health', (req, res) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/loyalty', loyaltyRoutes);
 app.use('/api/v1/theatre', theatreRoutes);
+
+// Rewards routes
+const rewardsRoutes = require('./routes/rewardsRoutes');
+app.use('/api/v1/rewards', rewardsRoutes);
 
 // Account management routes (deletion, preferences, etc.)
 const accountRoutes = require('./routes/accountRoutes');
@@ -259,6 +269,15 @@ app.use('/api/v1/settings', systemSettingsRoutes);
 // TODO: Add remaining routes as they are refactored:
 // - app.use('/api/v1/menu', menuRoutes);
 // - app.use('/api/v1', multiTierRoutes);
+
+// WebSocket health check route (optional, safe to fail)
+try {
+  const websocketHealthRoute = require('./routes/websocketRoutes');
+  app.use('/api/v1', websocketHealthRoute);
+} catch (error) {
+  // WebSocket routes not available - graceful degradation
+  console.log('🟡 WebSocket health route not available (optional feature)');
+}
 
 // Error handler (must be last)
 app.use(errorHandler);

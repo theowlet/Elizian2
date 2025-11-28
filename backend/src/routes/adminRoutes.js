@@ -3,6 +3,7 @@ const authenticateToken = require('../../middleware/authenticateToken');
 const requireSuperAdmin = require('../middleware/requireSuperAdmin');
 const adminController = require('../controllers/adminController');
 const adminService = require('../services/adminService');
+const rewardsController = require('../controllers/rewardsController');
 const { getUserRoleById } = require('../utils/queries');
 
 const router = express.Router();
@@ -132,6 +133,11 @@ router.get('/sessions', adminController.getSessions);
 // Archives
 router.get('/archives', adminController.getArchives);
 router.post('/archives/:id/reactivate', adminController.reactivateArchive);
+
+// Rewards management
+router.get('/rewards/user/:userId', rewardsController.adminGetUserRewards);
+router.post('/rewards/manual-credit', rewardsController.adminManualCredit);
+router.get('/rewards/overview', adminController.getRewardsOverview);
 router.post('/archive-expired', adminController.archiveExpired);
 router.post('/partners/bulk-approve', adminController.bulkApprovePartners);
 

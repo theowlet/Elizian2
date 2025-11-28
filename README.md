@@ -211,6 +211,20 @@ docker build -t elizian-backend .
 docker run -p 5001:5001 elizian-backend
 ```
 
+## 🎨 Frontend UI Upgrade (Nov 2025)
+
+- **Category/filter fidelity:** Category slugs and filter keys are read directly from `frontend/public/index.html` (`.category-tabs .tab[data-category]`) by `frontend/public/ui-components.js`, ensuring all seven categories (and their query params) remain untouched.
+- **Compatibility wrappers:** `ui-components.js` wraps the existing global functions `toggleFilter`, `clearFilters`, and `loadHomeScreenData` so new filter chips stay in sync without changing API payloads.
+- **Modular components & theme:** New UI pieces live in:
+  - `frontend/public/styles/styles.css`
+  - `frontend/public/components/ui/cards.js`
+  - `frontend/public/components/ui/nav.js`
+  - `frontend/public/ui-components.js`
+- **Testing the refreshed UI:**
+  1. `cd frontend && npm install` (once)
+  2. `npm run dev` (or serve `frontend/public/index.html` via any static server)
+3. Verify category quick strip, filter chips, voucher wallet, EZT dashboard, QR scanner, and bottom navigation—all reuse the existing endpoints and query parameters.
+
 ## 📞 Support
 
 For questions or issues:

@@ -1,5 +1,6 @@
 const { getPool } = require('../config/db');
 const { log, logError } = require('../utils/logger');
+const { emitRealtimeEvent, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
 
 const pool = getPool();
 
@@ -77,6 +78,16 @@ const awardTokens = async (userId, amountSpent, transactionId = null, descriptio
       await updateTierProgress(userId, amountSpent);
       
       log(`✅ Awarded ${eztEarned} EZT to user ${userId} (${tierName} tier, ${tokenPercentage}%)`);
+
+      emitRealtimeEvent(REALTIME_EVENTS.TOKENS_UPDATED, {
+        action: 'earned',
+        userId,
+        delta: eztEarnedDecimal,
+        description: description || `Earned from purchase (${tierName} tier ${tokenPercentage}%)`,
+        availableTokens: balanceAfter,
+        totalEarned: (parseFloat(user.total_tokens_earned || 0) + eztEarnedDecimal),
+        timestamp: new Date().toISOString()
+      });
     }
     
     return eztEarnedDecimal;
@@ -213,6 +224,16 @@ const redeemTokens = async (userId, eztAmount, transactionId = null, description
     );
     
     log(`✅ Redeemed ${eztToRedeem.toFixed(5)} EZT from user ${userId} (₹${discountAmount} discount)`);
+
+    emitRealtimeEvent(REALTIME_EVENTS.TOKENS_UPDATED, {
+      action: 'redeemed',
+      userId,
+      delta: -eztToRedeem,
+      description: description || `Redeemed for discount (₹${discountAmount})`,
+      availableTokens: balanceAfter,
+      totalSpent: parseFloat(userResult.rows[0].total_tokens_spent || 0) + eztToRedeem,
+      timestamp: new Date().toISOString()
+    });
     
     return {
       eztRedeemed: eztToRedeem,

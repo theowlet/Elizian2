@@ -15,6 +15,7 @@ const reservationService = require('./reservationService');
 const preOrderService = require('./preOrderService');
 const { AppError } = require('../../utils/response');
 const { logError, log } = require('../../utils/logger');
+const { emitRealtimeEvent, emitToRoom, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
 
 const pool = getPool();
 
@@ -317,7 +318,7 @@ async function createBooking(bookingData) {
     // Process tier rewards and check for tier upgrade
     try {
       // Process tier logic (adds to annual spend, checks for upgrade, calculates EZT reward)
-      tierResult = await tierService.processBookingWithTier(user_id, finalAmount, booking.id);
+      tierResult = await tierService.processBookingWithTier(user_id, finalAmount);
       eztEarned = tierResult.eztEarned;
       
       // Update booking with tier information (within transaction)
@@ -395,8 +396,81 @@ async function createBooking(bookingData) {
       booking.deal_title = dealTitle;
     }
 
+    // Get user's current balances and tier info for rewards response
+    const userResult = await client.query(
+      `SELECT 
+        u.available_tokens,
+        u.current_tier_name,
+        u.annual_spend_current,
+        t.ezt_reward_percentage
+      FROM users u
+      LEFT JOIN loyalty_tiers t ON u.current_tier_name = t.tier_name
+      WHERE u.id = $1`,
+      [user_id]
+    );
+    const user = userResult.rows[0] || {};
+    
+    // Get current loyalty balance
+    const loyaltyBalanceResult = await client.query(
+      `SELECT balance_after 
+       FROM loyalty_activity 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 1`,
+      [user_id]
+    );
+    const currentLoyaltyBalance = parseFloat(loyaltyBalanceResult.rows[0]?.balance_after || 0);
+
+    // Add rewards data to booking response
+    booking.rewards = {
+      ezt_earned: parseFloat(eztEarned || 0),
+      loyalty_points_earned: parseFloat(pointsEarned || 0),
+      tier: tierResult?.tierAtBooking || user.current_tier_name || 'Ather',
+      earn_rate: parseFloat(tierResult?.rewardPercentage || user.ezt_reward_percentage || 1) / 100,
+      tier_upgraded: tierResult?.tierUpgrade || null
+    };
+    
+    // Add user balances for UI update
+    booking.user_balances = {
+      ezt_balance: parseFloat(user.available_tokens || 0),
+      loyalty_points: currentLoyaltyBalance,
+      current_tier: user.current_tier_name || 'Ather',
+      annual_spend: parseFloat(user.annual_spend_current || 0)
+    };
+
     // BUG FIX #3: COMMIT only after ALL processing succeeds
     await client.query('COMMIT');
+
+    const bookingEventPayload = {
+      action: 'created',
+      bookingId: booking.id,
+      bookingReference: booking.booking_reference,
+      status: booking.status,
+      bookingType,
+      userId: user_id,
+      partnerId: partner_id,
+      amount: booking.amount,
+      fiatAmount: booking.fiat_amount,
+      eztRedeemed,
+      eztEarned,
+      pointsEarned,
+      dealTitle,
+      reservationId: reservation?.id || null,
+      preOrderId: preOrder?.id || null,
+      createdAt: booking.created_at || booking.createdAt || new Date().toISOString(),
+      timestamp: new Date().toISOString()
+    };
+
+    emitRealtimeEvent(REALTIME_EVENTS.BOOKING_CREATED, bookingEventPayload);
+    emitRealtimeEvent(REALTIME_EVENTS.PARTNER_BOOKING_UPDATE, {
+      ...bookingEventPayload,
+      event: 'created'
+    });
+    emitToRoom(`partners:${partner_id}`, REALTIME_EVENTS.PARTNER_BOOKING_UPDATE, {
+      ...bookingEventPayload,
+      event: 'created'
+    });
+    emitToRoom(`users:${user_id}`, REALTIME_EVENTS.BOOKING_CREATED, bookingEventPayload);
 
     return booking;
   } catch (err) {

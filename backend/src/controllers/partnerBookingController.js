@@ -24,6 +24,9 @@ async function listPartnerBookings(req, res) {
         b.total_price,
         b.fiat_amount,
         b.ezt_redeemed,
+        b.ezt_earned,
+        b.points_earned,
+        b.user_tier_at_booking,
         b.status,
         b.special_requests,
         b.created_at,
@@ -32,7 +35,8 @@ async function listPartnerBookings(req, res) {
         po.service_type,
         u.first_name || ' ' || u.last_name as customer_name,
         u.email as customer_email,
-        u.phone_number as customer_phone
+        u.phone_number as customer_phone,
+        u.current_tier_name as customer_tier
       FROM bookings b
       INNER JOIN partner_offers po ON b.deal_id = po.id
       LEFT JOIN users u ON b.user_id = u.id

@@ -1,6 +1,7 @@
 const { getPool } = require('../src/config/db');
 const { log, logError } = require('../utils/logger');
 const { getSystemSetting } = require('./settingsService');
+const { emitRealtimeEvent, REALTIME_EVENTS } = require('../src/utils/realtimeEmitter');
 
 const pool = getPool();
 
@@ -89,6 +90,16 @@ async function recordActivity({
         description
       ]
     );
+
+    emitRealtimeEvent(REALTIME_EVENTS.LOYALTY_UPDATED, {
+      userId,
+      pointsEarned,
+      pointsSpent,
+      balanceAfter,
+      source,
+      referenceId: referenceId || null,
+      timestamp: new Date().toISOString()
+    });
 
     return { balanceAfter };
   } catch (err) {

@@ -30,7 +30,12 @@ async function createPartner(partnerData, actorUserId, actorRole) {
     throw new AppError(400, "Partner with this email already exists");
   }
 
-  const partner = await partnerRepository.createPartner(partnerData);
+  const normalizedIsActive = Boolean(partnerData.is_active);
+  const partner = await partnerRepository.createPartner({
+    ...partnerData,
+    is_active: normalizedIsActive,
+    status: normalizedIsActive ? 'active' : 'pending'
+  });
   
   // Log audit trail
   await writeAudit(actorUserId, actorRole, 'partner_create', 'partner', partner.id, {
@@ -216,9 +221,114 @@ async function getPartnerAnalytics(partnerId, period = '30') {
   return await partnerRepository.getPartnerAnalytics(partnerId, daysWindow);
 }
 
+// Get partner rewards analytics
+async function getPartnerRewardsAnalytics(partnerId) {
+  const { getPool } = require('../config/db');
+  const pool = getPool();
+  
+  try {
+    // Get all bookings for this partner with rewards data
+    const bookingsResult = await pool.query(
+      `SELECT 
+        b.id,
+        b.ezt_earned,
+        b.points_earned,
+        b.user_tier_at_booking,
+        b.created_at,
+        u.first_name || ' ' || u.last_name as customer_name,
+        u.phone_number as customer_phone,
+        u.current_tier_name as customer_tier
+      FROM bookings b
+      INNER JOIN partner_offers po ON b.deal_id = po.id
+      LEFT JOIN users u ON b.user_id = u.id
+      WHERE po.partner_id = $1
+      ORDER BY b.created_at DESC
+      LIMIT 100`,
+      [partnerId]
+    );
+    
+    const bookings = bookingsResult.rows;
+    
+    // Calculate totals
+    const totalEztDistributed = bookings.reduce((sum, b) => sum + parseFloat(b.ezt_earned || 0), 0);
+    const totalLoyaltyPoints = bookings.reduce((sum, b) => sum + parseFloat(b.points_earned || 0), 0);
+    
+    // Get customer tiers distribution
+    const customerTiers = {};
+    bookings.forEach(booking => {
+      const tier = booking.customer_tier || booking.user_tier_at_booking || 'Ather';
+      customerTiers[tier] = (customerTiers[tier] || 0) + 1;
+    });
+    
+    // Calculate average tier (weighted)
+    const tierValues = { 'Ather': 1, 'Nova': 2, 'Luminar': 3, 'Valiant': 4, 'Echelon': 5 };
+    let avgTier = 'N/A';
+    if (Object.keys(customerTiers).length > 0) {
+      const totalCustomers = Object.values(customerTiers).reduce((a, b) => a + b, 0);
+      const avgTierValue = Object.entries(customerTiers).reduce((sum, [tier, count]) => {
+        return sum + (tierValues[tier] || 1) * count;
+      }, 0) / totalCustomers;
+      const tierIndex = Math.round(avgTierValue) - 1;
+      avgTier = Object.keys(tierValues)[Math.max(0, Math.min(tierIndex, 4))] || 'Ather';
+    }
+    
+    // Recent bookings with rewards (last 10)
+    const recentBookings = bookings.slice(0, 10).map(b => ({
+      id: b.id,
+      customer_name: b.customer_name || 'Guest',
+      customer_phone: b.customer_phone || null,
+      customer_tier: b.customer_tier || b.user_tier_at_booking || 'Ather',
+      ezt_earned: parseFloat(b.ezt_earned || 0),
+      loyalty_points_earned: parseFloat(b.points_earned || 0),
+      created_at: b.created_at
+    }));
+    
+    return {
+      total_ezt_distributed: totalEztDistributed,
+      total_loyalty_points: totalLoyaltyPoints,
+      avg_customer_tier: avgTier,
+      customer_tiers_distribution: customerTiers,
+      recent_bookings: recentBookings
+    };
+  } catch (error) {
+    logError('Error in getPartnerRewardsAnalytics:', error);
+    throw error;
+  }
+}
+
 // Update partner menu images (scrollable menu viewer)
-async function updatePartnerMenuImages(partnerId, menuImages) {
-  return await partnerRepository.updatePartnerMenuImages(partnerId, menuImages);
+async function updatePartnerMenuImages(partnerId, menuImages = []) {
+  const partner = await partnerRepository.getPartnerById(partnerId);
+  if (!partner) {
+    throw new AppError(404, "Partner not found");
+  }
+  const normalized = Array.isArray(menuImages) ? menuImages : [];
+  const updated = await partnerRepository.updatePartnerMenuImages(partnerId, normalized);
+  return parseMenuImages(updated);
+}
+
+async function getPartnerWithMenuImages(partnerId) {
+  const partner = await partnerRepository.getPartnerWithMenuImages(partnerId);
+  if (!partner) {
+    throw new AppError(404, "Partner not found");
+  }
+  return parseMenuImages(partner);
+}
+
+function parseMenuImages(partner) {
+  if (!partner) return partner;
+  let images = partner.menu_images || [];
+  if (typeof images === 'string') {
+    try {
+      images = JSON.parse(images);
+    } catch {
+      images = [];
+    }
+  }
+  if (!Array.isArray(images)) {
+    images = [];
+  }
+  return { ...partner, menu_images: images };
 }
 
 module.exports = {
@@ -231,6 +341,7 @@ module.exports = {
   registerPartner,
   getPartnerDashboard,
   getPartnerAnalytics,
-  updatePartnerMenuImages
+  updatePartnerMenuImages,
+  getPartnerWithMenuImages
 };
 

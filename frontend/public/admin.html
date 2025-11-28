@@ -110,6 +110,22 @@
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
+            <select id="userTierFilter" class="select">
+              <option value="all">All tiers</option>
+              <option value="Ather">Ather</option>
+              <option value="Nova">Nova</option>
+              <option value="Luminar">Luminar</option>
+              <option value="Valiant">Valiant</option>
+              <option value="Echelon">Echelon</option>
+            </select>
+            <select id="userSortBy" class="select">
+              <option value="created">Newest First</option>
+              <option value="tier">Tier (Low to High)</option>
+              <option value="tier_desc">Tier (High to Low)</option>
+              <option value="spend">Spend (High to Low)</option>
+              <option value="spend_asc">Spend (Low to High)</option>
+              <option value="name">Name (A-Z)</option>
+            </select>
             <button id="exportUsers" class="btn btn-secondary">Export</button>
           </div>
         </div>
@@ -120,6 +136,8 @@
               <th>Email</th>
               <th>Phone</th>
               <th>Role</th>
+              <th>Tier</th>
+              <th>Annual Spend</th>
               <th>Status</th>
               <th>Created</th>
               <th>Actions</th>
@@ -297,6 +315,59 @@
           </div>
         </div>
         <div id="analyticsOverview" class="cards-grid"></div>
+        
+        <!-- Rewards System Overview -->
+        <div class="admin-rewards-dashboard" style="margin-top: 2rem;">
+          <h2 style="margin-bottom: 1.5rem;">Rewards System Overview</h2>
+          
+          <div class="rewards-overview-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+            <div class="overview-card card">
+              <h3 style="margin: 0 0 0.5rem 0; font-size: 0.875rem; color: var(--text-muted);">Total EZT in Circulation</h3>
+              <div class="big-number" id="totalEztCirculation" style="font-size: 2rem; font-weight: 700; color: var(--primary);">—</div>
+              <div class="trend" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">Active user balances</div>
+            </div>
+            
+            <div class="overview-card card">
+              <h3 style="margin: 0 0 0.5rem 0; font-size: 0.875rem; color: var(--text-muted);">EZT Earned (All Time)</h3>
+              <div class="big-number" id="totalEztEarned" style="font-size: 2rem; font-weight: 700; color: #10b981;">—</div>
+            </div>
+            
+            <div class="overview-card card">
+              <h3 style="margin: 0 0 0.5rem 0; font-size: 0.875rem; color: var(--text-muted);">EZT Redeemed (All Time)</h3>
+              <div class="big-number" id="totalEztRedeemed" style="font-size: 2rem; font-weight: 700; color: #ef4444;">—</div>
+            </div>
+            
+            <div class="overview-card card">
+              <h3 style="margin: 0 0 0.5rem 0; font-size: 0.875rem; color: var(--text-muted);">Active Users by Tier</h3>
+              <div id="tierDistribution" class="tier-chart" style="font-size: 0.875rem; color: var(--text-muted);">—</div>
+            </div>
+          </div>
+          
+          <div class="admin-rewards-sections" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem;">
+            <!-- Recent Transactions -->
+            <div class="admin-section card">
+              <h3 style="margin: 0 0 1rem 0;">Recent EZT Transactions</h3>
+              <div id="recentEztTransactions" style="max-height: 400px; overflow-y: auto;">
+                <div class="loading-spinner-container">
+                  <div class="spinner"></div>
+                  Loading transactions...
+                </div>
+              </div>
+            </div>
+            
+            <!-- Tier Upgrades -->
+            <div class="admin-section card">
+              <h3 style="margin: 0 0 1rem 0;">Recent Tier Upgrades</h3>
+              <div id="recentTierUpgrades" style="max-height: 400px; overflow-y: auto;">
+                <div class="loading-spinner-container">
+                  <div class="spinner"></div>
+                  Loading upgrades...
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <div class="dual-grid">
           <div class="card">
             <div class="card-header"><h2>Top Categories</h2></div>
@@ -885,6 +956,19 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"
     crossorigin="anonymous"></script>
+  <script src="js/adminRewards.js"></script>
+  
+  <!-- Real-time Service (feature-flagged) -->
+  <script>
+    // Load config first
+    window.CONFIG = window.CONFIG || {};
+    window.CONFIG.API_BASE = window.CONFIG.API_BASE || 'http://localhost:5001/api/v1';
+    window.CONFIG.FEATURES = window.CONFIG.FEATURES || {};
+    window.CONFIG.FEATURES.ENABLE_REALTIME = window.CONFIG.FEATURES.ENABLE_REALTIME !== false;
+    window.CONFIG.FEATURES.REALTIME_FALLBACK = window.CONFIG.FEATURES.REALTIME_FALLBACK !== false;
+    window.CONFIG.FEATURES.REALTIME_POLLING_INTERVAL = window.CONFIG.FEATURES.REALTIME_POLLING_INTERVAL || 30000;
+  </script>
+  <script src="js/services/realtimeService.js"></script>
   <script src="js/admin.js" type="module"></script>
 </body>
 </html>

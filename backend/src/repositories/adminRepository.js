@@ -42,7 +42,7 @@ async function checkDealEligibility(dealId, executor = pool, options = {}) {
         o.discounted_price,
         o.featured_request_pending,
         o.is_active AS deal_is_active,
-        o.is_promoted,
+        o.is_trending,
         o.is_trending,
         o.forced_by_admin,
         p.status AS partner_status,
@@ -66,7 +66,8 @@ async function checkDealEligibility(dealId, executor = pool, options = {}) {
   const warnings = [];
   let eligible = true;
 
-  if (row.partner_status && row.partner_status !== 'active') {
+  const allowedPartnerStatuses = new Set(['active', 'approved']);
+  if (row.partner_status && !allowedPartnerStatuses.has(row.partner_status)) {
     reasons.push(`Partner status is ${row.partner_status}`);
   } else if (!row.is_active) {
     reasons.push('Partner is inactive');
@@ -74,7 +75,7 @@ async function checkDealEligibility(dealId, executor = pool, options = {}) {
   
   // Only check featured eligibility if explicitly requested (for trending/featured operations)
   if (checkFeaturedEligibility) {
-    const isTrendingDeal = row.is_promoted || row.featured_request_pending || (row.is_trending || false);
+    const isTrendingDeal = row.is_trending || row.featured_request_pending;
     // Check eligibility: partner must be approved OR admin has forced it
     if (isTrendingDeal && !row.approved_for_featured && !row.forced_by_admin) {
       reasons.push('Partner is not approved for featured/trending content. Partner must be approved for featured content or admin must force the promotion.');
@@ -96,7 +97,7 @@ async function checkDealEligibility(dealId, executor = pool, options = {}) {
     }
   }
 
-  if (row.is_promoted) {
+  if (row.is_trending) {
     warnings.push('Deal is already promoted');
   }
   if (row.status === OFFER_STATUS.PAUSED) {
@@ -122,7 +123,7 @@ async function checkDealEligibility(dealId, executor = pool, options = {}) {
       status: row.status,
       start_date: row.start_date,
       end_date: row.end_date,
-      is_promoted: row.is_promoted,
+      is_trending: row.is_trending,
       is_trending: row.is_trending || false,
       original_price: row.original_price,
       discounted_price: row.discounted_price,
@@ -168,12 +169,18 @@ async function getDashboardStats(rangeDays = 30) {
     pool.query(`SELECT COUNT(*)::int AS count FROM users`),
     pool.query(`SELECT COUNT(*)::int AS count FROM users WHERE created_at >= to_timestamp($1 / 1000.0)`, [todayStartMs]),
     pool.query(`SELECT COUNT(*)::int AS count FROM partners`),
-    pool.query(`SELECT COUNT(*)::int AS count FROM partners WHERE status <> 'active' OR status IS NULL`),
+    pool.query(`
+      SELECT COUNT(*)::int AS count
+      FROM partners
+      WHERE
+        (status IS NULL AND is_active = false)
+        OR status IN ('pending', 'pending_approval')
+    `),
     pool.query(`
       SELECT
         COUNT(*)::int AS total_deals,
         COUNT(*) FILTER (WHERE status = 'active' AND (end_date IS NULL OR end_date >= NOW()))::int AS active_deals,
-        COUNT(*) FILTER (WHERE is_promoted = true)::int AS promoted_deals
+        COUNT(*) FILTER (WHERE is_trending = true)::int AS trending_deals
       FROM partner_offers
     `)
   ]);
@@ -275,7 +282,7 @@ async function getDashboardStats(rangeDays = 30) {
     deals: {
       total: dealsResult.rows[0]?.total_deals || 0,
       active: dealsResult.rows[0]?.active_deals || 0,
-      promoted: dealsResult.rows[0]?.promoted_deals || 0
+      promoted: dealsResult.rows[0]?.trending_deals || 0
     },
     revenue: {
       total: totalRevenue,
@@ -293,10 +300,10 @@ async function listAdminPartners({ status = 'all' } = {}) {
 
   switch (normalizedStatus) {
     case 'approved':
-      conditions.push('p.is_active = true');
+      conditions.push("(p.is_active = true OR p.status IN ('active','approved'))");
       break;
     case 'pending':
-      conditions.push('p.is_active = false');
+      conditions.push("((p.status IS NULL OR p.status IN ('pending','pending_approval')))");
       break;
     case 'suspended':
     case 'rejected':
@@ -326,7 +333,7 @@ async function listAdminPartners({ status = 'all' } = {}) {
       p.approved_for_featured,
       p.created_at,
       COALESCE(offer_stats.active_deals, 0)::int AS active_deals,
-      COALESCE(offer_stats.promoted_deals, 0)::int AS promoted_deals,
+      COALESCE(offer_stats.trending_deals, 0)::int AS trending_deals,
       COALESCE(booking_stats.total_bookings, 0)::int AS total_bookings,
       COALESCE(booking_stats.revenue, 0)::numeric AS revenue
     FROM partners p
@@ -334,7 +341,7 @@ async function listAdminPartners({ status = 'all' } = {}) {
       SELECT 
         partner_id,
         COUNT(*) FILTER (WHERE status = 'active')::int AS active_deals,
-        COUNT(*) FILTER (WHERE is_promoted = true)::int AS promoted_deals
+        COUNT(*) FILTER (WHERE is_trending = true)::int AS trending_deals
       FROM partner_offers
       GROUP BY partner_id
     ) AS offer_stats ON offer_stats.partner_id = p.id
@@ -353,13 +360,15 @@ async function listAdminPartners({ status = 'all' } = {}) {
   );
 
   return result.rows.map((row) => {
-    let computedStatus;
-    if (row.is_active === true) {
+    const normalizedStatus = (row.status || '').toLowerCase();
+    let computedStatus = normalizedStatus;
+
+    if (!computedStatus) {
+      computedStatus = row.is_active ? 'approved' : 'pending';
+    } else if (computedStatus === 'active' || computedStatus === 'approved') {
       computedStatus = 'approved';
-    } else if (row.is_active === false) {
+    } else if (computedStatus === 'pending_approval' || computedStatus === 'pending') {
       computedStatus = 'pending';
-    } else {
-      computedStatus = row.status || 'pending';
     }
 
     return {
@@ -371,7 +380,8 @@ async function listAdminPartners({ status = 'all' } = {}) {
       status: computedStatus,
       approved_for_featured: row.approved_for_featured,
       active_deals: row.active_deals,
-      promoted_deals: row.promoted_deals,
+      trending_deals: row.trending_deals || 0,
+      promoted_deals: row.trending_deals || 0, // Backward compatibility alias
       total_bookings: row.total_bookings,
       revenue: parseFloat(row.revenue || 0)
     };
@@ -535,7 +545,7 @@ async function listAdminDeals({ search = '', status = 'all', promo = 'all' } = {
   }
 
   if (normalizedPromo === 'promoted') {
-    filters.push(`po.is_promoted = true`);
+    filters.push(`po.is_trending = true`);
   } else if (normalizedPromo === 'expiring') {
     filters.push(`po.end_date BETWEEN NOW() AND (NOW() + INTERVAL '3 day')`);
   } else if (normalizedPromo === 'pending_trending') {
@@ -567,7 +577,7 @@ async function listAdminDeals({ search = '', status = 'all', promo = 'all' } = {
           ELSE 'draft'
         END
       ) AS status,
-      po.is_promoted,
+      po.is_trending,
       po.featured_request_pending,
       po.max_redemptions,
       po.current_redemptions,
@@ -600,7 +610,7 @@ async function listAdminDeals({ search = '', status = 'all', promo = 'all' } = {
       end_date: deal.end_date,
       status: deal.status,
       schedule_status: scheduleStatus,
-      is_promoted: deal.is_promoted,
+      is_trending: deal.is_trending,
       featured_request_pending: deal.featured_request_pending,
       max_redemptions: deal.max_redemptions,
       current_redemptions: deal.current_redemptions,
@@ -614,7 +624,7 @@ async function updateDealStatus(dealId, action, actorUserId = null, actorRole = 
   const tx = await withTransaction(async (client) => {
     // First, check if deal is promoted/trending to determine if we need featured eligibility check
     const dealCheck = await client.query(
-      'SELECT is_promoted, is_trending, featured_request_pending FROM partner_offers WHERE id = $1',
+      'SELECT is_trending, featured_request_pending FROM partner_offers WHERE id = $1',
       [dealId]
     );
     
@@ -622,7 +632,7 @@ async function updateDealStatus(dealId, action, actorUserId = null, actorRole = 
       throw new Error('Deal not found');
     }
     
-    const isPromotedDeal = dealCheck.rows[0]?.is_promoted || 
+    const isTrendingDeal = dealCheck.rows[0]?.is_trending || 
                           dealCheck.rows[0]?.is_trending || 
                           dealCheck.rows[0]?.featured_request_pending;
     
@@ -631,7 +641,7 @@ async function updateDealStatus(dealId, action, actorUserId = null, actorRole = 
     // - Require valid dates when activating (approve action)
     const eligibility = await checkDealEligibility(dealId, client, { 
       lock: true, 
-      checkFeaturedEligibility: isPromotedDeal,
+      checkFeaturedEligibility: isTrendingDeal,
       requireValidDates: action === 'approve' || (action === 'toggle' && dealCheck.rows[0]?.status !== OFFER_STATUS.ACTIVE)
     });
     
@@ -654,8 +664,8 @@ async function updateDealStatus(dealId, action, actorUserId = null, actorRole = 
 
     if (willActivate) {
       // Check partner is active (either by is_active flag or status)
-      const partnerIsActive = partner.is_active === true && 
-        (partner.status === null || partner.status === 'active');
+      const partnerIsActive = partner.is_active === true &&
+        (partner.status === null || partner.status === 'active' || partner.status === 'approved');
       
       if (!partnerIsActive) {
         const partnerStatusMsg = partner.status || (partner.is_active ? 'active' : 'pending');
@@ -737,7 +747,7 @@ async function updateDealStatus(dealId, action, actorUserId = null, actorRole = 
       case 'approve':
         nextStatus = OFFER_STATUS.ACTIVE;
         shouldClearFeatured = true; // Clear pending request when activating
-        // Don't clear is_promoted on approve - it might already be promoted
+        // Don't clear is_trending on approve - it might already be trending
         break;
       case 'reject':
         nextStatus = OFFER_STATUS.REJECTED;
@@ -761,7 +771,7 @@ async function updateDealStatus(dealId, action, actorUserId = null, actorRole = 
         } else {
           nextStatus = OFFER_STATUS.ACTIVE;
           shouldClearFeatured = true; // Clear pending when activating
-          // Don't clear is_promoted - it might be restored if forced_by_admin is true
+          // Don't clear is_trending - it might be restored if forced_by_admin is true
         }
         break;
       default:
@@ -781,7 +791,7 @@ async function updateDealStatus(dealId, action, actorUserId = null, actorRole = 
         is_active = $2,
         start_date = CASE WHEN $3 THEN $4 ELSE start_date END,
         featured_request_pending = CASE WHEN $5 THEN false ELSE featured_request_pending END,
-        is_promoted = CASE WHEN $6 THEN false ELSE is_promoted END,
+        is_trending = CASE WHEN $6 THEN false ELSE is_trending END,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $7 
       RETURNING *
@@ -808,14 +818,14 @@ async function updateDealStatus(dealId, action, actorUserId = null, actorRole = 
           status: current.status,
           is_active: current.is_active,
           featured_request_pending: current.featured_request_pending,
-          is_promoted: current.is_promoted,
+          is_trending: current.is_trending,
           forced_by_admin: current.forced_by_admin
         },
         next: {
           status: result.rows[0].status,
           is_active: result.rows[0].is_active,
           featured_request_pending: result.rows[0].featured_request_pending,
-          is_promoted: result.rows[0].is_promoted,
+          is_trending: result.rows[0].is_trending,
           forced_by_admin: result.rows[0].forced_by_admin
         }
       }
@@ -906,21 +916,21 @@ async function updateTrendingStatus(dealId, action, actorUserId = null, actorRol
     }
 
     const current = eligibility.deal;
-    let nextIsPromoted = current.is_promoted;
+    let nextIsTrending = current.is_trending;
     let nextFeaturedPending = current.featured_request_pending;
 
     switch (action) {
       case 'partner_request':
         // Deal status validation already done above (lines 858-863), no need to duplicate
-        nextIsPromoted = false;
+        nextIsTrending = false;
         nextFeaturedPending = true;
         break;
       case 'admin_approve':
-        nextIsPromoted = true;
+        nextIsTrending = true;
         nextFeaturedPending = false;
         break;
       case 'admin_reject':
-        nextIsPromoted = false;
+        nextIsTrending = false;
         nextFeaturedPending = false;
         break;
       default:
@@ -930,12 +940,12 @@ async function updateTrendingStatus(dealId, action, actorUserId = null, actorRol
 
     const updateResult = await client.query(
       `UPDATE partner_offers
-       SET is_promoted = $1,
+       SET is_trending = $1,
            featured_request_pending = $2,
            updated_at = NOW()
        WHERE id = $3
-       RETURNING id, is_promoted, featured_request_pending`,
-      [nextIsPromoted, nextFeaturedPending, dealId]
+       RETURNING id, is_trending, featured_request_pending`,
+      [nextIsTrending, nextFeaturedPending, dealId]
     );
 
     const trendingActionLabels = {
@@ -952,11 +962,11 @@ async function updateTrendingStatus(dealId, action, actorUserId = null, actorRol
       dealId,
       {
         previous: {
-          is_promoted: current.is_promoted,
+          is_trending: current.is_trending,
           featured_request_pending: current.featured_request_pending
         },
         next: {
-          is_promoted: updateResult.rows[0].is_promoted,
+          is_trending: updateResult.rows[0].is_trending,
           featured_request_pending: updateResult.rows[0].featured_request_pending
         }
       }
@@ -968,7 +978,7 @@ async function updateTrendingStatus(dealId, action, actorUserId = null, actorRol
       success: true,
       data: {
         dealId: updateResult.rows[0].id,
-        is_promoted: updateResult.rows[0].is_promoted,
+        is_trending: updateResult.rows[0].is_trending,
         featured_request_pending: updateResult.rows[0].featured_request_pending
       }
     };
@@ -1058,17 +1068,53 @@ async function listAdminUsers(filters = {}) {
     paramCounter++;
   }
 
-  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  // Tier filter
+  if (filters.tier && filters.tier !== 'all') {
+    // Use COALESCE to handle NULL values (default to 'Ather')
+    conditions.push(`COALESCE(u.current_tier_name, 'Ather') = $${paramCounter}`);
+    params.push(filters.tier);
+    paramCounter++;
+  }
+  
+  const finalWhereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-  // Get total count
+  // Get total count (with same filters)
   const countQuery = `
     SELECT COUNT(*)::int as total
     FROM users u
     LEFT JOIN roles r ON u.role_id = r.id
-    ${whereClause}
+    ${finalWhereClause}
   `;
-  const countResult = await pool.query(countQuery, params);
+  const countParams = [...params]; // Copy params for count query
+  const countResult = await pool.query(countQuery, countParams);
   const total = countResult.rows[0].total;
+  
+  // Sort order
+  let orderBy = 'u.created_at DESC';
+  if (filters.sortBy) {
+    switch (filters.sortBy) {
+      case 'tier':
+        orderBy = 't.tier_level ASC, u.created_at DESC';
+        break;
+      case 'tier_desc':
+        orderBy = 't.tier_level DESC, u.created_at DESC';
+        break;
+      case 'spend':
+        orderBy = 'total_spent DESC';
+        break;
+      case 'spend_asc':
+        orderBy = 'total_spent ASC';
+        break;
+      case 'name':
+        orderBy = 'u.first_name ASC, u.last_name ASC';
+        break;
+      case 'created':
+        orderBy = 'u.created_at DESC';
+        break;
+      default:
+        orderBy = 'u.created_at DESC';
+    }
+  }
 
   // Get paginated results
   const dataQuery = `
@@ -1081,11 +1127,16 @@ async function listAdminUsers(filters = {}) {
       u.is_active,
       u.created_at,
       u.last_login,
+      u.current_tier_name,
+      u.annual_spend_current,
       r.role_name,
+      t.tier_level,
+      t.ezt_reward_percentage,
       COALESCE(booking_stats.total_bookings, 0)::int AS total_bookings,
       COALESCE(booking_stats.total_spent, 0)::numeric AS total_spent
     FROM users u
     LEFT JOIN roles r ON u.role_id = r.id
+    LEFT JOIN loyalty_tiers t ON u.current_tier_name = t.tier_name
     LEFT JOIN (
       SELECT 
         user_id,
@@ -1094,8 +1145,8 @@ async function listAdminUsers(filters = {}) {
       FROM bookings
       GROUP BY user_id
     ) AS booking_stats ON booking_stats.user_id = u.id
-    ${whereClause}
-    ORDER BY u.created_at DESC
+    ${finalWhereClause}
+    ORDER BY ${orderBy}
     LIMIT $${paramCounter} OFFSET $${paramCounter + 1}
   `;
   params.push(limit, offset);
@@ -1114,6 +1165,10 @@ async function listAdminUsers(filters = {}) {
       is_active: row.is_active !== false,
       created_at: row.created_at,
       last_login: row.last_login,
+      tier: row.current_tier_name || 'Ather',
+      tier_level: row.tier_level || 1,
+      tier_percentage: parseFloat(row.ezt_reward_percentage || 1),
+      annual_spend: parseFloat(row.annual_spend_current || 0),
       total_bookings: row.total_bookings,
       total_spent: parseFloat(row.total_spent || 0)
     })),
@@ -1162,7 +1217,7 @@ async function getAdminAnalytics(period = 'month') {
       SELECT
         COUNT(*) as total_deals,
         COUNT(*) FILTER (WHERE status = 'active' AND (end_date IS NULL OR end_date > NOW())) as active_deals,
-        COUNT(*) FILTER (WHERE is_promoted = true) as featured_deals
+        COUNT(*) FILTER (WHERE is_trending = true) as trending_deals
       FROM partner_offers
     `),
     pool.query(`
@@ -1196,7 +1251,7 @@ async function getAdminAnalytics(period = 'month') {
     deals: {
       total: parseInt(dealsResult.rows[0]?.total_deals || 0),
       active: parseInt(dealsResult.rows[0]?.active_deals || 0),
-      featured: parseInt(dealsResult.rows[0]?.featured_deals || 0)
+      featured: parseInt(dealsResult.rows[0]?.trending_deals || 0)
     },
     bookings: {
       total_users: parseInt(globalResult.rows[0]?.total_users || 0),
@@ -1245,10 +1300,10 @@ async function updateSystemSetting(key, value, userId) {
 }
 
 // Update offer featured status
-async function updateOfferFeaturedStatus(offerId, is_promoted, forced_by_admin, actorUserId = null, actorRole = null) {
+async function updateOfferFeaturedStatus(offerId, is_trending, forced_by_admin, actorUserId = null, actorRole = null) {
   const tx = await withTransaction(async (client) => {
     const offerResult = await client.query(
-      `SELECT po.is_promoted, po.featured_request_pending, po.forced_by_admin, po.partner_id,
+      `SELECT po.is_trending, po.featured_request_pending, po.forced_by_admin, po.partner_id,
               po.status, po.end_date,
               p.approved_for_featured, p.name as partner_name
        FROM partner_offers po
@@ -1263,11 +1318,11 @@ async function updateOfferFeaturedStatus(offerId, is_promoted, forced_by_admin, 
     }
 
     const offer = offerResult.rows[0];
-    const setPromoted = !!is_promoted;
+    const setTrending = !!is_trending;
     const partnerEligible = !!offer.approved_for_featured;
     const now = new Date();
 
-    if (setPromoted) {
+    if (setTrending) {
       if (offer.status !== OFFER_STATUS.ACTIVE || (offer.end_date && new Date(offer.end_date) < now)) {
         throw new Error('Cannot promote an inactive or expired deal');
       }
@@ -1278,29 +1333,29 @@ async function updateOfferFeaturedStatus(offerId, is_promoted, forced_by_admin, 
 
     const updateResult = await client.query(
       `UPDATE partner_offers
-       SET is_promoted = $1,
+       SET is_trending = $1,
            featured_request_pending = false,
            forced_by_admin = $2,
            updated_at = NOW()
        WHERE id = $3
-       RETURNING id, is_promoted, featured_request_pending, forced_by_admin`,
-      [setPromoted, setPromoted ? !!forced_by_admin : false, offerId]
+       RETURNING id, is_trending, featured_request_pending, forced_by_admin`,
+      [setTrending, setTrending ? !!forced_by_admin : false, offerId]
     );
 
     await createAuditLogEntry.call(
       { client, actorRole },
       actorUserId || null,
-      setPromoted ? 'promoted deal' : 'demoted deal',
+      setTrending ? 'marked deal as trending' : 'removed deal from trending',
       'offer',
       offerId,
       {
         previous: {
-          is_promoted: offer.is_promoted,
+          is_trending: offer.is_trending || false,
           featured_request_pending: offer.featured_request_pending,
           forced_by_admin: offer.forced_by_admin
         },
         next: {
-          is_promoted: updateResult.rows[0].is_promoted,
+          is_trending: updateResult.rows[0].is_trending,
           featured_request_pending: updateResult.rows[0].featured_request_pending,
           forced_by_admin: updateResult.rows[0].forced_by_admin
         }
@@ -1309,12 +1364,12 @@ async function updateOfferFeaturedStatus(offerId, is_promoted, forced_by_admin, 
 
     return {
       previous: {
-        is_promoted: offer.is_promoted,
+        is_trending: offer.is_trending,
         featured_request_pending: offer.featured_request_pending,
         forced_by_admin: offer.forced_by_admin
       },
       next: {
-        is_promoted: updateResult.rows[0].is_promoted,
+        is_trending: updateResult.rows[0].is_trending,
         featured_request_pending: updateResult.rows[0].featured_request_pending,
         forced_by_admin: updateResult.rows[0].forced_by_admin
       },
@@ -1328,7 +1383,7 @@ async function updateOfferFeaturedStatus(offerId, is_promoted, forced_by_admin, 
       success: false,
       error: tx.error,
       stack: tx.stack,
-      context: { offerId, is_promoted }
+      context: { offerId, is_trending }
     };
   }
 

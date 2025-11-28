@@ -76,14 +76,34 @@ async function createPartner(partnerData) {
     rating,
     latitude,
     longitude,
-    is_active = false
+    is_active = false,
+    status = 'pending',
+    cuisine_types = [],
+    dietary_preferences = [],
+    avg_cost_for_two = null
   } = partnerData;
 
   const result = await pool.query(
-    `INSERT INTO partners (name, category_id, description, address, phone_number, email, partner_discount_percentage, rating, latitude, longitude, is_active)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `INSERT INTO partners (name, category_id, description, address, phone_number, email, partner_discount_percentage, rating, latitude, longitude, is_active, status, cuisine_types, dietary_preferences, avg_cost_for_two)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      RETURNING *`,
-    [name, category_id, description, address, phone_number, email, partner_discount_percentage || 0, rating, latitude, longitude, is_active]
+    [
+      name,
+      category_id,
+      description,
+      address,
+      phone_number,
+      email,
+      partner_discount_percentage || 0,
+      rating,
+      latitude,
+      longitude,
+      is_active,
+      status || 'pending',
+      Array.isArray(cuisine_types) ? cuisine_types : [],
+      Array.isArray(dietary_preferences) ? dietary_preferences : [],
+      avg_cost_for_two
+    ]
   );
   return result.rows[0];
 }
@@ -92,7 +112,8 @@ async function createPartner(partnerData) {
 async function updatePartner(partnerId, updates) {
   const allowedFields = [
     'name', 'description', 'address', 'phone_number', 'email',
-    'partner_discount_percentage', 'rating', 'is_active', 'website_url', 'partner_category_type'
+    'partner_discount_percentage', 'rating', 'is_active', 'website_url',
+    'partner_category_type', 'cuisine_types', 'dietary_preferences', 'avg_cost_for_two'
   ];
   
   const updateFields = [];
@@ -102,8 +123,18 @@ async function updatePartner(partnerId, updates) {
   for (const [key, value] of Object.entries(updates)) {
     if (allowedFields.includes(key) && value !== undefined) {
       paramCount++;
-      updateFields.push(`${key} = $${paramCount}`);
-      values.push(value);
+      // Handle array fields (cuisine_types, dietary_preferences) specially
+      if (['cuisine_types', 'dietary_preferences'].includes(key)) {
+        const arrVal = Array.isArray(value) ? value : (value ? [value] : []);
+        updateFields.push(`${key} = $${paramCount}::text[]`);
+        values.push(arrVal);
+      } else if (key === 'avg_cost_for_two') {
+        updateFields.push(`${key} = $${paramCount}::numeric`);
+        values.push(value);
+      } else {
+        updateFields.push(`${key} = $${paramCount}`);
+        values.push(value);
+      }
     }
   }
 
@@ -306,6 +337,20 @@ async function updatePartnerMenuImages(partnerId, menuImages) {
   return result.rows[0];
 }
 
+async function getPartnerWithMenuImages(partnerId) {
+  const query = `
+    SELECT 
+      p.*, 
+      c.name AS category_name, 
+      COALESCE(p.menu_images, '[]'::jsonb) AS menu_images
+    FROM partners p
+    LEFT JOIN categories c ON p.category_id = c.id
+    WHERE p.id = $1
+  `;
+  const result = await pool.query(query, [partnerId]);
+  return result.rows[0];
+}
+
 module.exports = {
   listPartners,
   getPartnerById,
@@ -316,5 +361,6 @@ module.exports = {
   deletePartner,
   getPartnerDashboardStats,
   getPartnerAnalytics,
-  updatePartnerMenuImages
+  updatePartnerMenuImages,
+  getPartnerWithMenuImages
 };

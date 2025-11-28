@@ -7,32 +7,8 @@ const router = express.Router();
 
 // Public routes
 router.get('/', partnerController.listPartners);
-router.get('/:id', partnerController.getPartner);
 
-// Admin only routes
-router.post('/', authenticateToken, requireSuperAdmin, partnerController.createPartner);
-router.put('/:id', partnerController.updatePartner);
-router.delete('/:id', partnerController.deletePartner);
-
-// Partner auth routes
-router.post('/auth/login', partnerController.login);
-router.post('/auth/register', partnerController.register);
-router.post('/auth/forgot-password', partnerController.forgotPassword);
-router.post('/auth/reset-password', partnerController.resetPassword);
-router.post('/auth/resend-otp', partnerController.resendOtp);
-
-// Partner dashboard and analytics (authenticated)
-router.get('/:id/dashboard', partnerController.getDashboard);
-router.get('/:id/analytics', authenticateToken, partnerController.getAnalytics);
-
-// Partner menu routes
-const menuController = require('../controllers/menuController');
-router.get('/:id/menu', menuController.listMenuItems);
-router.post('/:id/menu', menuController.createMenuItem);
-router.put('/:id/menu/:itemId', menuController.updateMenuItem);
-router.delete('/:id/menu/:itemId', menuController.deleteMenuItem);
-
-// Partner menu images routes (scrollable menu viewer)
+// Partner menu images routes (scrollable menu viewer) - MUST be before /:id route
 const multer = require('multer');
 const path = require('path');
 
@@ -58,8 +34,34 @@ const menuImageUpload = multer({
   }
 });
 
+router.get('/:id/menu-images', partnerController.getMenuImages);
 router.post('/:id/menu-images', menuImageUpload.array('menuImages', 20), partnerController.uploadMenuImages);
 router.delete('/:id/menu-images/:index', partnerController.deleteMenuImage);
+
+router.get('/:id', partnerController.getPartner);
+
+// Admin only routes
+router.post('/', authenticateToken, requireSuperAdmin, partnerController.createPartner);
+router.put('/:id', partnerController.updatePartner);
+router.delete('/:id', partnerController.deletePartner);
+
+// Partner auth routes
+router.post('/auth/login', partnerController.login);
+router.post('/auth/register', partnerController.register);
+router.post('/auth/forgot-password', partnerController.forgotPassword);
+router.post('/auth/reset-password', partnerController.resetPassword);
+router.post('/auth/resend-otp', partnerController.resendOtp);
+
+// Partner dashboard and analytics (authenticated)
+router.get('/:id/dashboard', partnerController.getDashboard);
+router.get('/:id/analytics', authenticateToken, partnerController.getAnalytics);
+
+// Partner menu routes
+const menuController = require('../controllers/menuController');
+router.get('/:id/menu', menuController.listMenuItems);
+router.post('/:id/menu', menuController.createMenuItem);
+router.put('/:id/menu/:itemId', menuController.updateMenuItem);
+router.delete('/:id/menu/:itemId', menuController.deleteMenuItem);
 
 // Partner offers routes
 const offerController = require('../controllers/offerController');
@@ -79,6 +81,9 @@ router.get('/:id/bookings', partnerBookingController.listPartnerBookings);
 router.get('/:id/bookings/stats', partnerBookingController.getBookingStats);
 router.get('/:id/bookings/:bookingId', partnerBookingController.getPartnerBooking);
 router.put('/:id/bookings/:bookingId/status', partnerBookingController.updateBookingStatus);
+
+// Partner rewards analytics
+router.get('/:id/rewards/analytics', authenticateToken, partnerController.getRewardsAnalytics);
 
 module.exports = router;
 

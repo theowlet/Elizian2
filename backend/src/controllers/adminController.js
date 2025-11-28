@@ -85,9 +85,11 @@ async function updateDealStatus(req, res) {
 async function updateOfferFeaturedStatus(req, res) {
   try {
     const { offerId } = req.params;
-    const { is_promoted, reason, force = false } = req.body || {};
+    const { is_trending, is_promoted, reason, force = false } = req.body || {};
+    // Support both is_trending and is_promoted for backward compatibility, but prefer is_trending
+    const trendingValue = is_trending !== undefined ? is_trending : is_promoted;
     const actorRole = await getUserRoleById(req.userId);
-    await adminService.updateOfferFeaturedStatus(offerId, is_promoted, reason, req.userId, actorRole, force);
+    await adminService.updateOfferFeaturedStatus(offerId, trendingValue, reason, req.userId, actorRole, force);
     res.json({ success: true });
   } catch (err) {
     logError('admin feature moderation error', err);
@@ -211,11 +213,13 @@ async function getActivity(req, res) {
 // List admin users
 async function listUsers(req, res) {
   try {
-    const { search = '', role = 'all', status = 'all', limit = 20, offset = 0 } = req.query;
+    const { search = '', role = 'all', status = 'all', tier = 'all', sortBy = 'created', limit = 20, offset = 0 } = req.query;
     const users = await adminService.listUsers({
       search,
       role,
       status,
+      tier,
+      sortBy,
       limit: parseInt(limit, 10),
       offset: parseInt(offset, 10)
     });
@@ -373,6 +377,17 @@ async function bulkApprovePartners(req, res) {
   }
 }
 
+// Get rewards overview
+async function getRewardsOverview(req, res) {
+  try {
+    const overview = await adminService.getRewardsOverview();
+    successResponse(res, 200, "Rewards overview retrieved successfully", overview);
+  } catch (err) {
+    logError("❌ Rewards overview error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to retrieve rewards overview");
+  }
+}
+
 module.exports = {
   getDashboard,
   listPartners,
@@ -393,6 +408,7 @@ module.exports = {
   getSessions,
   getArchives,
   reactivateArchive,
+  getRewardsOverview,
   archiveExpired,
   // Booking management
   listBookings,

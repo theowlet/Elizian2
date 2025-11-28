@@ -4,6 +4,8 @@
   "description": "Elizian Backend Prototype - Node.js + Express + PostgreSQL",
   "main": "src/server.js",
   "scripts": {
+    "setup": "node setup-uploads.js",
+    "prestart": "npm run setup",
     "start": "node src/server.js",
     "dev": "nodemon src/server.js"
   },
@@ -26,10 +28,12 @@
     "ioredis": "^5.8.2",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.1",
+    "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.10",
     "pg": "^8.16.3",
     "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

@@ -5,12 +5,14 @@ const settingsRepository = require('../repositories/settingsRepository');
 const { AppError } = require('../../utils/response');
 const { logError, log } = require('../../utils/logger');
 const { handleImageUpload, deleteOldImage } = require('../utils/imageUpload');
+const { emitRealtimeEvent, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
 const {
   deriveDiscountValues,
   normalizeApplicableDays,
   determineScheduleStatus,
   toRelativeImagePath
 } = require('../utils/dealRules');
+const { normalizeOffers } = require('../utils/responseNormalizer');
 
 const OFFER_STATUS = {
   DRAFT: 'draft',
@@ -78,8 +80,10 @@ async function createOffer(partnerId, offerData) {
       throw new AppError(400, 'Invalid date format');
     }
 
-    if (startDate < now) {
-      throw new AppError(400, 'Start date must be today or in the future');
+    // Allow slight clock skew by permitting start times up to 5 minutes in the past
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+    if (startDate < fiveMinutesAgo) {
+      throw new AppError(400, 'Start date must be within 5 minutes of current time or in the future');
     }
 
     if (endDate <= startDate) {
@@ -156,9 +160,22 @@ async function createOffer(partnerId, offerData) {
       savings: discountValues.savings,
       ezt_equivalent: discountValues.ezt_equivalent,
       featured_request_pending: trendingRequest,
-      is_promoted: false,
+      is_trending: false,
       forced_by_admin: false,
       status: scheduleStatus === 'expired' ? OFFER_STATUS.EXPIRED : desiredStatus
+    });
+
+    emitRealtimeEvent(REALTIME_EVENTS.DEAL_UPDATED, {
+      action: 'created',
+      offerId: offer.id,
+      partnerId: offer.partner_id || partnerId,
+      serviceType: offer.service_type,
+      status: offer.status,
+      isTrending: Boolean(offer.is_trending),
+      title: offer.title,
+      startDate: offer.start_date,
+      endDate: offer.end_date,
+      timestamp: new Date().toISOString()
     });
 
     return offer;
@@ -191,8 +208,11 @@ async function updateOffer(partnerId, offerId, updates) {
     if (newEnd && isNaN(newEnd.getTime())) {
       throw new AppError(400, 'Invalid end date');
     }
-    if (newStart && newStart < now) {
-      throw new AppError(400, 'Start date must be today or in the future');
+    if (newStart) {
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+      if (newStart < fiveMinutesAgo) {
+        throw new AppError(400, 'Start date must be within 5 minutes of current time or in the future');
+      }
     }
     if (newStart && newEnd && newEnd <= newStart) {
       throw new AppError(400, 'End date must be after start date');
@@ -217,13 +237,14 @@ async function updateOffer(partnerId, offerId, updates) {
     const payload = { ...updates, image_url: finalImageUrl };
 
     delete payload.status;
-    delete payload.is_promoted;
+    delete payload.is_trending;
+    delete payload.is_promoted; // Backward compatibility
     delete payload.forced_by_admin;
     delete payload.featured_request_pending;
 
     if (payload.request_trending) {
       payload.featured_request_pending = true;
-      payload.is_promoted = false;
+      payload.is_trending = false;
       delete payload.request_trending;
     }
 
@@ -253,6 +274,19 @@ async function updateOffer(partnerId, offerId, updates) {
 
     const updatedOffer = await offerRepository.updateOffer(partnerId, offerId, payload);
 
+    emitRealtimeEvent(REALTIME_EVENTS.DEAL_UPDATED, {
+      action: 'updated',
+      offerId: updatedOffer.id,
+      partnerId: updatedOffer.partner_id || existingOffer.partner_id || partnerId,
+      serviceType: updatedOffer.service_type,
+      status: updatedOffer.status,
+      isTrending: Boolean(updatedOffer.is_trending),
+      title: updatedOffer.title,
+      startDate: updatedOffer.start_date,
+      endDate: updatedOffer.end_date,
+      timestamp: new Date().toISOString()
+    });
+
     return updatedOffer;
   } catch (error) {
     if (error instanceof AppError) throw error;
@@ -272,6 +306,14 @@ async function deleteOffer(partnerId, offerId) {
     if (!deleted) {
       throw new AppError(404, 'Offer not found');
     }
+
+    emitRealtimeEvent(REALTIME_EVENTS.DEAL_UPDATED, {
+      action: 'deleted',
+      offerId: offerId,
+      partnerId,
+      timestamp: new Date().toISOString()
+    });
+
     return { deleted: true, id: offerId };
   } catch (error) {
     if (error instanceof AppError) throw error;
@@ -298,9 +340,11 @@ async function listPublicOffers(filters = {}) {
   const repoFilters = {
     status: enforceActiveFilters ? OFFER_STATUS.ACTIVE : null,
     not_expired: enforceActiveFilters,
-    has_started: enforceActiveFilters,
+    // Do NOT enforce has_started here; frontend decides whether to show
+    // ongoing vs upcoming events based on start_date.
+    has_started: false,
     service_type: serviceTypeParam || null,
-    is_promoted: trending === true ? true : null,
+    trending: trending === true ? true : null,
     limit: normalizedLimit,
     admin: Boolean(admin)
   };
@@ -313,16 +357,17 @@ async function listPublicOffers(filters = {}) {
 
   try {
     const offers = await offerRepository.listPublicOffers(repoFilters);
+    const normalizedOffers = normalizeOffers(offers);
     log('[offerService] listPublicOffers response', {
-      count: offers.length,
-      sample: offers.slice(0, 2).map((offer) => ({
+      count: normalizedOffers.length,
+      sample: normalizedOffers.slice(0, 2).map((offer) => ({
         id: offer.id,
         title: offer.title,
         status: offer.status,
         is_active: offer.is_active
       }))
     });
-    return offers;
+    return normalizedOffers;
   } catch (error) {
     logError('List public offers error:', error);
     throw new AppError(500, `Failed to list offers: ${error.message}`);

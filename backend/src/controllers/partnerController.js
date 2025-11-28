@@ -151,6 +151,18 @@ async function getAnalytics(req, res) {
   }
 }
 
+// Get partner rewards analytics
+async function getRewardsAnalytics(req, res) {
+  try {
+    const { id } = req.params;
+    const analytics = await partnerService.getPartnerRewardsAnalytics(id);
+    successResponse(res, 200, "Rewards analytics retrieved successfully", analytics);
+  } catch (err) {
+    logError("❌ Partner rewards analytics error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to fetch rewards analytics");
+  }
+}
+
 // Forgot password
 async function forgotPassword(req, res) {
   try {
@@ -185,6 +197,25 @@ async function resendOtp(req, res) {
   }
 }
 
+// Get menu images (scrollable menu viewer)
+async function getMenuImages(req, res) {
+  try {
+    const { id } = req.params;
+    const partner = await partnerService.getPartnerWithMenuImages(id);
+    const menuImages = partner.menu_images || [];
+    
+    successResponse(res, 200, "Menu images retrieved successfully", {
+      partner_id: id,
+      partner_name: partner.name,
+      menu_images: menuImages,
+      count: menuImages.length
+    });
+  } catch (err) {
+    logError("❌ Get menu images error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to retrieve menu images");
+  }
+}
+
 // Upload menu images (scrollable menu viewer)
 async function uploadMenuImages(req, res) {
   try {
@@ -195,7 +226,7 @@ async function uploadMenuImages(req, res) {
     }
     
     // Get partner's current menu images
-    const partner = await partnerService.getPartnerById(id);
+    const partner = await partnerService.getPartnerWithMenuImages(id);
     const currentImages = partner.menu_images || [];
     
     // Add new image paths
@@ -227,7 +258,7 @@ async function deleteMenuImage(req, res) {
     }
     
     // Get partner's current menu images
-    const partner = await partnerService.getPartnerById(id);
+    const partner = await partnerService.getPartnerWithMenuImages(id);
     const currentImages = partner.menu_images || [];
     
     if (imageIndex >= currentImages.length) {
@@ -269,9 +300,11 @@ module.exports = {
   register,
   getDashboard,
   getAnalytics,
+  getRewardsAnalytics,
   forgotPassword,
   resetPassword,
   resendOtp,
+  getMenuImages,
   uploadMenuImages,
   deleteMenuImage
 };

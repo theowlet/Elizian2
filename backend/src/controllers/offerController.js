@@ -68,12 +68,41 @@ async function listPublicOffers(req, res) {
       ? req.query.service_type 
       : null;
     
+    // Parse cuisine types (comma-separated or array)
+    let cuisineTypes = null;
+    if (req.query.cuisine_types) {
+      if (Array.isArray(req.query.cuisine_types)) {
+        cuisineTypes = req.query.cuisine_types;
+      } else if (typeof req.query.cuisine_types === 'string') {
+        cuisineTypes = req.query.cuisine_types.split(',').map(c => c.trim()).filter(c => c);
+      }
+    }
+
+    // Parse price range
+    const priceMin = req.query.price_min ? parseFloat(req.query.price_min) : null;
+    const priceMax = req.query.price_max ? parseFloat(req.query.price_max) : null;
+
+    // Parse rating
+    const minRating = req.query.min_rating ? parseFloat(req.query.min_rating) : null;
+
+    // Parse location for distance filtering
+    const userLat = req.query.user_latitude ? parseFloat(req.query.user_latitude) : null;
+    const userLng = req.query.user_longitude ? parseFloat(req.query.user_longitude) : null;
+    const maxDistance = req.query.max_distance_km ? parseFloat(req.query.max_distance_km) : null;
+
     const filters = {
       is_active: req.query.is_active === 'false' ? false : true, // Default to true
       service_type: serviceType,
       trending: req.query.trending === 'true' ? true : null,
       limit: limit,
-      admin: req.query.admin === 'true'
+      admin: req.query.admin === 'true',
+      cuisine_types: cuisineTypes,
+      price_min: priceMin,
+      price_max: priceMax,
+      min_rating: minRating,
+      user_latitude: userLat,
+      user_longitude: userLng,
+      max_distance_km: maxDistance
     };
     
     const offers = await offerService.listPublicOffers(filters);

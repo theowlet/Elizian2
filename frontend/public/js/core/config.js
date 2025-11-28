@@ -41,7 +41,11 @@ export const CONFIG = {
     socialFeatures: true,
     proximityDetection: true,
     caching: true,
-    analytics: true
+    analytics: true,
+    // Real-time WebSocket feature (ENABLED)
+    ENABLE_REALTIME: true,
+    REALTIME_FALLBACK: true,
+    REALTIME_POLLING_INTERVAL: 30000
   },
   
   // UI Configuration

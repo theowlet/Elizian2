@@ -3,6 +3,7 @@ const { getPool } = require('../config/db');
 const { writeAudit } = require('../utils/audit');
 const { AppError } = require('../../utils/response');
 const { logError, log } = require('../../utils/logger');
+const { emitRealtimeEvent, emitToRoom, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
 
 const pool = getPool();
 
@@ -150,7 +151,7 @@ async function updateDealStatus(dealId, action, actorUserId, actorRole) {
 }
 
 // Update offer featured status
-async function updateOfferFeaturedStatus(offerId, is_promoted, reason, actorUserId, actorRole, force = false) {
+async function updateOfferFeaturedStatus(offerId, is_trending, reason, actorUserId, actorRole, force = false) {
   // For featured/trending operations, check featured eligibility
   const eligibility = await adminRepository.checkDealEligibility(offerId, pool, {
     checkFeaturedEligibility: true,
@@ -166,45 +167,78 @@ async function updateOfferFeaturedStatus(offerId, is_promoted, reason, actorUser
 
   const result = await adminRepository.updateOfferFeaturedStatus(
     offerId,
-    is_promoted,
+    is_trending,
     force,
     actorUserId,
     actorRole
   );
   if (!result.success) {
-    throw new AppError(400, result.error || "Unable to update promotion");
+    throw new AppError(400, result.error || "Unable to update trending status");
   }
 
-  if (is_promoted && !result.partner_eligible && !force) {
-    throw new AppError(400, "Partner is not eligible for promotion. Use force=true to override.");
+  if (is_trending && !result.partner_eligible && !force) {
+    throw new AppError(400, "Partner is not eligible for trending. Use force=true to override.");
   }
 
-  if (is_promoted && !result.partner_eligible && force) {
-    log(`⚠️ Admin forced promotion for ineligible partner (offer ID: ${offerId})`);
+  if (is_trending && !result.partner_eligible && force) {
+    log(`⚠️ Admin forced trending for ineligible partner (offer ID: ${offerId})`);
   }
+
+  const trendingData = result.data || {};
+  const nextState = trendingData.next || {};
+  const previousState = trendingData.previous || {};
+
+  emitRealtimeEvent(REALTIME_EVENTS.DEAL_TRENDING_CHANGED, {
+    offerId,
+    isTrending: Boolean(nextState.is_trending),
+    previousTrending: Boolean(previousState.is_trending),
+    featuredRequestPending: Boolean(nextState.featured_request_pending),
+    forcedByAdmin: Boolean(nextState.forced_by_admin),
+    partnerId: eligibility.partner?.id || null,
+    partnerName: eligibility.partner?.name || null,
+    offerTitle: eligibility.deal?.title || null,
+    source: 'admin_console_toggle',
+    actorRole: actorRole || null,
+    timestamp: new Date().toISOString()
+  });
 
   return { success: true, data: result.data };
 }
 
 async function updateTrendingStatus(dealId, action, actorUserId, actorRole) {
   try {
+    let eligibilityContext = null;
     if (action !== 'partner_request') {
       // For trending operations, check featured eligibility
-      const eligibility = await adminRepository.checkDealEligibility(dealId, pool, {
+      eligibilityContext = await adminRepository.checkDealEligibility(dealId, pool, {
         checkFeaturedEligibility: true,
         requireValidDates: false
       });
-      if (!eligibility) {
+      if (!eligibilityContext) {
         return { success: false, error: 'Deal not found' };
       }
-      if (!eligibility.eligible) {
-        return { success: false, error: `Deal not eligible: ${summarizeEligibilityReasons(eligibility)}` };
+      if (!eligibilityContext.eligible) {
+        return { success: false, error: `Deal not eligible: ${summarizeEligibilityReasons(eligibilityContext)}` };
       }
     }
 
     const result = await adminRepository.updateTrendingStatus(dealId, action, actorUserId, actorRole);
     if (!result) {
       return { success: false, error: 'Deal not found' };
+    }
+    if (result.success && action !== 'partner_request') {
+      emitRealtimeEvent(REALTIME_EVENTS.DEAL_TRENDING_CHANGED, {
+        offerId: dealId,
+        isTrending: Boolean(result.data?.is_trending),
+        previousTrending: Boolean(eligibilityContext?.deal?.is_trending),
+        featuredRequestPending: Boolean(result.data?.featured_request_pending),
+        partnerId: eligibilityContext?.partner?.id || null,
+        partnerName: eligibilityContext?.partner?.name || null,
+        offerTitle: eligibilityContext?.deal?.title || null,
+        source: `admin_${action}`,
+        actorRole: actorRole || null,
+        timestamp: new Date().toISOString()
+      });
     }
     return result;
   } catch (error) {
@@ -662,7 +696,25 @@ async function updateBookingStatus(bookingId, status, reason, actorId, actorRole
     
     await client.query('COMMIT');
     
-    return updateResult.rows[0];
+    const updatedBooking = updateResult.rows[0];
+    const bookingEvent = {
+      action: 'status_changed',
+      bookingId: bookingId,
+      status,
+      previousStatus,
+      reason: reason || null,
+      bookingReference: currentBooking.booking_reference,
+      partnerId: currentBooking.partner_id,
+      userId: currentBooking.user_id,
+      timestamp: new Date().toISOString()
+    };
+
+    emitRealtimeEvent(REALTIME_EVENTS.BOOKING_STATUS_CHANGED, bookingEvent);
+    emitRealtimeEvent(REALTIME_EVENTS.PARTNER_BOOKING_UPDATE, bookingEvent);
+    emitToRoom(`partners:${currentBooking.partner_id}`, REALTIME_EVENTS.PARTNER_BOOKING_UPDATE, bookingEvent);
+    emitToRoom(`users:${currentBooking.user_id}`, REALTIME_EVENTS.BOOKING_STATUS_CHANGED, bookingEvent);
+    
+    return updatedBooking;
   } catch (err) {
     await client.query('ROLLBACK');
     if (err instanceof AppError) throw err;
@@ -754,6 +806,25 @@ async function processRefund(bookingId, amount, reason, refundType, actorId, act
     
     await client.query('COMMIT');
     
+    const refundPayload = {
+      action: 'refunded',
+      bookingId,
+      refundId: transactionResult.rows[0]?.id || null,
+      amount: refundAmount,
+      reason: reason || null,
+      refundType: refundType || 'full',
+      userId: booking.user_id,
+      partnerId: booking.partner_id,
+      bookingReference: booking.booking_reference,
+      eztRefunded: booking.ezt_redeemed || 0,
+      timestamp: new Date().toISOString()
+    };
+
+    emitRealtimeEvent(REALTIME_EVENTS.BOOKING_REFUNDED, refundPayload);
+    emitRealtimeEvent(REALTIME_EVENTS.PARTNER_BOOKING_UPDATE, refundPayload);
+    emitToRoom(`partners:${booking.partner_id}`, REALTIME_EVENTS.PARTNER_BOOKING_UPDATE, refundPayload);
+    emitToRoom(`users:${booking.user_id}`, REALTIME_EVENTS.BOOKING_REFUNDED, refundPayload);
+    
     return {
       refund: transactionResult.rows[0],
       booking: booking,
@@ -834,6 +905,123 @@ async function getBookingStats(range = '30') {
   }
 }
 
+// Get rewards overview
+async function getRewardsOverview() {
+  const { getPool } = require('../config/db');
+  const pool = getPool();
+  
+  try {
+    // Total EZT in circulation (sum of all user balances)
+    const circulationResult = await pool.query(
+      `SELECT COALESCE(SUM(available_tokens), 0)::numeric as total_ezt_circulation
+       FROM users`
+    );
+    const totalEztCirculation = parseFloat(circulationResult.rows[0]?.total_ezt_circulation || 0);
+    
+    // Total EZT earned (sum of all earned tokens)
+    const earnedResult = await pool.query(
+      `SELECT COALESCE(SUM(total_tokens_earned), 0)::numeric as total_ezt_earned
+       FROM users`
+    );
+    const totalEztEarned = parseFloat(earnedResult.rows[0]?.total_ezt_earned || 0);
+    
+    // Total EZT redeemed (sum of all spent tokens)
+    const redeemedResult = await pool.query(
+      `SELECT COALESCE(SUM(total_tokens_spent), 0)::numeric as total_ezt_redeemed
+       FROM users`
+    );
+    const totalEztRedeemed = parseFloat(redeemedResult.rows[0]?.total_ezt_redeemed || 0);
+    
+    // Tier distribution
+    const tierDistributionResult = await pool.query(
+      `SELECT 
+        COALESCE(current_tier_name, 'Ather') as tier,
+        COUNT(*)::int as count
+       FROM users
+       GROUP BY current_tier_name
+       ORDER BY 
+         CASE COALESCE(current_tier_name, 'Ather')
+           WHEN 'Ather' THEN 1
+           WHEN 'Nova' THEN 2
+           WHEN 'Luminar' THEN 3
+           WHEN 'Valiant' THEN 4
+           WHEN 'Echelon' THEN 5
+           ELSE 1
+         END`
+    );
+    const tierDistribution = {};
+    tierDistributionResult.rows.forEach(row => {
+      tierDistribution[row.tier] = row.count;
+    });
+    
+    // Recent EZT transactions (last 20)
+    const recentTransactionsResult = await pool.query(
+      `SELECT 
+        tl.id,
+        tl.user_id,
+        tl.amount,
+        tl.balance_after,
+        tl.ledger_type,
+        tl.description,
+        tl.created_at,
+        u.first_name || ' ' || u.last_name as user_name,
+        u.phone_number as user_phone
+      FROM token_ledger tl
+      LEFT JOIN users u ON tl.user_id = u.id
+      ORDER BY tl.created_at DESC
+      LIMIT 20`
+    );
+    const recentTransactions = recentTransactionsResult.rows.map(tx => ({
+      id: tx.id,
+      user_name: tx.user_name || 'Unknown',
+      user_phone: tx.user_phone || null,
+      transaction_type: tx.ledger_type || 'unknown',
+      amount: parseFloat(tx.amount || 0),
+      balance_after: parseFloat(tx.balance_after || 0),
+      description: tx.description || '',
+      created_at: tx.created_at
+    }));
+    
+    // Recent tier upgrades (last 10)
+    const recentUpgradesResult = await pool.query(
+      `SELECT 
+        uth.id,
+        uth.user_id,
+        uth.from_tier_name,
+        uth.to_tier_name,
+        uth.annual_spend_at_change,
+        uth.changed_at,
+        u.first_name || ' ' || u.last_name as user_name,
+        u.phone_number as user_phone
+      FROM user_tier_history uth
+      LEFT JOIN users u ON uth.user_id = u.id
+      WHERE uth.tier_level_change > 0
+      ORDER BY uth.changed_at DESC
+      LIMIT 10`
+    );
+    const recentUpgrades = recentUpgradesResult.rows.map(upgrade => ({
+      user_name: upgrade.user_name || 'Unknown',
+      user_phone: upgrade.user_phone || null,
+      from_tier: upgrade.from_tier_name || 'Ather',
+      to_tier: upgrade.to_tier_name || 'Ather',
+      total_spending: parseFloat(upgrade.annual_spend_at_change || 0),
+      upgraded_at: upgrade.changed_at
+    }));
+    
+    return {
+      total_ezt_in_circulation: totalEztCirculation,
+      total_ezt_earned: totalEztEarned,
+      total_ezt_redeemed: totalEztRedeemed,
+      tier_distribution: tierDistribution,
+      recent_transactions: recentTransactions,
+      recent_upgrades: recentUpgrades
+    };
+  } catch (error) {
+    logError('Error in getRewardsOverview:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   getDashboard,
   listPartners,
@@ -856,6 +1044,7 @@ module.exports = {
   getArchives,
   reactivateArchive,
   archiveExpiredItems,
+  getRewardsOverview,
   validateStatusTransition,
   // Booking management
   listBookings,

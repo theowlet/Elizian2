@@ -23,6 +23,8 @@ const state = {
       search: '',
       role: 'all',
       status: 'all',
+      tier: 'all',
+      sortBy: 'created',
     },
     partners: {
       status: 'all',
@@ -137,11 +139,26 @@ function getHeaders() {
 }
 
 function switchSection(targetId) {
-  if (!state.isAuthenticated) {
-    console.warn('[Admin] Section change blocked until authentication completes.');
+  // Check if we have a token - if yes, allow navigation (auth will be verified on API calls)
+  const token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+  if (!token) {
+    console.warn('[Admin] No token found, showing login modal.');
     showLoginModal();
     return;
   }
+  
+  // If we have a token but auth state is not set, verify it in background (don't block)
+  if (!state.isAuthenticated && token) {
+    // Verify auth in background, but don't block navigation
+    checkAuth().catch(err => {
+      console.error('[Admin] Background auth check failed:', err);
+      // Only show login if token is actually invalid
+      if (err.message?.includes('401') || err.message?.includes('403')) {
+        showLoginModal();
+      }
+    });
+  }
+  
   state.sections.forEach((sectionId) => {
     const section = document.getElementById(sectionId);
     if (section) section.classList.toggle('visible', sectionId === targetId);
@@ -168,28 +185,70 @@ async function fetchJSON(url, options = {}) {
   try {
     const response = await fetch(url, { headers: getHeaders(), ...options });
     if (!response.ok) {
+      // Handle authentication errors gracefully
+      if (response.status === 401 || response.status === 403) {
+        console.warn('[Admin] Authentication failed, clearing token and showing login.');
+        state.isAuthenticated = false;
+        localStorage.removeItem('token');
+        localStorage.removeItem('adminToken');
+        // Only show login modal if we're not already showing it
+        const modal = $('#modal');
+        if (!modal || modal.classList.contains('hidden')) {
+          showLoginModal();
+        }
+        const errorText = await response.text();
+        throw new Error('Authentication required. Please login again.');
+      }
       const errorText = await response.text();
       throw new Error(errorText || response.statusText);
     }
     return await response.json();
   } catch (error) {
-    console.error('Fetch error:', error);
+    // Don't log network errors as errors if they're auth-related (already handled above)
+    if (!error.message?.includes('Authentication required')) {
+      console.error('Fetch error:', error);
+    }
     throw error;
   }
+}
+
+function normalizeDashboardData(raw = {}) {
+  const users = raw.users || {};
+  const partners = raw.partners || {};
+  const deals = raw.deals || {};
+  const revenue = raw.revenue || {};
+
+  return {
+    total_users: Number(users.total ?? raw.total_users ?? 0),
+    new_users_today: Number(users.new_today ?? raw.new_users_today ?? 0),
+    active_sessions: Number(users.active_sessions ?? raw.active_sessions ?? 0),
+    total_partners: Number(partners.total ?? raw.total_partners ?? 0),
+    pending_partners: Number(partners.pending ?? raw.pending_partners ?? 0),
+    total_deals: Number(deals.total ?? raw.total_deals ?? 0),
+    active_deals: Number(deals.active ?? raw.active_deals ?? 0),
+    promoted_deals: Number(deals.promoted ?? raw.promoted_deals ?? 0),
+    total_revenue: Number(revenue.total ?? raw.total_revenue ?? 0),
+    revenue_chart: revenue.chart || raw.revenue_chart || [],
+    recent_activity: raw.recent_activity || [],
+    last_login: raw.last_login || null
+  };
 }
 
 async function loadDashboard() {
   const dashboardCards = document.getElementById('dashboardCards');
   dashboardCards.innerHTML = '<div class="card muted">Loading dashboard…</div>';
   try {
-    const { data } = await fetchJSON(`${API_BASE}/api/v1/admin/dashboard`);
-    renderDashboardCards(data);
-    renderRecentActivity(data.recent_activity || []);
-    renderRevenueChart(data.revenue_chart || []);
-    if (data.last_login) $('#adminLastLogin').textContent = `Last login: ${new Date(data.last_login).toLocaleString()}`;
+    const response = await fetchJSON(`${API_BASE}/api/v1/admin/dashboard`);
+    const summary = normalizeDashboardData(response?.data || {});
+    renderDashboardCards(summary);
+    renderRecentActivity(summary.recent_activity || []);
+    renderRevenueChart(summary.revenue_chart || []);
+    if (summary.last_login) {
+      $('#adminLastLogin').textContent = `Last login: ${new Date(summary.last_login).toLocaleString()}`;
+    }
     
     // Show/hide pending partners alert
-    updatePendingPartnersAlert(data.pending_partners || 0);
+    updatePendingPartnersAlert(summary.pending_partners || 0);
   } catch (error) {
     dashboardCards.innerHTML = `<div class="card error">Failed to load dashboard: ${error.message}</div>`;
   }
@@ -214,14 +273,32 @@ function updatePendingPartnersAlert(count) {
   }
 }
 
+function formatCount(value, fallback = '—') {
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toLocaleString('en-IN') : fallback;
+}
+
+function formatDelta(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0';
+  const sign = num >= 0 ? '+' : '−';
+  return `${sign}${Math.abs(num).toLocaleString('en-IN')}`;
+}
+
+function formatCurrency(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '₹0';
+  return `₹${num.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+}
+
 function renderDashboardCards(data) {
   const cards = [
-    { label: 'Users', icon: '👥', primary: data.total_users, meta: `+${data.new_users_today || 0} today` },
-    { label: 'Partners', icon: '🏢', primary: data.total_partners, meta: `${data.pending_partners || 0} pending` },
-    { label: 'Deals', icon: '🎫', primary: data.total_deals, meta: `${data.active_deals || 0} active` },
-    { label: 'Revenue', icon: '💰', primary: `₹${Number(data.total_revenue || 0).toLocaleString('en-IN')}`, meta: 'This period' },
-    { label: 'Featured Deals', icon: '⭐', primary: data.promoted_deals || 0, meta: 'Live now' },
-    { label: 'Sessions', icon: '📊', primary: data.active_sessions || 0, meta: 'Active now' },
+    { label: 'Users', icon: '👥', primary: formatCount(data.total_users), meta: `${formatDelta(data.new_users_today)} today` },
+    { label: 'Partners', icon: '🏢', primary: formatCount(data.total_partners), meta: `${formatCount(data.pending_partners, '0')} pending` },
+    { label: 'Deals', icon: '🎫', primary: formatCount(data.total_deals), meta: `${formatCount(data.active_deals, '0')} active` },
+    { label: 'Revenue', icon: '💰', primary: formatCurrency(data.total_revenue), meta: 'This period' },
+    { label: 'Featured Deals', icon: '⭐', primary: formatCount(data.promoted_deals), meta: 'Live now' },
+    { label: 'Sessions', icon: '📊', primary: formatCount(data.active_sessions), meta: 'Active now' },
   ];
   $('#dashboardCards').innerHTML = cards.map((card) => `
     <div class="card stat-card">
@@ -261,7 +338,7 @@ function renderRecentActivity(activity) {
     if (item.meta && typeof item.meta === 'object') {
       const meta = item.meta;
       if (meta.next && meta.previous) {
-        const keys = ['is_promoted', 'featured_request_pending', 'status'];
+        const keys = ['is_trending', 'featured_request_pending', 'status'];
         keys.forEach((key) => {
           if (meta.next[key] !== undefined && meta.next[key] !== meta.previous[key]) {
             details.push(`${key.replace(/_/g, ' ')}: ${meta.previous[key]} → ${meta.next[key]}`);
@@ -320,43 +397,71 @@ function renderRevenueChart(data) {
 
 async function loadUsers() {
   const { page, limit } = state.pagination.users;
-  const { search, role, status } = state.filters.users;
+  const { search, role, status, tier, sortBy } = state.filters.users;
   const params = new URLSearchParams({
     search,
     role,
     status,
+    tier: tier || 'all',
+    sortBy: sortBy || 'created',
     limit,
     offset: page * limit,
   });
   const table = $('#usersTable');
-  table.innerHTML = '<tr><td colspan="7" class="muted">Loading users…</td></tr>';
+  table.innerHTML = '<tr><td colspan="9" class="muted">Loading users…</td></tr>';
   try {
     const { data } = await fetchJSON(`${API_BASE}/api/v1/admin/users?${params.toString()}`);
     renderUsersTable(data.items || []);
     renderUsersPagination(data.total || 0);
   } catch (error) {
-    table.innerHTML = `<tr><td colspan="7" class="error">Failed to load users: ${error.message}</td></tr>`;
+    table.innerHTML = `<tr><td colspan="9" class="error">Failed to load users: ${error.message}</td></tr>`;
   }
 }
 
 function renderUsersTable(users = []) {
   if (!users.length) {
-    $('#usersTable').innerHTML = '<tr><td colspan="7" class="muted">No users found.</td></tr>';
+    $('#usersTable').innerHTML = '<tr><td colspan="9" class="muted">No users found.</td></tr>';
     return;
   }
-  $('#usersTable').innerHTML = users.map((user) => `
+  
+  const getTierBadgeColor = (tier) => {
+    const colors = {
+      'Ather': '#B0BEC5',
+      'Nova': '#64B5F6',
+      'Luminar': '#9575CD',
+      'Valiant': '#66BB6A',
+      'Echelon': '#FFD54F'
+    };
+    return colors[tier] || '#B0BEC5';
+  };
+  
+  $('#usersTable').innerHTML = users.map((user) => {
+    const tier = user.tier || 'Ather';
+    const tierColor = getTierBadgeColor(tier);
+    const tierPercentage = user.tier_percentage || 1;
+    const annualSpend = user.annual_spend || 0;
+    
+    return `
     <tr>
       <td>${user.first_name || ''} ${user.last_name || ''}</td>
       <td>${user.email || '—'}</td>
       <td>${user.phone_number || '—'}</td>
       <td>${user.role || 'user'}</td>
+      <td>
+        <span class="badge" style="background-color: ${tierColor}; color: ${tier === 'Echelon' ? '#000' : '#fff'};">
+          ${tier} (${tierPercentage}%)
+        </span>
+      </td>
+      <td>₹${parseFloat(annualSpend).toLocaleString('en-IN')}</td>
       <td>${user.is_active ? '<span class="badge badge-success">Active</span>' : '<span class="badge badge-error">Inactive</span>'}</td>
       <td>${user.created_at ? new Date(user.created_at).toLocaleDateString() : '—'}</td>
       <td>
         <button class="btn btn-secondary btn-xs" data-user="${user.id}" data-action="viewUser">View</button>
+        <button class="btn btn-primary btn-xs" data-user="${user.id}" data-action="viewRewards">Rewards</button>
         <button class="btn btn-secondary btn-xs" data-user="${user.id}" data-action="suspendUser">${user.is_active ? 'Suspend' : 'Activate'}</button>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 function renderUsersPagination(total) {
@@ -919,11 +1024,12 @@ function ensureDealBulkUI(container) {
 }
 
 function renderDealCard(deal) {
+  const isTrending = Boolean(deal.is_trending || deal.is_promoted);
   const statusLabel = DEAL_STATUS_LABELS[deal.status] || (deal.status || 'Unknown').toUpperCase();
   const statusClass = DEAL_STATUS_BADGES[deal.status] || DEAL_STATUS_BADGES.default;
   const scheduleLabel = DEAL_SCHEDULE_LABELS[deal.schedule_status] || (deal.schedule_status || 'Unknown');
   const scheduleClass = DEAL_SCHEDULE_BADGES[deal.schedule_status] || DEAL_SCHEDULE_BADGES.default;
-  const trendingBadge = deal.is_promoted ? '<span class="badge badge-accent">Trending</span>' : '';
+  const trendingBadge = isTrending ? '<span class="badge badge-accent">Trending</span>' : '';
   const pendingTrendingBadge = deal.featured_request_pending ? '<span class="badge bg-warning text-dark">Pending Trending</span>' : '';
   const perms = DEAL_STATUS_PERMISSIONS[deal.status] || DEAL_STATUS_PERMISSIONS.default;
   
@@ -943,8 +1049,8 @@ function renderDealCard(deal) {
         <button class="btn btn-secondary btn-xs ${disableTrendingActions ? 'disabled' : ''}" data-action="rejectTrending" data-id="${deal.id}" ${disableTrendingActions ? 'disabled' : ''}>Reject Request</button>
       </div>
     `
-    : `<button class="btn btn-secondary btn-xs ${disableTrendingActions ? 'disabled' : ''}" data-action="${deal.is_promoted ? 'unpromoteDeal' : 'promoteDeal'}" data-id="${deal.id}" data-partner="${deal.partner_id}" ${disableTrendingActions ? 'disabled' : ''}>
-         ${deal.is_promoted ? 'Unpromote' : 'Promote'}
+    : `<button class="btn btn-secondary btn-xs ${disableTrendingActions ? 'disabled' : ''}" data-action="${isTrending ? 'unpromoteDeal' : 'promoteDeal'}" data-id="${deal.id}" data-partner="${deal.partner_id}" ${disableTrendingActions ? 'disabled' : ''}>
+         ${isTrending ? 'Remove from Trending' : 'Set as Trending'}
        </button>`;
 
   // Add 'approved' class for inverse styling when deal is active
@@ -1146,9 +1252,148 @@ async function loadAdminAnalytics() {
     $('#topPartners').innerHTML = topPartners.length
       ? topPartners.map((p) => `<li><span>${p.partner || '—'}</span><strong>₹${Number(p.revenue || 0).toLocaleString('en-IN')}</strong></li>`).join('')
       : '<li class="muted">Not enough data.</li>';
+    
+    // Load admin rewards overview
+    loadAdminRewardsOverview();
   } catch (error) {
     overview.innerHTML = `<div class="card error">Failed to load analytics: ${error.message}</div>`;
   }
+}
+
+// Load admin rewards overview
+async function loadAdminRewardsOverview() {
+  try {
+    const { data } = await fetchJSON(`${API_BASE}/api/v1/admin/rewards/overview`);
+    
+    // Update overview stats
+    const totalEztCirculationEl = $('#totalEztCirculation');
+    if (totalEztCirculationEl) {
+      totalEztCirculationEl.textContent = (data.total_ezt_in_circulation || 0).toFixed(2) + ' EZT';
+    }
+    
+    const totalEztEarnedEl = $('#totalEztEarned');
+    if (totalEztEarnedEl) {
+      totalEztEarnedEl.textContent = (data.total_ezt_earned || 0).toFixed(2) + ' EZT';
+    }
+    
+    const totalEztRedeemedEl = $('#totalEztRedeemed');
+    if (totalEztRedeemedEl) {
+      totalEztRedeemedEl.textContent = (data.total_ezt_redeemed || 0).toFixed(2) + ' EZT';
+    }
+    
+    // Render tier distribution
+    renderTierDistribution(data.tier_distribution || {});
+    
+    // Render recent transactions
+    renderRecentEztTransactions(data.recent_transactions || []);
+    
+    // Render recent tier upgrades
+    renderRecentTierUpgrades(data.recent_upgrades || []);
+  } catch (error) {
+    console.error('Error loading admin rewards overview:', error);
+  }
+}
+
+function renderTierDistribution(distribution) {
+  const container = $('#tierDistribution');
+  if (!container) return;
+  
+  const total = Object.values(distribution).reduce((a, b) => a + b, 0);
+  
+  if (total === 0) {
+    container.innerHTML = '<p class="muted">No tier data available.</p>';
+    return;
+  }
+  
+  container.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      ${Object.entries(distribution).map(([tier, count]) => {
+        const percentage = (count / total * 100).toFixed(1);
+        return `
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="min-width: 80px; font-weight: 500;">${tier}</div>
+            <div style="flex: 1; height: 20px; background: var(--bg); border-radius: 4px; overflow: hidden;">
+              <div style="height: 100%; width: ${percentage}%; background: var(--primary); transition: width 0.3s;"></div>
+            </div>
+            <div style="min-width: 80px; text-align: right; font-size: 0.875rem; color: var(--text-muted);">
+              ${count} (${percentage}%)
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderRecentEztTransactions(transactions) {
+  const container = $('#recentEztTransactions');
+  if (!container) return;
+  
+  if (transactions.length === 0) {
+    container.innerHTML = '<p class="muted">No transactions yet.</p>';
+    return;
+  }
+  
+  container.innerHTML = `
+    <table class="table" style="font-size: 0.875rem;">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Type</th>
+          <th>Amount</th>
+          <th>Balance</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${transactions.map(tx => `
+          <tr>
+            <td>${tx.user_name || 'Unknown'}<br><small class="muted">${tx.user_phone || ''}</small></td>
+            <td><span class="badge ${tx.transaction_type === 'earned' ? 'success' : 'warning'}">${tx.transaction_type || 'unknown'}</span></td>
+            <td class="${tx.amount > 0 ? 'positive' : 'negative'}" style="font-weight: 600;">
+              ${tx.amount > 0 ? '+' : ''}${tx.amount.toFixed(5)} EZT
+            </td>
+            <td>${tx.balance_after.toFixed(5)} EZT</td>
+            <td><small>${new Date(tx.created_at).toLocaleString('en-IN')}</small></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderRecentTierUpgrades(upgrades) {
+  const container = $('#recentTierUpgrades');
+  if (!container) return;
+  
+  if (upgrades.length === 0) {
+    container.innerHTML = '<p class="muted">No tier upgrades yet.</p>';
+    return;
+  }
+  
+  container.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${upgrades.map(upgrade => `
+        <div style="padding: 12px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border);">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+            <div>
+              <div style="font-weight: 600; margin-bottom: 4px;">${upgrade.user_name || 'Unknown'}</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">${upgrade.user_phone || ''}</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="badge" style="background: var(--bg);">${upgrade.from_tier}</span>
+              <span style="color: var(--text-muted);">→</span>
+              <span class="badge success">${upgrade.to_tier}</span>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted);">
+            <span>₹${upgrade.total_spending.toLocaleString('en-IN')} spent</span>
+            <span>${new Date(upgrade.upgraded_at).toLocaleDateString('en-IN')}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 async function loadActivity() {
@@ -1182,10 +1427,16 @@ async function loadActivity() {
           
           // Check for changes in next/previous structure
           if (meta.next && meta.previous) {
-            // Check is_promoted changes
+            // Check is_trending changes
+            if (meta.next.is_trending !== undefined && meta.previous.is_trending !== undefined) {
+              if (meta.next.is_trending !== meta.previous.is_trending) {
+                metaParts.push(`Trending: ${meta.previous.is_trending ? 'Yes' : 'No'} → ${meta.next.is_trending ? 'Yes' : 'No'}`);
+              }
+            }
+            // Backward compatibility: also check is_promoted if present
             if (meta.next.is_promoted !== undefined && meta.previous.is_promoted !== undefined) {
               if (meta.next.is_promoted !== meta.previous.is_promoted) {
-                metaParts.push(`Promoted: ${meta.previous.is_promoted ? 'Yes' : 'No'} → ${meta.next.is_promoted ? 'Yes' : 'No'}`);
+                metaParts.push(`Trending: ${meta.previous.is_promoted ? 'Yes' : 'No'} → ${meta.next.is_promoted ? 'Yes' : 'No'}`);
               }
             }
             
@@ -1213,9 +1464,11 @@ async function loadActivity() {
           
           // For feature_toggle actions, provide context even if no changes detected
           if (entry.type === 'feature_toggle' && metaParts.length === 0) {
-            if (meta.next?.is_promoted === false && meta.previous?.is_promoted === false) {
+            const nextTrending = meta.next?.is_trending ?? meta.next?.is_promoted;
+            const prevTrending = meta.previous?.is_trending ?? meta.previous?.is_promoted;
+            if (nextTrending === false && prevTrending === false) {
               metaParts.push('Removed from trending');
-            } else if (meta.next?.is_promoted === true) {
+            } else if (nextTrending === true) {
               metaParts.push('Added to trending');
             }
           }
@@ -1536,6 +1789,25 @@ function attachEventListeners() {
     state.pagination.users.page = 0;
     loadUsers();
   });
+  
+  const userTierFilter = $('#userTierFilter');
+  if (userTierFilter) {
+    userTierFilter.addEventListener('change', (event) => {
+      state.filters.users.tier = event.target.value;
+      state.pagination.users.page = 0;
+      loadUsers();
+    });
+  }
+  
+  const userSortBy = $('#userSortBy');
+  if (userSortBy) {
+    userSortBy.addEventListener('change', (event) => {
+      state.filters.users.sortBy = event.target.value;
+      state.pagination.users.page = 0;
+      loadUsers();
+    });
+  }
+  
   $('#partnerTabFilter').addEventListener('change', (event) => {
     state.filters.partners.status = event.target.value;
     partnerState.selectedPartners.clear();
@@ -1686,6 +1958,12 @@ function attachEventListeners() {
         handleDealSelectionChange(event.target.dataset.id, event.target.checked);
       }
     });
+  }
+
+  // User actions (including rewards)
+  const usersTable = $('#usersTable');
+  if (usersTable) {
+    usersTable.addEventListener('click', handleUserAction);
   }
 
   const activityList = $('#activityList');
@@ -1865,10 +2143,10 @@ function attachEventListeners() {
 
 // Authentication functions
 async function checkAuth() {
-  state.isAuthenticated = false;
   const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
   if (!token) {
     console.warn('[Admin] No token found, showing login modal.');
+    state.isAuthenticated = false;
     showLoginModal();
     return false;
   }
@@ -1883,12 +2161,16 @@ async function checkAuth() {
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
         console.warn('[Admin] Token invalid or expired, forcing re-login.');
+        state.isAuthenticated = false;
         localStorage.removeItem('token');
         localStorage.removeItem('adminToken');
         showLoginModal();
         return false;
       }
-      throw new Error('Auth check failed');
+      // For other errors, don't invalidate auth - might be temporary
+      console.warn('[Admin] Auth check returned non-ok status:', response.status);
+      // Keep current auth state, but don't set to true
+      return state.isAuthenticated;
     }
     
     const result = await response.json();
@@ -1897,6 +2179,7 @@ async function checkAuth() {
     if (userRole !== 'super_admin') {
       console.error('[Admin] Auth check failed: user is not super_admin', userRole);
       showNotification('Access denied. Super admin privileges required.', 'error');
+      state.isAuthenticated = false;
       localStorage.removeItem('token');
       localStorage.removeItem('adminToken');
       showLoginModal();
@@ -1916,11 +2199,20 @@ async function checkAuth() {
     
     return true;
   } catch (error) {
-    console.error('Auth check error:', error);
-    localStorage.removeItem('token');
-    localStorage.removeItem('adminToken');
-    showLoginModal();
-    return false;
+    // Network errors or other issues - don't invalidate auth if we have a token
+    // Only invalidate if it's clearly an auth error
+    if (error.message?.includes('401') || error.message?.includes('403') || error.message?.includes('Authentication')) {
+      console.error('Auth check error (auth-related):', error);
+      state.isAuthenticated = false;
+      localStorage.removeItem('token');
+      localStorage.removeItem('adminToken');
+      showLoginModal();
+      return false;
+    }
+    // For network errors, keep current state but log warning
+    console.warn('[Admin] Auth check error (non-auth):', error.message);
+    // Don't change auth state on network errors - might be temporary
+    return state.isAuthenticated;
   }
 }
 
@@ -2619,6 +2911,144 @@ function init() {
 
 document.addEventListener('DOMContentLoaded', init);
 
+// Initialize real-time updates for admin console
+function initializeAdminRealtime() {
+  if (!window.realtimeService || !window.realtimeService.enabled) {
+    console.log('🟡 Real-time disabled for admin console');
+    return;
+  }
+
+  // Wait for real-time service to connect
+  const checkConnection = setInterval(() => {
+    if (window.realtimeService && window.realtimeService.isConnected) {
+      clearInterval(checkConnection);
+      setupAdminRealtimeListeners();
+    }
+  }, 500);
+
+  // Timeout after 10 seconds
+  setTimeout(() => {
+    clearInterval(checkConnection);
+    if (window.realtimeService && !window.realtimeService.isConnected) {
+      console.warn('⚠️ Real-time service did not connect within 10 seconds');
+    }
+  }, 10000);
+}
+
+function setupAdminRealtimeListeners() {
+  if (!window.realtimeService) return;
+
+  // Listen for deal updates
+  window.realtimeService.on('offers:updated', (data) => {
+    console.log('📦 Admin: Deal updated via real-time', data);
+    showNotification(`Deal "${data.title || data.offerId}" ${data.action}`, 'info');
+    
+    // Refresh deals list if on deals section
+    const dealsSection = document.getElementById('dealsSection');
+    if (dealsSection && dealsSection.classList.contains('visible')) {
+      if (typeof loadDeals === 'function') {
+        loadDeals();
+      }
+    }
+    
+    // Refresh dashboard if visible
+    const dashboardSection = document.getElementById('dashboardSection');
+    if (dashboardSection && dashboardSection.classList.contains('visible')) {
+      if (typeof loadDashboard === 'function') {
+        loadDashboard();
+      }
+    }
+  });
+
+  // Listen for trending status changes
+  window.realtimeService.on('offers:trending_status_changed', (data) => {
+    console.log('🔥 Admin: Trending status changed via real-time', data);
+    showNotification(`Deal "${data.title || data.offerId}" ${data.isTrending ? 'marked as trending' : 'unmarked from trending'}`, 'info');
+    
+    // Refresh deals list
+    const dealsSection = document.getElementById('dealsSection');
+    if (dealsSection && dealsSection.classList.contains('visible')) {
+      if (typeof loadDeals === 'function') {
+        loadDeals();
+      }
+    }
+  });
+
+  // Listen for booking updates
+  window.realtimeService.on('bookings:created', (data) => {
+    console.log('📅 Admin: New booking created via real-time', data);
+    showNotification(`New booking ${data.bookingReference || data.bookingId} created`, 'success');
+    
+    // Refresh bookings if on bookings section
+    const bookingsSection = document.getElementById('bookingsSection');
+    if (bookingsSection && bookingsSection.classList.contains('visible')) {
+      if (typeof loadBookings === 'function') {
+        loadBookings();
+      }
+      if (typeof loadBookingStats === 'function') {
+        loadBookingStats();
+      }
+    }
+    
+    // Refresh dashboard
+    const dashboardSection = document.getElementById('dashboardSection');
+    if (dashboardSection && dashboardSection.classList.contains('visible')) {
+      if (typeof loadDashboard === 'function') {
+        loadDashboard();
+      }
+    }
+  });
+
+  window.realtimeService.on('bookings:status_changed', (data) => {
+    console.log('📅 Admin: Booking status changed via real-time', data);
+    showNotification(`Booking ${data.bookingReference || data.bookingId} status changed to ${data.status}`, 'info');
+    
+    // Refresh bookings
+    const bookingsSection = document.getElementById('bookingsSection');
+    if (bookingsSection && bookingsSection.classList.contains('visible')) {
+      if (typeof loadBookings === 'function') {
+        loadBookings();
+      }
+      if (typeof loadBookingStats === 'function') {
+        loadBookingStats();
+      }
+    }
+  });
+
+  window.realtimeService.on('bookings:refunded', (data) => {
+    console.log('💰 Admin: Booking refunded via real-time', data);
+    showNotification(`Booking ${data.bookingReference || data.bookingId} refunded (₹${data.refundAmount || 0})`, 'warning');
+    
+    // Refresh bookings
+    const bookingsSection = document.getElementById('bookingsSection');
+    if (bookingsSection && bookingsSection.classList.contains('visible')) {
+      if (typeof loadBookings === 'function') {
+        loadBookings();
+      }
+      if (typeof loadBookingStats === 'function') {
+        loadBookingStats();
+      }
+    }
+  });
+
+  // Listen for partner updates (if needed)
+  window.realtimeService.on('partners:booking_update', (data) => {
+    console.log('🏢 Admin: Partner booking update via real-time', data);
+    // Could refresh partner stats if needed
+  });
+
+  console.log('✅ Admin console real-time listeners initialized');
+}
+
+// Initialize real-time after DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(initializeAdminRealtime, 1000);
+  });
+} else {
+  setTimeout(initializeAdminRealtime, 1000);
+}
+
 function handleQuickAction(action) {
   switch (action) {
     case 'approvePartners':
@@ -2982,7 +3412,10 @@ async function toggleDealPromotion(dealId, promote) {
   try {
     await fetchJSON(`${API_BASE}/api/v1/admin/offers/${dealId}/feature`, {
       method: 'PUT',
-      body: JSON.stringify({ is_promoted: promote })
+      body: JSON.stringify({ 
+        is_trending: promote,
+        force: true // Admin can override partner eligibility
+      })
     });
     showNotification(promote ? 'Deal promoted successfully.' : 'Deal unpromoted.');
     loadDeals();
@@ -2990,6 +3423,9 @@ async function toggleDealPromotion(dealId, promote) {
     let userMessage = error.message;
     if (error.message.includes('Cannot promote an inactive or expired deal')) {
       userMessage = 'Only active or paused deals can be promoted.';
+    } else if (error.message.includes('not eligible')) {
+      // If still not eligible even with force, show a more helpful message
+      userMessage = 'Unable to promote deal. Please check deal status and partner eligibility.';
     }
     showNotification(`Failed to update promotion: ${userMessage}`, 'error');
   }
@@ -2999,7 +3435,11 @@ async function handleTrendingRequest(dealId, approve) {
   try {
     await fetchJSON(`${API_BASE}/api/v1/admin/offers/${dealId}/feature`, {
       method: 'PUT',
-      body: JSON.stringify({ is_promoted: approve, featured_request_pending: false })
+      body: JSON.stringify({ 
+        is_trending: approve, 
+        featured_request_pending: false,
+        force: true // Admin can override partner eligibility
+      })
     });
     showNotification(
       approve ? 'Trending request approved. Deal is now promoted.' : 'Trending request rejected.',

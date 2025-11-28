@@ -58,7 +58,6 @@ async function createOffer(partnerId, offerData) {
     discount_applies_to = 'standalone', savings, ezt_equivalent,
     featured_request_pending = false,
     is_trending = false,
-    is_promoted = false,
     forced_by_admin = false,
     status = STATUS.DRAFT
   } = offerData;
@@ -78,9 +77,9 @@ async function createOffer(partnerId, offerData) {
       applicable_days, applicable_categories, min_purchase_amount, promo_code,
       menu_item_id, applicable_menu_items, discount_applies_to,
       savings, ezt_equivalent, is_active, featured_request_pending,
-      is_promoted, forced_by_admin, status
+      forced_by_admin, status
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
     RETURNING *
   `, [
     partnerId, title, description, service_type, discount_percentage, discount_amount,
@@ -91,7 +90,7 @@ async function createOffer(partnerId, offerData) {
     min_purchase_amount, promo_code,
     menu_item_id || null, applicableMenuItemsArray, discount_applies_to,
     savings, ezt_equivalent, finalIsActive, featured_request_pending,
-    is_promoted, forced_by_admin, finalStatus
+    forced_by_admin, finalStatus
   ]);
 
   return result.rows[0];
@@ -239,9 +238,16 @@ async function listPublicOffers(filters = {}) {
     not_expired = false,
     has_started = false,
     service_type = null,
-    is_promoted = null,
+    trending = null,
     limit = DEFAULT_LIMIT,
-    admin = false
+    admin = false,
+    cuisine_types = null, // Array of cuisine types
+    price_min = null,
+    price_max = null,
+    min_rating = null,
+    user_latitude = null, // For distance filtering
+    user_longitude = null,
+    max_distance_km = null
   } = filters;
 
   const sanitizedLimit = Math.min(
@@ -256,7 +262,7 @@ async function listPublicOffers(filters = {}) {
   // Partner must be active
   conditions.push('p.is_active = true');
   if (partnerStatusColumnExists) {
-    conditions.push("(p.status IS NULL OR p.status = 'active')");
+    conditions.push("(p.status IS NULL OR p.status = ANY(ARRAY['active','approved']))");
   }
 
   const shouldEnforceActive = !admin && offerStatusColumnExists;
@@ -288,10 +294,53 @@ async function listPublicOffers(filters = {}) {
     paramIndex += 1;
   }
 
-  if (is_promoted !== null && is_promoted !== undefined) {
-    conditions.push(`(po.is_promoted = $${paramIndex} OR po.is_trending = $${paramIndex})`);
-    params.push(is_promoted);
+  if (trending !== null && trending !== undefined) {
+    conditions.push(`po.is_trending = $${paramIndex}`);
+    params.push(trending);
     paramIndex += 1;
+  }
+
+  // Filter by cuisine types (if partner has matching cuisines)
+  if (cuisine_types && Array.isArray(cuisine_types) && cuisine_types.length > 0) {
+    conditions.push(`p.cuisine_types && $${paramIndex}::text[]`);
+    params.push(cuisine_types);
+    paramIndex += 1;
+  }
+
+  // Filter by price range
+  if (price_min !== null && price_min !== undefined) {
+    conditions.push(`(po.discounted_price >= $${paramIndex} OR (po.discounted_price IS NULL AND po.original_price >= $${paramIndex}))`);
+    params.push(price_min);
+    paramIndex += 1;
+  }
+  if (price_max !== null && price_max !== undefined) {
+    conditions.push(`(po.discounted_price <= $${paramIndex} OR (po.discounted_price IS NULL AND po.original_price <= $${paramIndex}))`);
+    params.push(price_max);
+    paramIndex += 1;
+  }
+
+  // Filter by minimum rating
+  if (min_rating !== null && min_rating !== undefined) {
+    conditions.push(`p.rating >= $${paramIndex}`);
+    params.push(min_rating);
+    paramIndex += 1;
+  }
+
+  // Filter by distance (requires user location)
+  if (user_latitude !== null && user_longitude !== null && max_distance_km !== null) {
+    // Use Haversine formula for distance calculation
+    // Distance in km = 6371 * acos(cos(radians(lat1)) * cos(radians(lat2)) * cos(radians(lon2) - radians(lon1)) + sin(radians(lat1)) * sin(radians(lat2)))
+    conditions.push(`
+      (6371 * acos(
+        cos(radians($${paramIndex})) * 
+        cos(radians(p.latitude)) * 
+        cos(radians(p.longitude) - radians($${paramIndex + 1})) + 
+        sin(radians($${paramIndex})) * 
+        sin(radians(p.latitude))
+      )) <= $${paramIndex + 2}
+    `);
+    params.push(user_latitude, user_longitude, max_distance_km);
+    paramIndex += 3;
   }
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -310,7 +359,6 @@ async function listPublicOffers(filters = {}) {
       po.end_date,
       po.status,
       po.is_active,
-      po.is_promoted,
       po.is_trending,
       po.max_redemptions,
       po.current_redemptions,
@@ -321,12 +369,17 @@ async function listPublicOffers(filters = {}) {
       p.name AS partner_name,
       p.email AS partner_email,
       p.phone_number AS partner_phone,
-      p.address AS partner_address
+      p.address AS partner_address,
+      p.cuisine_types AS partner_cuisine_types,
+      p.rating AS partner_rating,
+      p.latitude AS partner_latitude,
+      p.longitude AS partner_longitude,
+      p.avg_cost_for_two AS partner_avg_cost_for_two
     FROM partner_offers po
     JOIN partners p ON po.partner_id = p.id
     ${whereClause}
     ORDER BY 
-      CASE WHEN po.is_promoted = true OR po.is_trending = true THEN 1 ELSE 0 END DESC,
+      CASE WHEN po.is_trending = true THEN 1 ELSE 0 END DESC,
       po.created_at DESC
     LIMIT $${paramIndex}
   `;
@@ -339,7 +392,7 @@ async function listPublicOffers(filters = {}) {
     not_expired,
     has_started,
     service_type,
-    is_promoted,
+    trending,
     limit: sanitizedLimit,
     whereClause
   });
@@ -367,14 +420,18 @@ async function listPublicOffers(filters = {}) {
       end_date: row.end_date,
       status: row.status,
       is_active: row.is_active,
-      is_promoted: row.is_promoted,
       is_trending: row.is_trending,
       max_redemptions: row.max_redemptions,
       current_redemptions: row.current_redemptions,
       service_type: row.service_type,
       image_url: row.image_url,
       terms_conditions: row.terms_conditions,
-      created_at: row.created_at
+      created_at: row.created_at,
+      partner_cuisine_types: row.partner_cuisine_types || [],
+      partner_rating: row.partner_rating !== null ? Number(row.partner_rating) : null,
+      partner_latitude: row.partner_latitude !== null ? Number(row.partner_latitude) : null,
+      partner_longitude: row.partner_longitude !== null ? Number(row.partner_longitude) : null,
+      partner_avg_cost_for_two: row.partner_avg_cost_for_two !== null ? Number(row.partner_avg_cost_for_two) : null
     }));
   } catch (error) {
     logError('[offerRepository] listPublicOffers query failed', {

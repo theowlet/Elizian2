@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
   <title>Elizian — Events & Entertainment</title>
 
   <!-- Playfair Display -->
@@ -15,9 +15,14 @@
   <!-- Custom Styles -->
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/enhanced.css">
+  <link rel="stylesheet" href="css/skeletons.css">
+  <link rel="stylesheet" href="css/accessibility.css">
+  <link rel="stylesheet" href="css/mobile-enhancements.css">
+  <link rel="stylesheet" href="css/event-cards-fix.css">
+  <link rel="stylesheet" href="css/realtime-status.css">
   
   <!-- Global Error Handler - Must be first script to catch all errors -->
-  <script>
+  <script type="text/javascript">
     // Prevent exposing internal file paths in error messages
     (function() {
       // Sanitize error messages to remove file paths
@@ -74,6 +79,16 @@
   </script>
 </head>
 <body>
+  <!-- Skip to main content link (Accessibility) -->
+  <a href="#main-content" class="skip-link" aria-label="Skip to main content">Skip to main content</a>
+  
+  <!-- Screen reader announcements (Accessibility) -->
+  <div role="status" aria-live="polite" aria-atomic="true" class="sr-only" id="statusMessage"></div>
+  
+  <!-- Offline indicator -->
+  <div id="offline-indicator" class="offline-banner" style="display:none;" role="alert" aria-live="assertive">
+    <span>⚠️ You're offline. Some features may be limited.</span>
+  </div>
   <!-- Global Header -->
   <header class="global-header" id="globalHeader" style="display: none;">
     <div class="header-content" style="display:flex; justify-content:space-between; align-items:center; padding:1rem 2rem; background:var(--card); box-shadow:var(--shadow); position:sticky; top:0; z-index:9999;">
@@ -335,8 +350,24 @@
                 id="searchInput"
                 oninput="handleSmartSearch(this.value)"
               >
-              <button class="search-filter-btn" onclick="showAdvancedFilters()" title="Filters">
+              <button class="search-filter-btn" id="filterBtn" onclick="showAdvancedFilters()" title="Filters" style="position: relative;">
                 <span>⚙️</span>
+                <span id="filterBadge" style="
+                  display: none;
+                  position: absolute;
+                  top: -4px;
+                  right: -4px;
+                  background: #ef4444;
+                  color: white;
+                  border-radius: 50%;
+                  width: 18px;
+                  height: 18px;
+                  font-size: 10px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  font-weight: 700;
+                "></span>
               </button>
             </div>
           </div>
@@ -381,20 +412,6 @@
           
           <!-- Main Content (Scrollable) -->
           <main class="app-container">
-            <!-- Featured Banner Carousel -->
-            <section id="featuredBanner" class="featured-banner-section">
-              <div id="featuredBannerCarousel" class="featured-banner-carousel">
-                <!-- Will be populated by JS -->
-                <div class="banner-slide active">
-                  <div class="banner-content">
-                    <h3>🎉 Steal the Deal</h3>
-                    <p>Up to 50% OFF on all dining experiences</p>
-                    <button class="banner-cta">Explore Now →</button>
-                  </div>
-                </div>
-              </div>
-            </section>
-
             <!-- Featured & Promoted Section -->
             <section id="promotionsContainer" class="promo-section">
               <div class="section-header">
@@ -416,17 +433,6 @@
                   Loading trending deals...
           </div>
         </div>
-            </section>
-
-            <!-- BanQ Section -->
-            <section id="bankOffersSection" class="bank-offers-section">
-              <div class="section-header">
-                <h2 class="section-heading">💳 BanQ</h2>
-                <span class="section-subtitle">Extra savings with your card</span>
-              </div>
-              <div id="bankOffersGrid" class="bank-offers-grid">
-                <!-- Will be populated by JS -->
-              </div>
             </section>
 
             <!-- Top Restaurants Near You -->
@@ -642,10 +648,26 @@
 
           <div class="card">
             <h3>Loyalty Points</h3>
-            <div id="userLoyaltyPoints" class="loading">
+            <div id="loyaltyPointsContainer">
               <div class="spinner"></div>
               Loading loyalty points...
+            </div>
           </div>
+          
+          <div class="card">
+            <h3>EZT Transaction History</h3>
+            <div id="eztTransactionsContainer">
+              <div class="spinner"></div>
+              Loading transactions...
+            </div>
+          </div>
+          
+          <div class="card">
+            <h3>Tier Upgrade History</h3>
+            <div id="tierHistoryContainer">
+              <div class="spinner"></div>
+              Loading tier history...
+            </div>
           </div>
           
           <div class="card">
@@ -737,14 +759,8 @@
     })();
   </script>
   
-  <!-- Define filterByCategory early so it's available for onclick handlers -->
+  <!-- filterByCategory will be defined in the main module script below -->
   <script>
-    // Make filterByCategory available globally immediately (will be overridden with full implementation later)
-    window.filterByCategory = function(category) {
-      console.log('Filtering by category (early stub):', category);
-      // Full implementation will be defined later in the script
-    };
-    
     // Make initiateBooking available globally immediately (will be overridden with full implementation later)
     window.initiateBooking = function(dealId, itemType) {
       console.log('⚠️ Booking initiated (early stub) - full implementation loading:', dealId);
@@ -819,54 +835,7 @@
     })();
   </script>
 
-  <script>
-    function computeDiscountSummary(offer = {}) {
-      const original = parseFloat(offer.original_price) || 0;
-      const explicitDiscounted = offer.discounted_price !== undefined && offer.discounted_price !== null
-        ? parseFloat(offer.discounted_price)
-        : NaN;
-      const percent = parseFloat(offer.discount_percentage) || 0;
-      const amount = parseFloat(offer.discount_amount) || 0;
-
-      let discounted = !Number.isNaN(explicitDiscounted) ? explicitDiscounted : null;
-
-      if (discounted === null) {
-        if (percent > 0 && original > 0) {
-          discounted = original - (original * percent) / 100;
-        } else if (amount > 0 && original > 0) {
-          discounted = original - amount;
-        } else {
-          discounted = original;
-        }
-      }
-
-      if (discounted < 0 || Number.isNaN(discounted)) {
-        discounted = original;
-      }
-
-      let savings = offer.savings !== undefined && offer.savings !== null
-        ? parseFloat(offer.savings)
-        : (original > 0 ? original - discounted : 0);
-
-      if (Number.isNaN(savings) || savings < 0) {
-        savings = 0;
-      }
-
-      const ezt = offer.ezt_equivalent !== undefined && offer.ezt_equivalent !== null
-        ? parseFloat(offer.ezt_equivalent)
-        : parseFloat((savings / 100).toFixed(2));
-
-      return {
-        original,
-        discounted: parseFloat(discounted.toFixed(2)),
-        percent,
-        amount,
-        hasDiscount: original > 0 && discounted < original,
-        savings: parseFloat(savings.toFixed(2)),
-        ezt: parseFloat((Number.isNaN(ezt) ? 0 : ezt).toFixed(2))
-      };
-    }
-  </script>
+  <!-- Discount calculation moved to module: js/utils/discountCalculator.js -->
   
   <!-- Phone validation - must be global for inline handlers -->
   <script>
@@ -1077,10 +1046,14 @@
     import { CONFIG, VERSION, ENV } from './js/core/config.js';
     import { setupEventListeners, initializeScreens } from './js/ui/navigation.js';
     import { updateWelcomeText, updateProfileInfo, sendOTPFromForm, logout } from './js/core/auth.js';
+    import { loadRewardsSummary } from './js/features/rewardsDisplay.js';
     import { loadEventsFromBackend, renderEventsList } from './js/features/events.js';
     import { loadRestaurantsFromBackend, renderRestaurantsList, showRestaurantDetails } from './js/features/restaurants.js';
     import { getUserLocation } from './js/ui/map.js';
     import { calculateDistance, formatDistance } from './js/utils/utils.js';
+    import { computeDiscountSummary, formatDiscount, hasValidDiscount, getEffectivePrice } from './js/utils/discountCalculator.js';
+    import { categoryToServiceType, serviceTypeToCategory, getCategoryMetadata, getCategoryNavItems } from './js/utils/categoryMapper.js';
+    import { getOfferImageUrl, getEventImageUrl, getPartnerImageUrl, normalizeImageUrl, getImageHtml } from './js/utils/imageUtils.js';
     
     // API Base URL for image loading
     const API_BASE = "http://localhost:5001";
@@ -1092,6 +1065,22 @@
     
     window.logout = logout;
     window.showRestaurantDetails = showRestaurantDetails;
+    
+    // Make discount and category utilities globally available
+    window.computeDiscountSummary = computeDiscountSummary;
+    window.formatDiscount = formatDiscount;
+    window.hasValidDiscount = hasValidDiscount;
+    window.getEffectivePrice = getEffectivePrice;
+    window.categoryToServiceType = categoryToServiceType;
+    window.serviceTypeToCategory = serviceTypeToCategory;
+    window.getCategoryMetadata = getCategoryMetadata;
+    
+    // Make image utilities globally available
+    window.getOfferImageUrl = getOfferImageUrl;
+    window.getEventImageUrl = getEventImageUrl;
+    window.getPartnerImageUrl = getPartnerImageUrl;
+    window.normalizeImageUrl = normalizeImageUrl;
+    window.getImageHtml = getImageHtml;
 
     // ============================================
     // BOOKMYSHOW-STYLE HOME SCREEN
@@ -1464,9 +1453,10 @@
         const events = await loadEventsFromBackend();
         feed.innerHTML = `<div class="feed-section-title">Events</div>` +
           `<div class="feed-list">` + (events||[]).map(evt => {
-            const imgSrc = evt.image_url
-              ? (evt.image_url.startsWith('http') ? evt.image_url : API_BASE + evt.image_url)
-              : '/assets/event-default.jpg';
+            const imgSrc = window.getEventImageUrl ? window.getEventImageUrl(evt) : 
+              (evt.image_url
+                ? (evt.image_url.startsWith('http') ? evt.image_url : API_BASE + evt.image_url)
+                : '/assets/event-default.jpg');
             return `
             <div class="feed-card" onclick="showEventBookingModal('${evt.id}')">
               <img src="${imgSrc}" alt="${evt.title}">
@@ -1515,9 +1505,10 @@
         <div class="feed-section-title">Trending events</div>
         <div class="feed-list">
           ${topEvents.map(evt => {
-            const imgSrc = evt.image_url
-              ? (evt.image_url.startsWith('http') ? evt.image_url : API_BASE + evt.image_url)
-              : '/assets/event-default.jpg';
+            const imgSrc = window.getEventImageUrl ? window.getEventImageUrl(evt) : 
+              (evt.image_url
+                ? (evt.image_url.startsWith('http') ? evt.image_url : API_BASE + evt.image_url)
+                : '/assets/event-default.jpg');
             return `
             <div class=\"feed-card\" onclick=\"showEventBookingModal('${evt.id}')\">
               <img src=\"${imgSrc}\" alt=\"${evt.title}\">
@@ -1697,6 +1688,7 @@
     let isLoadingDeals = false;
     let allDealsData = [];
     let trendingDealsData = [];
+    const isDealTrending = (deal) => Boolean(deal && (deal.is_trending || deal.is_promoted));
     let landingExperiencesData = [];
     let activeSlug = 'all';
 
@@ -1751,6 +1743,11 @@
           trendingDealsData = result.data;
           console.log(`✅ Loaded ${result.data.length} trending deals for Featured section`);
           renderTrendingCarousel(result.data);
+          
+          // WebSocket integration hook (safe to add)
+          if (window.realtimeService?.isConnected) {
+            console.log('📡 Data loaded via real-time connection');
+          }
         } else {
           console.log('⚠️ No trending deals found');
           renderNoTrendingMessage();
@@ -1759,6 +1756,122 @@
         console.error('❌ Error loading trending deals:', error);
         renderNoTrendingMessage();
       }
+    }
+    
+    let realtimeListenersBound = false;
+    
+    function handleRealtimeTrendingUpdate(event) {
+      if (!event) return;
+      console.log('⚡ Realtime trending update received:', event);
+      const serviceType = currentServiceTypeFilter || null;
+      loadTrendingDeals(serviceType);
+      loadAllDeals(serviceType);
+      if (window.announceForScreenReader) {
+        const message = event.isTrending
+          ? `${event.offerTitle || 'A deal'} is now trending`
+          : `${event.offerTitle || 'A deal'} is no longer trending`;
+        window.announceForScreenReader(message);
+      }
+      const statusNode = document.getElementById('statusMessage');
+      if (statusNode) {
+        statusNode.textContent = `Updated trending deals • ${new Date().toLocaleTimeString()}`;
+      }
+    }
+    
+    function handleRealtimeOfferUpdate(event) {
+      if (!event) return;
+      console.log('🆕 Offer update received:', event);
+      const serviceType = currentServiceTypeFilter || null;
+      loadTrendingDeals(serviceType);
+      loadAllDeals(serviceType);
+    }
+    
+    function getCachedUserInfo() {
+      try {
+        return JSON.parse(localStorage.getItem('userInfo') || '{}');
+      } catch {
+        return {};
+      }
+    }
+    
+    function handleRealtimeBookingEvent(event) {
+      if (!event) return;
+      const userInfo = getCachedUserInfo();
+      const isForCurrentUser = event.userId && userInfo?.id && event.userId === userInfo.id;
+      if (!isForCurrentUser) return;
+      const status = event.status || event.action || 'updated';
+      showNotification(`Booking ${status.replace('_', ' ')} in real-time`, 'info');
+      if (typeof loadUserBookings === 'function') {
+        setTimeout(() => loadUserBookings(), 200);
+      } else if (typeof loadHomeScreenData === 'function') {
+        loadHomeScreenData();
+      }
+    }
+    
+    function handleRealtimeLoyaltyEvent(event) {
+      if (!event) return;
+      const userInfo = getCachedUserInfo();
+      if (!userInfo?.id || event.userId !== userInfo.id) return;
+      showNotification(`Loyalty updated: +${event.pointsEarned || 0} points`, 'success');
+      if (typeof loadUserLoyalty === 'function') {
+        setTimeout(() => loadUserLoyalty(), 200);
+      }
+    }
+    
+    function handleRealtimeTokenEvent(event) {
+      if (!event) return;
+      const userInfo = getCachedUserInfo();
+      if (!userInfo?.id || event.userId !== userInfo.id) return;
+      const delta = event.delta || 0;
+      const message = delta >= 0
+        ? `You earned ${delta.toFixed(3)} EZT`
+        : `You spent ${Math.abs(delta).toFixed(3)} EZT`;
+      showNotification(message, 'success');
+      // Refresh rewards display
+      if (typeof loadRewardsSummary === 'function') {
+        setTimeout(() => loadRewardsSummary(), 200);
+      }
+      // Also refresh profile info
+      if (typeof updateProfileInfo === 'function') {
+        updateProfileInfo();
+      }
+    }
+    
+    function joinUserRealtimeRoom() {
+      const userInfo = getCachedUserInfo();
+      if (!userInfo?.id) return;
+      const join = () => {
+        if (window.realtimeService?.joinRoom) {
+          window.realtimeService.joinRoom(`users:${userInfo.id}`);
+        } else {
+          setTimeout(join, 1000);
+        }
+      };
+      join();
+    }
+    window.joinUserRealtimeRoom = joinUserRealtimeRoom;
+    
+    function initializeRealtimeListeners() {
+      if (!window.CONFIG?.FEATURES?.ENABLE_REALTIME) return;
+      const attemptSubscription = () => {
+        if (window.realtimeService?.on) {
+          if (!realtimeListenersBound) {
+            realtimeListenersBound = true;
+            window.realtimeService.on('offers:trending_status_changed', handleRealtimeTrendingUpdate);
+            window.realtimeService.on('offers:updated', handleRealtimeOfferUpdate);
+            window.realtimeService.on('bookings:created', handleRealtimeBookingEvent);
+            window.realtimeService.on('bookings:status_changed', handleRealtimeBookingEvent);
+            window.realtimeService.on('bookings:refunded', handleRealtimeBookingEvent);
+            window.realtimeService.on('loyalty:updated', handleRealtimeLoyaltyEvent);
+            window.realtimeService.on('tokens:updated', handleRealtimeTokenEvent);
+            console.log('📡 Subscribed to real-time offer/booking updates');
+          }
+          joinUserRealtimeRoom();
+        } else {
+          setTimeout(attemptSubscription, 1000);
+        }
+      };
+      attemptSubscription();
     }
     
     // Render trending carousel with horizontal scroll
@@ -1770,10 +1883,13 @@
       
       // Render deal cards with enhanced design system
       container.innerHTML = deals.map(deal => {
-        const imageUrl = deal.image_url ? 
-          (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
-          '/assets/default-offer.jpg';
-        const { original, discounted, percent, amount, hasDiscount, savings, ezt } = computeDiscountSummary(deal);
+        const imageUrl = window.getOfferImageUrl ? window.getOfferImageUrl(deal) : 
+          (deal.image_url ? 
+            (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
+            '/assets/default-offer.jpg');
+        const summary = computeDiscountSummary(deal);
+        const { original, discounted, percent, amount, hasDiscount, savings } = summary;
+        const ezt = summary.ezt || (savings / 100);
         const formattedPercent = percent > 0 ? (percent % 1 === 0 ? percent.toFixed(0) : percent.toFixed(2)) : null;
         const formattedAmount = amount > 0 ? (amount % 1 === 0 ? amount.toFixed(0) : amount.toFixed(2)) : null;
         
@@ -2015,7 +2131,10 @@
     // Load all partner deals (includes both promoted and non-promoted)
     async function loadAllDeals(serviceType = null) {
       const container = document.getElementById('allDealsGrid');
-      if (!container) return;
+      if (!container) {
+        console.warn('⚠️ allDealsGrid container not found, cannot load deals');
+        return Promise.resolve();
+      }
       
       try {
         container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading partner deals...</div>';
@@ -2027,6 +2146,26 @@
           url += `&service_type=${serviceType}`;
         }
         
+        // Add advanced filters if active
+        if (activeFilters.cuisine.length > 0) {
+          url += `&cuisine_types=${activeFilters.cuisine.join(',')}`;
+        }
+        if (activeFilters.priceRange.min !== null) {
+          url += `&price_min=${activeFilters.priceRange.min}`;
+        }
+        if (activeFilters.priceRange.max !== null) {
+          url += `&price_max=${activeFilters.priceRange.max}`;
+        }
+        if (activeFilters.minRating !== null) {
+          url += `&min_rating=${activeFilters.minRating}`;
+        }
+        if (activeFilters.maxDistance !== null && window.locationService) {
+          const userLoc = window.locationService.getCurrentLocation();
+          if (userLoc && userLoc.latitude && userLoc.longitude) {
+            url += `&user_latitude=${userLoc.latitude}&user_longitude=${userLoc.longitude}&max_distance_km=${activeFilters.maxDistance}`;
+          }
+        }
+        
         console.log('📦 Loading ALL partner deals from:', url);
         const response = await fetch(url);
         const result = await response.json();
@@ -2035,15 +2174,38 @@
         
         if (result.success && result.data && result.data.length > 0) {
           allDealsData = result.data;
-          console.log(`✅ Loaded ${result.data.length} partner deals (including ${result.data.filter(d => d.is_promoted).length} promoted)`);
-          renderPartnerDealsInfiniteScroll(result.data);
+          const trendingCount = result.data.filter(isDealTrending).length;
+          console.log(`✅ Loaded ${result.data.length} partner deals (including ${trendingCount} trending)`);
+          
+          // Apply active filters if any
+          const hasActiveFilters = Object.values(activeFilters).some(filter => {
+            if (Array.isArray(filter)) return filter.length > 0;
+            if (typeof filter === 'object' && filter !== null) {
+              return filter.min !== null || filter.max !== null;
+            }
+            return filter !== null && filter !== undefined;
+          });
+          
+          if (hasActiveFilters) {
+            applyFiltersToDeals();
+          } else {
+            renderPartnerDealsInfiniteScroll(result.data);
+          }
+          
+          // Cache timestamp for polling fallback (safe integration hook)
+          window._lastDealsUpdate = Date.now();
+          return Promise.resolve();
         } else {
           console.log('⚠️ No partner deals found');
           renderNoDealsMessage();
+          allDealsData = []; // Clear data if no deals
+          return Promise.resolve();
         }
       } catch (error) {
         console.error('❌ Error loading partner deals:', error);
         renderNoDealsMessage();
+        allDealsData = []; // Clear data on error
+        return Promise.reject(error);
       }
     }
     
@@ -2064,17 +2226,22 @@
       }
       
       container.innerHTML = infiniteDeals.map((deal, index) => {
-        const imageUrl = deal.image_url ? 
-          (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
-          '/assets/default-offer.jpg';
+        const imageUrl = window.getOfferImageUrl ? window.getOfferImageUrl(deal) : 
+          (deal.image_url ? 
+            (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
+            '/assets/default-offer.jpg');
         
         const summary = computeDiscountSummary(deal);
         const daysRemaining = deal.end_date ? Math.ceil((new Date(deal.end_date) - new Date()) / (1000 * 60 * 60 * 24)) : null;
         const isUrgent = daysRemaining !== null && daysRemaining < 7 && daysRemaining > 0;
         const isHotDeal = summary.percent > 40;
         
-        // Calculate distance (mock for now - would come from location API)
-        const distance = '2.3 km'; // TODO: Calculate from user location
+        // Calculate distance from user location
+        let distance = '';
+        if (window.locationService && deal.latitude && deal.longitude) {
+          const distanceObj = window.locationService.getDistanceToPartner(deal.latitude, deal.longitude);
+          distance = distanceObj ? distanceObj.formatted : '';
+        }
         const rating = '4.5'; // TODO: Get from partner/booking data
         const cuisine = deal.service_type === 'dining' ? 'Italian' : deal.category_name || '';
         
@@ -2083,7 +2250,7 @@
             <div class="deal-image-wrapper">
               <img src="${imageUrl}" class="deal-image" alt="${deal.title}"
                    onerror="this.src='/assets/default-offer.jpg'">
-              ${deal.is_promoted ? 
+              ${isDealTrending(deal) ? 
                 `<div class="trending-badge">🔥 TRENDING</div>` : ''}
               ${isHotDeal ? 
                 `<div class="hot-deal-badge">HOT DEAL</div>` : ''}
@@ -2351,17 +2518,7 @@
         }
       });
       
-      // Map category to service_type
-      const categoryToServiceType = {
-        'dining': 'dining',
-        'events': 'events',
-        'healthcare': 'healthcare',
-        'spa': 'spa-and-salon',
-        'wellness': 'wellness',
-        'travel': 'travel',
-        'others': 'others'
-      };
-      
+      // Use unified category mapper (imported from module)
       // Handle trending category specially
       if (category === 'trending') {
         const homeScreen = document.getElementById('homeScreen');
@@ -2370,7 +2527,7 @@
           loadTrendingDeals(null);
           // Filter all deals to show only promoted ones
           if (allDealsData && allDealsData.length > 0) {
-            const trendingDeals = allDealsData.filter(d => d.is_promoted);
+            const trendingDeals = allDealsData.filter(isDealTrending);
             const container = document.getElementById('allDealsGrid');
             if (container) {
               renderPartnerDealsInfiniteScroll(trendingDeals);
@@ -2380,18 +2537,24 @@
         return;
       }
       
-      const serviceType = category === 'all' ? null : (categoryToServiceType[category] || null);
+      const serviceType = category === 'all' ? null : (window.categoryToServiceType ? window.categoryToServiceType(category) : null);
       currentServiceTypeFilter = serviceType;
       
       // Load experiences for landing page if on onboarding screen
       const onboardingScreen = document.getElementById('onboardingScreen');
-      if (onboardingScreen && !onboardingScreen.classList.contains('hidden')) {
+      if (onboardingScreen && onboardingScreen.classList.contains('active')) {
         loadLandingExperiences(category);
       } else {
-        // Filter deals on home screen
+        // Filter deals on home screen (check both active and not hidden)
         const homeScreen = document.getElementById('homeScreen');
-        if (homeScreen && !homeScreen.classList.contains('hidden')) {
+        if (homeScreen && (homeScreen.classList.contains('active') || !homeScreen.classList.contains('hidden'))) {
+          console.log('✅ Filtering deals on home screen for category:', category, 'serviceType:', serviceType);
           // Filter both Featured and Partner Deals
+          loadTrendingDeals(serviceType);
+          loadAllDeals(serviceType);
+        } else {
+          console.warn('⚠️ Home screen not active, but applying filter anyway');
+          // Apply filter even if not on home screen (user might navigate there)
           loadTrendingDeals(serviceType);
           loadAllDeals(serviceType);
         }
@@ -2479,19 +2642,18 @@
         return;
       }
       
-      // Normalize image URL (supports API_BASE-less paths)
-      const normalizedImageUrl = (() => {
-        if (!offer.image_url) return '/assets/default-offer.jpg';
-        if (offer.image_url.startsWith('http')) return offer.image_url;
-        return `${API_BASE}${offer.image_url}`;
-      })();
+      // Normalize image URL using utility
+      const normalizedImageUrl = window.getOfferImageUrl ? window.getOfferImageUrl(offer) : 
+        (offer.image_url ? 
+          (offer.image_url.startsWith('http') ? offer.image_url : `${API_BASE}${offer.image_url}`) :
+          '/assets/default-offer.jpg');
       
       const modalContent = `
         <div class="offer-modal">
           <div class="offer-modal-header">
                  <img src="${normalizedImageUrl}" alt="${offer.title}" class="offer-modal-image"
                  onerror="this.src='/assets/default-offer.jpg'">
-            ${offer.is_promoted ? '<div class="trending-badge">🔥 TRENDING</div>' : ''}
+            ${isDealTrending(offer) ? '<div class="trending-badge">🔥 TRENDING</div>' : ''}
             <button class="modal-close-btn" onclick="closeOfferModal()">&times;</button>
           </div>
           <div class="offer-modal-body">
@@ -2589,6 +2751,11 @@
       const modal = document.getElementById('offerDetailsModal') || createOfferModal();
       modal.innerHTML = modalContent;
       modal.style.display = 'flex';
+      
+      // Track viewed offers for real-time updates (safe integration hook)
+      if (window.realtimeService?.trackView) {
+        window.realtimeService.trackView('offer', offerId);
+      }
       
       // Load menu images for dining/restaurant offers
       if (offer.service_type === 'dining' || offer.service_type === 'restaurant' || 
@@ -3066,7 +3233,7 @@
         let profileData = { success: true, data: { ezt_balance: 0 } };
         
         try {
-          const availabilityRes = await fetch(`${API_BASE}/api/v1/deals/${dealId}/availability`, {
+          const availabilityRes = await fetch(`${API_BASE}/api/v1/offers/${dealId}/availability`, {
             headers: { 'Authorization': `Bearer ${cleanToken}` }
           });
           
@@ -3352,27 +3519,6 @@
                 <span style="font-weight: 700; font-size: 20px; color: #111827;">Total Payable</span>
                 <span id="totalPriceDisplay" style="font-weight: 700; font-size: 24px; color: #059669;">₹${initialFinalAmount.toFixed(2)}</span>
               </div>
-            </div>
-            
-            <!-- Bank Offer Selection -->
-            <div style="margin-bottom: 20px;" id="bankOfferSection">
-              <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">💳 BanQ (Optional)</label>
-              <button type="button" onclick="showBankOffersModal()" style="
-                width: 100%;
-                padding: 12px;
-                border: 2px dashed #d1d5db;
-                background: #f9fafb;
-                border-radius: 8px;
-                font-weight: 500;
-                color: #6b7280;
-                cursor: pointer;
-                text-align: center;
-              ">
-                ${window.selectedBankOffer ? `✓ ${window.selectedBankOffer.bank_code} Selected` : 'Select Bank Offer'}
-              </button>
-              <small style="display: block; margin-top: 4px; color: #6b7280; font-size: 12px;">
-                Get additional discounts with your bank card
-              </small>
             </div>
             
             <!-- Table Reservation (for dining offers) -->
@@ -3772,10 +3918,6 @@
             // EZT token redemption (CRITICAL: must match backend calculation)
             ezt_to_redeem: totalEzt > 0 ? totalEzt : null,
             // Bank offer (if selected)
-            ...(window.selectedBankOffer ? {
-              bank_offer_id: window.selectedBankOffer.bank_id,
-              bank_offer_rule_id: window.selectedBankOffer.rule_id
-            } : {}),
             // Table reservation (for dining offers)
             ...((currentBookingDeal.service_type === 'dining' || currentBookingDeal.service_type === 'restaurant') ? {
               reservation_data: {
@@ -3845,6 +3987,7 @@
         
         if (result.success) {
           const bookingData = result.data || {};
+          const rewards = bookingData.rewards || null;
           const voucher = bookingData.voucher || null;
           showNotification('Booking confirmed successfully!', 'success');
           closeBookingModal();
@@ -3853,20 +3996,35 @@
           const displayAmount = parseFloat(bookingData.fiat_amount || bookingData.total_price || finalAmount || 0);
           const eztRedeemed = parseFloat(bookingData.ezt_redeemed || 0);
 
+          // Show rewards earned modal if rewards were earned
+          if (rewards && rewards.ezt_earned > 0) {
+            showRewardsEarnedModal(rewards);
+          }
+
+          // Update user balances in UI
+          if (bookingData.user_balances) {
+            updateUserBalances(bookingData.user_balances);
+          }
+
+          // Show voucher modal after rewards (if voucher exists)
           if (voucher) {
-            showVoucherModal({
-              code: voucher.code,
-              qr: voucher.qr_code_data || voucher.qr_code_url || null,
-              status: voucher.status,
-              expiresAt: voucher.expires_at,
-              redeemedAt: voucher.redeemed_at,
-              bookingReference: bookingData.booking_reference,
-              dealTitle: bookingData.deal_title || currentBookingDeal.title,
-              bookingDate: date,
-              quantity,
-              amount: displayAmount
-            });
-          } else {
+            // Delay voucher modal slightly to show rewards first
+            setTimeout(() => {
+              showVoucherModal({
+                code: voucher.code,
+                qr: voucher.qr_code_data || voucher.qr_code_url || null,
+                status: voucher.status,
+                expiresAt: voucher.expires_at,
+                redeemedAt: voucher.redeemed_at,
+                bookingReference: bookingData.booking_reference,
+                dealTitle: bookingData.deal_title || currentBookingDeal.title,
+                bookingDate: date,
+                quantity,
+                amount: displayAmount
+              });
+            }, rewards && rewards.ezt_earned > 0 ? 2000 : 0);
+          } else if (!rewards || rewards.ezt_earned === 0) {
+            // Only show alert if no rewards modal was shown
             const confirmationMessage = [
               '✅ Booking Confirmed!',
               '',
@@ -3887,6 +4045,11 @@
           }
           if (typeof loadAllDeals === 'function') {
             loadAllDeals();
+          }
+          
+          // Reload rewards summary if function exists
+          if (typeof loadRewardsSummary === 'function') {
+            setTimeout(() => loadRewardsSummary(), 1000);
           }
         } else {
           throw new Error(result.error || result.message || 'Failed to confirm booking');
@@ -3923,6 +4086,134 @@
         }
       }
     };
+
+  // Show rewards earned modal after booking
+  window.showRewardsEarnedModal = function(rewards) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.style.cssText = `
+      display: flex;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 10001;
+      align-items: center;
+      justify-content: center;
+    `;
+    
+    modal.innerHTML = `
+      <div style="
+        background: white;
+        border-radius: 20px;
+        padding: 32px;
+        max-width: 400px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: slideIn 0.3s ease-out;
+      ">
+        <div style="font-size: 64px; margin-bottom: 16px;">🎉</div>
+        <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: #111827;">
+          Rewards Earned!
+        </h2>
+        <p style="margin: 0 0 24px 0; color: #6b7280;">
+          Your booking is confirmed
+        </p>
+        
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; margin-bottom: 16px;">
+          <div style="color: white; font-size: 14px; opacity: 0.9; margin-bottom: 8px;">EZT Earned</div>
+          <div style="color: white; font-size: 36px; font-weight: 700;">
+            ${(rewards.ezt_earned || 0).toFixed(5)} EZT
+          </div>
+          <div style="color: white; font-size: 12px; opacity: 0.8; margin-top: 8px;">
+            ≈ ₹${((rewards.ezt_earned || 0) * 100).toFixed(2)} discount value
+          </div>
+        </div>
+        
+        ${(rewards.loyalty_points_earned || 0) > 0 ? `
+          <div style="background: #f59e0b; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+            <div style="color: white; font-size: 14px; opacity: 0.9; margin-bottom: 4px;">Loyalty Points</div>
+            <div style="color: white; font-size: 28px; font-weight: 700;">
+              +${rewards.loyalty_points_earned} points
+            </div>
+          </div>
+        ` : ''}
+        
+        <div style="background: #f3f4f6; border-radius: 8px; padding: 12px; margin-bottom: 20px; font-size: 13px; color: #6b7280;">
+          <strong>Current Tier:</strong> ${rewards.tier || 'Ather'} • 
+          <strong>Earn Rate:</strong> ${((rewards.earn_rate || 0.01) * 100).toFixed(0)}%
+        </div>
+        
+        ${rewards.tier_upgraded && rewards.tier_upgraded.upgraded ? `
+          <div style="background: #10b981; color: white; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-weight: 600;">
+            🎊 Congratulations! You've been upgraded to ${rewards.tier_upgraded.to} tier!
+          </div>
+        ` : ''}
+        
+        <button onclick="this.closest('.modal').remove()" style="
+          width: 100%;
+          padding: 14px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-weight: 600;
+          font-size: 16px;
+          cursor: pointer;
+          transition: transform 0.2s;
+        " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+          Awesome!
+        </button>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Add confetti animation if available
+    if (typeof confetti === 'function') {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    }
+    
+    // Auto-close after 5 seconds if user doesn't interact
+    setTimeout(() => {
+      if (document.body.contains(modal)) {
+        modal.remove();
+      }
+    }, 5000);
+  };
+
+  // Update user balances in UI
+  window.updateUserBalances = function(balances) {
+    // Update EZT balance in header or profile
+    const eztBalanceEl = document.getElementById('eztBalanceAmount');
+    if (eztBalanceEl) {
+      eztBalanceEl.textContent = (balances.ezt_balance || 0).toFixed(5) + ' EZT';
+    }
+    
+    // Update loyalty points
+    const loyaltyEl = document.getElementById('loyaltyPointsBalance');
+    if (loyaltyEl) {
+      loyaltyEl.textContent = (balances.loyalty_points || 0).toLocaleString('en-IN');
+    }
+    
+    // Update tier
+    const tierEl = document.getElementById('currentTierName');
+    if (tierEl) {
+      tierEl.textContent = balances.current_tier || 'Ather';
+    }
+    
+    // Trigger rewards summary reload if available
+    if (typeof loadRewardsSummary === 'function') {
+      setTimeout(() => loadRewardsSummary(), 500);
+    }
+  };
 
   function showVoucherModal(details = {}) {
     const modal = document.getElementById('voucherModal');
@@ -4108,9 +4399,7 @@
       
       // Load all sections
       await Promise.all([
-        loadFeaturedBanner(),
         loadTrendingDeals(null),
-        loadBankOffers(),
         loadNearbyRestaurants(),
         loadOngoingEvents(),
         loadUpcomingEvents(),
@@ -4121,79 +4410,6 @@
       loadBottomNav();
       
       console.log('✅ Enhanced home screen loaded successfully');
-    }
-    
-    // Load Featured Banner Carousel
-    async function loadFeaturedBanner() {
-      const container = document.getElementById('featuredBannerCarousel');
-      if (!container) return;
-      
-      const banners = [
-        {
-          title: '🎉 Steal the Deal',
-          subtitle: 'Up to 50% OFF on all dining experiences',
-          cta: 'Explore Now',
-          action: 'filterByCategory(\'dining\')'
-        },
-        {
-          title: '💳 BanQ',
-          subtitle: 'Extra 20% with HDFC, ICICI & more',
-          cta: 'View Offers',
-          action: 'document.getElementById(\'bankOffersSection\')?.scrollIntoView({ behavior: \'smooth\' })'
-        }
-      ];
-      
-      container.innerHTML = banners.map((banner, index) => `
-        <div class="banner-slide ${index === 0 ? 'active' : ''}" onclick="${banner.action}">
-          <div class="banner-content">
-            <h3>${banner.title}</h3>
-            <p>${banner.subtitle}</p>
-            <button class="banner-cta" onclick="event.stopPropagation(); ${banner.action}">${banner.cta} →</button>
-          </div>
-        </div>
-      `).join('');
-      
-      // Auto-rotate banners every 5 seconds
-      let currentBanner = 0;
-      setInterval(() => {
-        const slides = container.querySelectorAll('.banner-slide');
-        if (slides.length > 1) {
-          slides[currentBanner].classList.remove('active');
-          currentBanner = (currentBanner + 1) % slides.length;
-          slides[currentBanner].classList.add('active');
-        }
-      }, 5000);
-    }
-    
-    // Load BanQ from API (dynamic, not hardcoded)
-    async function loadBankOffers() {
-      const container = document.getElementById('bankOffersGrid');
-      if (!container) return;
-      
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/bank-offers`);
-        const result = await response.json();
-        
-        if (result.success && result.data && result.data.length > 0) {
-          container.innerHTML = result.data.map(bank => {
-            const firstOffer = bank.offers && bank.offers.length > 0 ? bank.offers[0] : null;
-            const offerText = firstOffer ? firstOffer.description : 'Special offers available';
-            
-            return `
-              <div class="bank-card" onclick="selectBankOffer('${bank.bank_code}', '${bank.id}', ${firstOffer ? `'${firstOffer.id}'` : 'null'})">
-                ${bank.logo_url ? `<img src="${bank.logo_url}" alt="${bank.bank_name}" class="bank-logo-img">` : `<div class="bank-logo">💳</div>`}
-                <div class="bank-name">${bank.bank_name}</div>
-                <div class="bank-offer-text">${offerText}</div>
-              </div>
-            `;
-          }).join('');
-        } else {
-          container.innerHTML = '<p class="empty-state">No BanQ offers available</p>';
-        }
-      } catch (error) {
-        console.error('Error loading bank offers:', error);
-        container.innerHTML = '<p class="empty-state">Unable to load BanQ offers</p>';
-      }
     }
     
     // Load Nearby Restaurants
@@ -4215,9 +4431,10 @@
           const restaurants = sortedRestaurants.slice(0, 5);
           
           container.innerHTML = restaurants.map(deal => {
-            const imageUrl = deal.image_url ? 
-              (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
-              '/assets/default-offer.jpg';
+            const imageUrl = window.getOfferImageUrl ? window.getOfferImageUrl(deal) : 
+              (deal.image_url ? 
+                (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
+                '/assets/default-offer.jpg');
             const summary = computeDiscountSummary(deal);
             
             // Calculate real distance
@@ -4277,9 +4494,10 @@
           
           if (ongoingEvents.length > 0) {
             container.innerHTML = ongoingEvents.map(deal => {
-              const imageUrl = deal.image_url ? 
-                (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
-                '/assets/default-offer.jpg';
+              const imageUrl = window.getOfferImageUrl ? window.getOfferImageUrl(deal) : 
+                (deal.image_url ? 
+                  (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
+                  '/assets/default-offer.jpg');
               const summary = computeDiscountSummary(deal);
               const endDate = deal.end_date ? new Date(deal.end_date).toLocaleDateString('en-IN', { 
                 day: 'numeric', 
@@ -4334,9 +4552,10 @@
           
           if (upcomingEvents.length > 0) {
             container.innerHTML = upcomingEvents.map(deal => {
-            const imageUrl = deal.image_url ? 
-              (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
-              '/assets/default-offer.jpg';
+            const imageUrl = window.getOfferImageUrl ? window.getOfferImageUrl(deal) : 
+              (deal.image_url ? 
+                (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
+                '/assets/default-offer.jpg');
             const summary = computeDiscountSummary(deal);
             const eventDate = deal.start_date ? new Date(deal.start_date).toLocaleDateString('en-IN', { 
               day: 'numeric', 
@@ -4370,65 +4589,512 @@
     }
     
     // Smart Search Handler
-    window.handleSmartSearch = function(query) {
-      if (!query || query.length < 2) {
-        // Reset to all deals if search is cleared
-        if (query.length === 0) {
+    window.handleSmartSearch = async function(query) {
+      const searchTerm = query ? query.trim() : '';
+      console.log('🔍 Search triggered:', searchTerm, '| allDealsData length:', allDealsData?.length || 0);
+      
+      const allDealsGrid = document.getElementById('allDealsGrid');
+      const homeScreen = document.getElementById('homeScreen');
+      
+      // If query is empty, reset to all deals
+      if (!searchTerm || searchTerm.length === 0) {
+        console.log('🔍 Clearing search, reloading all deals');
+        if (typeof loadAllDeals === 'function') {
           loadAllDeals(currentServiceTypeFilter);
         }
         return;
       }
       
-      // Filter deals by search query
-      const filtered = allDealsData.filter(deal => 
-        deal.title.toLowerCase().includes(query.toLowerCase()) ||
-        deal.partner_name.toLowerCase().includes(query.toLowerCase()) ||
-        (deal.description && deal.description.toLowerCase().includes(query.toLowerCase()))
-      );
+      // Navigate to home screen if not already there (deals are shown on home screen)
+      if (homeScreen && homeScreen.classList.contains('hidden')) {
+        console.log('🔍 Navigating to home screen to show search results');
+        // Try multiple navigation methods
+        if (typeof navigateTo === 'function') {
+          navigateTo('home');
+        } else if (typeof window.navigateTo === 'function') {
+          window.navigateTo('home');
+        } else if (typeof showScreen === 'function') {
+          showScreen('home');
+        } else {
+          // Fallback: manually show home screen
+          document.querySelectorAll('.screen').forEach(s => {
+            s.classList.remove('active');
+            s.classList.add('hidden');
+          });
+          homeScreen.classList.remove('hidden');
+          homeScreen.classList.add('active');
+        }
+        // Wait for screen transition
+        await new Promise(resolve => setTimeout(resolve, 400));
+      }
       
-      const container = document.getElementById('allDealsGrid');
-      if (container && filtered.length > 0) {
+      // Check if allDealsData is populated, if not load it
+      if (!allDealsData || allDealsData.length === 0) {
+        console.warn('⚠️ allDealsData is empty, loading deals...');
+        if (typeof loadAllDeals === 'function') {
+          try {
+            await loadAllDeals(currentServiceTypeFilter);
+            // Wait a bit for data to be set
+            await new Promise(resolve => setTimeout(resolve, 300));
+            // Retry search after data is loaded
+            if (allDealsData && allDealsData.length > 0) {
+              return handleSmartSearch(searchTerm);
+            }
+          } catch (error) {
+            console.error('❌ Error loading deals:', error);
+          }
+        }
+        // If still no data, show message
+        if (!allDealsData || allDealsData.length === 0) {
+          if (allDealsGrid) {
+            allDealsGrid.innerHTML = `
+              <div class="empty-state" style="padding: 3rem 1.5rem; text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 1rem;">⏳</div>
+                <p style="font-size: 1.1rem; color: var(--text-muted); margin-bottom: 1rem;">Loading deals...</p>
+                <p style="font-size: 0.9rem; color: var(--text-muted);">Please wait while we load the deals</p>
+              </div>
+            `;
+          }
+          return;
+        }
+      }
+      
+      // Require at least 2 characters for search
+      if (searchTerm.length < 2) {
+        console.log('🔍 Query too short, waiting for more characters');
+        return;
+      }
+      
+      // Filter deals by search query
+      const searchLower = searchTerm.toLowerCase();
+      const filtered = allDealsData.filter(deal => {
+        if (!deal) return false;
+        
+        const titleMatch = deal.title?.toLowerCase().includes(searchLower) || false;
+        const partnerMatch = deal.partner_name?.toLowerCase().includes(searchLower) || false;
+        const descriptionMatch = deal.description?.toLowerCase().includes(searchLower) || false;
+        const categoryMatch = deal.category_name?.toLowerCase().includes(searchLower) || false;
+        const serviceTypeMatch = deal.service_type?.toLowerCase().includes(searchLower) || false;
+        const tagsMatch = Array.isArray(deal.tags) && deal.tags.some(tag => 
+          tag?.toLowerCase().includes(searchLower)
+        ) || false;
+        
+        return titleMatch || partnerMatch || descriptionMatch || categoryMatch || serviceTypeMatch || tagsMatch;
+      });
+      
+      console.log(`🔍 Found ${filtered.length} deals matching "${searchTerm}" out of ${allDealsData.length} total`);
+      
+      if (!allDealsGrid) {
+        console.error('❌ allDealsGrid container not found. Make sure you are on the home screen.');
+        // Try to find and show home screen
+        if (homeScreen) {
+          document.querySelectorAll('.screen').forEach(s => {
+            s.classList.remove('active');
+            s.classList.add('hidden');
+          });
+          homeScreen.classList.remove('hidden');
+          homeScreen.classList.add('active');
+          // Retry after showing screen
+          setTimeout(() => handleSmartSearch(searchTerm), 300);
+        }
+        return;
+      }
+      
+      // Scroll to deals section if needed
+      const dealsContainer = document.getElementById('dealsContainer');
+      if (dealsContainer && filtered.length > 0) {
+        dealsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      
+      // Render results
+      if (filtered.length > 0) {
+        console.log('✅ Rendering filtered deals');
         renderPartnerDealsInfiniteScroll(filtered);
-      } else if (container) {
-        container.innerHTML = `
-          <div class="empty-state">
-            <p>No deals found for "${query}"</p>
-            <button class="btn btn-secondary" onclick="document.getElementById('searchInput').value=''; handleSmartSearch('');">Clear Search</button>
+      } else {
+        console.log('❌ No deals found');
+        allDealsGrid.innerHTML = `
+          <div class="empty-state" style="padding: 3rem 1.5rem; text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 1rem;">🔍</div>
+            <p style="font-size: 1.1rem; color: var(--text-muted); margin-bottom: 1rem; font-weight: 600;">No deals found for "${searchTerm}"</p>
+            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">Try searching with different keywords or check your spelling</p>
+            <button class="btn btn-secondary" onclick="const input = document.getElementById('searchInput'); if(input) input.value=''; handleSmartSearch('');" style="padding: 0.75rem 1.5rem; border-radius: 8px; border: none; background: var(--brand-primary); color: white; cursor: pointer; font-weight: 600;">
+              Clear Search
+            </button>
           </div>
         `;
       }
     };
     
-    // Advanced Filters
-    window.showAdvancedFilters = function() {
-      // TODO: Implement advanced filter modal
-      alert('Advanced filters coming soon!\n\nYou\'ll be able to filter by:\n- Cuisine type\n- Price range\n- Distance\n- Rating\n- Dietary preferences');
+    // Advanced Filters State
+    let activeFilters = {
+      cuisine: [],
+      priceRange: { min: null, max: null },
+      maxDistance: null,
+      minRating: null,
+      dietaryPreferences: []
     };
-    
-    // Bank Offer Selection (stores selected offer for booking)
-    window.selectedBankOffer = null;
-    window.selectBankOffer = function(bankCode, bankId, ruleId) {
-      if (!ruleId) {
-        showNotification('Please select a specific offer', 'error');
+
+    // Advanced Filters Modal
+    window.showAdvancedFilters = function() {
+      const modal = document.createElement('div');
+      modal.className = 'filter-modal-overlay';
+      modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+      `;
+
+      modal.innerHTML = `
+        <div class="filter-modal" style="
+          background: white;
+          border-radius: 20px;
+          padding: 24px;
+          max-width: 500px;
+          width: 100%;
+          max-height: 90vh;
+          overflow-y: auto;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        ">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <h2 style="margin: 0; font-size: 24px; font-weight: 700; color: #111827;">🔍 Advanced Filters</h2>
+            <button onclick="this.closest('.filter-modal-overlay').remove()" style="
+              background: none;
+              border: none;
+              font-size: 28px;
+              cursor: pointer;
+              color: #6b7280;
+              padding: 0;
+              width: 32px;
+              height: 32px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            ">&times;</button>
+          </div>
+
+          <!-- Cuisine Type -->
+          <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Cuisine Type</label>
+            <select id="filterCuisine" multiple size="5" style="
+              width: 100%;
+              padding: 8px;
+              border: 1px solid #d1d5db;
+              border-radius: 8px;
+              font-size: 14px;
+            ">
+              <option value="indian">🍛 Indian</option>
+              <option value="chinese">🥢 Chinese</option>
+              <option value="italian">🍕 Italian</option>
+              <option value="mexican">🌮 Mexican</option>
+              <option value="thai">🍜 Thai</option>
+              <option value="continental">🍝 Continental</option>
+              <option value="japanese">🍣 Japanese</option>
+              <option value="korean">🍱 Korean</option>
+              <option value="american">🍔 American</option>
+              <option value="mediterranean">🥗 Mediterranean</option>
+            </select>
+            <small style="color: #6b7280; font-size: 12px; display: block; margin-top: 4px;">
+              Hold Ctrl/Cmd to select multiple
+            </small>
+          </div>
+
+          <!-- Price Range -->
+          <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Price Range (₹)</label>
+            <div style="display: flex; gap: 12px; align-items: center;">
+              <input type="number" id="filterPriceMin" placeholder="Min" min="0" style="
+                flex: 1;
+                padding: 8px;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                font-size: 14px;
+              ">
+              <span style="color: #6b7280;">to</span>
+              <input type="number" id="filterPriceMax" placeholder="Max" min="0" style="
+                flex: 1;
+                padding: 8px;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                font-size: 14px;
+              ">
+            </div>
+          </div>
+
+          <!-- Distance -->
+          <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Maximum Distance</label>
+            <select id="filterDistance" style="
+              width: 100%;
+              padding: 8px;
+              border: 1px solid #d1d5db;
+              border-radius: 8px;
+              font-size: 14px;
+            ">
+              <option value="">Any distance</option>
+              <option value="1">Within 1 km</option>
+              <option value="3">Within 3 km</option>
+              <option value="5">Within 5 km</option>
+              <option value="10">Within 10 km</option>
+              <option value="20">Within 20 km</option>
+            </select>
+          </div>
+
+          <!-- Rating -->
+          <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Minimum Rating</label>
+            <select id="filterRating" style="
+              width: 100%;
+              padding: 8px;
+              border: 1px solid #d1d5db;
+              border-radius: 8px;
+              font-size: 14px;
+            ">
+              <option value="">Any rating</option>
+              <option value="4.5">4.5+ ⭐</option>
+              <option value="4.0">4.0+ ⭐</option>
+              <option value="3.5">3.5+ ⭐</option>
+              <option value="3.0">3.0+ ⭐</option>
+            </select>
+          </div>
+
+          <!-- Dietary Preferences -->
+          <div style="margin-bottom: 24px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #374151;">Dietary Preferences</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" value="vegetarian" class="dietary-checkbox" style="cursor: pointer;">
+                <span>🥬 Vegetarian</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" value="vegan" class="dietary-checkbox" style="cursor: pointer;">
+                <span>🌱 Vegan</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" value="gluten-free" class="dietary-checkbox" style="cursor: pointer;">
+                <span>🌾 Gluten-Free</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="checkbox" value="halal" class="dietary-checkbox" style="cursor: pointer;">
+                <span>🕌 Halal</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="display: flex; gap: 12px; margin-top: 32px;">
+            <button onclick="applyAdvancedFilters()" style="
+              flex: 1;
+              padding: 12px;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              border: none;
+              border-radius: 8px;
+              font-weight: 600;
+              font-size: 16px;
+              cursor: pointer;
+            ">Apply Filters</button>
+            <button onclick="clearAdvancedFilters()" style="
+              flex: 1;
+              padding: 12px;
+              background: #f3f4f6;
+              color: #374151;
+              border: none;
+              border-radius: 8px;
+              font-weight: 600;
+              font-size: 16px;
+              cursor: pointer;
+            ">Clear All</button>
+          </div>
+        </div>
+      `;
+
+      // Load current filter values
+      const cuisineSelect = modal.querySelector('#filterCuisine');
+      activeFilters.cuisine.forEach(c => {
+        Array.from(cuisineSelect.options).forEach(opt => {
+          if (opt.value === c) opt.selected = true;
+        });
+      });
+      modal.querySelector('#filterPriceMin').value = activeFilters.priceRange.min || '';
+      modal.querySelector('#filterPriceMax').value = activeFilters.priceRange.max || '';
+      modal.querySelector('#filterDistance').value = activeFilters.maxDistance || '';
+      modal.querySelector('#filterRating').value = activeFilters.minRating || '';
+      activeFilters.dietaryPreferences.forEach(d => {
+        const checkbox = modal.querySelector(`.dietary-checkbox[value="${d}"]`);
+        if (checkbox) checkbox.checked = true;
+      });
+
+      document.body.appendChild(modal);
+    };
+
+    // Apply Advanced Filters
+    window.applyAdvancedFilters = function() {
+      const modal = document.querySelector('.filter-modal-overlay');
+      if (!modal) return;
+
+      // Collect filter values
+      const cuisineSelect = modal.querySelector('#filterCuisine');
+      activeFilters.cuisine = Array.from(cuisineSelect.selectedOptions).map(opt => opt.value);
+      activeFilters.priceRange.min = modal.querySelector('#filterPriceMin').value ? parseFloat(modal.querySelector('#filterPriceMin').value) : null;
+      activeFilters.priceRange.max = modal.querySelector('#filterPriceMax').value ? parseFloat(modal.querySelector('#filterPriceMax').value) : null;
+      activeFilters.maxDistance = modal.querySelector('#filterDistance').value ? parseFloat(modal.querySelector('#filterDistance').value) : null;
+      activeFilters.minRating = modal.querySelector('#filterRating').value ? parseFloat(modal.querySelector('#filterRating').value) : null;
+      activeFilters.dietaryPreferences = Array.from(modal.querySelectorAll('.dietary-checkbox:checked')).map(cb => cb.value);
+
+      // Close modal
+      modal.remove();
+
+      // Apply filters to deals
+      applyFiltersToDeals();
+    };
+
+    // Clear Advanced Filters
+    window.clearAdvancedFilters = function() {
+      activeFilters = {
+        cuisine: [],
+        priceRange: { min: null, max: null },
+        maxDistance: null,
+        minRating: null,
+        dietaryPreferences: []
+      };
+
+      const modal = document.querySelector('.filter-modal-overlay');
+      if (modal) {
+        modal.querySelector('#filterCuisine').selectedIndex = -1;
+        modal.querySelector('#filterPriceMin').value = '';
+        modal.querySelector('#filterPriceMax').value = '';
+        modal.querySelector('#filterDistance').value = '';
+        modal.querySelector('#filterRating').value = '';
+        modal.querySelectorAll('.dietary-checkbox').forEach(cb => cb.checked = false);
+      }
+
+      applyFiltersToDeals();
+    };
+
+    // Apply filters to deals
+    function applyFiltersToDeals() {
+      if (!allDealsData || allDealsData.length === 0) {
+        console.warn('⚠️ No deals data to filter');
         return;
       }
-      window.selectedBankOffer = {
-        bank_code: bankCode,
-        bank_id: bankId,
-        rule_id: ruleId
-      };
+
+      let filtered = [...allDealsData];
+
+      // Filter by cuisine (check partner's cuisine_types from database)
+      if (activeFilters.cuisine.length > 0) {
+        filtered = filtered.filter(deal => {
+          // Use partner_cuisine_types from database if available
+          if (deal.partner_cuisine_types && Array.isArray(deal.partner_cuisine_types)) {
+            return activeFilters.cuisine.some(c => 
+              deal.partner_cuisine_types.includes(c)
+            );
+          }
+          // Fallback to keyword matching if cuisine_types not available
+          return activeFilters.cuisine.some(c => 
+            deal.partner_name?.toLowerCase().includes(c) || 
+            deal.title?.toLowerCase().includes(c)
+          );
+        });
+      }
+
+      // Filter by price range
+      if (activeFilters.priceRange.min !== null || activeFilters.priceRange.max !== null) {
+        filtered = filtered.filter(deal => {
+          const priceCandidates = [
+            typeof deal.discounted_price === 'number' ? deal.discounted_price : null,
+            typeof deal.original_price === 'number' ? deal.original_price : null,
+            typeof deal.partner_avg_cost_for_two === 'number' ? deal.partner_avg_cost_for_two : null
+          ].filter(val => val !== null && !Number.isNaN(val));
+          const price = priceCandidates.length > 0 ? priceCandidates[0] : null;
+          
+          if (price === null) {
+            // If no price info, keep deal only when no min constraint
+            return activeFilters.priceRange.min === null;
+          }
+          
+          if (activeFilters.priceRange.min !== null && price < activeFilters.priceRange.min) return false;
+          if (activeFilters.priceRange.max !== null && price > activeFilters.priceRange.max) return false;
+          return true;
+        });
+      }
+
+      // Filter by distance (requires location service)
+      if (activeFilters.maxDistance !== null && window.locationService) {
+        const userLocation = window.locationService.getCurrentLocation();
+        if (userLocation && userLocation.latitude && userLocation.longitude) {
+          filtered = filtered.filter(deal => {
+            if (!deal.latitude || !deal.longitude) return true; // Include deals without location
+            const distance = window.locationService.getDistanceToPartner(deal.latitude, deal.longitude);
+            return distance <= activeFilters.maxDistance;
+          });
+        }
+      }
+
+      // Filter by rating (use partner_rating from database)
+      if (activeFilters.minRating !== null) {
+        filtered = filtered.filter(deal => {
+          const rating = deal.partner_rating || deal.rating || 0;
+          return rating >= activeFilters.minRating;
+        });
+      }
+
+      // Filter by dietary preferences (placeholder - would need menu/dietary info)
+      if (activeFilters.dietaryPreferences.length > 0) {
+        // This would require dietary information in the deal/partner data
+        // For now, we'll just log it
+        console.log('Dietary preferences filter:', activeFilters.dietaryPreferences);
+      }
+
+      // Update UI
+      const container = document.getElementById('allDealsGrid');
+      const filterBtn = document.getElementById('filterBtn');
+      const filterBadge = document.getElementById('filterBadge');
       
-      // Update UI to show selected state
-      document.querySelectorAll('.bank-card').forEach(card => {
-        card.classList.remove('selected');
-      });
-      event?.currentTarget?.classList.add('selected');
+      // Calculate active filter count
+      const activeFilterCount = Object.values(activeFilters).reduce((count, filter) => {
+        if (Array.isArray(filter)) return count + filter.length;
+        if (typeof filter === 'object' && filter !== null) {
+          return count + (filter.min !== null ? 1 : 0) + (filter.max !== null ? 1 : 0);
+        }
+        return count + (filter !== null && filter !== undefined ? 1 : 0);
+      }, 0);
       
-      showNotification(`${bankCode} offer selected. Will be applied at checkout!`, 'success');
+      // Update filter badge
+      if (filterBadge) {
+        if (activeFilterCount > 0) {
+          filterBadge.textContent = activeFilterCount;
+          filterBadge.style.display = 'flex';
+        } else {
+          filterBadge.style.display = 'none';
+        }
+      }
       
-      // Update booking price if modal is open
-      if (typeof updateBookingPrice === 'function') {
-        updateBookingPrice();
+      if (container) {
+        if (filtered.length > 0) {
+          renderPartnerDealsInfiniteScroll(filtered);
+          if (activeFilterCount > 0) {
+            console.log(`✅ Applied ${activeFilterCount} filter(s), showing ${filtered.length} deals`);
+          }
+        } else {
+          container.innerHTML = `
+            <div class="empty-state" style="padding: 3rem 1.5rem; text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 1rem;">🔍</div>
+              <p style="font-size: 1.1rem; color: var(--text-muted); margin-bottom: 1rem; font-weight: 600;">No deals match your filters</p>
+              <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1.5rem;">Try adjusting your filter criteria</p>
+              <button class="btn btn-secondary" onclick="clearAdvancedFilters()" style="padding: 0.75rem 1.5rem; border-radius: 8px; border: none; background: var(--brand-primary); color: white; cursor: pointer; font-weight: 600;">
+                Clear Filters
+              </button>
+            </div>
+          `;
+        }
       }
     };
     
@@ -4530,7 +5196,7 @@
         }
 
         // Add trending badge if applicable
-        const trendingBadge = exp.is_promoted ? '<span style="background: #CBB26A; color: #1f2937; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem; display: inline-block;">🔥 TRENDING</span>' : '';
+        const trendingBadge = isDealTrending(exp) ? '<span style="background: #CBB26A; color: #1f2937; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem; display: inline-block;">🔥 TRENDING</span>' : '';
 
         return `
           <div class="experience-card" onclick="openOfferDetails('${exp.id}')">
@@ -4619,6 +5285,30 @@
         observer.observe(onboardingScreen, { attributes: true, attributeFilter: ['class'] });
       }
       
+      // Check if real-time should be enabled (safe feature flag check)
+      const enableRealtime = window.CONFIG?.FEATURES?.ENABLE_REALTIME || false;
+      
+      if (enableRealtime) {
+        console.log('🔴 Real-time mode enabled');
+        // Load real-time service dynamically
+        const realtimeScript = document.createElement('script');
+        realtimeScript.src = '/js/services/realtimeService.js';
+        realtimeScript.onload = () => {
+          if (typeof initializeRealtimeListeners === 'function') {
+            initializeRealtimeListeners();
+          }
+        };
+        realtimeScript.onerror = () => console.warn('Real-time service failed to load, using polling');
+        document.head.appendChild(realtimeScript);
+        
+        // Load connection status component
+        const statusScript = document.createElement('script');
+        statusScript.src = '/js/components/connectionStatus.js';
+        document.head.appendChild(statusScript);
+      } else {
+        console.log('🟡 Polling mode (real-time disabled)');
+      }
+      
       // Setup event listeners
       setupEventListeners();
       
@@ -4630,6 +5320,14 @@
       // Keep existing module demos for other screens
       loadEventsFromBackend().then(events => { renderEventsList(events); });
       loadRestaurantsFromBackend().then(restaurants => { renderRestaurantsList(restaurants); });
+      
+      // Initialize mobile enhancements (Phase 2)
+      if (window.initMobileEnhancements) {
+        // Wait a bit for DOM to be fully ready
+        setTimeout(() => {
+          initMobileEnhancements();
+        }, 100);
+      }
       
       // Update profile if user is logged in
       const userInfo = JSON.parse(localStorage.getItem('userInfo') || '{}');
@@ -4915,6 +5613,9 @@
           // Store token and user info
           localStorage.setItem('userToken', result.token);
           localStorage.setItem('userInfo', JSON.stringify(result.user || {}));
+          if (typeof joinUserRealtimeRoom === 'function') {
+            joinUserRealtimeRoom();
+          }
           
           // Show success message
           alert('Account created successfully!');
@@ -5127,6 +5828,7 @@
 
   <!-- Load Location Service -->
   <script src="/js/services/locationService.js"></script>
+  <script type="module" src="/js/utils/mobileEnhancements.js"></script>
 
   <!-- LocalStorage helpers to read values saved via setStorageItem(JSON) -->
   <script>
@@ -5149,51 +5851,6 @@
       } catch (e) {}
       return String(v).replace(/^"|"$/g, '');
     }
-    
-    // Show BanQ Modal
-    window.showBankOffersModal = async function() {
-      const modal = document.createElement('div');
-      modal.id = 'bankOffersModal';
-      modal.className = 'modal';
-      modal.style.cssText = 'display: flex; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10001; align-items: center; justify-content: center;';
-      
-      try {
-        const response = await fetch(`${API_BASE}/api/v1/bank-offers`);
-        const result = await response.json();
-        
-        const offers = result.success && result.data ? result.data : [];
-        
-        modal.innerHTML = `
-          <div style="background: white; border-radius: 16px; padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; position: relative;">
-            <button onclick="this.closest('.modal').remove()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
-            <h2 style="margin: 0 0 20px 0;">Select BanQ Offer</h2>
-            ${offers.length > 0 ? offers.map(bank => {
-              const firstOffer = bank.offers && bank.offers.length > 0 ? bank.offers[0] : null;
-              if (!firstOffer) return '';
-              return `
-                <div class="bank-card" onclick="selectBankOffer('${bank.bank_code}', '${bank.id}', '${firstOffer.id}'); this.closest('.modal').remove();" style="
-                  padding: 16px; border: 2px solid #e5e7eb; border-radius: 8px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s;
-                " onmouseover="this.style.borderColor='#667eea'; this.style.background='#f0f4ff';" onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='white';">
-                  <div style="font-weight: 600; font-size: 18px; margin-bottom: 8px;">${bank.bank_name}</div>
-                  <div style="color: #6b7280; font-size: 14px;">${firstOffer.description}</div>
-                </div>
-              `;
-            }).join('') : '<p>No BanQ offers available</p>'}
-          </div>
-        `;
-        
-        document.body.appendChild(modal);
-      } catch (error) {
-        console.error('Error loading bank offers:', error);
-        modal.innerHTML = `
-          <div style="background: white; border-radius: 16px; padding: 24px; max-width: 500px; width: 90%; position: relative;">
-            <button onclick="this.closest('.modal').remove()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
-            <p>Error loading BanQ offers. Please try again.</p>
-          </div>
-        `;
-        document.body.appendChild(modal);
-      }
-    };
     
     // Pre-order management
     window.preOrderItems = [];
