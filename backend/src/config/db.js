@@ -14,7 +14,8 @@ function createPool() {
   const connectionOptions = config.database.url
     ? {
         connectionString: config.database.url,
-        ssl: config.database.ssl
+        ssl: false
+        // ssl: config.database.ssl
       }
     : {
         user: process.env.DB_USER,
@@ -29,7 +30,7 @@ function createPool() {
     ...connectionOptions,
     max: config.database.maxConnections,
     idleTimeoutMillis: config.database.idleTimeoutMillis,
-    connectionTimeoutMillis: config.database.connectionTimeoutMillis
+    connectionTimeoutMillis: config.database.connectionTimeoutMillis,
   });
 
   pool.on('error', (err) => {

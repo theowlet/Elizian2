@@ -3,6 +3,7 @@ const { log, logError } = require('../utils/logger');
 function validateEnvironment() {
   const errors = [];
   const warnings = [];
+console.error("data url",process.env.DATABASE_URL)
 
   if (!process.env.DATABASE_URL) {
     const dbVars = ['DB_USER', 'DB_HOST', 'DB_NAME', 'DB_PASSWORD', 'DB_PORT'];

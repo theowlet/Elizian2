@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
+    "dev" :"vite",
+    "start": "npx react-scripts start",
+    "build": "vite build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
@@ -17,10 +18,12 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.5",
-    "react-scripts": "^5.0.1"
+    "react-scripts": "^0.0.0"
   },
   "devDependencies": {
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "vite": "^6.0.1",
+    "@vitejs/plugin-react": "^4.3.4"
   },
   "browserslist": {
     "production": [

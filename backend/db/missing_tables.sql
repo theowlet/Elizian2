@@ -106,7 +106,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS bookings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  event_id UUID REFERENCES events(id) ON DELETE SET NULL,
+  event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
   offer_id UUID REFERENCES partner_offers(id) ON DELETE SET NULL,
   booking_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled', 'redeemed', 'expired')),
@@ -140,7 +140,7 @@ CREATE INDEX IF NOT EXISTS idx_bookings_booking_date ON bookings(booking_date);
 CREATE TABLE IF NOT EXISTS vouchers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-  event_id UUID REFERENCES events(id) ON DELETE SET NULL,
+  event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
   partner_id UUID NOT NULL REFERENCES partners(id) ON DELETE CASCADE,
   code VARCHAR(100) NOT NULL UNIQUE,
   qr_code_url VARCHAR(500),
@@ -182,7 +182,7 @@ CREATE INDEX IF NOT EXISTS idx_loyalty_points_last_updated ON loyalty_points(las
 -- ============================================
 CREATE TABLE IF NOT EXISTS archives (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  event_id UUID REFERENCES events(id) ON DELETE SET NULL,
+  event_id INTEGER REFERENCES events(id) ON DELETE SET NULL,
   offer_id UUID REFERENCES partner_offers(id) ON DELETE SET NULL,
   archived_by UUID REFERENCES users(id) ON DELETE SET NULL,
   archived_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

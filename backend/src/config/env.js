@@ -1,7 +1,6 @@
 const path = require('path');
 
 const isVercel = Boolean(process.env.VERCEL);
-
 // Load environment variables once. On Vercel, dotenv is optional.
 if (!isVercel) {
   require('dotenv').config({
@@ -14,6 +13,7 @@ if (!isVercel) {
     // dotenv is optional in serverless environments
   }
 }
+
 
 const env = process.env.NODE_ENV || 'development';
 

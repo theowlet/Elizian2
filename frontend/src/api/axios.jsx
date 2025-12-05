@@ -4,11 +4,6 @@ import axios from 'axios';
 const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001/api/v1';
 
 console.log('API Base URL:', BASE_URL);
-console.log('API Base URL:', BASE_URL);
-
-export default axios.create({
-  baseURL: BASE_URL,
-});
 
 // Create a reusable Axios instance
 const api = axios.create({

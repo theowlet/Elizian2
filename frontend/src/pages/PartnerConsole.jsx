@@ -5,8 +5,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/partnerConsole.css';
-
-const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 
 /* ------------------ Small presentational components ------------------ */
 function Header({ partnerName, onLogout }) {

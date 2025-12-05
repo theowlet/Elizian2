@@ -7,7 +7,7 @@
     "setup": "node setup-uploads.js",
     "prestart": "npm run setup",
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "sudo nodemon src/server.js"
   },
   "keywords": [
     "express",
