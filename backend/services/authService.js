@@ -8,6 +8,7 @@ const { generateOTP } = require('../utils/otp');
 const { getPool } = require('../src/config/db');
 const { grantSignupBonus } = require('./loyaltyService');
 const { sendPasswordRecoveryEmail } = require('../emailService');
+const {sendSms} = require("../utils/sendSMS");
 
 const pool = getPool();
 
@@ -21,6 +22,10 @@ async function sendOtp({ phoneNumber, countryCode = '+91', purpose = 'login', lo
   }
 
   const otp = generateOTP();
+  await sendSms(
+    phoneNumber,
+    `YourApp Verification Code: ${countryCode}${otp}. Enter this code to complete your login.`
+  );
   const hashedOtp = await bcrypt.hash(otp, 5);
   const expiresAt = new Date(Date.now() + OTP_VERIFICATION_TIMEOUT);
 
@@ -144,10 +149,10 @@ async function verifyOtp({ phoneNumber, otpCode }) {
     }
 
     return {
-      requiresRegistration: true
+      requiresRegistration: true,
     };
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw error;
   } finally {
     client.release();
@@ -155,17 +160,20 @@ async function verifyOtp({ phoneNumber, otpCode }) {
 }
 
 function formatName({ firstName, lastName, name }) {
-  let formattedFirst = (firstName || '').trim();
-  let formattedLast = (lastName || '').trim();
+  let formattedFirst = (firstName || "").trim();
+  let formattedLast = (lastName || "").trim();
 
   if (!formattedFirst && name) {
-    const nameParts = (name || '').trim().split(/\s+/);
-    formattedFirst = nameParts[0] || '';
-    formattedLast = nameParts.slice(1).join(' ') || '';
+    const nameParts = (name || "").trim().split(/\s+/);
+    formattedFirst = nameParts[0] || "";
+    formattedLast = nameParts.slice(1).join(" ") || "";
   }
 
   if (!formattedFirst) {
-    throw new AppError(400, "First name is required. Provide either 'first_name' or 'name' field.");
+    throw new AppError(
+      400,
+      "First name is required. Provide either 'first_name' or 'name' field."
+    );
   }
 
   return { firstName: formattedFirst, lastName: formattedLast };
@@ -173,26 +181,32 @@ function formatName({ firstName, lastName, name }) {
 
 function sanitizePhoneNumber(phoneNumber) {
   if (!phoneNumber) {
-    throw new AppError(400, 'Phone number is required for user registration.');
+    throw new AppError(400, "Phone number is required for user registration.");
   }
-  let clean = String(phoneNumber).replace(/\D/g, '');
-  if (clean.startsWith('91') && clean.length === 12) {
+  let clean = String(phoneNumber).replace(/\D/g, "");
+  if (clean.startsWith("91") && clean.length === 12) {
     clean = clean.substring(2);
   }
   if (clean.length !== 10 || !/^\d{10}$/.test(clean)) {
-    throw new AppError(400, 'Invalid phone number format. Must be exactly 10 digits.');
+    throw new AppError(
+      400,
+      "Invalid phone number format. Must be exactly 10 digits."
+    );
   }
   return clean;
 }
 
 async function ensureRole(dbRoleName) {
   const roleResult = await pool.query(
-    'SELECT id FROM roles WHERE role_name = $1 LIMIT 1',
+    "SELECT id FROM roles WHERE role_name = $1 LIMIT 1",
     [dbRoleName]
   );
   const roleId = roleResult.rows[0]?.id;
   if (!roleId) {
-    throw new AppError(500, `Role '${dbRoleName}' not found. Please initialize database tables.`);
+    throw new AppError(
+      500,
+      `Role '${dbRoleName}' not found. Please initialize database tables.`
+    );
   }
   return roleId;
 }
@@ -203,22 +217,31 @@ async function getDefaultTier() {
   );
   const tierId = tierRes.rows[0]?.id || null;
   if (!tierId) {
-    throw new AppError(500, 'Default tier not found. Please run the seed script.');
+    throw new AppError(
+      500,
+      "Default tier not found. Please run the seed script."
+    );
   }
   return tierId;
 }
 
-async function registerSuperAdmin({ phoneNumber, email, password, firstName, lastName }) {
+async function registerSuperAdmin({
+  phoneNumber,
+  email,
+  password,
+  firstName,
+  lastName,
+}) {
   if (!email || !password) {
-    throw new AppError(400, 'Super Admin requires email and password.');
+    throw new AppError(400, "Super Admin requires email and password.");
   }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new AppError(400, 'Invalid email format.');
+    throw new AppError(400, "Invalid email format.");
   }
 
   if (!password || password.length < PASSWORD_MIN_LENGTH) {
-    throw new AppError(400, 'Password must be at least 8 characters long');
+    throw new AppError(400, "Password must be at least 8 characters long");
   }
 
   let existingSuperAdmin = { rows: [] };
@@ -229,25 +252,29 @@ async function registerSuperAdmin({ phoneNumber, email, password, firstName, las
            WHERE r.role_name IN ('super_admin', 'admin', 'super-admin') LIMIT 1`
     );
   } catch (roleCheckError) {
-    const errorMsg = roleCheckError.message || '';
-    const isRoleIdError = roleCheckError.code === '42703' ||
-      errorMsg.toLowerCase().includes('role_id') ||
-      errorMsg.toLowerCase().includes('does not exist');
+    const errorMsg = roleCheckError.message || "";
+    const isRoleIdError =
+      roleCheckError.code === "42703" ||
+      errorMsg.toLowerCase().includes("role_id") ||
+      errorMsg.toLowerCase().includes("does not exist");
     if (!isRoleIdError) {
       throw roleCheckError;
     }
   }
 
   if (existingSuperAdmin.rows.length > 0) {
-    throw new AppError(409, 'Super Admin already exists. Please log in instead.');
+    throw new AppError(
+      409,
+      "Super Admin already exists. Please log in instead."
+    );
   }
 
   const existingEmail = await pool.query(
-    'SELECT id FROM users WHERE LOWER(email) = LOWER($1)',
+    "SELECT id FROM users WHERE LOWER(email) = LOWER($1)",
     [email]
   );
   if (existingEmail.rows.length > 0) {
-    throw new AppError(409, 'Email already registered.');
+    throw new AppError(409, "Email already registered.");
   }
 
   let roleId = null;
@@ -265,16 +292,19 @@ async function registerSuperAdmin({ phoneNumber, email, password, firstName, las
       roleId = createRoleResult.rows[0].id;
     }
   } catch (roleError) {
-    const errorMsg = roleError.message || '';
-    const isRoleIdError = roleError.code === '42703' ||
-      errorMsg.toLowerCase().includes('role_id') ||
-      errorMsg.toLowerCase().includes('does not exist');
+    const errorMsg = roleError.message || "";
+    const isRoleIdError =
+      roleError.code === "42703" ||
+      errorMsg.toLowerCase().includes("role_id") ||
+      errorMsg.toLowerCase().includes("does not exist");
     if (!isRoleIdError) {
       throw roleError;
     }
   }
 
-  let tierResult = await pool.query("SELECT id FROM tiers WHERE LOWER(name) IN ('ather', 'aether') ORDER BY name LIMIT 1");
+  let tierResult = await pool.query(
+    "SELECT id FROM tiers WHERE LOWER(name) IN ('ather', 'aether') ORDER BY name LIMIT 1"
+  );
   let tierId = tierResult.rows[0]?.id;
 
   if (!tierId) {
@@ -298,13 +328,14 @@ async function registerSuperAdmin({ phoneNumber, email, password, firstName, las
         [phoneNumber || null, email, firstName, lastName, tierId, roleId]
       );
     } else {
-      throw new Error('roleId is null, try without role_id');
+      throw new Error("roleId is null, try without role_id");
     }
   } catch (insertError) {
-    const errorMsg = insertError.message || '';
-    const isRoleIdError = insertError.code === '42703' ||
-      errorMsg.toLowerCase().includes('role_id') ||
-      errorMsg.toLowerCase().includes('does not exist');
+    const errorMsg = insertError.message || "";
+    const isRoleIdError =
+      insertError.code === "42703" ||
+      errorMsg.toLowerCase().includes("role_id") ||
+      errorMsg.toLowerCase().includes("does not exist");
     if (isRoleIdError) {
       userInsert = await pool.query(
         `INSERT INTO users (phone_number, email, first_name, last_name, current_tier_id)
@@ -340,11 +371,11 @@ async function registerSuperAdmin({ phoneNumber, email, password, firstName, las
       userId,
       phone: phoneNumber || null,
       email,
-      role: 'super_admin',
-      type: 'user'
+      role: "super_admin",
+      type: "user",
     },
     process.env.JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: "7d" }
   );
 
   return {
@@ -355,23 +386,23 @@ async function registerSuperAdmin({ phoneNumber, email, password, firstName, las
       email,
       first_name: firstName,
       last_name: lastName,
-      role: 'super_admin',
-      current_tier_id: tierId
-    }
+      role: "super_admin",
+      current_tier_id: tierId,
+    },
   };
 }
 
 async function registerUser(payload) {
-  const { role = 'user', email, password } = payload;
+  const { role = "user", email, password } = payload;
   const { firstName, lastName } = formatName(payload);
 
-  if (role === 'super_admin') {
+  if (role === "super_admin") {
     return registerSuperAdmin({
       phoneNumber: payload.phone_number,
       email,
       password,
       firstName,
-      lastName
+      lastName,
     });
   }
 
@@ -387,50 +418,63 @@ async function registerUser(payload) {
   );
 
   if (otpCheck.rows.length === 0 || !otpCheck.rows[0].verified) {
-    throw new AppError(403, 'OTP verification required before registration. Please verify your phone number first.');
+    throw new AppError(
+      403,
+      "OTP verification required before registration. Please verify your phone number first."
+    );
   }
 
-  const verifiedAt = new Date(otpCheck.rows[0].verified_at || otpCheck.rows[0].created_at);
+  const verifiedAt = new Date(
+    otpCheck.rows[0].verified_at || otpCheck.rows[0].created_at
+  );
   const verificationAge = Date.now() - verifiedAt.getTime();
   if (verificationAge > OTP_VERIFICATION_TIMEOUT) {
-    throw new AppError(403, 'OTP verification expired. Please verify again.');
+    throw new AppError(403, "OTP verification expired. Please verify again.");
   }
 
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    throw new AppError(400, 'Invalid email format.');
+    throw new AppError(400, "Invalid email format.");
   }
 
-  if (password && password.length > 0 && password.length < PASSWORD_MIN_LENGTH) {
-    throw new AppError(400, 'Password must be at least 8 characters long');
+  if (
+    password &&
+    password.length > 0 &&
+    password.length < PASSWORD_MIN_LENGTH
+  ) {
+    throw new AppError(400, "Password must be at least 8 characters long");
   }
 
   const existingUserByPhone = await pool.query(
-    'SELECT id FROM users WHERE phone_number = $1',
+    "SELECT id FROM users WHERE phone_number = $1",
     [cleanPhone]
   );
   if (existingUserByPhone.rows.length > 0) {
-    throw new AppError(409, 'User with this phone number already exists. Please log in instead.');
+    throw new AppError(
+      409,
+      "User with this phone number already exists. Please log in instead."
+    );
   }
 
   if (email) {
     const existingUserByEmail = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
+      "SELECT id FROM users WHERE email = $1",
       [email]
     );
     if (existingUserByEmail.rows.length > 0) {
-      throw new AppError(409, 'User with this email already exists.');
+      throw new AppError(409, "User with this email already exists.");
     }
   }
 
-  let dbRoleName = 'user';
-  if (role === 'partner') {
-    dbRoleName = 'partner_admin';
+  let dbRoleName = "user";
+  if (role === "partner") {
+    dbRoleName = "partner_admin";
   }
 
   const roleId = await ensureRole(dbRoleName);
   const tierId = await getDefaultTier();
 
-  const passwordHash = password && password.length > 0 ? await bcrypt.hash(password, 10) : null;
+  const passwordHash =
+    password && password.length > 0 ? await bcrypt.hash(password, 10) : null;
 
   const userInsert = await pool.query(
     `INSERT INTO users (phone_number, email, first_name, last_name, current_tier_id, role_id)
@@ -470,10 +514,10 @@ async function registerUser(payload) {
       phone: cleanPhone,
       email: email || null,
       role: dbRoleName,
-      type: 'user'
+      type: "user",
     },
     process.env.JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: "7d" }
   );
 
   return {
@@ -485,14 +529,14 @@ async function registerUser(payload) {
       first_name: firstName,
       last_name: lastName,
       role: dbRoleName,
-      current_tier_id: tierId
-    }
+      current_tier_id: tierId,
+    },
   };
 }
 
 async function loginUser({ email, password }) {
   if (!email || !password) {
-    throw new AppError(400, 'Email and password required');
+    throw new AppError(400, "Email and password required");
   }
 
   // Normalize email (lowercase, trim)
@@ -509,10 +553,11 @@ async function loginUser({ email, password }) {
       [normalizedEmail]
     );
   } catch (roleError) {
-    const errorMsg = roleError.message || '';
-    const isRoleIdError = roleError.code === '42703' ||
-      errorMsg.toLowerCase().includes('role_id') ||
-      errorMsg.toLowerCase().includes('does not exist');
+    const errorMsg = roleError.message || "";
+    const isRoleIdError =
+      roleError.code === "42703" ||
+      errorMsg.toLowerCase().includes("role_id") ||
+      errorMsg.toLowerCase().includes("does not exist");
 
     if (isRoleIdError) {
       userRes = await pool.query(
@@ -523,7 +568,7 @@ async function loginUser({ email, password }) {
         [normalizedEmail]
       );
       if (userRes.rows.length > 0) {
-        userRes.rows[0].role_name = 'user';
+        userRes.rows[0].role_name = "user";
       }
     } else {
       throw roleError;
@@ -532,24 +577,26 @@ async function loginUser({ email, password }) {
 
   if (userRes.rows.length === 0) {
     logError(`[User Login] User not found for email: ${normalizedEmail}`);
-    throw new AppError(400, 'Invalid credentials');
+    throw new AppError(400, "Invalid credentials");
   }
 
   const user = userRes.rows[0];
   const isMatch = await bcrypt.compare(password, user.password_hash);
   if (!isMatch) {
-    logError(`[User Login] Invalid password for user: ${user.id} (${normalizedEmail})`);
-    throw new AppError(400, 'Invalid credentials');
+    logError(
+      `[User Login] Invalid password for user: ${user.id} (${normalizedEmail})`
+    );
+    throw new AppError(400, "Invalid credentials");
   }
 
   const token = jwt.sign(
     {
       userId: user.id,
-      role: user.role_name || 'user',
-      type: 'user'
+      role: user.role_name || "user",
+      type: "user",
     },
     process.env.JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: "7d" }
   );
 
   return {
@@ -559,28 +606,31 @@ async function loginUser({ email, password }) {
       first_name: user.first_name,
       last_name: user.last_name,
       email: user.email,
-      phone_number: user.phone_number
-    }
+      phone_number: user.phone_number,
+    },
   };
 }
 
 async function forgotPassword({ email }) {
   if (!email) {
-    throw new AppError(400, 'Email is required');
+    throw new AppError(400, "Email is required");
   }
 
   const userResult = await pool.query(
-    'SELECT id, first_name, last_name, email FROM users WHERE LOWER(email) = LOWER($1)',
+    "SELECT id, first_name, last_name, email FROM users WHERE LOWER(email) = LOWER($1)",
     [email]
   );
 
   if (userResult.rows.length === 0) {
-    if (process.env.NODE_ENV === 'development') {
-      throw new AppError(404, 'Email not found in our system. Please check if you registered with a different email address.');
+    if (process.env.NODE_ENV === "development") {
+      throw new AppError(
+        404,
+        "Email not found in our system. Please check if you registered with a different email address."
+      );
     }
 
     return {
-      message: 'If the email exists, a recovery code has been sent'
+      message: "If the email exists, a recovery code has been sent",
     };
   }
 
@@ -590,7 +640,7 @@ async function forgotPassword({ email }) {
 
   // Get user's phone number for OTP session
   const userPhoneResult = await pool.query(
-    'SELECT phone_number FROM users WHERE id = $1',
+    "SELECT phone_number FROM users WHERE id = $1",
     [user.id]
   );
   const phoneNumber = userPhoneResult.rows[0]?.phone_number;
@@ -615,27 +665,28 @@ async function forgotPassword({ email }) {
   }
 
   return {
-    message: 'If the email exists, a recovery code has been sent',
-    ...(process.env.NODE_ENV === 'development' && !emailResult.success && { otp })
+    message: "If the email exists, a recovery code has been sent",
+    ...(process.env.NODE_ENV === "development" &&
+      !emailResult.success && { otp }),
   };
 }
 
 async function resetPassword({ email, otp, newPassword }) {
   if (!email || !otp || !newPassword) {
-    throw new AppError(400, 'Email, OTP, and new password are required');
+    throw new AppError(400, "Email, OTP, and new password are required");
   }
 
   if (!newPassword || newPassword.length < PASSWORD_MIN_LENGTH) {
-    throw new AppError(400, 'Password must be at least 8 characters long');
+    throw new AppError(400, "Password must be at least 8 characters long");
   }
 
   const userResult = await pool.query(
-    'SELECT id FROM users WHERE LOWER(email) = LOWER($1)',
+    "SELECT id FROM users WHERE LOWER(email) = LOWER($1)",
     [email]
   );
 
   if (userResult.rows.length === 0) {
-    throw new AppError(404, 'User not found');
+    throw new AppError(404, "User not found");
   }
 
   const user = userResult.rows[0];
@@ -654,7 +705,7 @@ async function resetPassword({ email, otp, newPassword }) {
   );
 
   if (otpSessions.rows.length === 0) {
-    throw new AppError(400, 'Invalid or expired recovery code');
+    throw new AppError(400, "Invalid or expired recovery code");
   }
 
   const otpSession = otpSessions.rows[0];
@@ -662,34 +713,33 @@ async function resetPassword({ email, otp, newPassword }) {
 
   if (!isOtpValid) {
     await pool.query(
-      'UPDATE otp_sessions SET attempts = attempts + 1 WHERE id = $1',
+      "UPDATE otp_sessions SET attempts = attempts + 1 WHERE id = $1",
       [otpSession.id]
     );
-    throw new AppError(400, 'Invalid recovery code');
+    throw new AppError(400, "Invalid recovery code");
   }
 
   const hashedPassword = await bcrypt.hash(newPassword, 10);
 
   await pool.query(
-    'UPDATE user_auth_credentials SET password_hash = $1, updated_at = NOW() WHERE user_id = $2',
+    "UPDATE user_auth_credentials SET password_hash = $1, updated_at = NOW() WHERE user_id = $2",
     [hashedPassword, user.id]
   );
 
-  await pool.query(
-    'UPDATE otp_sessions SET verified = true WHERE id = $1',
-    [otpSession.id]
-  );
+  await pool.query("UPDATE otp_sessions SET verified = true WHERE id = $1", [
+    otpSession.id,
+  ]);
 
   log(`✅ Customer password reset successful for ${email}`);
 
   return {
-    message: 'Password reset successfully. Please login with your new password'
+    message: "Password reset successfully. Please login with your new password",
   };
 }
 
 async function getUserProfile(userId) {
   if (!userId) {
-    throw new AppError(400, 'User ID required');
+    throw new AppError(400, "User ID required");
   }
 
   let userResult;
@@ -705,10 +755,11 @@ async function getUserProfile(userId) {
       [userId]
     );
   } catch (roleError) {
-    const errorMsg = roleError.message || '';
-    const isRoleIdError = roleError.code === '42703' ||
-      errorMsg.toLowerCase().includes('role_id') ||
-      errorMsg.toLowerCase().includes('does not exist');
+    const errorMsg = roleError.message || "";
+    const isRoleIdError =
+      roleError.code === "42703" ||
+      errorMsg.toLowerCase().includes("role_id") ||
+      errorMsg.toLowerCase().includes("does not exist");
 
     if (isRoleIdError) {
       userResult = await pool.query(
@@ -720,7 +771,7 @@ async function getUserProfile(userId) {
         [userId]
       );
       if (userResult.rows.length > 0) {
-        userResult.rows[0].role_name = 'user';
+        userResult.rows[0].role_name = "user";
         userResult.rows[0].role_id = null;
       }
     } else {
@@ -729,17 +780,17 @@ async function getUserProfile(userId) {
   }
 
   if (userResult.rows.length === 0) {
-    throw new AppError(404, 'User not found');
+    throw new AppError(404, "User not found");
   }
 
   const user = userResult.rows[0];
-  
+
   // Get tier name if tier_id exists
   let tierName = null;
   if (user.current_tier_id) {
     try {
       const tierResult = await pool.query(
-        'SELECT name FROM tiers WHERE id = $1',
+        "SELECT name FROM tiers WHERE id = $1",
         [user.current_tier_id]
       );
       tierName = tierResult.rows[0]?.name || null;
@@ -755,7 +806,7 @@ async function getUserProfile(userId) {
     email: user.email,
     phone_number: user.phone_number,
     profile_photo_url: user.profile_photo_url,
-    role_name: user.role_name || 'user',
+    role_name: user.role_name || "user",
     role_id: user.role_id || null,
     current_tier_id: user.current_tier_id,
     tier_name: tierName,
@@ -764,7 +815,7 @@ async function getUserProfile(userId) {
     // EZT Token balances (frontend expects these field names)
     ezt_balance: parseFloat(user.available_tokens || 0),
     ezt_total_earned: parseFloat(user.total_tokens_earned || 0),
-    ezt_total_spent: parseFloat(user.total_tokens_spent || 0)
+    ezt_total_spent: parseFloat(user.total_tokens_spent || 0),
   };
 }
 
@@ -775,6 +826,5 @@ module.exports = {
   loginUser,
   forgotPassword,
   resetPassword,
-  getUserProfile
+  getUserProfile,
 };
-
