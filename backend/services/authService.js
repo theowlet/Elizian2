@@ -23,8 +23,8 @@ async function sendOtp({ phoneNumber, countryCode = '+91', purpose = 'login', lo
 
   const otp = generateOTP();
   await sendSms(
-    phoneNumber,
-    `YourApp Verification Code: ${countryCode}${otp}. Enter this code to complete your login.`
+    `${countryCode}${phoneNumber}`,
+    `YourApp Verification Code: ${otp}. Enter this code to complete your login.`
   );
   const hashedOtp = await bcrypt.hash(otp, 5);
   const expiresAt = new Date(Date.now() + OTP_VERIFICATION_TIMEOUT);
@@ -393,8 +393,8 @@ async function registerSuperAdmin({
 }
 
 async function registerUser(payload) {
-  const { role = "user", email, password } = payload;
-  const { firstName, lastName } = formatName(payload);
+  const { role = "user", email, password ,first_name,last_name} = payload;
+  const { firstName, lastName } = formatName({firstName:first_name, lastName: last_name,name : `${first_name} ${last_name}`});
 
   if (role === "super_admin") {
     return registerSuperAdmin({

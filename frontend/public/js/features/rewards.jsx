@@ -2,10 +2,10 @@
 // REWARDS MODULE
 // ==================================
 
-import { CONFIG } from './config.js';
-import { apiCall } from './api.js';
-import { getCurrentUser } from './auth.js';
-import { formatCurrency } from './utils.js';
+import { CONFIG } from './config.jsx';
+import { apiCall } from './api.jsx';
+import { getCurrentUser } from './auth.jsx';
+import { formatCurrency } from './utils.jsx';
 
 // ==================================
 // TIER MANAGEMENT

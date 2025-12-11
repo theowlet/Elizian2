@@ -5,9 +5,9 @@
  * @version 1.0.0
  */
 
-import { CONFIG } from '../core/config.js';
-import { calculateDistance } from '../utils/utils.js';
-import { escapeHtml } from '../utils/utils.js';
+import { CONFIG } from '../core/config.jsx';
+import { calculateDistance } from '../utils/utils.jsx';
+import { escapeHtml } from '../utils/utils.jsx';
 
 // ==========================================
 // MAP STATE

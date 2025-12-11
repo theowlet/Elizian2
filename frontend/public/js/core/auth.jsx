@@ -2,7 +2,7 @@
 // AUTHENTICATION MODULE
 // ==================================
 
-import { CONFIG } from './config.js';
+import { CONFIG } from './config';
 
 // Constants
 const OTP_VERIFICATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
@@ -20,8 +20,8 @@ function resolveTierIcon(tierName = '') {
   if (TIER_ICON_MAP[key]) return TIER_ICON_MAP[key];
   return '/assets/Aether.png';
 }
-import { apiCall } from './api.js';
-import { navigateTo } from '../ui/navigation.js';
+import { apiCall } from './api';
+import { navigateTo } from '../ui/navigation';
 import { 
   cleanPhoneNumber, 
   validatePhoneNumber, 
@@ -34,7 +34,7 @@ import {
   getStorageItem,
   removeStorageItem,
   handleError
-} from '../utils/utils.js';
+} from '../utils/utils';
 
 let currentPhone = '';
 let otpSessionId = null;

@@ -38,7 +38,7 @@
 
       // Try to load from CDN
       const script = document.createElement('script');
-      script.src = 'https://cdn.socket.io/4.5.4/socket.io.min.js';
+      script.src = 'https://cdn.socket.io/4.5.4/socket.io.min.jsx';
       script.onload = () => {
         if (window.io) {
           resolve(window.io);

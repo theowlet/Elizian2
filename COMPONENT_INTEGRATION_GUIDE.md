@@ -34,8 +34,8 @@ Add this **before the closing `</body>` tag**:
 ```html
 <!-- Import components -->
 <script type="module">
-  import NotificationCenter from './js/components/NotificationCenter.js';
-  import SkeletonLoader from './js/components/SkeletonLoader.js';
+  import NotificationCenter from './js/components/NotificationCenter.jsx';
+  import SkeletonLoader from './js/components/SkeletonLoader.jsx';
 
   // Initialize Notification Center
   window.notifications = new NotificationCenter({

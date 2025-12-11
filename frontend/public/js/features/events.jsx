@@ -2,9 +2,9 @@
 // EVENTS MODULE
 // ==================================
 
-import { apiCall } from '../core/api.js';
-import { escapeHtml } from '../utils/utils.js';
-import { getUserInfo } from '../core/storage.js';
+import { apiCall } from '../core/api.jsx';
+import { escapeHtml } from '../utils/utils.jsx';
+import { getUserInfo } from '../core/storage.jsx';
 
 // API Base URL for image loading
 const API_BASE = "http://localhost:5001";

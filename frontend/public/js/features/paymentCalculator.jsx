@@ -8,8 +8,8 @@
  * @version 2.0.0
  */
 
-import { CONFIG } from '../core/config.js';
-import { getUserInfo } from '../core/storage.js';
+import { CONFIG } from '../core/config.jsx';
+import { getUserInfo } from '../core/storage.jsx';
 
 // ==========================================
 // TIER CONFIGURATION

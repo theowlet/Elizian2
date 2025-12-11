@@ -12,7 +12,7 @@
  * 
  * Usage:
  * ```javascript
- * import SkeletonLoader from './components/SkeletonLoader.js';
+ * import SkeletonLoader from './components/SkeletonLoader.jsx';
  * 
  * // Show skeleton
  * const container = document.getElementById('deals-container');

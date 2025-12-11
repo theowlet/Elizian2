@@ -15,7 +15,7 @@
  * 
  * Usage:
  * ```javascript
- * import NotificationCenter from './components/NotificationCenter.js';
+ * import NotificationCenter from './components/NotificationCenter.jsx';
  * const notifications = new NotificationCenter();
  * 
  * // Show toast

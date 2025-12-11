@@ -1679,7 +1679,7 @@
             }
             partnerRealtimeScriptLoaded = true;
             const realtimeScript = document.createElement('script');
-            realtimeScript.src = '/js/services/realtimeService.js';
+            realtimeScript.src = '/js/services/realtimeService.jsx';
             realtimeScript.onload = () => initializePartnerRealtime();
             realtimeScript.onerror = () => console.warn('⚠️ Failed to load realtime service for partner console');
             document.head.appendChild(realtimeScript);

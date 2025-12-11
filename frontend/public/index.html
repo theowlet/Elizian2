@@ -1043,17 +1043,17 @@
     window.otpReady = false;
     
     // Import core modules
-    import { CONFIG, VERSION, ENV } from './js/core/config.js';
-    import { setupEventListeners, initializeScreens } from './js/ui/navigation.js';
-    import { updateWelcomeText, updateProfileInfo, sendOTPFromForm, logout } from './js/core/auth.js';
-    import { loadRewardsSummary } from './js/features/rewardsDisplay.js';
-    import { loadEventsFromBackend, renderEventsList } from './js/features/events.js';
-    import { loadRestaurantsFromBackend, renderRestaurantsList, showRestaurantDetails } from './js/features/restaurants.js';
-    import { getUserLocation } from './js/ui/map.js';
-    import { calculateDistance, formatDistance } from './js/utils/utils.js';
-    import { computeDiscountSummary, formatDiscount, hasValidDiscount, getEffectivePrice } from './js/utils/discountCalculator.js';
-    import { categoryToServiceType, serviceTypeToCategory, getCategoryMetadata, getCategoryNavItems } from './js/utils/categoryMapper.js';
-    import { getOfferImageUrl, getEventImageUrl, getPartnerImageUrl, normalizeImageUrl, getImageHtml } from './js/utils/imageUtils.js';
+    import { CONFIG, VERSION, ENV } from './js/core/config.jsx';
+    import { setupEventListeners, initializeScreens } from './js/ui/navigation.jsx';
+    import { updateWelcomeText, updateProfileInfo, sendOTPFromForm, logout } from './js/core/auth.jsx';
+    import { loadRewardsSummary } from './js/features/rewardsDisplay.jsx';
+    import { loadEventsFromBackend, renderEventsList } from './js/features/events.jsx';
+    import { loadRestaurantsFromBackend, renderRestaurantsList, showRestaurantDetails } from './js/features/restaurants.jsx';
+    import { getUserLocation } from './js/ui/map.jsx';
+    import { calculateDistance, formatDistance } from './js/utils/utils.jsx';
+    import { computeDiscountSummary, formatDiscount, hasValidDiscount, getEffectivePrice } from './js/utils/discountCalculator.jsx';
+    import { categoryToServiceType, serviceTypeToCategory, getCategoryMetadata, getCategoryNavItems } from './js/utils/categoryMapper.jsx';
+    import { getOfferImageUrl, getEventImageUrl, getPartnerImageUrl, normalizeImageUrl, getImageHtml } from './js/utils/imageUtils.jsx';
     
     // API Base URL for image loading
     const API_BASE = "http://localhost:5001";
@@ -5292,7 +5292,7 @@
         console.log('🔴 Real-time mode enabled');
         // Load real-time service dynamically
         const realtimeScript = document.createElement('script');
-        realtimeScript.src = '/js/services/realtimeService.js';
+        realtimeScript.src = '/js/services/realtimeService.jsx';
         realtimeScript.onload = () => {
           if (typeof initializeRealtimeListeners === 'function') {
             initializeRealtimeListeners();
@@ -5303,7 +5303,7 @@
         
         // Load connection status component
         const statusScript = document.createElement('script');
-        statusScript.src = '/js/components/connectionStatus.js';
+        statusScript.src = '/js/components/connectionStatus.jsx';
         document.head.appendChild(statusScript);
       } else {
         console.log('🟡 Polling mode (real-time disabled)');
@@ -5599,7 +5599,7 @@
       return;
     }
 
-        const response = await fetch('http://localhost:5001/api/v1/auth/register', {
+        const response = await fetch(`${API_BASE}/api/v1/auth/register`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -5704,7 +5704,7 @@
       }
       
       try {
-        const response = await fetch('http://localhost:5001/api/v1/auth/verify-otp', {
+        const response = await fetch(`${API_BASE}/api/v1/auth/verify-otp`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

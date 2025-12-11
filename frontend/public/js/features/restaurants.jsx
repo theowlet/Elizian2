@@ -2,11 +2,11 @@
 // RESTAURANTS MODULE
 // ==================================
 
-import { CONFIG } from '../core/config.js';
-import { apiCall } from '../core/api.js';
-import { ModalManager } from '../ui/navigation.js';
-import { escapeHtml } from '../utils/utils.js';
-import { getUserLocation } from '../ui/map.js';
+import { CONFIG } from '../core/config.jsx';
+import { apiCall } from '../core/api.jsx';
+import { ModalManager } from '../ui/navigation.jsx';
+import { escapeHtml } from '../utils/utils.jsx';
+import { getUserLocation } from '../ui/map.jsx';
 
 // API Base URL for image loading
 const API_BASE = "http://localhost:5001";

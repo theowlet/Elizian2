@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Base URL for your backend
-const BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001/api/v1';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/api/v1';
 
 console.log('API Base URL:', BASE_URL);
 

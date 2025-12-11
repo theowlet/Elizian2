@@ -2,11 +2,11 @@
 // NAVIGATION MODULE
 // ==================================
 
-import { CONFIG } from '../core/config.js';
-import { updateWelcomeText, updateProfileInfo } from '../core/auth.js';
-import { loadEventsFromBackend, renderEventsList, loadUserTickets, renderUserTickets } from '../features/events.js';
-import { loadRestaurantsFromBackend, renderRestaurantsList } from '../features/restaurants.js';
-import { cleanupMap, cleanupProximityDetection } from './map.js';
+import { CONFIG } from '../core/config';
+import { updateWelcomeText, updateProfileInfo } from '../core/auth';
+import { loadEventsFromBackend, renderEventsList, loadUserTickets, renderUserTickets } from '../features/events.jsx';
+import { loadRestaurantsFromBackend, renderRestaurantsList } from '../features/restaurants.jsx';
+import { cleanupMap, cleanupProximityDetection } from './map.jsx';
 
 // ==================================
 // SCREEN NAVIGATION

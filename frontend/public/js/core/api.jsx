@@ -5,9 +5,9 @@
  * @version 1.0.0
  */
 
-import { CONFIG } from './config.js';
-import { getAuthToken, logout } from './auth.js';
-import { showNotification } from '../ui/notifications.js';
+import { CONFIG } from './config';
+import { getAuthToken, logout } from './auth';
+import { showNotification } from '../ui/notifications';
 
 // ==========================================
 // API CLIENT

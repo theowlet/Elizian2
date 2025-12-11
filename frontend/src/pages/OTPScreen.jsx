@@ -9,7 +9,7 @@ const OTPScreen = () => {
   const [error, setError] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
-  const API_BASE = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5001';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 
   useEffect(() => {
     const phone = sessionStorage.getItem('phoneForOTP');
@@ -69,10 +69,10 @@ const OTPScreen = () => {
 
       if (verifyResult.success) {
         // If token is returned, user exists and is logged in
-        if (verifyResult.token && verifyResult.user) {
+        if (verifyResult.data.token && verifyResult.data.user) {
           console.log('✅ User exists, saving token and redirecting to home');
-          localStorage.setItem('token', verifyResult.token);
-          localStorage.setItem('user', JSON.stringify(verifyResult.user));
+          localStorage.setItem('token', verifyResult.data.token);
+          localStorage.setItem('user', JSON.stringify(verifyResult.data.user));
           sessionStorage.removeItem('phoneForOTP');
           navigate('/home');
         } 
