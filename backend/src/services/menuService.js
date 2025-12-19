@@ -117,7 +117,7 @@ async function createMenuItem(partnerId, menuItemData) {
     if (!finalImageUrl && menuItemData.image_base64) {
       log('📤 Processing menu item image upload...');
       try {
-        finalImageUrl = handleMenuItemImageUpload(
+        finalImageUrl = await handleMenuItemImageUpload(
           menuItemData.image_base64,
           menuItemData.image_filename,
           menuItemData.service_type || 'food'
@@ -183,7 +183,7 @@ async function updateMenuItem(partnerId, itemId, updates) {
       }
       
       // New image uploaded - process it
-      finalImageUrl = handleMenuItemImageUpload(
+      finalImageUrl = await handleMenuItemImageUpload(
         updates.image_base64,
         updates.image_filename,
         existingItem.service_type || 'food'

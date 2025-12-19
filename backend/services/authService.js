@@ -24,7 +24,7 @@ async function sendOtp({ phoneNumber, countryCode = '+91', purpose = 'login', lo
   const otp = generateOTP();
   await sendSms(
     `${countryCode}${phoneNumber}`,
-    `YourApp Verification Code: ${otp}. Enter this code to complete your login.`
+    `Elizian Verification Code: ${otp}. Enter this code to complete your login.`
   );
   const hashedOtp = await bcrypt.hash(otp, 5);
   const expiresAt = new Date(Date.now() + OTP_VERIFICATION_TIMEOUT);

@@ -5,6 +5,7 @@ const { AppError } = require('../../utils/response');
 const { logError } = require('../../utils/logger');
 const { getPool } = require('../config/db');
 const { writeAudit } = require('../utils/audit');
+const {uploadToS3} = require('../../utils/s3Bucket')
 
 const pool = getPool();
 
@@ -303,7 +304,8 @@ async function updatePartnerMenuImages(partnerId, menuImages = []) {
     throw new AppError(404, "Partner not found");
   }
   const normalized = Array.isArray(menuImages) ? menuImages : [];
-  const updated = await partnerRepository.updatePartnerMenuImages(partnerId, normalized);
+  const imageS3Urls = await uploadToS3(normalized)
+  const updated = await partnerRepository.updatePartnerMenuImages(partnerId, imageS3Urls);
   return parseMenuImages(updated);
 }
 
