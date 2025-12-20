@@ -2,6 +2,7 @@
 
 const validatePhoneNumber = (req, res, next) => {
   const { phone_number } = req.body;
+         console.log("clean phone number",phone_number);
   
   if (!phone_number) {
     return res.status(400).json({
@@ -12,7 +13,7 @@ const validatePhoneNumber = (req, res, next) => {
   
   // Clean phone number - remove spaces, dashes, parentheses, and leading country code
   const cleanPhone = phone_number.replace(/[\s\-+()]/g, '').replace(/^91/, '');
-  
+ 
   // Validate it's exactly 10 digits
   if (!/^\d{10}$/.test(cleanPhone)) {
     return res.status(400).json({

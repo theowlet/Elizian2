@@ -3,7 +3,7 @@
  * Functions for viewing and managing user rewards in admin console
  */
 
-const API_BASE = window.API_BASE || 'http://localhost:5001';
+const API_BASE = window.API_BASE || 'http://localhost:3000';
 
 /**
  * View user's rewards summary

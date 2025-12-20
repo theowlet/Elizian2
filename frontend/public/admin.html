@@ -956,19 +956,20 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"
     crossorigin="anonymous"></script>
-  <script src="js/adminRewards.js"></script>
+  <script src="./js/adminRewards.jsx"></script>
   
   <!-- Real-time Service (feature-flagged) -->
   <script>
+    const apiUrl = window.parent.MY_GLOBAL_CONFIG.apiUrl;
     // Load config first
     window.CONFIG = window.CONFIG || {};
-    window.CONFIG.API_BASE = window.CONFIG.API_BASE || 'http://localhost:5001/api/v1';
+    window.CONFIG.API_BASE = apiUrl || 'http://localhost:3000/api/v1';
     window.CONFIG.FEATURES = window.CONFIG.FEATURES || {};
     window.CONFIG.FEATURES.ENABLE_REALTIME = window.CONFIG.FEATURES.ENABLE_REALTIME !== false;
     window.CONFIG.FEATURES.REALTIME_FALLBACK = window.CONFIG.FEATURES.REALTIME_FALLBACK !== false;
     window.CONFIG.FEATURES.REALTIME_POLLING_INTERVAL = window.CONFIG.FEATURES.REALTIME_POLLING_INTERVAL || 30000;
   </script>
-  <script src="js/services/realtimeService.js"></script>
-  <script src="js/admin.js" type="module"></script>
+  <script src="./js/services/realtimeService.jsx"></script>
+  <script src="./js/admin.jsx" type="module"></script>
 </body>
 </html>

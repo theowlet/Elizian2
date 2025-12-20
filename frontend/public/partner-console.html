@@ -60,7 +60,7 @@
         }
 
         .header-content {
-            max-width: 1200px;
+            /* max-width: 1200px; */
             margin: 0 auto;
             padding: 1rem 2rem;
             display: flex;
@@ -1619,7 +1619,7 @@
 
     <script>
         // Configuration
-        const API_BASE =  'http://localhost:3000';
+        const API_BASE =  window.parent.MY_GLOBAL_CONFIG.apiUrl || 'http://localhost:3000';
         window.CONFIG = window.CONFIG || {};
         window.CONFIG.API_BASE = `${API_BASE}/api/v1`;
         window.CONFIG.FEATURES = {
@@ -3615,7 +3615,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
                 orders = [];
                 
                 // Redirect to login page
-                window.location.href = 'partner-login.html';
+                window.top.location.href = `/partner/login`;
             }
         }
 
@@ -4916,7 +4916,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
     </script>
     
     <!-- EZNet Common Utilities -->
-    <script src="/js/utils/eznet-utils.js"></script>
+    <script src="./js/utils/eznet-utils.jsx"></script>
     
     <!-- EZNet Data Models (Backend API Compatible) -->
 </body>

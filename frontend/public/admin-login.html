@@ -84,12 +84,13 @@
         <button class="secondary" onclick="switchTab('login')">Back to Login</button>
       </div>
 
-      <div class="note">After login, you’ll be redirected to <strong>admin.html</strong>.</div>
+      <!-- <div class="note">After login, you’ll be redirected to <strong>admin.html</strong>.</div> -->
     </div>
   </div>
 
   <script>
-    const API_BASE = (window.ADMIN_API_BASE) || 'http://localhost:5001';
+   const apiUrl = window.parent.MY_GLOBAL_CONFIG.apiUrl;
+    const API_BASE = apiUrl || 'http://localhost:3000';
     let otpVerified = false;
     let verifiedPhone = null;
 
@@ -227,7 +228,8 @@
         if(!data.success){ err.textContent = data.error || 'Login failed'; return; }
         localStorage.setItem('token', data.token);
         localStorage.setItem('userInfo', JSON.stringify(data.user || {}));
-        window.location.href = '/admin.html';
+        // window.location.href = '/admin.html';
+        window.top.location.href = `/admin`;
       }catch(e){ err.textContent = e.message || 'Network error'; }
     }
 

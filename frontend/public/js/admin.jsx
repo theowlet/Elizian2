@@ -1,4 +1,4 @@
-const API_BASE = window.API_BASE || 'http://localhost:5001';
+const API_BASE = window.parent.MY_GLOBAL_CONFIG.apiUrl || 'http://localhost:3000';
 
 const state = {
   sections: [
@@ -1961,10 +1961,10 @@ function attachEventListeners() {
   }
 
   // User actions (including rewards)
-  const usersTable = $('#usersTable');
-  if (usersTable) {
-    usersTable.addEventListener('click', handleUserAction);
-  }
+  // const usersTable = $('#usersTable');
+  // if (usersTable) {
+  //   usersTable.addEventListener('click', handleUserAction);
+  // }
 
   const activityList = $('#activityList');
   if (activityList) {
@@ -2575,7 +2575,7 @@ function handleLogout() {
   showNotification('Logged out successfully.', 'success');
   setTimeout(() => {
     console.info('[Admin] Reloading after logout.');
-    window.location.reload();
+    window.top.location.href = `/admin/login`;
   }, 500);
 }
 

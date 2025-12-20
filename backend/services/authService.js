@@ -574,7 +574,6 @@ async function loginUser({ email, password }) {
       throw roleError;
     }
   }
-
   if (userRes.rows.length === 0) {
     logError(`[User Login] User not found for email: ${normalizedEmail}`);
     throw new AppError(400, "Invalid credentials");
