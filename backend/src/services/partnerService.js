@@ -343,6 +343,7 @@ module.exports = {
   registerPartner,
   getPartnerDashboard,
   getPartnerAnalytics,
+  getPartnerRewardsAnalytics,
   updatePartnerMenuImages,
   getPartnerWithMenuImages
 };
