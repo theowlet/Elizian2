@@ -129,7 +129,7 @@
 
         /* Main Layout */
         .container {
-            max-width: 1200px;
+            /* max-width: 1200px; */
             margin: 0 auto;
             padding: 2rem;
         }
@@ -487,7 +487,8 @@
 
         .badge-success {
             background: rgba(16, 185, 129, 0.1);
-            color: var(--success);
+            color: white ;
+            /* color: var(--success) ; */
         }
 
         .badge-warning {
@@ -3714,7 +3715,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
                                         offer.discount_applies_to === 'service_type' ? 
                                         `<span style="font-size: 11px; color: #0284c7; margin-left: 8px;">📂 Category-Wide</span>` : ''}
                                 ${Boolean(offer.is_trending || offer.is_promoted)
-                                    ? '<span class="badge badge-success" style="margin-left: 8px; background: #10b981;">⭐ TRENDING</span>'
+                                    ? '<div class="badge badge-success" style="margin-left: 8px; background: #10b981;">⭐ TRENDING</div>'
                                     : ''}
                                     ${offer.featured_request_pending ? 
                                         `<span class="badge badge-warning" style="margin-left: 8px; background: #f59e0b;">⏳ PENDING APPROVAL</span>` : ''}

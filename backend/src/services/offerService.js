@@ -229,7 +229,7 @@ async function updateOffer(partnerId, offerId, updates) {
       if (existingOffer.image_url) {
         deleteOldImage(existingOffer.image_url);
       }
-      finalImageUrl = handleOfferImageUpload(updates.image_base64, updates.image_filename);
+      finalImageUrl = await handleOfferImageUpload(updates.image_base64, updates.image_filename);
     } else if (finalImageUrl) {
       finalImageUrl = sanitizeImageUrl(finalImageUrl);
     }
