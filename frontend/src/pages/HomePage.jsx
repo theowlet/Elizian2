@@ -1,106 +1,22 @@
-// import React from 'react';
-// import { useNavigate } from 'react-router-dom';
-// import '../styles/home.css';
-
-// const HomePage = () => {
-//   const navigate = useNavigate();
-//   const user = JSON.parse(localStorage.getItem('user') || '{}');
-
-//   return (
-//     <div className="elizian-home-page">
-//       <div className="elizian-content-wrapper">
-//         <h1 className="elizian-home-title">Welcome to Elizian</h1>
-//         <p className="elizian-home-subtitle">Home Page - To be migrated from index.html</p>
-//         <p style={{ color: 'var(--muted)', marginBottom: '2rem' }}>User: {user.first_name || 'Guest'}</p>
-//         <button className="elizian-btn-primary" onClick={() => navigate('/')}>Back to Landing</button>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default HomePage;
-
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
 const HomePage = () => {
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+  const navigate = useNavigate();
+  
   const [currentSection, setCurrentSection] = useState("home");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState(null);
   const [activeCategory, setActiveCategory] = useState("all");
   const [showNearMe, setShowNearMe] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Sample data
-  const trendingItems = [
-    {
-      id: 1,
-      title: "Luxury Spa Day",
-      description: "Relax and rejuvenate with our premium spa package",
-      price: "₹2,499",
-      rating: 4.8,
-      image:
-        "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
-      category: "spa",
-    },
-    {
-      id: 2,
-      title: "Fine Dining Experience",
-      description: "5-course meal with wine pairing",
-      price: "₹3,999",
-      rating: 4.9,
-      image:
-        "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
-      category: "dining",
-    },
-  ];
-
-  const restaurants = [
-    {
-      id: 1,
-      name: "Italian Bistro",
-      cuisine: "Italian",
-      priceRange: "$$$",
-      rating: 4.5,
-      distance: "1.2 km away",
-      image:
-        "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
-      category: "dining",
-    },
-    {
-      id: 2,
-      name: "Sushi Zen",
-      cuisine: "Japanese",
-      priceRange: "$$$",
-      rating: 4.7,
-      distance: "2.1 km away",
-      image:
-        "https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
-      category: "dining",
-    },
-  ];
-
-  const events = [
-    {
-      id: 1,
-      title: "Jazz Night Live",
-      type: "Music",
-      time: "Until 11 PM",
-      location: "Downtown Lounge",
-      image:
-        "https://images.unsplash.com/photo-1511379938547-c1f69419868d?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
-      category: "events",
-    },
-    {
-      id: 2,
-      title: "Food Festival",
-      type: "Culinary",
-      time: "Starts Tomorrow",
-      location: "Central Park",
-      image:
-        "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
-      category: "events",
-    },
-  ];
+  const [trendingItems, setTrendingItems] = useState([]);
+  const [restaurants, setRestaurants] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState({});
+  const [currentLocation, setCurrentLocation] = useState("");
 
   const categories = [
     { id: "all", name: "All Experiences", icon: "🌟" },
@@ -121,26 +37,199 @@ const HomePage = () => {
   ];
 
   const filterItems = (items, category) => {
+    if (!items || items.length === 0) return [];
     if (category === "all") return items;
     return items.filter((item) => item.category === category);
   };
 
+  const loadTrendingExperiences = async (category = "all") => {
+    try {
+      setLoading(true);
+      let url = `${API_BASE}/api/v1/offers?trending=true&limit=20&is_active=true`;
+
+      if (category !== "all") {
+        const categoryToServiceType = {
+          dining: "dining",
+          events: "events",
+          healthcare: "healthcare",
+          spa: "spa",
+          wellness: "wellness",
+          travel: "travel",
+          others: "others",
+        };
+        const serviceType = categoryToServiceType[category];
+        if (serviceType) {
+          url += `&service_type=${serviceType}`;
+        }
+      }
+      const response = await fetch(url);
+      const result = await response.json();
+
+      if (result.success && result.data && result.data.length > 0) {
+        const formattedData = result.data.map((item) => ({
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          price: `₹${item.discounted_price?.toLocaleString() || '0'}`,
+          originalPrice: `₹${item.original_price?.toLocaleString() || '0'}`,
+          image: item.image_url || "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+          category: item.service_type || "others",
+          rating: item.rating || 4.5,
+          location: item.partner_name,
+          time: item.start_date ? new Date(item.start_date).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          }) : "Ongoing",
+        }));
+        setTrendingItems(formattedData);
+      } else {
+        setTrendingItems([]);
+      }
+    } catch (error) {
+      console.error("Error loading trending experiences:", error);
+      setTrendingItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadRestaurants = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/offers?service_type=dining&limit=10`);
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        const formattedRestaurants = result.data.map((item) => ({
+          id: item.id,
+          name: item.title,
+          cuisine: item.category || "Multi-cuisine",
+          priceRange: item.price_range || "$$",
+          rating: item.rating || 4.5,
+          distance: item.distance || "1.5 km away",
+          image: item.image_url || "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+          category: "dining",
+        }));
+        setRestaurants(formattedRestaurants);
+      }
+    } catch (error) {
+      console.error("Error loading restaurants:", error);
+      setRestaurants([{
+        id: 1,
+        name: "Italian Bistro",
+        cuisine: "Italian",
+        priceRange: "$$$",
+        rating: 4.5,
+        distance: "1.2 km away",
+        image: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+        category: "dining",
+      }]);
+    }
+  };
+
+  const loadEvents = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/offers?service_type=events&limit=10`);
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        const formattedEvents = result.data.map((item) => ({
+          id: item.id,
+          title: item.title,
+          type: item.event_type || "General",
+          time: item.start_date ? `Starts ${new Date(item.start_date).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}` : "Coming Soon",
+          location: item.location || "Downtown",
+          image: item.image_url || "https://images.unsplash.com/photo-1511379938547-c1f69419868d?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+          category: "events",
+        }));
+        setEvents(formattedEvents);
+      }
+    } catch (error) {
+      console.error("Error loading events:", error);
+      setEvents([{
+        id: 1,
+        title: "Jazz Night Live",
+        type: "Music",
+        time: "Until 11 PM",
+        location: "Downtown Lounge",
+        image: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+        category: "events",
+      }]);
+    }
+  };
+
+  const getUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
+            .then(response => response.json())
+            .then(data => {
+              const city = data.address.city || data.address.town || data.address.village || "Unknown City";
+              const country = data.address.country || "Unknown Country";
+              setCurrentLocation(`${city}, ${country}`);
+              localStorage.setItem('userLocation', `${city}, ${country}`);
+            })
+            .catch(() => {
+              setCurrentLocation("Mumbai, India");
+            });
+        },
+        () => {
+          const savedLocation = localStorage.getItem('userLocation');
+          setCurrentLocation(savedLocation || "Mumbai, India");
+        }
+      );
+    } else {
+      const savedLocation = localStorage.getItem('userLocation');
+      setCurrentLocation(savedLocation || "Mumbai, India");
+    }
+  };
+
+  useEffect(() => {
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    setUser(userData);
+    
+    getUserLocation();
+    loadTrendingExperiences(activeCategory);
+    loadRestaurants();
+    loadEvents();
+  }, []);
+
+  useEffect(() => {
+    if (currentSection === "home") {
+      loadTrendingExperiences(activeCategory);
+    }
+  }, [activeCategory, currentSection]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    navigate('/login');
+  };
+
+  const handleNavigation = (section) => {
+    setCurrentSection(section);
+    setMobileMenuOpen(false);
+    if (section === "home") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
   return (
     <div className="elizian-container">
-      {/* Accessibility Skip Link */}
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
 
-      {/* Top Navigation Bar */}
       <header className="top-nav">
         <div className="container nav-container">
-          {/* Logo */}
-          {/* <div className="logo">
-            <img src="" alt="Elizian" />
-            <span>Elizian</span>
-          </div> */}
-          <div className="elizian-landing-logo">
+          <div 
+            className="elizian-landing-logo"
+            onClick={() => navigate('/')}
+            style={{ cursor: 'pointer' }}
+          >
             <img
               src="/assets/z.png"
               alt="Elizian"
@@ -149,79 +238,96 @@ const HomePage = () => {
             <span className="elizian-landing-logo-text">Elizian</span>
           </div>
 
-          {/* Desktop Navigation */}
           <nav className="desktop-nav">
             <a
               href="#"
-              className={`nav-link ${
-                currentSection === "home" ? "active" : ""
-              }`}
-              onClick={() => setCurrentSection("home")}
+              className={`nav-link ${currentSection === "home" ? "active" : ""}`}
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigation("home");
+              }}
             >
               Home
             </a>
             <a
               href="#"
-              className={`nav-link ${
-                currentSection === "experiences" ? "active" : ""
-              }`}
-              onClick={() => setCurrentSection("experiences")}
+              className={`nav-link ${currentSection === "experiences" ? "active" : ""}`}
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigation("experiences");
+              }}
             >
               Experiences
             </a>
             <a
               href="#"
-              className={`nav-link ${
-                currentSection === "restaurants" ? "active" : ""
-              }`}
-              onClick={() => setCurrentSection("restaurants")}
+              className={`nav-link ${currentSection === "restaurants" ? "active" : ""}`}
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigation("restaurants");
+              }}
             >
               Restaurants
             </a>
             <a
               href="#"
-              className={`nav-link ${
-                currentSection === "events" ? "active" : ""
-              }`}
-              onClick={() => setCurrentSection("events")}
+              className={`nav-link ${currentSection === "events" ? "active" : ""}`}
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigation("events");
+              }}
             >
               Events
             </a>
             <a
               href="#"
-              className={`nav-link ${
-                currentSection === "profile" ? "active" : ""
-              }`}
-              onClick={() => setCurrentSection("profile")}
+              className={`nav-link ${currentSection === "profile" ? "active" : ""}`}
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigation("profile");
+              }}
             >
               Profile
             </a>
           </nav>
 
-          {/* Mobile Menu Button */}
           <button
             className="mobile-menu-btn"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle mobile menu"
           >
             <span className="menu-icon">☰</span>
           </button>
 
-          {/* User Actions */}
           <div className="user-actions">
-            <button className="btn btn-primary">Login</button>
-            <button className="btn btn-secondary">Sign Up</button>
+            {user?.first_name ? (
+              <>
+                <span className="welcome-text">Welcome, {user.first_name} {user.last_name || ''}</span>
+                <button className="btn btn-primary" onClick={handleLogout}>
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="btn btn-primary" onClick={() => navigate('/login')}>
+                  Login
+                </button>
+                <button className="btn btn-secondary" onClick={() => navigate('/signup')}>
+                  Sign Up
+                </button>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Mobile Navigation Menu */}
         {mobileMenuOpen && (
           <div className="mobile-nav-menu">
             <a
               href="#"
               className="mobile-nav-link"
-              onClick={() => {
-                setCurrentSection("home");
-                setMobileMenuOpen(false);
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigation("home");
               }}
             >
               Home
@@ -229,9 +335,9 @@ const HomePage = () => {
             <a
               href="#"
               className="mobile-nav-link"
-              onClick={() => {
-                setCurrentSection("experiences");
-                setMobileMenuOpen(false);
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigation("experiences");
               }}
             >
               Experiences
@@ -239,9 +345,9 @@ const HomePage = () => {
             <a
               href="#"
               className="mobile-nav-link"
-              onClick={() => {
-                setCurrentSection("restaurants");
-                setMobileMenuOpen(false);
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigation("restaurants");
               }}
             >
               Restaurants
@@ -249,9 +355,9 @@ const HomePage = () => {
             <a
               href="#"
               className="mobile-nav-link"
-              onClick={() => {
-                setCurrentSection("events");
-                setMobileMenuOpen(false);
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigation("events");
               }}
             >
               Events
@@ -259,36 +365,46 @@ const HomePage = () => {
             <a
               href="#"
               className="mobile-nav-link"
-              onClick={() => {
-                setCurrentSection("profile");
-                setMobileMenuOpen(false);
+              onClick={(e) => {
+                e.preventDefault();
+                handleNavigation("profile");
               }}
             >
               Profile
             </a>
+            {user?.first_name && (
+              <a
+                href="#"
+                className="mobile-nav-link"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleLogout();
+                }}
+              >
+                Logout
+              </a>
+            )}
           </div>
         )}
       </header>
 
-      {/* Location Bar */}
       <div className="location-bar">
         <div className="container">
           <div className="location-selector">
             <span className="location-icon">📍</span>
             <div className="location-details">
               <div className="location-main">
-                Mumbai, India <span className="dropdown-arrow">▼</span>
+                {currentLocation}
+               {!currentLocation && <span className="dropdown-arrow">▼</span>}
               </div>
-              <div className="location-sub">South Mumbai</div>
+              {!currentLocation && <div className="location-sub">Detecting your location...</div>}
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
       <main id="main-content" className="main-content">
         <div className="container">
-          {/* Search Section */}
           <section className="search-section">
             <div className="search-wrapper">
               <div className="search-input-group">
@@ -297,17 +413,18 @@ const HomePage = () => {
                   type="text"
                   className="search-input"
                   placeholder="Search restaurants, events, cuisines..."
+                  aria-label="Search experiences"
                 />
                 <button
                   className={`filter-toggle ${activeFilter ? "active" : ""}`}
                   onClick={() => setIsFilterOpen(!isFilterOpen)}
+                  aria-label="Toggle filters"
                 >
                   <span className="filter-icon">⚙️</span>
                   {activeFilter && <span className="filter-badge">•</span>}
                 </button>
               </div>
 
-              {/* Filter Panel */}
               {isFilterOpen && (
                 <div className="filter-panel">
                   <div className="filter-header">
@@ -323,10 +440,9 @@ const HomePage = () => {
                     {filters.map((filter) => (
                       <button
                         key={filter.id}
-                        className={`filter-chip ${
-                          activeFilter === filter.id ? "active" : ""
-                        }`}
+                        className={`filter-chip ${activeFilter === filter.id ? "active" : ""}`}
                         onClick={() => setActiveFilter(filter.id)}
+                        aria-pressed={activeFilter === filter.id}
                       >
                         <span className="filter-chip-icon">{filter.icon}</span>
                         <span>{filter.name}</span>
@@ -338,16 +454,15 @@ const HomePage = () => {
             </div>
           </section>
 
-          {/* Category Navigation */}
           <section className="category-section">
             <div className="categories-scroll">
               {categories.map((category) => (
                 <button
                   key={category.id}
-                  className={`category-chip ${
-                    activeCategory === category.id ? "active" : ""
-                  }`}
+                  className={`category-chip ${activeCategory === category.id ? "active" : ""}`}
                   onClick={() => setActiveCategory(category.id)}
+                  aria-label={`Filter by ${category.name}`}
+                  aria-pressed={activeCategory === category.id}
                 >
                   <span className="category-icon">{category.icon}</span>
                   <span className="category-name">{category.name}</span>
@@ -356,7 +471,6 @@ const HomePage = () => {
             </div>
           </section>
 
-          {/* Trending Now Section */}
           <section className="trending-section">
             <div className="section-header">
               <h2 className="section-title">
@@ -367,6 +481,7 @@ const HomePage = () => {
                 <button
                   className={`near-me-toggle ${showNearMe ? "active" : ""}`}
                   onClick={() => setShowNearMe(!showNearMe)}
+                  aria-pressed={showNearMe}
                 >
                   <span className="toggle-icon">📍</span>
                   <span>Near Me</span>
@@ -375,40 +490,66 @@ const HomePage = () => {
               </div>
             </div>
 
-            <div className="trending-grid">
-              {filterItems(trendingItems, activeCategory).map((item) => (
-                <div key={item.id} className="trending-card">
-                  <div
-                    className="card-image"
-                    style={{ backgroundImage: `url(${item.image})` }}
-                  >
-                    <div className="card-badge trending">Trending</div>
-                    <div className="card-rating">
-                      <span className="rating-star">⭐</span>
-                      <span>{item.rating}</span>
+            {loading ? (
+              <div className="loading-state">
+                <p>Loading experiences...</p>
+              </div>
+            ) : trendingItems.length === 0 ? (
+              <div className="empty-state">
+                <p>No trending experiences found.</p>
+              </div>
+            ) : (
+              <div className="trending-grid">
+                {trendingItems.map((item) => (
+                  <div key={item.id} className="trending-card">
+                    <div
+                      className="card-image"
+                      style={{ backgroundImage: `url(${item.image})` }}
+                      role="img"
+                      aria-label={item.title}
+                    >
+                      <div className="card-badge trending">Trending</div>
+                      <div className="card-rating">
+                        <span className="rating-star">⭐</span>
+                        <span>{item.rating}</span>
+                      </div>
+                    </div>
+                    <div className="card-content">
+                      <h3 className="card-title">{item.title}</h3>
+                      <p className="card-description">{item.description}</p>
+                      <div className="card-footer">
+                        <div className="card-price">
+                          {item.price}
+                          {item.originalPrice && (
+                            <span className="original-price">{item.originalPrice}</span>
+                          )}
+                        </div>
+                        <button 
+                          className="card-action-btn"
+                          onClick={() => navigate(`/experience/${item.id}`)}
+                        >
+                          View Details
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  <div className="card-content">
-                    <h3 className="card-title">{item.title}</h3>
-                    <p className="card-description">{item.description}</p>
-                    <div className="card-footer">
-                      <div className="card-price">{item.price}</div>
-                      <button className="card-action-btn">View Details</button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </section>
 
-          {/* Top Restaurants Section */}
           <section className="restaurants-section">
             <div className="section-header">
               <h2 className="section-title">
                 <span className="title-icon">🍽️</span>
                 Top Restaurants Near You
               </h2>
-              <button className="view-all-btn">View All →</button>
+              <button 
+                className="view-all-btn"
+                onClick={() => navigate('/restaurants')}
+              >
+                View All →
+              </button>
             </div>
 
             <div className="restaurants-grid">
@@ -417,6 +558,8 @@ const HomePage = () => {
                   <div
                     className="restaurant-image"
                     style={{ backgroundImage: `url(${restaurant.image})` }}
+                    role="img"
+                    aria-label={restaurant.name}
                   >
                     <div className="restaurant-rating">
                       <span className="rating-star">⭐</span>
@@ -436,7 +579,12 @@ const HomePage = () => {
                         {restaurant.distance}
                       </span>
                       <span className="restaurant-action">
-                        <button className="btn-sm">Book Now</button>
+                        <button 
+                          className="btn-sm"
+                          onClick={() => navigate(`/restaurant/${restaurant.id}`)}
+                        >
+                          Book Now
+                        </button>
                       </span>
                     </div>
                   </div>
@@ -445,7 +593,6 @@ const HomePage = () => {
             </div>
           </section>
 
-          {/* Live Events Section */}
           <section className="events-section">
             <div className="section-header">
               <h2 className="section-title">
@@ -463,6 +610,8 @@ const HomePage = () => {
                   <div
                     className="event-image"
                     style={{ backgroundImage: `url(${event.image})` }}
+                    role="img"
+                    aria-label={event.title}
                   >
                     <div className="event-badge live">LIVE</div>
                   </div>
@@ -481,7 +630,10 @@ const HomePage = () => {
                         <span>{event.location}</span>
                       </div>
                     </div>
-                    <button className="btn btn-primary event-action">
+                    <button 
+                      className="btn btn-primary event-action"
+                      onClick={() => navigate(`/event/${event.id}`)}
+                    >
                       Join Now
                     </button>
                   </div>
@@ -490,14 +642,18 @@ const HomePage = () => {
             </div>
           </section>
 
-          {/* Upcoming Events */}
           <section className="upcoming-section">
             <div className="section-header">
               <h2 className="section-title">
                 <span className="title-icon">🎭</span>
                 Upcoming Events
               </h2>
-              <button className="view-all-btn">View All →</button>
+              <button 
+                className="view-all-btn"
+                onClick={() => navigate('/events')}
+              >
+                View All →
+              </button>
             </div>
 
             <div className="events-scroll">
@@ -506,6 +662,8 @@ const HomePage = () => {
                   <div
                     className="event-scroll-image"
                     style={{ backgroundImage: `url(${event.image})` }}
+                    role="img"
+                    aria-label={event.title}
                   ></div>
                   <div className="event-scroll-content">
                     <h4>{event.title}</h4>
@@ -520,27 +678,6 @@ const HomePage = () => {
         </div>
       </main>
 
-      {/* Mobile Bottom Navigation */}
-      {/* <div className="mobile-bottom-nav">
-        <button className="nav-item active">
-          <span className="nav-icon">🏠</span>
-          <span className="nav-label">Home</span>
-        </button>
-        <button className="nav-item">
-          <span className="nav-icon">🔍</span>
-          <span className="nav-label">Search</span>
-        </button>
-        <button className="nav-item">
-          <span className="nav-icon">📱</span>
-          <span className="nav-label">Experiences</span>
-        </button>
-        <button className="nav-item">
-          <span className="nav-icon">👤</span>
-          <span className="nav-label">Profile</span>
-        </button>
-      </div> */}
-
-      {/* Footer */}
       <footer className="main-footer">
         <div className="container">
           <div className="footer-content">
@@ -550,17 +687,17 @@ const HomePage = () => {
             </div>
             <div className="footer-section">
               <h4>Quick Links</h4>
-              <a href="#">About Us</a>
-              <a href="#">Contact</a>
-              <a href="#">Privacy Policy</a>
-              <a href="#">Terms of Service</a>
+              <a href="/about">About Us</a>
+              <a href="/contact">Contact</a>
+              <a href="/privacy">Privacy Policy</a>
+              <a href="/terms">Terms of Service</a>
             </div>
             <div className="footer-section">
               <h4>Categories</h4>
-              <a href="#">Dining</a>
-              <a href="#">Events</a>
-              <a href="#">Wellness</a>
-              <a href="#">Travel</a>
+              <a href="/category/dining">Dining</a>
+              <a href="/category/events">Events</a>
+              <a href="/category/wellness">Wellness</a>
+              <a href="/category/travel">Travel</a>
             </div>
             <div className="footer-section">
               <h4>Download App</h4>
@@ -569,14 +706,12 @@ const HomePage = () => {
             </div>
           </div>
           <div className="footer-bottom">
-            <p>&copy; 2024 Elizian. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} Elizian. All rights reserved.</p>
           </div>
         </div>
       </footer>
 
-      {/* Global Styles */}
       <style jsx>{`
-        /* Base Styles */
         :root {
           --primary-color: #004f4a;
           --secondary-color: #059669;
@@ -599,8 +734,7 @@ const HomePage = () => {
         }
 
         body {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-            sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           color: var(--text-color);
           line-height: 1.5;
         }
@@ -611,7 +745,6 @@ const HomePage = () => {
           padding: 0 0px;
         }
 
-        /* Skip Link */
         .skip-link {
           position: absolute;
           top: -40px;
@@ -627,7 +760,6 @@ const HomePage = () => {
           top: 0;
         }
 
-        /* Top Navigation */
         .top-nav {
           background: var(--bg-color);
           box-shadow: var(--shadow);
@@ -643,16 +775,17 @@ const HomePage = () => {
           padding: 16px 20px;
         }
 
-        .logo {
+        .elizian-landing-logo {
           display: flex;
           align-items: center;
           gap: 12px;
           font-weight: 700;
           font-size: 1.5rem;
           color: var(--primary-color);
+          cursor: pointer;
         }
 
-        .logo img {
+        .elizian-landing-logo-img {
           width: 32px;
           height: 32px;
           border-radius: 8px;
@@ -675,6 +808,7 @@ const HomePage = () => {
           color: var(--text-light);
           font-weight: 500;
           transition: color 0.2s;
+          cursor: pointer;
         }
 
         .nav-link:hover,
@@ -718,11 +852,13 @@ const HomePage = () => {
           font-weight: 500;
           padding: 12px 0;
           border-bottom: 1px solid var(--border-color);
+          cursor: pointer;
         }
 
         .user-actions {
           display: none;
           gap: 12px;
+          align-items: center;
         }
 
         @media (min-width: 768px) {
@@ -731,7 +867,11 @@ const HomePage = () => {
           }
         }
 
-        /* Buttons */
+        .welcome-text {
+          color: var(--text-light);
+          font-size: 0.875rem;
+        }
+
         .btn {
           padding: 10px 20px;
           border-radius: var(--radius-sm);
@@ -765,7 +905,6 @@ const HomePage = () => {
           font-size: 0.875rem;
         }
 
-        /* Location Bar */
         .location-bar {
           background: var(--bg-light);
           border-bottom: 1px solid var(--border-color);
@@ -785,13 +924,12 @@ const HomePage = () => {
 
         .location-details {
           line-height: 1.2;
-          color: black;
         }
 
         .location-main {
           font-weight: 600;
+          color: black;
           font-size: 1rem;
-          text-color: #003832;
         }
 
         .dropdown-arrow {
@@ -805,7 +943,6 @@ const HomePage = () => {
           color: var(--text-light);
         }
 
-        /* Search Section */
         .search-section {
           padding: 24px 0;
         }
@@ -913,7 +1050,6 @@ const HomePage = () => {
           border-color: var(--primary-color);
         }
 
-        /* Category Section */
         .category-section {
           padding: 16px 0;
           overflow-x: auto;
@@ -930,7 +1066,6 @@ const HomePage = () => {
           display: flex;
           flex-direction: column;
           align-items: center;
-          // gap: 4px;
           padding: 12px 16px;
           background: var(--bg-light);
           border: 2px solid var(--border-color);
@@ -957,7 +1092,6 @@ const HomePage = () => {
           text-align: center;
         }
 
-        /* Sections */
         section {
           margin: 40px 0;
         }
@@ -1019,7 +1153,13 @@ const HomePage = () => {
           padding: 8px 0;
         }
 
-        /* Cards */
+        .loading-state,
+        .empty-state {
+          text-align: center;
+          padding: 40px;
+          color: var(--text-light);
+        }
+
         .trending-grid,
         .restaurants-grid,
         .events-grid {
@@ -1135,6 +1275,15 @@ const HomePage = () => {
           font-size: 1.5rem;
           font-weight: 700;
           color: var(--primary-color);
+          display: flex;
+          flex-direction: column;
+        }
+
+        .original-price {
+          font-size: 0.875rem;
+          color: var(--text-light);
+          text-decoration: line-through;
+          font-weight: normal;
         }
 
         .card-action-btn {
@@ -1147,7 +1296,6 @@ const HomePage = () => {
           cursor: pointer;
         }
 
-        /* Restaurant Cards */
         .restaurant-info {
           padding: 16px;
         }
@@ -1186,7 +1334,6 @@ const HomePage = () => {
           font-size: 0.875rem;
         }
 
-        /* Event Cards */
         .event-info {
           padding: 16px;
         }
@@ -1226,7 +1373,6 @@ const HomePage = () => {
           width: 100%;
         }
 
-        /* Upcoming Events */
         .events-scroll {
           display: flex;
           gap: 16px;
@@ -1263,51 +1409,6 @@ const HomePage = () => {
           color: var(--text-light);
         }
 
-        /* Mobile Bottom Navigation */
-        .mobile-bottom-nav {
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          background: var(--bg-color);
-          border-top: 1px solid var(--border-color);
-          display: flex;
-          justify-content: space-around;
-          padding: 12px 0;
-          z-index: 100;
-        }
-
-        @media (min-width: 768px) {
-          .mobile-bottom-nav {
-            display: none;
-          }
-        }
-
-        .nav-item {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 4px;
-          background: none;
-          border: none;
-          color: var(--text-light);
-          cursor: pointer;
-          padding: 8px;
-        }
-
-        .nav-item.active {
-          color: var(--primary-color);
-        }
-
-        .nav-icon {
-          font-size: 1.5rem;
-        }
-
-        .nav-label {
-          font-size: 0.75rem;
-        }
-
-        /* Footer */
         .main-footer {
           background: var(--bg-light);
           padding: 40px 0 20px;
@@ -1344,6 +1445,7 @@ const HomePage = () => {
           text-decoration: none;
           margin-bottom: 8px;
           transition: color 0.2s;
+          cursor: pointer;
         }
 
         .footer-section a:hover {
@@ -1358,7 +1460,6 @@ const HomePage = () => {
           font-size: 0.875rem;
         }
 
-        /* App Store Buttons */
         .app-store-btn,
         .play-store-btn {
           display: block;
@@ -1373,7 +1474,6 @@ const HomePage = () => {
           cursor: pointer;
         }
 
-        /* Responsive Adjustments */
         @media (max-width: 767px) {
           .container {
             padding: 0 16px;
