@@ -22,6 +22,12 @@ async function createBooking(bookingData, executor = pool) {
   // Generate unique booking reference if not provided
   const bookingReference = bookingData.booking_reference || generateBookingReference();
   
+  // Generate voucher_code if not provided (UUID v4, globally unique, immutable)
+  // CRITICAL: Ensure voucher_code is always set - use database default as fallback
+  const voucherCode = bookingData.voucher_code || null;
+  // Note: If null, database DEFAULT gen_random_uuid() will be used
+  // This ensures voucher_code is never missing
+  
   // Map the service data to actual table columns
   const result = await executor.query(
     `INSERT INTO bookings (
@@ -41,9 +47,12 @@ async function createBooking(bookingData, executor = pool) {
       num_guests,
       special_requests,
       booking_type,
-      reward_eligible
+      reward_eligible,
+      voucher_code,
+      qr_code_url,
+      voucher_state
     )
-     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, CURRENT_TIME, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
      RETURNING *`,
     [
       bookingReference,
@@ -52,6 +61,12 @@ async function createBooking(bookingData, executor = pool) {
       bookingData.deal_id || bookingData.offer_id || null,  // Support both deal_id and offer_id for backwards compatibility
       bookingData.partner_id || null,
       bookingData.show_id || null,
+      bookingData.booking_date || new Date().toISOString().split('T')[0], // Use provided booking_date or current date
+      // CRITICAL: Only use fallback if booking_time is null/undefined, not if it's empty string
+      // Empty string is valid (means no specific time), null/undefined means use current time
+      (bookingData.booking_time !== null && bookingData.booking_time !== undefined) 
+        ? bookingData.booking_time 
+        : new Date().toTimeString().slice(0, 5), // Use provided booking_time or current time
       bookingData.status || 'pending',
       bookingData.amount || bookingData.total_price || 0,  // total_price
       bookingData.fiat_amount || bookingData.amount || 0,   // fiat_amount (before EZT discount)
@@ -60,7 +75,10 @@ async function createBooking(bookingData, executor = pool) {
       bookingData.num_guests || bookingData.num_tickets || 1,
       bookingData.special_requests || null,
       bookingData.booking_type || (bookingData.event_id ? 'event' : 'restaurant'),
-      bookingData.reward_eligible !== undefined ? bookingData.reward_eligible : true
+      bookingData.reward_eligible !== undefined ? bookingData.reward_eligible : true,
+      voucherCode, // Will use database default (gen_random_uuid()) if null
+      bookingData.qr_code_url || null,
+      bookingData.voucher_state || (bookingData.status === 'confirmed' ? 'active' : 'booked') // Set initial voucher state
     ]
   );
   return result.rows[0];
@@ -69,9 +87,17 @@ async function createBooking(bookingData, executor = pool) {
 // Get booking by ID
 async function getBookingById(bookingId) {
   const result = await pool.query(
-    `SELECT * FROM bookings WHERE id = $1`,
+    `SELECT 
+      *,
+      booking_date::text as booking_date,
+      COALESCE(booking_time::text, '') as booking_time
+     FROM bookings WHERE id = $1`,
     [bookingId]
   );
+  // Ensure booking_time is a string (not null) for consistent frontend handling
+  if (result.rows[0]) {
+    result.rows[0].booking_time = result.rows[0].booking_time || null;
+  }
   return result.rows[0];
 }
 
@@ -124,7 +150,7 @@ async function listBookings({ userId = null, partnerId = null, status = null, li
 }
 
 // Update booking status
-async function updateBookingStatus(bookingId, status, additionalData = {}) {
+async function updateBookingStatus(bookingId, status, additionalData = {}, executor = pool) {
   const updates = ['status = $1'];
   const values = [status];
   let paramCount = 1;
@@ -150,7 +176,7 @@ async function updateBookingStatus(bookingId, status, additionalData = {}) {
   paramCount++;
   values.push(bookingId);
 
-  const result = await pool.query(
+  const result = await executor.query(
     `UPDATE bookings SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`,
     values
   );
@@ -189,19 +215,24 @@ async function autoCancelPendingBookings(thresholdDate) {
  * @param {Object} executor - Database client (for transactions) or pool
  */
 async function updateBookingTierInfo(bookingId, tierInfo, executor = pool) {
+  // Ensure proper type casting for PostgreSQL
+  const eztEarned = tierInfo.ezt_earned != null ? parseFloat(tierInfo.ezt_earned) : 0;
+  const rewardPercentage = tierInfo.ezt_reward_percentage != null ? parseFloat(tierInfo.ezt_reward_percentage) : 1.0;
+  const tierAtBooking = tierInfo.user_tier_at_booking || 'Aether';
+  
   const result = await executor.query(
     `UPDATE bookings 
      SET 
-       ezt_earned = $1,
-       ezt_reward_percentage = $2,
-       user_tier_at_booking = $3,
+       ezt_earned = $1::DECIMAL(15, 5),
+       ezt_reward_percentage = $2::DECIMAL(5, 2),
+       user_tier_at_booking = $3::VARCHAR(50),
        updated_at = CURRENT_TIMESTAMP
      WHERE id = $4
      RETURNING *`,
     [
-      tierInfo.ezt_earned || 0,
-      tierInfo.ezt_reward_percentage || 1.0,
-      tierInfo.user_tier_at_booking || 'Aether',
+      eztEarned,
+      rewardPercentage,
+      tierAtBooking,
       bookingId
     ]
   );

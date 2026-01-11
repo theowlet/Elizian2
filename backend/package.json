@@ -7,7 +7,7 @@
     "setup": "node setup-uploads.js",
     "prestart": "npm run setup",
     "start": "node src/server.js",
-    "dev": "sudo nodemon src/server.js"
+    "dev": "node node_modules/nodemon/bin/nodemon.js src/server.js"
   },
   "keywords": [
     "express",
@@ -35,6 +35,7 @@
     "nodemailer": "^7.0.10",
     "pg": "^8.16.3",
     "qrcode": "^1.5.4",
+    "sharp": "^0.34.5",
     "socket.io": "^4.8.1",
     "twilio": "^5.10.7",
     "uuid": "^13.0.0"

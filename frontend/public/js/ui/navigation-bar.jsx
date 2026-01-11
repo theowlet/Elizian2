@@ -3,7 +3,7 @@
 // Dynamically loads service types from API
 // ============================================
 
-const API_BASE = window.API_BASE || 'http://localhost:5001';
+const API_BASE = window.API_BASE || 'http://localhost:3000';
 
 /**
  * Load and render bottom navigation bar

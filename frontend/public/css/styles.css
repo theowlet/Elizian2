@@ -46,6 +46,78 @@ html, body {
   color: #222;
 }
 
+/* ==================================
+   PASSWORD VISIBILITY TOGGLE STYLES
+   ================================== */
+
+.password-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-input-wrapper .auth-input {
+  padding-right: 45px; /* Space for toggle button */
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  transition: color 0.2s;
+  z-index: 1;
+}
+
+.password-toggle-btn:hover {
+  color: #333;
+}
+
+.password-toggle-btn:focus {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.password-toggle-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.password-toggle-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.password-toggle-btn .eye-icon {
+  display: block;
+}
+
+.password-toggle-btn .eye-open {
+  display: none;
+}
+
+.password-toggle-btn[aria-pressed="true"] .eye-closed {
+  display: none;
+}
+
+.password-toggle-btn[aria-pressed="true"] .eye-open {
+  display: block;
+}
+
+/* Ensure input doesn't overlap with button */
+.password-input-wrapper input[type="password"],
+.password-input-wrapper input[type="text"] {
+  padding-right: 45px;
+}
+
 /* Ensure scripts don't render as text */
 script {
   display: none !important;

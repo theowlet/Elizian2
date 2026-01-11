@@ -1,0 +1,4 @@
+# MIME types for ES modules
+AddType application/javascript .jsx
+AddType application/javascript .js
+

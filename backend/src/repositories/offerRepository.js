@@ -23,16 +23,29 @@ function isStatusActive(status) {
 }
 
 // Get offer by ID
-async function getOfferById(offerId) {
-  const result = await pool.query(
-    `SELECT po.*, p.id as partner_id FROM partner_offers po 
-     JOIN partners p ON po.partner_id = p.id 
-     WHERE po.id = $1 
-       AND po.status = $2
-       AND (po.start_date IS NULL OR po.start_date <= CURRENT_TIMESTAMP)
-       AND (po.end_date IS NULL OR po.end_date >= CURRENT_TIMESTAMP)`,
-    [offerId, STATUS.ACTIVE]
-  );
+// CRITICAL: For public access, only return offers from approved partners
+// Set requireApproval=false for admin/internal use
+async function getOfferById(offerId, requireApproval = true) {
+  let query = `
+    SELECT po.*, p.id as partner_id, p.is_active as partner_is_active, 
+           p.status as partner_status
+    FROM partner_offers po 
+    JOIN partners p ON po.partner_id = p.id 
+    WHERE po.id = $1 
+      AND po.status = $2
+      AND (po.start_date IS NULL OR po.start_date <= CURRENT_TIMESTAMP)
+      AND (po.end_date IS NULL OR po.end_date >= CURRENT_TIMESTAMP)
+  `;
+  
+  const params = [offerId, STATUS.ACTIVE];
+  
+  // CRITICAL: Only show deals from approved partners to public users
+  if (requireApproval) {
+    query += ` AND p.is_active = true 
+               AND (p.status IS NULL OR p.status IN ('active', 'approved'))`;
+  }
+  
+  const result = await pool.query(query, params);
   return result.rows[0];
 }
 
@@ -185,8 +198,10 @@ async function getOfferForUpdate(partnerId, offerId) {
 }
 
 // Increment offer redemption count
-async function incrementOfferRedemptions(offerId) {
-  await pool.query(
+// CRITICAL: Accept executor parameter to support transactions
+// This ensures atomicity when incrementing redemptions during booking creation
+async function incrementOfferRedemptions(offerId, executor = pool) {
+  await executor.query(
     'UPDATE partner_offers SET current_redemptions = COALESCE(current_redemptions, 0) + 1 WHERE id = $1',
     [offerId]
   );
@@ -295,9 +310,19 @@ async function listPublicOffers(filters = {}) {
   }
 
   if (trending !== null && trending !== undefined) {
-    conditions.push(`po.is_trending = $${paramIndex}`);
-    params.push(trending);
-    paramIndex += 1;
+    // CRITICAL: Only show trending deals that have been approved by admin
+    // featured_request_pending = false means admin has approved (or never requested)
+    // This prevents pending trending requests from being visible to users
+    if (trending === true) {
+      conditions.push(`po.is_trending = $${paramIndex}`);
+      conditions.push(`po.featured_request_pending = false`);
+      params.push(trending);
+      paramIndex += 1;
+    } else {
+      conditions.push(`po.is_trending = $${paramIndex}`);
+      params.push(trending);
+      paramIndex += 1;
+    }
   }
 
   // Filter by cuisine types (if partner has matching cuisines)

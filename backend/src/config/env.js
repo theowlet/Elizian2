@@ -45,7 +45,7 @@ const config = {
       : false,
     maxConnections: parseInt(process.env.PG_POOL_MAX || '20', 10),
     idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT || '30000', 10),
-    connectionTimeoutMillis: parseInt(process.env.PG_CONN_TIMEOUT || '2000', 10)
+    connectionTimeoutMillis: parseInt(process.env.PG_CONN_TIMEOUT || '10000', 10) // Increased from 2000ms to 10000ms (10 seconds)
   },
   redis: {
     url: process.env.REDIS_URL || null,

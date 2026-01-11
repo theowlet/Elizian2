@@ -198,10 +198,15 @@ async function resendOtp(req, res) {
 }
 
 // Get menu images (scrollable menu viewer)
+// CRITICAL: Only show menu images for approved partners to public users
 async function getMenuImages(req, res) {
   try {
     const { id } = req.params;
-    const partner = await partnerService.getPartnerWithMenuImages(id);
+    // Check if user is admin/partner (can view unapproved partners)
+    const isAdmin = req.userId ? (await getUserRoleById(req.userId)) === 'admin' : false;
+    const requireApproval = !isAdmin; // Public users require approval, admins don't
+    
+    const partner = await partnerService.getPartnerWithMenuImages(id, requireApproval);
     const menuImages = partner.menu_images || [];
     
     successResponse(res, 200, "Menu images retrieved successfully", {

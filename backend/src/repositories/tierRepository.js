@@ -33,13 +33,19 @@ async function getTierByName(tierName) {
 // Get tier by spend amount
 async function getTierBySpendAmount(annualSpend) {
   try {
+    // Ensure annualSpend is a proper number
+    const spendAmount = parseFloat(annualSpend) || 0;
+    
+    // CRITICAL FIX: Use distinct placeholders ($1 and $2) even though they have the same value
+    // PostgreSQL requires distinct placeholders when the same parameter is used multiple times
+    // This prevents "inconsistent types deduced for parameter $1" errors
     const result = await pool.query(
       `SELECT * FROM loyalty_tiers 
-       WHERE min_annual_spend <= $1 
-         AND (max_annual_spend >= $1 OR max_annual_spend IS NULL)
+       WHERE min_annual_spend <= $1
+         AND (max_annual_spend >= $2 OR max_annual_spend IS NULL)
        ORDER BY tier_level DESC
        LIMIT 1`,
-      [annualSpend]
+      [spendAmount, spendAmount]
     );
     return result.rows[0];
   } catch (error) {
@@ -115,17 +121,26 @@ async function updateUserTier(userId, newTierName, annualSpend, client = pool) {
     const tierLevelChange = (toTier.rows[0]?.tier_level || 0) - (fromTier.rows[0]?.tier_level || 0);
     
     // Update user tier
+    // CRITICAL FIX: Avoid using $1 twice in the same query to prevent PostgreSQL type inference errors
+    // Instead, get the tier_id first, then use it in the UPDATE
+    const tierIdResult = await client.query(
+      `SELECT id FROM loyalty_tiers WHERE tier_name = $1`,
+      [newTierName]
+    );
+    const tierId = tierIdResult.rows[0]?.id || null;
+    
+    // Now update with distinct parameters: $1 = tierId, $2 = newTierName, $3 = previousTierName, $4 = userId
     const result = await client.query(
       `UPDATE users 
        SET 
-         current_tier_name = $1,
-         current_tier_id = (SELECT id FROM loyalty_tiers WHERE tier_name = $1),
-         previous_tier_name = $2,
+         current_tier_name = $2,
+         current_tier_id = $1,
+         previous_tier_name = $3,
          tier_upgraded_at = CURRENT_TIMESTAMP,
          updated_at = CURRENT_TIMESTAMP
-       WHERE id = $3
+       WHERE id = $4
        RETURNING *`,
-      [newTierName, previousTierName, userId]
+      [tierId, newTierName, previousTierName, userId]
     );
     
     // Record tier change in history
@@ -152,20 +167,23 @@ async function addToAnnualSpend(userId, amount, client = pool) {
   try {
     const currentYear = new Date().getFullYear();
     
-    // Update spend amounts
+    // Ensure amount is a proper number (DECIMAL)
+    const spendAmount = parseFloat(amount) || 0;
+    
+    // Update spend amounts with explicit type casting
     const result = await client.query(
       `UPDATE users 
        SET 
          annual_spend_current = CASE 
-           WHEN annual_spend_year = $2 THEN annual_spend_current + $3
-           ELSE $3
+           WHEN annual_spend_year = $2 THEN annual_spend_current + $3::DECIMAL(12, 2)
+           ELSE $3::DECIMAL(12, 2)
          END,
          annual_spend_year = $2,
-         lifetime_spend = lifetime_spend + $3,
+         lifetime_spend = lifetime_spend + $3::DECIMAL(12, 2),
          updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
        RETURNING annual_spend_current, current_tier_name`,
-      [userId, currentYear, amount]
+      [userId, currentYear, spendAmount]
     );
     
     if (result.rows.length === 0) {
@@ -173,7 +191,9 @@ async function addToAnnualSpend(userId, amount, client = pool) {
     }
     
     const user = result.rows[0];
-    const newAnnualSpend = parseFloat(user.annual_spend_current);
+    // CRITICAL: Ensure newAnnualSpend is a proper number (DECIMAL) before passing to getTierBySpendAmount
+    // PostgreSQL requires consistent types - database values might be strings or null
+    const newAnnualSpend = parseFloat(user.annual_spend_current) || 0;
     
     // Check if tier upgrade is needed
     const appropriateTier = await getTierBySpendAmount(newAnnualSpend);
@@ -245,6 +265,9 @@ async function resetAnnualSpendForNewYear() {
 // Calculate EZT reward for booking
 async function calculateEZTReward(userId, cashAmount) {
   try {
+    // CRITICAL: Ensure cashAmount is a proper number (DECIMAL) to avoid PostgreSQL type inference errors
+    const amount = parseFloat(cashAmount) || 0;
+    
     const tierInfo = await getUserTierInfo(userId);
     
     if (!tierInfo) {
@@ -257,7 +280,7 @@ async function calculateEZTReward(userId, cashAmount) {
     
     const percentage = parseFloat(tierInfo.ezt_reward_percentage) || 1.0;
     const eztValue = 100; // 1 EZT = ₹100
-    const eztAmount = (cashAmount * percentage / 100) / eztValue;
+    const eztAmount = (amount * percentage / 100) / eztValue;
     
     return {
       eztAmount: parseFloat(eztAmount.toFixed(4)),

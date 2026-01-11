@@ -146,7 +146,7 @@ async function getBookingForVoucher(bookingId, userId, client = pool) {
      LEFT JOIN partner_offers po ON b.deal_id = po.id
      WHERE b.id = $1 
        AND b.user_id = $2
-     FOR UPDATE OF b`, // Lock booking row to prevent concurrent modifications
+     FOR UPDATE OF b`, // Lock only bookings table (non-nullable side of LEFT JOIN)
     [bookingId, userId]
   );
   
