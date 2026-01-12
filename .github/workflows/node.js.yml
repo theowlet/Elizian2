@@ -2,33 +2,53 @@
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
 
 name: Node.js CI
+
 on:
   push:
-    branches: new_code 
+    branches:
+      - new_code
+
 jobs:
   build:
-    runs-on: self-hosted 
-    strategy:
-      matrix:
-        node-version: [20.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+    runs-on: self-hosted
+
     steps:
-    - uses: actions/checkout@v4
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    - run: cd frontend 
-    - run: npm ci
-    - run: |
-           touch .env
-           echo "${{ secrets.PROD_CLINT_ENV_FILE }}" > .env
-    - run: pm2 restart server 
-    - run: cd ..
-    - run: cd backend
-    - run: npm ci
-    - run: |
-           touch .env
-           echo "${{ secrets.PROD_BACKEND_ENV_FILE }}" > .env
-    - run: pm2 restart server 
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      # ---------------- FRONTEND ----------------
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Create frontend env
+        working-directory: frontend
+        run: |
+          echo "${{ secrets.PROD_CLINT_ENV_FILE }}" > .env
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      # ---------------- BACKEND ----------------
+      - name: Install backend deps
+        working-directory: backend
+        run: npm ci
+
+      - name: Create backend env
+        working-directory: backend
+        run: |
+          echo "${{ secrets.PROD_BACKEND_ENV_FILE }}" > .env
+
+      - name: Restart backend with PM2
+        run: pm2 restart backend || pm2 start backend/server.js --name backend
+ 
