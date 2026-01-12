@@ -4,7 +4,7 @@
 name: Node.js CI
 on:
   push:
-    branches: main 
+    branches: new_code 
 jobs:
   build:
     runs-on: self-hosted 
