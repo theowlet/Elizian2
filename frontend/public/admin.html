@@ -960,7 +960,17 @@
   
   <!-- Real-time Service (feature-flagged) -->
   <script>
-    const apiUrl = window.parent.MY_GLOBAL_CONFIG.apiUrl;
+    // Safely get API base URL with proper fallback handling
+    let apiUrl = null;
+    try {
+        if (window.parent && window.parent.MY_GLOBAL_CONFIG && window.parent.MY_GLOBAL_CONFIG.apiUrl) {
+            apiUrl = window.parent.MY_GLOBAL_CONFIG.apiUrl;
+        } else if (window.MY_GLOBAL_CONFIG && window.MY_GLOBAL_CONFIG.apiUrl) {
+            apiUrl = window.MY_GLOBAL_CONFIG.apiUrl;
+        }
+    } catch (e) {
+        console.warn('Could not access parent window config:', e);
+    }
     // Load config first
     window.CONFIG = window.CONFIG || {};
     window.CONFIG.API_BASE = apiUrl || 'http://localhost:3000/api/v1';

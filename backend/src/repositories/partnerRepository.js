@@ -4,6 +4,7 @@ const { extractCity } = require('../utils/queries');
 const pool = getPool();
 
 // List partners with optional category filter
+// CRITICAL: Only show approved partners to users
 async function listPartners({ category = null } = {}) {
   const query = `
     SELECT p.id, p.name, p.description, p.partner_discount_percentage AS discount_percentage,
@@ -12,7 +13,9 @@ async function listPartners({ category = null } = {}) {
            c.slug AS category, c.name AS category_name
     FROM partners p
     JOIN categories c ON p.category_id = c.id
-    WHERE ($1::text IS NULL OR c.slug = $1)
+    WHERE p.is_active = true
+      AND (p.status IS NULL OR p.status IN ('active', 'approved'))
+      AND ($1::text IS NULL OR c.slug = $1)
     ORDER BY p.name ASC
   `;
   const result = await pool.query(query, [category || null]);
@@ -34,14 +37,23 @@ async function listPartners({ category = null } = {}) {
 }
 
 // Get partner by ID
-async function getPartnerById(partnerId) {
-  const result = await pool.query(
-    `SELECT p.*, c.name as category_name, c.slug as category_slug 
+// If requireApproval is true (default), only return approved partners
+// This prevents unapproved partners from being visible to users
+async function getPartnerById(partnerId, requireApproval = true) {
+  let query = `
+    SELECT p.*, c.name as category_name, c.slug as category_slug 
      FROM partners p 
      LEFT JOIN categories c ON p.category_id = c.id 
-     WHERE p.id = $1`,
-    [partnerId]
-  );
+     WHERE p.id = $1
+  `;
+  
+  // Add approval filter for public access
+  if (requireApproval) {
+    query += ` AND p.is_active = true 
+               AND (p.status IS NULL OR p.status IN ('active', 'approved'))`;
+  }
+  
+  const result = await pool.query(query, [partnerId]);
   return result.rows[0];
 }
 
@@ -337,8 +349,8 @@ async function updatePartnerMenuImages(partnerId, menuImages) {
   return result.rows[0];
 }
 
-async function getPartnerWithMenuImages(partnerId) {
-  const query = `
+async function getPartnerWithMenuImages(partnerId, requireApproval = true) {
+  let query = `
     SELECT 
       p.*, 
       c.name AS category_name, 
@@ -347,6 +359,13 @@ async function getPartnerWithMenuImages(partnerId) {
     LEFT JOIN categories c ON p.category_id = c.id
     WHERE p.id = $1
   `;
+  
+  // Add approval filter for public access - menu should only be visible for approved partners
+  if (requireApproval) {
+    query += ` AND p.is_active = true 
+               AND (p.status IS NULL OR p.status IN ('active', 'approved'))`;
+  }
+  
   const result = await pool.query(query, [partnerId]);
   return result.rows[0];
 }

@@ -16,6 +16,8 @@ const preOrderService = require('./preOrderService');
 const { AppError } = require('../../utils/response');
 const { logError, log } = require('../../utils/logger');
 const { emitRealtimeEvent, emitToRoom, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
+const { generateAndUploadQRCode } = require('../utils/qrCodeGenerator');
+const { v4: uuidv4 } = require('uuid');
 
 const pool = getPool();
 
@@ -36,8 +38,16 @@ async function createBooking(bookingData) {
       bank_offer_id,
       bank_offer_rule_id,
       reservation_data, // { date, time, partySize, occasion, specialRequests, seatingPreference }
-      pre_order_data // { items, specialInstructions, dietaryRequirements } - Echelon tier only
+      pre_order_data, // { items, specialInstructions, dietaryRequirements } - Echelon tier only
+      // Direct booking date/time (for events, passed from frontend)
+      booking_date,
+      booking_time
     } = bookingData;
+
+    // Validate required fields
+    if (!user_id) {
+      throw new AppError(400, "User ID is required for booking");
+    }
 
     if (!event_id && !offer_id && !show_id) {
       throw new AppError(400, "Either event_id, offer_id, or show_id is required");
@@ -50,10 +60,22 @@ async function createBooking(bookingData) {
     let partner_id = null;
     let commission_percentage = 10.0;
 
-    // Get commission percentage from system settings
-    const commissionSetting = await settingsRepository.getSystemSetting('commission_percentage');
-    if (commissionSetting) {
-      commission_percentage = parseFloat(commissionSetting) || 10.0;
+    // Get commission percentage from system settings (with timeout and fallback)
+    try {
+      // Set a timeout for the settings query to prevent hanging
+      const settingsPromise = settingsRepository.getSystemSetting('commission_percentage');
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Settings query timeout')), 5000)
+      );
+      
+      const commissionSetting = await Promise.race([settingsPromise, timeoutPromise]);
+      if (commissionSetting) {
+        commission_percentage = parseFloat(commissionSetting) || 10.0;
+      }
+    } catch (settingsError) {
+      // If settings query fails or times out, use default commission percentage
+      log(`⚠️ Could not fetch commission setting, using default 10%: ${settingsError.message}`);
+      commission_percentage = 10.0;
     }
 
     if (event_id) {
@@ -86,10 +108,11 @@ async function createBooking(bookingData) {
       bookingPayload.status = 'confirmed';
     } else if (offer_id) {
       // Offer booking
-      const offer = await offerRepository.getOfferById(offer_id);
+      // CRITICAL: Only allow booking of offers from approved partners
+      const offer = await offerRepository.getOfferById(offer_id, true);
       if (!offer) {
         await client.query('ROLLBACK');
-        throw new AppError(404, "Offer not found or expired");
+        throw new AppError(404, "Offer not found, expired, or partner not approved");
       }
 
       partner_id = offer.partner_id;
@@ -187,7 +210,111 @@ async function createBooking(bookingData) {
     // BUG FIX #5: Set booking_type explicitly in payload
     const bookingType = event_id ? 'event' : (offer_id ? 'offer' : 'show');
 
-    // Create booking
+    // Generate voucher code (UUID v4, globally unique, immutable)
+    // CRITICAL: Generate BEFORE any database operations to ensure consistency
+    const voucherCode = uuidv4();
+    if (!voucherCode) {
+      await client.query('ROLLBACK');
+      throw new AppError(500, "Failed to generate voucher code");
+    }
+    
+    // Generate booking reference early (needed for QR code)
+    const bookingReference = bookingRepository.generateBookingReference();
+    if (!bookingReference) {
+      await client.query('ROLLBACK');
+      throw new AppError(500, "Failed to generate booking reference");
+    }
+    
+    // Get human-readable information for QR code
+    let dealTitle = null;
+    let partnerName = null;
+    let guestName = null;
+    
+    // Get user name (guest name)
+    if (user_id) {
+      try {
+        const user = await userRepository.getUserById(user_id);
+        if (user) {
+          const firstName = user.first_name || '';
+          const lastName = user.last_name || '';
+          guestName = `${firstName} ${lastName}`.trim() || user.email || user.phone_number || 'Guest';
+        }
+      } catch (userError) {
+        logError('⚠️ Could not fetch user name for QR code:', userError);
+        // Continue without guest name
+      }
+    }
+    
+    // Get deal/event title
+    if (offer_id) {
+      const offer = await offerRepository.getOfferById(offer_id, true);
+      dealTitle = offer?.title || null;
+    } else if (event_id) {
+      const event = await eventRepository.getEventById(event_id);
+      dealTitle = event?.title || null;
+    }
+    
+    // Get partner name
+    if (partner_id) {
+      try {
+        const partner = await partnerRepository.getPartnerById(partner_id);
+        partnerName = partner?.name || null;
+      } catch (partnerError) {
+        logError('⚠️ Could not fetch partner name for QR code:', partnerError);
+        // Continue without partner name
+      }
+    }
+    
+    // Extract booking date and time from multiple sources (priority order):
+    // 1. Direct booking_date/booking_time (for events, passed from frontend)
+    // 2. reservation_data.date/time (for dining)
+    // 3. Current date/time (fallback)
+    // CRITICAL: Check booking_date and booking_time FIRST (before bookingPayload which is empty initially)
+    let bookingDate = booking_date || null;
+    let bookingTime = booking_time || null;
+    
+    // Only fallback to bookingPayload if direct values are not provided
+    if (!bookingDate) {
+      bookingDate = bookingPayload.booking_date || null;
+    }
+    if (!bookingTime) {
+      bookingTime = bookingPayload.booking_time || null;
+    }
+    
+    // CRITICAL: Log the initial values to debug time extraction
+    log(`🔍 Booking time extraction - Initial: booking_time=${booking_time}, bookingPayload.booking_time=${bookingPayload.booking_time}, reservation_data=${JSON.stringify(reservation_data)}`);
+    
+    if (reservation_data) {
+      if (reservation_data.date) {
+        bookingDate = reservation_data.date;
+      }
+      if (reservation_data.time) {
+        bookingTime = reservation_data.time;
+        log(`✅ Using time from reservation_data: ${bookingTime}`);
+      }
+    }
+    
+    // If still no date/time, use current date/time
+    if (!bookingDate) {
+      bookingDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      log(`⚠️ No booking date provided, using current date: ${bookingDate}`);
+    }
+    if (!bookingTime) {
+      bookingTime = new Date().toTimeString().slice(0, 5); // HH:MM format
+      log(`⚠️ No booking time provided, using current time: ${bookingTime}`);
+    } else {
+      log(`✅ Final booking time: ${bookingTime}`);
+    }
+    
+    // CRITICAL: Validate partner_id before proceeding
+    // Redemption requires partner_id - booking without partner_id cannot be redeemed
+    if (!partner_id) {
+      await client.query('ROLLBACK');
+      throw new AppError(500, "Partner mapping failed for booking. Cannot create booking without partner_id.");
+    }
+
+    // Create booking FIRST (before QR generation)
+    // QR generation requires booking.id - must happen after booking is created
     bookingPayload.amount = finalAmount;
     bookingPayload.fiat_amount = amount;  // Original amount before EZT discount
     bookingPayload.ezt_redeemed = eztRedeemed;
@@ -196,7 +323,107 @@ async function createBooking(bookingData) {
     bookingPayload.booking_type = bookingType;  // BUG FIX #5: Store booking type
     bookingPayload.commission_percentage = commission_percentage;  // For transaction record
     bookingPayload.partner_earning = partner_earning;  // For transaction record
-    const booking = await bookingRepository.createBooking(bookingPayload, client);  // BUG FIX #2: Pass client for transaction
+    bookingPayload.voucher_code = voucherCode;  // Set voucher code
+    bookingPayload.booking_reference = bookingReference;  // Set booking reference
+    bookingPayload.voucher_state = 'created';  // Initial state: CREATED
+    bookingPayload.booking_date = bookingDate;  // Set booking date from reservation_data or current
+    bookingPayload.booking_time = bookingTime;  // Set booking time from reservation_data or current
+    // NOTE: qr_code_url will be set AFTER booking creation and QR generation
+    
+    // Create booking FIRST (before QR generation)
+    const booking = await bookingRepository.createBooking(bookingPayload, client);
+    
+    // CRITICAL: Generate QR code AFTER booking is created (P0 Fix #1)
+    // QR generation requires booking.id - must happen after booking exists
+    // QR generation failure MUST fail the booking (P0 Fix #2)
+    let qrCodeUrl = null;
+    try {
+      const qrMetadata = {
+        booking_reference: booking.booking_reference,
+        guest_name: guestName,
+        deal_title: dealTitle,
+        partner_name: partnerName,
+        num_guests: booking.num_guests || booking.num_tickets || 1,
+        booking_date: booking.booking_date || bookingDate,
+        booking_time: booking.booking_time || bookingTime,
+        booking_id: booking.id, // CRITICAL: booking.id is now available
+        booking_type: bookingType,
+        partner_id: partner_id,
+        user_id: user_id,
+        created_at: booking.created_at || new Date().toISOString()
+      };
+      qrCodeUrl = await generateAndUploadQRCode(voucherCode, qrMetadata);
+      log(`✅ QR code generated and uploaded for booking ${booking.id}: ${qrCodeUrl}`);
+      
+      // Update booking with QR code URL (within transaction)
+      await client.query(
+        `UPDATE bookings SET qr_code_url = $1 WHERE id = $2`,
+        [qrCodeUrl, booking.id]
+      );
+      booking.qr_code_url = qrCodeUrl;
+    } catch (qrError) {
+      // CRITICAL: QR generation failure MUST rollback booking (P0 Fix #2)
+      // No QR = no booking (enterprise rule)
+      await client.query('ROLLBACK');
+      logError('❌ QR code generation failed - rolling back booking:', {
+        error: qrError.message,
+        bookingId: booking.id,
+        voucherCode: voucherCode,
+        bookingReference: bookingReference
+      });
+      throw new AppError(500, `Booking creation failed: QR code generation error - ${qrError.message}`);
+    }
+
+    // Transition state: CREATED → BOOKED → ACTIVE (if confirmed) or CREATED → BOOKED (if pending)
+    // CRITICAL: State machine requires: created → booked → active (cannot skip 'booked')
+    // CRITICAL: State transition failure MUST rollback booking (P0 Fix #4)
+    // Voucher state is required for redemption - invalid state = invalid booking
+    try {
+      const voucherStateMachine = require('./voucherStateMachine');
+      
+      // Step 1: Always transition created → booked first
+      await voucherStateMachine.transitionState({
+        bookingId: booking.id,
+        voucherCode: voucherCode,
+        fromState: 'created',
+        toState: 'booked',
+        actorId: user_id,
+        actorRole: 'user',
+        reasonCode: 'booking_created',
+        reasonText: 'Booking created',
+        executor: client
+      });
+      log(`✅ Voucher state transitioned: created → booked`);
+      
+      // Step 2: If booking is confirmed, transition booked → active
+      // CRITICAL: This is a system-level transition (not user-initiated)
+      // The booking is confirmed, so the voucher becomes active automatically
+      if (bookingPayload.status === 'confirmed') {
+        await voucherStateMachine.transitionState({
+          bookingId: booking.id,
+          voucherCode: voucherCode,
+          fromState: 'booked',
+          toState: 'active',
+          actorId: user_id,
+          actorRole: 'system', // System-initiated transition (booking confirmed)
+          reasonCode: 'booking_confirmed',
+          reasonText: 'Booking confirmed and activated',
+          executor: client
+        });
+        log(`✅ Voucher state transitioned: booked → active`);
+      }
+    } catch (stateError) {
+      // CRITICAL: State transition failure MUST rollback booking
+      await client.query('ROLLBACK');
+      logError('❌ Voucher state transition failed - rolling back booking:', {
+        error: stateError.message,
+        bookingId: booking.id,
+        voucherCode: voucherCode,
+        fromState: 'created',
+        targetState: bookingPayload.status === 'confirmed' ? 'active' : 'booked'
+      });
+      throw new AppError(500, `Booking creation failed: Voucher state transition error - ${stateError.message}`);
+    }
 
     // Confirm seat booking if this is a show booking
     if (show_id && bookingPayload.seat_template_ids) {
@@ -233,16 +460,17 @@ async function createBooking(bookingData) {
     }, client);  // BUG FIX #2: Pass client for transaction atomicity
 
     // Update offer redemption count if offer booking
+    // CRITICAL: Pass client to ensure atomicity within transaction
     if (offer_id) {
-      await offerRepository.incrementOfferRedemptions(offer_id);
+      await offerRepository.incrementOfferRedemptions(offer_id, client);
     }
 
     // Create table reservation if provided (for dining offers)
     let reservation = null;
     if (reservation_data && offer_id && partner_id) {
       try {
-        // Check if offer is for dining
-        const offer = await offerRepository.getOfferById(offer_id);
+        // Check if offer is for dining (already validated, but keep approval check for consistency)
+        const offer = await offerRepository.getOfferById(offer_id, true);
         if (offer && (offer.service_type === 'dining' || offer.service_type === 'restaurant')) {
           reservation = await reservationService.createReservation({
             booking_id: booking.id,
@@ -309,77 +537,39 @@ async function createBooking(bookingData) {
     }
 
     // ====================================================================
-    // BUG FIX #3, #4, #7: Process tier, loyalty, and enrichment BEFORE COMMIT
+    // ARCHITECTURAL FIX: Tier & Loyalty Processing Moved to Redemption
     // ====================================================================
+    // 
+    // In voucher-based systems (Nearbuy/EazyDiner model), tier and loyalty
+    // processing must occur ONLY after redemption, when the actual bill amount
+    // is known. Processing at booking time is incorrect because:
+    // 1. Actual bill amount is unknown at booking (only estimated/discounted amount)
+    // 2. Tier upgrades should be based on actual spending, not estimates
+    // 3. Financial accuracy requires real transaction values
+    //
+    // Tier and loyalty processing will now happen in enhancedRedemptionService.js
+    // when the partner redeems the voucher and enters the actual bill amount.
+    //
+    // Mark booking as tier_pending (implicitly - no tier processing done)
+    log(`📋 Booking ${booking.id} created. Tier/loyalty processing deferred until redemption.`);
     
-    let tierResult = null;
-    let eztEarned = 0;
-    
-    // Process tier rewards and check for tier upgrade
-    try {
-      // Process tier logic (adds to annual spend, checks for upgrade, calculates EZT reward)
-      tierResult = await tierService.processBookingWithTier(user_id, finalAmount);
-      eztEarned = tierResult.eztEarned;
-      
-      // Update booking with tier information (within transaction)
-      await bookingRepository.updateBookingTierInfo(booking.id, {
-        ezt_earned: eztEarned,
-        ezt_reward_percentage: tierResult.rewardPercentage,
-        user_tier_at_booking: tierResult.tierAtBooking
-      }, client);  // BUG FIX #3: Pass client to stay within transaction
-      
-      log(`Tier processing for booking ${booking.id}: EZT=${eztEarned}, Tier=${tierResult.tierAtBooking}, Upgrade=${tierResult.tierUpgrade ? `${tierResult.tierUpgrade.from}→${tierResult.tierUpgrade.to}` : 'none'}`);
-      
-      // If tier was upgraded, log it
-      if (tierResult.tierUpgrade && tierResult.tierUpgrade.upgraded) {
-        log(`🎉 User ${user_id} upgraded from ${tierResult.tierUpgrade.from} to ${tierResult.tierUpgrade.to} tier!`);
-      }
-    } catch (tierError) {
-      // If tier processing fails, rollback entire booking
-      await client.query('ROLLBACK');
-      logError('Tier processing failed, rolling back booking:', tierError);
-      throw new AppError(500, `Booking failed during tier processing: ${tierError.message}`);
-    }
-    
-    // Award EZT tokens (if tier processing didn't already calculate it)
-    if (!tierResult || eztEarned === 0) {
-      eztEarned = await tokenService.awardTokens(user_id, finalAmount, transaction.id, `Earned from ${bookingType} booking`);
-    }
-    
-    // Update transaction with earned tokens (within transaction)
-    await transactionRepository.updateTransactionTokens(transaction.id, eztEarned, eztEarned - eztRedeemed, client);
-
-    // BUG FIX #7: Use finalAmount (actual paid amount) for loyalty points calculation
-    const earningPreview = await loyaltyEngine.calculateEarning(user_id, finalAmount);
-    const pointsEarned = earningPreview.points;
-
-    const loyaltyMetadata = { booking_reference: booking.booking_reference };
-    if (show_id) {
-      loyaltyMetadata.show_id = show_id;
-      loyaltyMetadata.seat_template_ids = bookingPayload.seat_template_ids;
-    }
-
-    const loyaltyResult = await loyaltyEngine.recordActivity({
-      userId: user_id,
-      source: 'booking',
-      referenceId: booking.id,
-      amount: finalAmount,  // BUG FIX #7: Use finalAmount, not original amount
-      pointsEarned,
-      description: `Points earned from ${bookingType} booking`,
-      metadata: loyaltyMetadata
-    });
-
-    booking.points_earned = pointsEarned;
-    booking.loyalty_balance = loyaltyResult.balanceAfter;
+    // Initialize variables for response (tier processing deferred until redemption)
+    const eztEarned = 0;
+    const pointsEarned = 0;
+    const tierResult = null;
 
     // BUG FIX #4: Enrich booking response with deal/offer title (BEFORE commit, inside try)
-    let dealTitle = null;
-    if (offer_id) {
-      const offer = await offerRepository.getOfferById(offer_id);
-      dealTitle = offer?.title || null;
-    } else if (event_id) {
-      const event = await eventRepository.getEventById(event_id);
-      dealTitle = event?.title || null;
+    // Note: dealTitle is already fetched earlier for QR code generation, reuse it
+    // If not set earlier, fetch it now
+    if (!dealTitle) {
+      if (offer_id) {
+        // Get offer title (already validated, but keep approval check for consistency)
+        const offer = await offerRepository.getOfferById(offer_id, true);
+        dealTitle = offer?.title || null;
+      } else if (event_id) {
+        const event = await eventRepository.getEventById(event_id);
+        dealTitle = event?.title || null;
+      }
     }
 
     // Add additional info to booking response
@@ -495,6 +685,73 @@ async function getBookingById(bookingId) {
   return booking;
 }
 
+// Reschedule booking
+async function rescheduleBooking(bookingId, userId, { booking_date, booking_time }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Verify booking exists and belongs to user
+    const bookingResult = await client.query(
+      `SELECT * FROM bookings WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+      [bookingId, userId]
+    );
+
+    if (bookingResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      throw new AppError(404, 'Booking not found or you do not have permission to reschedule it');
+    }
+
+    const booking = bookingResult.rows[0];
+
+    // Check if booking can be rescheduled (not already redeemed, cancelled, or completed)
+    if (['redeemed', 'cancelled', 'completed'].includes(booking.status)) {
+      await client.query('ROLLBACK');
+      throw new AppError(400, `Cannot reschedule a booking with status: ${booking.status}`);
+    }
+
+    // Validate new date is not in the past
+    const newDate = new Date(booking_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (newDate < today) {
+      await client.query('ROLLBACK');
+      throw new AppError(400, 'Cannot reschedule to a past date');
+    }
+
+    // Update booking date and time
+    // CRITICAL: If booking_time is not provided, preserve existing time
+    // This prevents defaulting to 12:00 AM when time is not specified
+    const timeToUpdate = booking_time || booking.booking_time || null;
+    
+    const updateResult = await client.query(
+      `UPDATE bookings 
+       SET booking_date = $1, 
+           booking_time = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3
+       RETURNING *`,
+      [booking_date, timeToUpdate, bookingId]
+    );
+
+    await client.query('COMMIT');
+
+    log(`✅ Booking ${bookingId} rescheduled to ${booking_date} ${booking_time || ''}`);
+
+    return updateResult.rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    if (error instanceof AppError) {
+      throw error;
+    }
+    logError('❌ Reschedule booking error:', error);
+    throw new AppError(500, `Failed to reschedule booking: ${error.message}`);
+  } finally {
+    client.release();
+  }
+}
+
 // Confirm payment for booking
 async function confirmPayment(bookingId, userId) {
   const client = await pool.connect();
@@ -536,6 +793,7 @@ module.exports = {
   createBooking,
   listBookings,
   getBookingById,
+  rescheduleBooking,
   confirmPayment
 };
 

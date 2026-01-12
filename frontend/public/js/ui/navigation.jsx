@@ -2,8 +2,8 @@
 // NAVIGATION MODULE
 // ==================================
 
-import { CONFIG } from '../core/config';
-import { updateWelcomeText, updateProfileInfo } from '../core/auth';
+import { CONFIG } from '../core/config.jsx';
+import { updateWelcomeText, updateProfileInfo } from '../core/auth.jsx';
 import { loadEventsFromBackend, renderEventsList, loadUserTickets, renderUserTickets } from '../features/events.jsx';
 import { loadRestaurantsFromBackend, renderRestaurantsList } from '../features/restaurants.jsx';
 import { cleanupMap, cleanupProximityDetection } from './map.jsx';
@@ -29,6 +29,81 @@ export function showScreen(screenName) {
     }
   }
   
+  // CRITICAL: Protect dashboard access - require M-PIN for home screen
+  if (screenName === 'home' || screenName === 'homeScreen') {
+    // Bypass check if M-PIN was just set (flag set in handleMPinSetup)
+    const mpinJustSet = sessionStorage.getItem('mpinJustSet') === 'true';
+    if (mpinJustSet) {
+      // Clear the flag and allow navigation
+      sessionStorage.removeItem('mpinJustSet');
+      console.log('✅ Bypassing M-PIN check - M-PIN was just set');
+      // Continue with normal navigation below
+    } else {
+      const token = localStorage.getItem('token') || localStorage.getItem('userToken');
+      if (token) {
+        // Check M-PIN status before allowing dashboard access
+        const userInfoStr = localStorage.getItem('userInfo') || localStorage.getItem('user');
+        if (userInfoStr) {
+          try {
+            const userInfo = JSON.parse(userInfoStr);
+            const phone = userInfo.phone_number;
+            
+            if (phone) {
+              // Async check - prevent navigation until verified
+              const apiBase = window.API_BASE || ((typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+                ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+                : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com'));
+              fetch(`${apiBase}/api/v1/auth/check-mpin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone_number: phone })
+              })
+              .then(res => res.json())
+              .then(result => {
+                if (!result.success || !result.data?.has_mpin) {
+                  // M-PIN not set - redirect to M-PIN setup
+                  console.warn('⚠️ Dashboard access blocked - M-PIN not set');
+                  alert('Please set your M-PIN to access the dashboard.');
+                  showScreen('mpin-setup');
+                  return;
+                }
+                // M-PIN is set - allow navigation
+                proceedWithScreenNavigation(screenName);
+              })
+              .catch(err => {
+                console.error('Error checking M-PIN:', err);
+                // On error, block access to be safe
+                alert('Unable to verify M-PIN status. Please login again.');
+                showScreen('login');
+              });
+              return; // Exit early - navigation will happen in callback
+            }
+          } catch (err) {
+            console.error('Error parsing user info:', err);
+          }
+        } else {
+          // No user info - require login
+          console.warn('⚠️ Dashboard access blocked - no user info');
+          alert('Please login to access the dashboard.');
+          showScreen('login');
+          return;
+        }
+      } else {
+        // No token - require login
+        console.warn('⚠️ Dashboard access blocked - no token');
+        alert('Please login to access the dashboard.');
+        showScreen('login');
+        return;
+      }
+    }
+  }
+  
+  // For non-home screens or after M-PIN check passes, proceed normally
+  proceedWithScreenNavigation(screenName);
+}
+
+// Helper function to actually perform screen navigation
+function proceedWithScreenNavigation(screenName) {
   console.log('📱 Navigating to:', screenName);
   currentScreenName = screenName;
   
@@ -42,11 +117,17 @@ export function showScreen(screenName) {
     s.classList.add('hidden');
   });
   
-  // Show target screen
-  const screen = document.getElementById(screenName + 'Screen');
+  // Show target screen (handle special cases like mpin-setup)
+  let screenId = screenName + 'Screen';
+  if (screenName === 'mpin-setup') screenId = 'mpinSetupScreen';
+  if (screenName === 'mpin-login') screenId = 'mpinLoginScreen';
+  
+  const screen = document.getElementById(screenId);
   if (screen) {
     screen.classList.remove('hidden');
     screen.classList.add('active');
+  } else {
+    console.warn('[showScreen] Screen not found:', screenName, screenId);
   }
   
   // Update navigation active state

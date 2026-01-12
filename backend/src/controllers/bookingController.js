@@ -27,7 +27,10 @@ async function createBooking(req, res) {
       bank_offer_id,
       bank_offer_rule_id,
       reservation_data,
-      pre_order_data
+      pre_order_data,
+      // Direct booking date/time (for events)
+      booking_date,
+      booking_time
     } = req.body;
     const user_id = req.userId;
 
@@ -44,7 +47,10 @@ async function createBooking(req, res) {
       bank_offer_id,
       bank_offer_rule_id,
       reservation_data,
-      pre_order_data
+      pre_order_data,
+      // Direct booking date/time (for events)
+      booking_date,
+      booking_time
     });
 
     successResponse(res, 201, "Booking created successfully", booking);
@@ -74,11 +80,47 @@ async function listBookings(req, res) {
   }
 }
 
+// Update/Reschedule booking
+async function updateBooking(req, res) {
+  try {
+    const { id } = req.params;
+    const { booking_date, booking_time } = req.body;
+    const user_id = req.userId;
+
+    if (!booking_date) {
+      return errorResponse(res, 400, 'Booking date is required');
+    }
+
+    const updatedBooking = await bookingService.rescheduleBooking(id, user_id, {
+      booking_date,
+      booking_time
+    });
+
+    successResponse(res, 200, "Booking rescheduled successfully", updatedBooking);
+  } catch (err) {
+    logError("❌ Booking update/reschedule error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to reschedule booking");
+  }
+}
+
 // Get booking by ID
 async function getBooking(req, res) {
   try {
     const { id } = req.params;
-    const booking = await bookingService.getBookingById(id);
+    let booking = await bookingService.getBookingById(id);
+    
+    // If booking doesn't have QR code but has voucher_code, try to regenerate it
+    if (!booking.qr_code_url && booking.voucher_code) {
+      try {
+        const qrCodeRegenerationService = require('../services/qrCodeRegenerationService');
+        booking = await qrCodeRegenerationService.regenerateQRCode(id);
+        log(`✅ QR code regenerated for booking ${id}`);
+      } catch (regenerateError) {
+        // Log but don't fail - booking can still be returned without QR code
+        logError('⚠️ QR code regeneration failed (non-blocking):', regenerateError);
+      }
+    }
+    
     successResponse(res, 200, "Booking retrieved successfully", booking);
   } catch (err) {
     logError("❌ Get booking error:", err);
@@ -103,6 +145,7 @@ async function confirmPayment(req, res) {
 module.exports = {
   createBooking,
   listBookings,
+  updateBooking,
   getBooking,
   confirmPayment
 };

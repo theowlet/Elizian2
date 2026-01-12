@@ -62,11 +62,17 @@ async function processBookingWithTier(userId, bookingAmount) {
   try {
     await client.query('BEGIN');
     
+    // CRITICAL: Ensure bookingAmount is a proper number (DECIMAL) to avoid PostgreSQL type inference errors
+    const amount = parseFloat(bookingAmount) || 0;
+    if (amount <= 0) {
+      throw new Error(`Invalid booking amount: ${bookingAmount}`);
+    }
+    
     // Calculate EZT reward
-    const reward = await tierRepository.calculateEZTReward(userId, bookingAmount);
+    const reward = await tierRepository.calculateEZTReward(userId, amount);
     
     // Add to annual spend and check for upgrade
-    const spendResult = await tierRepository.addToAnnualSpend(userId, bookingAmount, client);
+    const spendResult = await tierRepository.addToAnnualSpend(userId, amount, client);
     
     await client.query('COMMIT');
     

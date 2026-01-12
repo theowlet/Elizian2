@@ -68,16 +68,35 @@ const OTPScreen = () => {
       console.log('OTP Verification Response:', verifyResult);
 
       if (verifyResult.success) {
-        // If token is returned, user exists and is logged in
-        if (verifyResult.data.token && verifyResult.data.user) {
-          console.log('✅ User exists, saving token and redirecting to home');
-          localStorage.setItem('token', verifyResult.data.token);
-          localStorage.setItem('user', JSON.stringify(verifyResult.data.user));
+        // Check if user has M-PIN
+        if (verifyResult.data?.has_mpin) {
+          console.log('✅ User has M-PIN, redirecting to M-PIN login');
+          sessionStorage.setItem('phoneForMPin', phoneNumber);
           sessionStorage.removeItem('phoneForOTP');
-          navigate('/home');
+          navigate('/mpin-login');
+        }
+        // If token is returned, user exists but no M-PIN - MUST set up M-PIN
+        else if (verifyResult.data?.token && verifyResult.data?.user) {
+          const hasMpin = verifyResult.data?.has_mpin || false;
+          if (!hasMpin) {
+            // User exists but NO M-PIN - force M-PIN setup (mandatory)
+            console.log('✅ User exists (no M-PIN), saving token and redirecting to M-PIN setup');
+            localStorage.setItem('token', verifyResult.data.token);
+            localStorage.setItem('userToken', verifyResult.data.token); // Legacy support
+            localStorage.setItem('userInfo', JSON.stringify(verifyResult.data.user));
+            localStorage.setItem('user', JSON.stringify(verifyResult.data.user));
+            sessionStorage.removeItem('phoneForOTP');
+            navigate('/mpin-setup');
+          } else {
+            // Edge case: token + has_mpin both present - treat as M-PIN login path
+            console.log('✅ User has M-PIN (edge case), redirecting to M-PIN login');
+            sessionStorage.setItem('phoneForMPin', phoneNumber);
+            sessionStorage.removeItem('phoneForOTP');
+            navigate('/mpin-login');
+          }
         } 
-        // If requiresRegistration flag is set, user doesn't exist yet
-        else if (verifyResult.requiresRegistration) {
+        // If requires_registration flag is set, user doesn't exist yet (support both snake_case and camelCase)
+        else if (verifyResult.data?.requires_registration || verifyResult.data?.requiresRegistration || verifyResult.requires_registration || verifyResult.requiresRegistration) {
           console.log('⚠️ User not found, redirecting to signup');
           navigate('/signup', { state: { phone: phoneNumber } });
         } 

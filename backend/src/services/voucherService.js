@@ -187,9 +187,11 @@ async function createVoucherForBooking(bookingId, userId) {
     throw new AppError(400, "Cannot create voucher: booking has no associated partner. Please contact support.");
   }
 
-  // Validate that partner exists and is active
+  // CRITICAL: Validate that partner exists, is active, and is approved
   const partnerCheck = await pool.query(
-    'SELECT id, name, is_active FROM partners WHERE id = $1',
+    `SELECT id, name, is_active, status 
+     FROM partners 
+     WHERE id = $1`,
     [partner_id]
   );
 
@@ -197,8 +199,15 @@ async function createVoucherForBooking(bookingId, userId) {
     throw new AppError(400, `Cannot create voucher: partner (${partner_id}) not found`);
   }
 
-  if (!partnerCheck.rows[0].is_active) {
-    throw new AppError(400, `Cannot create voucher: partner "${partnerCheck.rows[0].name}" is not active`);
+  const partner = partnerCheck.rows[0];
+  
+  if (!partner.is_active) {
+    throw new AppError(400, `Cannot create voucher: partner "${partner.name}" is not active`);
+  }
+  
+  // CRITICAL: Only create vouchers for approved partners
+  if (partner.status && !['active', 'approved'].includes(partner.status)) {
+    throw new AppError(400, `Cannot create voucher: partner "${partner.name}" is not approved`);
   }
 
   logError('✅ Partner validated for voucher:', {
@@ -327,7 +336,7 @@ async function redeemVoucher(code, partnerId) {
        LEFT JOIN events e ON v.event_id = e.id
        LEFT JOIN partner_offers po ON b.deal_id = po.id
        WHERE v.code = $1
-       FOR UPDATE OF v`, // Lock voucher row
+       FOR UPDATE OF v, b`, // Lock vouchers and bookings (non-nullable tables, not the LEFT JOIN side)
       [code]
     );
     

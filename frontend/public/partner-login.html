@@ -384,7 +384,7 @@
     <div class="login-container">
         <div class="logo">
             <div class="logo-icon">
-                <img src="mockups/images/z.png" alt="Z Logo" style="width: 32px; height: 32px; object-fit: contain;">
+                <img src="assets/z.png" alt="Z Logo" style="width: 32px; height: 32px; object-fit: contain;">
             </div>
             <div class="logo-text">EZNet</div>
         </div>
@@ -546,8 +546,18 @@
     </div>
 
     <script>
-        
-        const API_BASE = window.parent.MY_GLOBAL_CONFIG.apiUrl || 'http://localhost:3000';
+        // Safely get API base URL with proper fallback handling
+        let apiBaseUrl = null;
+        try {
+            if (window.parent && window.parent.MY_GLOBAL_CONFIG && window.parent.MY_GLOBAL_CONFIG.apiUrl) {
+                apiBaseUrl = window.parent.MY_GLOBAL_CONFIG.apiUrl;
+            } else if (window.MY_GLOBAL_CONFIG && window.MY_GLOBAL_CONFIG.apiUrl) {
+                apiBaseUrl = window.MY_GLOBAL_CONFIG.apiUrl;
+            }
+        } catch (e) {
+            console.warn('Could not access parent window config:', e);
+        }
+        const API_BASE = apiBaseUrl || 'http://localhost:3000';
 
         // Initialize the page
         document.addEventListener('DOMContentLoaded', function () {
@@ -589,7 +599,7 @@
             } catch (error) {
                 console.error('Error loading categories:', error);
                 console.log('Make sure you are accessing the page via http://localhost:8080/partner-login.html');
-                console.log('Make sure backend is running on http://localhost:5001');
+                console.log('Make sure backend is running on http://localhost:3000');
             }
         }
 

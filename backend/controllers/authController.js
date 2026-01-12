@@ -21,15 +21,26 @@ const verifyOtp = async (req, res, next) => {
       otpCode: req.body.otp_code
     });
 
-    if (result.requiresRegistration) {
+    if (result.requires_registration) {
       return successResponse(res, 200, 'OTP verified successfully. Please complete registration.', {
-        requiresRegistration: true
+        requires_registration: true,
+        has_mpin: false
       });
     }
 
+    // If user has M-PIN, return has_mpin flag instead of token
+    if (result.has_mpin) {
+      return successResponse(res, 200, 'OTP verified. Please enter M-PIN.', {
+        has_mpin: true,
+        user: result.user
+      });
+    }
+
+    // User exists but no M-PIN - return token (existing behavior)
     successResponse(res, 200, 'OTP verified successfully', {
       token: result.token,
-      user: result.user
+      user: result.user,
+      has_mpin: false
     });
   } catch (error) {
     next(error);
@@ -96,6 +107,72 @@ const getProfile = async (req, res, next) => {
   }
 };
 
+// M-PIN endpoints
+const setMpin = async (req, res, next) => {
+  try {
+    const userId = req.userId || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'authentication_required',
+        message: 'Authentication required'
+      });
+    }
+
+    const { mpin } = req.body;
+    const result = await authService.setMpin(userId, mpin);
+    successResponse(res, 200, result.message, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const verifyMpin = async (req, res, next) => {
+  try {
+    const { phone_number, mpin } = req.body;
+    const result = await authService.verifyMpin(phone_number, mpin);
+    
+    // Return token at top level for frontend compatibility
+    res.status(200).json({
+      success: true,
+      message: 'M-PIN verified successfully',
+      token: result.token,
+      user: result.user
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const checkMpinExists = async (req, res, next) => {
+  try {
+    const { phone_number } = req.body;
+    const result = await authService.checkMpinExists(phone_number);
+    successResponse(res, 200, 'M-PIN status retrieved', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+const resetMpin = async (req, res, next) => {
+  try {
+    const userId = req.userId || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'authentication_required',
+        message: 'Authentication required'
+      });
+    }
+
+    const { mpin } = req.body;
+    const result = await authService.resetMpin(userId, mpin);
+    successResponse(res, 200, result.message, result);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   sendOtp,
   verifyOtp,
@@ -103,6 +180,10 @@ module.exports = {
   login,
   forgotPassword,
   resetPassword,
-  getProfile
+  getProfile,
+  setMpin,
+  verifyMpin,
+  checkMpinExists,
+  resetMpin
 };
 

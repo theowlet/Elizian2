@@ -3,7 +3,7 @@
  * Normalizes image paths, provides fallbacks, and handles errors
  */
 
-const API_BASE = window.API_BASE || "http://localhost:5001";
+const API_BASE = window.API_BASE || "http://localhost:3000";
 const DEFAULT_OFFER_IMAGE = '/assets/default-offer.jpg';
 const DEFAULT_EVENT_IMAGE = '/assets/event-default.jpg';
 const DEFAULT_PARTNER_IMAGE = '/assets/default-offer.jpg';
@@ -20,7 +20,7 @@ export function normalizeImageUrl(imageUrl, fallback = DEFAULT_OFFER_IMAGE) {
   }
 
   const trimmed = imageUrl.trim();
-  if (!trimmed) {
+  if (!trimmed || trimmed === '{}' || trimmed === 'null' || trimmed === 'undefined') {
     return fallback;
   }
 

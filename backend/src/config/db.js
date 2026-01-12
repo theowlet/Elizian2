@@ -13,18 +13,18 @@ function createPool() {
 
   const connectionOptions = config.database.url
     ? {
-        connectionString: config.database.url,
-        ssl: false
-        // ssl: config.database.ssl
-      }
+      connectionString: config.database.url,
+      ssl: false
+      // ssl: config.database.ssl
+    }
     : {
-        user: process.env.DB_USER,
-        host: process.env.DB_HOST,
-        database: process.env.DB_NAME,
-        password: process.env.DB_PASSWORD,
-        port: parseInt(process.env.DB_PORT || '5432', 10),
-        ssl: false
-      };
+      user: process.env.DB_USER,
+      host: process.env.DB_HOST,
+      database: process.env.DB_NAME,
+      password: process.env.DB_PASSWORD,
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      ssl: false
+    };
 
   pool = new Pool({
     ...connectionOptions,
@@ -101,7 +101,7 @@ async function initOffersTable() {
       CREATE INDEX IF NOT EXISTS idx_partner_offers_trending ON partner_offers(is_trending);
       CREATE INDEX IF NOT EXISTS idx_partner_offers_service_type ON partner_offers(service_type);
     `);
-    
+
     // Migration: Handle existing applicable_days JSONB column and service_type
     await pool.query(`
       DO $$ 
@@ -165,7 +165,7 @@ async function initOffersTable() {
         END IF;
       END $$;
     `);
-    
+
     log('✅ Offers table initialized');
   } catch (err) {
     logError('Failed to initialize offers table:', err);
@@ -205,6 +205,28 @@ async function initMenuItemsTable() {
   }
 }
 
+// Initialize accounts table
+async function initAccountsTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        public_key VARCHAR(255) NOT NULL,
+        private_key VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      
+      CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
+    `);
+    log('✅ Accounts table initialized');
+  } catch (err) {
+    logError('Failed to initialize accounts table:', err);
+    throw err;
+  }
+}
+
 // Initialize orders table
 async function initOrdersTable() {
   try {
@@ -221,7 +243,7 @@ async function initOrdersTable() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    
+
     // Add user_id column if it doesn't exist
     try {
       await pool.query(`
@@ -239,7 +261,7 @@ async function initOrdersTable() {
       // Column might already exist or table structure is different, ignore
       logError('Note: Could not add user_id column to orders (may already exist):', colErr.message);
     }
-    
+
     // Create indexes (ignore errors if they already exist)
     try {
       await pool.query(`
@@ -248,7 +270,7 @@ async function initOrdersTable() {
     } catch (idxErr) {
       // Index might already exist, ignore
     }
-    
+
     try {
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
@@ -256,7 +278,7 @@ async function initOrdersTable() {
     } catch (idxErr) {
       // Index might fail if user_id column doesn't exist, ignore
     }
-    
+
     try {
       await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_orders_booking_id ON orders(booking_id);
@@ -264,7 +286,7 @@ async function initOrdersTable() {
     } catch (idxErr) {
       // Index might already exist, ignore
     }
-    
+
     log('✅ Orders table initialized');
   } catch (err) {
     logError('Failed to initialize orders table:', err);
@@ -276,11 +298,12 @@ async function initOrdersTable() {
 async function initializeAllTables() {
   const p = getPool();
   pool = p; // Set global pool reference
-  
+
   try {
     await initMissingTables();
     await initOffersTable();
     await initMenuItemsTable();
+    await initAccountsTable();
     await initOrdersTable();
     log('✅ All database tables initialized');
   } catch (err) {
@@ -296,6 +319,7 @@ module.exports = {
   initMissingTables,
   initOffersTable,
   initMenuItemsTable,
+  initAccountsTable,
   initOrdersTable,
   initializeAllTables
 };
