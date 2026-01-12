@@ -10,6 +10,10 @@ export default defineConfig({
   server: {
     port: 8080,
     strictPort: true,
+    allowedHosts: [
+      'elizian.in',
+      'www.elizian.in'
+    ]
   },
   build: {
     outDir: 'dist',
