@@ -174,10 +174,10 @@ const LandingPage = () => {
             trendingExperiences.map(exp => (
               <div key={exp.id} className="elizian-experience-card" onClick={() => navigate(`/home?offer=${exp.id}`)}>
                 <img 
-                  src={exp.image_url || '/assets/event-default.svg'} 
+                  src={exp.image_url || '/assets/event-default.png'} 
                   alt={exp.title || exp.name} 
                   className="elizian-experience-card-image"
-                  onError={(e) => { e.target.src = '/assets/event-default.svg'; }}
+                  onError={(e) => { e.target.src = '/assets/event-default.png'; }}
                 />
                 <div className="elizian-experience-card-content">
                   {exp.is_trending && (

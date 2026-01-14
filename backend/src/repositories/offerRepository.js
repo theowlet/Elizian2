@@ -1,20 +1,20 @@
-const { getPool } = require('../config/db');
-const { normalizeApplicableDays } = require('../utils/dealRules');
-const { log, logError } = require('../../utils/logger');
+const { getPool } = require("../config/db");
+const { normalizeApplicableDays } = require("../utils/dealRules");
+const { log, logError } = require("../../utils/logger");
 
 const pool = getPool();
 
 const STATUS = {
-  DRAFT: 'draft',
-  PENDING: 'pending_approval',
-  ACTIVE: 'active',
-  PAUSED: 'paused',
-  REJECTED: 'rejected',
-  EXPIRED: 'expired'
+  DRAFT: "draft",
+  PENDING: "pending_approval",
+  ACTIVE: "active",
+  PAUSED: "paused",
+  REJECTED: "rejected",
+  EXPIRED: "expired",
 };
 
 function sanitizeStatus(status) {
-  const normalized = (status || '').toLowerCase();
+  const normalized = (status || "").toLowerCase();
   return Object.values(STATUS).includes(normalized) ? normalized : STATUS.DRAFT;
 }
 
@@ -36,15 +36,15 @@ async function getOfferById(offerId, requireApproval = true) {
       AND (po.start_date IS NULL OR po.start_date <= CURRENT_TIMESTAMP)
       AND (po.end_date IS NULL OR po.end_date >= CURRENT_TIMESTAMP)
   `;
-  
+
   const params = [offerId, STATUS.ACTIVE];
-  
+
   // CRITICAL: Only show deals from approved partners to public users
   if (requireApproval) {
     query += ` AND p.is_active = true 
                AND (p.status IS NULL OR p.status IN ('active', 'approved'))`;
   }
-  
+
   const result = await pool.query(query, params);
   return result.rows[0];
 }
@@ -63,26 +63,47 @@ async function listOffersByPartner(partnerId) {
 // Create offer
 async function createOffer(partnerId, offerData) {
   const {
-    title, description, service_type, discount_percentage, discount_amount,
-    original_price, discounted_price, offer_type = 'percentage',
-    terms_conditions, image_url, start_date, end_date,
-    max_redemptions, applicable_days, applicable_categories,
-    min_purchase_amount, promo_code, menu_item_id, applicable_menu_items,
-    discount_applies_to = 'standalone', savings, ezt_equivalent,
+    title,
+    description,
+    service_type,
+    discount_percentage,
+    discount_amount,
+    original_price,
+    discounted_price,
+    offer_type = "percentage",
+    terms_conditions,
+    image_url,
+    start_date,
+    end_date,
+    max_redemptions,
+    applicable_days,
+    applicable_categories,
+    min_purchase_amount,
+    promo_code,
+    menu_item_id,
+    applicable_menu_items,
+    discount_applies_to = "standalone",
+    savings,
+    ezt_equivalent,
     featured_request_pending = false,
     is_trending = false,
     forced_by_admin = false,
-    status = STATUS.DRAFT
+    status = STATUS.DRAFT,
   } = offerData;
 
   const processedApplicableDays = normalizeApplicableDays(applicable_days);
   const finalImageUrl = image_url !== undefined ? image_url : null;
-  const applicableCategoriesJson = applicable_categories ? JSON.stringify(applicable_categories) : null;
-  const applicableMenuItemsArray = Array.isArray(applicable_menu_items) ? applicable_menu_items : null;
+  const applicableCategoriesJson = applicable_categories
+    ? JSON.stringify(applicable_categories)
+    : null;
+  const applicableMenuItemsArray = Array.isArray(applicable_menu_items)
+    ? applicable_menu_items
+    : null;
   const finalStatus = sanitizeStatus(status);
   const finalIsActive = isStatusActive(finalStatus);
-  
-  const result = await pool.query(`
+
+  const result = await pool.query(
+    `
     INSERT INTO partner_offers (
       partner_id, title, description, service_type, discount_percentage, discount_amount,
       original_price, discounted_price, offer_type, terms_conditions,
@@ -94,17 +115,38 @@ async function createOffer(partnerId, offerData) {
     )
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
     RETURNING *
-  `, [
-    partnerId, title, description, service_type, discount_percentage, discount_amount,
-    original_price, discounted_price, offer_type, terms_conditions,
-    finalImageUrl, start_date, end_date, is_trending, max_redemptions,
-    processedApplicableDays,
-    applicableCategoriesJson,
-    min_purchase_amount, promo_code,
-    menu_item_id || null, applicableMenuItemsArray, discount_applies_to,
-    savings, ezt_equivalent, finalIsActive, featured_request_pending,
-    forced_by_admin, finalStatus
-  ]);
+  `,
+    [
+      partnerId,
+      title,
+      description,
+      service_type,
+      discount_percentage,
+      discount_amount,
+      original_price,
+      discounted_price,
+      offer_type,
+      terms_conditions,
+      finalImageUrl,
+      start_date,
+      end_date,
+      is_trending,
+      max_redemptions,
+      processedApplicableDays,
+      applicableCategoriesJson,
+      min_purchase_amount,
+      promo_code,
+      menu_item_id || null,
+      applicableMenuItemsArray,
+      discount_applies_to,
+      savings,
+      ezt_equivalent,
+      finalIsActive,
+      featured_request_pending,
+      forced_by_admin,
+      finalStatus,
+    ]
+  );
 
   return result.rows[0];
 }
@@ -112,13 +154,32 @@ async function createOffer(partnerId, offerData) {
 // Update offer
 async function updateOffer(partnerId, offerId, updates) {
   const allowedFields = [
-    'title', 'description', 'service_type', 'discount_percentage', 'discount_amount',
-    'original_price', 'discounted_price', 'offer_type', 'terms_conditions',
-    'image_url', 'start_date', 'end_date', 'is_trending',
-    'max_redemptions', 'applicable_days', 'applicable_categories',
-    'min_purchase_amount', 'promo_code', 'menu_item_id', 'applicable_menu_items',
-    'discount_applies_to', 'savings', 'ezt_equivalent', 'featured_request_pending',
-    'forced_by_admin', 'status'
+    "title",
+    "description",
+    "service_type",
+    "discount_percentage",
+    "discount_amount",
+    "original_price",
+    "discounted_price",
+    "offer_type",
+    "terms_conditions",
+    "image_url",
+    "start_date",
+    "end_date",
+    "is_trending",
+    "max_redemptions",
+    "applicable_days",
+    "applicable_categories",
+    "min_purchase_amount",
+    "promo_code",
+    "menu_item_id",
+    "applicable_menu_items",
+    "discount_applies_to",
+    "savings",
+    "ezt_equivalent",
+    "featured_request_pending",
+    "forced_by_admin",
+    "status",
   ];
 
   const updateFields = [];
@@ -129,16 +190,16 @@ async function updateOffer(partnerId, offerId, updates) {
   for (const [key, value] of Object.entries(updates)) {
     if (allowedFields.includes(key) && value !== undefined) {
       paramCount++;
-      if (key === 'applicable_categories' && typeof value === 'object') {
+      if (key === "applicable_categories" && typeof value === "object") {
         updateFields.push(`${key} = $${paramCount}`);
         values.push(JSON.stringify(value));
-      } else if (key === 'applicable_menu_items' && Array.isArray(value)) {
+      } else if (key === "applicable_menu_items" && Array.isArray(value)) {
         updateFields.push(`${key} = $${paramCount}`);
         values.push(value);
-      } else if (key === 'applicable_days') {
+      } else if (key === "applicable_days") {
         updateFields.push(`${key} = $${paramCount}`);
         values.push(normalizeApplicableDays(value));
-      } else if (key === 'status') {
+      } else if (key === "status") {
         const normalizedStatus = sanitizeStatus(value);
         nextStatusValue = normalizedStatus;
         updateFields.push(`${key} = $${paramCount}`);
@@ -151,7 +212,7 @@ async function updateOffer(partnerId, offerId, updates) {
   }
 
   if (updateFields.length === 0) {
-    throw new Error('No valid fields to update');
+    throw new Error("No valid fields to update");
   }
 
   if (nextStatusValue !== null) {
@@ -161,8 +222,8 @@ async function updateOffer(partnerId, offerId, updates) {
   }
 
   // Add updated_at (doesn't need a parameter)
-  updateFields.push('updated_at = CURRENT_TIMESTAMP');
-  
+  updateFields.push("updated_at = CURRENT_TIMESTAMP");
+
   // Add WHERE clause parameters
   paramCount++;
   values.push(partnerId);
@@ -171,7 +232,7 @@ async function updateOffer(partnerId, offerId, updates) {
 
   const result = await pool.query(
     `UPDATE partner_offers 
-     SET ${updateFields.join(', ')}
+     SET ${updateFields.join(", ")}
      WHERE partner_id = $${paramCount - 1} AND id = $${paramCount}
      RETURNING *`,
     values
@@ -191,7 +252,7 @@ async function deleteOffer(partnerId, offerId) {
 // Get offer for update (with lock)
 async function getOfferForUpdate(partnerId, offerId) {
   const result = await pool.query(
-    'SELECT * FROM partner_offers WHERE id = $1 AND partner_id = $2 FOR UPDATE',
+    "SELECT * FROM partner_offers WHERE id = $1 AND partner_id = $2 FOR UPDATE",
     [offerId, partnerId]
   );
   return result.rows[0];
@@ -202,7 +263,7 @@ async function getOfferForUpdate(partnerId, offerId) {
 // This ensures atomicity when incrementing redemptions during booking creation
 async function incrementOfferRedemptions(offerId, executor = pool) {
   await executor.query(
-    'UPDATE partner_offers SET current_redemptions = COALESCE(current_redemptions, 0) + 1 WHERE id = $1',
+    "UPDATE partner_offers SET current_redemptions = COALESCE(current_redemptions, 0) + 1 WHERE id = $1",
     [offerId]
   );
 }
@@ -228,19 +289,29 @@ async function checkColumnExists(tableName, columnName) {
     );
     return result.rowCount > 0;
   } catch (error) {
-    logError(`[offerRepository] Failed to check column ${columnName} on ${tableName}`, error);
+    logError(
+      `[offerRepository] Failed to check column ${columnName} on ${tableName}`,
+      error
+    );
     return false;
   }
 }
 
 async function ensureStatusMetadata() {
   if (offerStatusColumnExists === null) {
-    offerStatusColumnExists = await checkColumnExists('partner_offers', 'status');
-    log(`[offerRepository] partner_offers.status column present: ${offerStatusColumnExists}`);
+    offerStatusColumnExists = await checkColumnExists(
+      "partner_offers",
+      "status"
+    );
+    log(
+      `[offerRepository] partner_offers.status column present: ${offerStatusColumnExists}`
+    );
   }
   if (partnerStatusColumnExists === null) {
-    partnerStatusColumnExists = await checkColumnExists('partners', 'status');
-    log(`[offerRepository] partners.status column present: ${partnerStatusColumnExists}`);
+    partnerStatusColumnExists = await checkColumnExists("partners", "status");
+    log(
+      `[offerRepository] partners.status column present: ${partnerStatusColumnExists}`
+    );
   }
 }
 
@@ -262,7 +333,7 @@ async function listPublicOffers(filters = {}) {
     min_rating = null,
     user_latitude = null, // For distance filtering
     user_longitude = null,
-    max_distance_km = null
+    max_distance_km = null,
   } = filters;
 
   const sanitizedLimit = Math.min(
@@ -275,9 +346,11 @@ async function listPublicOffers(filters = {}) {
   let paramIndex = 1;
 
   // Partner must be active
-  conditions.push('p.is_active = true');
+  conditions.push("p.is_active = true");
   if (partnerStatusColumnExists) {
-    conditions.push("(p.status IS NULL OR p.status = ANY(ARRAY['active','approved']))");
+    conditions.push(
+      "(p.status IS NULL OR p.status = ANY(ARRAY['active','approved']::partner_status_enum[]))"
+    );
   }
 
   const shouldEnforceActive = !admin && offerStatusColumnExists;
@@ -287,7 +360,7 @@ async function listPublicOffers(filters = {}) {
     params.push(enforcedStatus);
     paramIndex += 1;
   } else if (!offerStatusColumnExists && !admin) {
-    conditions.push('po.is_active = true');
+    conditions.push("po.is_active = true");
   } else if (!offerStatusColumnExists && status) {
     const expectActive = status === STATUS.ACTIVE;
     conditions.push(`po.is_active = $${paramIndex}`);
@@ -296,11 +369,15 @@ async function listPublicOffers(filters = {}) {
   }
 
   if (not_expired) {
-    conditions.push('(po.end_date IS NULL OR po.end_date >= CURRENT_TIMESTAMP)');
+    conditions.push(
+      "(po.end_date IS NULL OR po.end_date >= CURRENT_TIMESTAMP)"
+    );
   }
 
   if (has_started) {
-    conditions.push('(po.start_date IS NULL OR po.start_date <= CURRENT_TIMESTAMP)');
+    conditions.push(
+      "(po.start_date IS NULL OR po.start_date <= CURRENT_TIMESTAMP)"
+    );
   }
 
   if (service_type) {
@@ -310,23 +387,17 @@ async function listPublicOffers(filters = {}) {
   }
 
   if (trending !== null && trending !== undefined) {
-    // CRITICAL: Only show trending deals that have been approved by admin
-    // featured_request_pending = false means admin has approved (or never requested)
-    // This prevents pending trending requests from being visible to users
-    if (trending === true) {
-      conditions.push(`po.is_trending = $${paramIndex}`);
-      conditions.push(`po.featured_request_pending = false`);
-      params.push(trending);
-      paramIndex += 1;
-    } else {
-      conditions.push(`po.is_trending = $${paramIndex}`);
-      params.push(trending);
-      paramIndex += 1;
-    }
+    conditions.push(`po.is_trending = $${paramIndex}`);
+    params.push(trending);
+    paramIndex += 1;
   }
 
   // Filter by cuisine types (if partner has matching cuisines)
-  if (cuisine_types && Array.isArray(cuisine_types) && cuisine_types.length > 0) {
+  if (
+    cuisine_types &&
+    Array.isArray(cuisine_types) &&
+    cuisine_types.length > 0
+  ) {
     conditions.push(`p.cuisine_types && $${paramIndex}::text[]`);
     params.push(cuisine_types);
     paramIndex += 1;
@@ -334,12 +405,16 @@ async function listPublicOffers(filters = {}) {
 
   // Filter by price range
   if (price_min !== null && price_min !== undefined) {
-    conditions.push(`(po.discounted_price >= $${paramIndex} OR (po.discounted_price IS NULL AND po.original_price >= $${paramIndex}))`);
+    conditions.push(
+      `(po.discounted_price >= $${paramIndex} OR (po.discounted_price IS NULL AND po.original_price >= $${paramIndex}))`
+    );
     params.push(price_min);
     paramIndex += 1;
   }
   if (price_max !== null && price_max !== undefined) {
-    conditions.push(`(po.discounted_price <= $${paramIndex} OR (po.discounted_price IS NULL AND po.original_price <= $${paramIndex}))`);
+    conditions.push(
+      `(po.discounted_price <= $${paramIndex} OR (po.discounted_price IS NULL AND po.original_price <= $${paramIndex}))`
+    );
     params.push(price_max);
     paramIndex += 1;
   }
@@ -352,7 +427,11 @@ async function listPublicOffers(filters = {}) {
   }
 
   // Filter by distance (requires user location)
-  if (user_latitude !== null && user_longitude !== null && max_distance_km !== null) {
+  if (
+    user_latitude !== null &&
+    user_longitude !== null &&
+    max_distance_km !== null
+  ) {
     // Use Haversine formula for distance calculation
     // Distance in km = 6371 * acos(cos(radians(lat1)) * cos(radians(lat2)) * cos(radians(lon2) - radians(lon1)) + sin(radians(lat1)) * sin(radians(lat2)))
     conditions.push(`
@@ -368,7 +447,9 @@ async function listPublicOffers(filters = {}) {
     paramIndex += 3;
   }
 
-  const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const whereClause = conditions.length
+    ? `WHERE ${conditions.join(" AND ")}`
+    : "";
 
   const query = `
     SELECT 
@@ -411,7 +492,7 @@ async function listPublicOffers(filters = {}) {
 
   params.push(sanitizedLimit);
 
-  log('[offerRepository] listPublicOffers query', {
+  log("[offerRepository] listPublicOffers query", {
     admin,
     status,
     not_expired,
@@ -419,13 +500,13 @@ async function listPublicOffers(filters = {}) {
     service_type,
     trending,
     limit: sanitizedLimit,
-    whereClause
+    whereClause,
   });
 
   try {
     const result = await pool.query(query, params);
-    log('[offerRepository] listPublicOffers result', {
-      count: result.rows.length
+    log("[offerRepository] listPublicOffers result", {
+      count: result.rows.length,
     });
 
     return result.rows.map((row) => ({
@@ -437,10 +518,16 @@ async function listPublicOffers(filters = {}) {
       partner_address: row.partner_address,
       title: row.title,
       description: row.description,
-      original_price: row.original_price !== null ? Number(row.original_price) : null,
-      discounted_price: row.discounted_price !== null ? Number(row.discounted_price) : null,
-      discount_percentage: row.discount_percentage !== null ? Number(row.discount_percentage) : null,
-      discount_amount: row.discount_amount !== null ? Number(row.discount_amount) : null,
+      original_price:
+        row.original_price !== null ? Number(row.original_price) : null,
+      discounted_price:
+        row.discounted_price !== null ? Number(row.discounted_price) : null,
+      discount_percentage:
+        row.discount_percentage !== null
+          ? Number(row.discount_percentage)
+          : null,
+      discount_amount:
+        row.discount_amount !== null ? Number(row.discount_amount) : null,
       start_date: row.start_date,
       end_date: row.end_date,
       status: row.status,
@@ -453,14 +540,20 @@ async function listPublicOffers(filters = {}) {
       terms_conditions: row.terms_conditions,
       created_at: row.created_at,
       partner_cuisine_types: row.partner_cuisine_types || [],
-      partner_rating: row.partner_rating !== null ? Number(row.partner_rating) : null,
-      partner_latitude: row.partner_latitude !== null ? Number(row.partner_latitude) : null,
-      partner_longitude: row.partner_longitude !== null ? Number(row.partner_longitude) : null,
-      partner_avg_cost_for_two: row.partner_avg_cost_for_two !== null ? Number(row.partner_avg_cost_for_two) : null
+      partner_rating:
+        row.partner_rating !== null ? Number(row.partner_rating) : null,
+      partner_latitude:
+        row.partner_latitude !== null ? Number(row.partner_latitude) : null,
+      partner_longitude:
+        row.partner_longitude !== null ? Number(row.partner_longitude) : null,
+      partner_avg_cost_for_two:
+        row.partner_avg_cost_for_two !== null
+          ? Number(row.partner_avg_cost_for_two)
+          : null,
     }));
   } catch (error) {
-    logError('[offerRepository] listPublicOffers query failed', {
-      error: error.message
+    logError("[offerRepository] listPublicOffers query failed", {
+      error: error.message,
     });
     throw error;
   }
@@ -474,6 +567,5 @@ module.exports = {
   deleteOffer,
   getOfferForUpdate,
   incrementOfferRedemptions,
-  listPublicOffers
+  listPublicOffers,
 };
-
