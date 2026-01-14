@@ -1,6 +1,7 @@
 const { getPool } = require("../config/db");
 const { normalizeApplicableDays } = require("../utils/dealRules");
 const { log, logError } = require("../../utils/logger");
+const {getS3FileUrl} = require("../../utils/s3Bucket")
 
 const pool = getPool();
 
@@ -536,7 +537,7 @@ async function listPublicOffers(filters = {}) {
       max_redemptions: row.max_redemptions,
       current_redemptions: row.current_redemptions,
       service_type: row.service_type,
-      image_url: row.image_url,
+      image_url: getS3FileUrl(row.image_url),
       terms_conditions: row.terms_conditions,
       created_at: row.created_at,
       partner_cuisine_types: row.partner_cuisine_types || [],

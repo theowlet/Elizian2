@@ -3,7 +3,7 @@ const { PutObjectCommand } = require("@aws-sdk/client-s3");
 
 // Get bucket name from environment
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME;
-
+const region = process.env.AWS_REGION || 'us-east-1';
 // Initialize the S3 Client
 const s3 = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
@@ -41,7 +41,7 @@ const uploadToS3 = async (files) => {
     await s3.send(command);
     
     // Return the public URL based on your AWS region
-    const region = process.env.AWS_REGION || 'us-east-1';
+    
     return `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${fileName}`;
   };
 
@@ -60,8 +60,14 @@ const uploadToS3 = async (files) => {
   }
 };
 
+const getS3FileUrl = (key) => {
+  return `https://${BUCKET_NAME}.s3.${region}.amazonaws.com${key}`;
+};
+
+
 module.exports = {
   s3,
   uploadToS3,
+  getS3FileUrl,
   BUCKET_NAME,
 };
