@@ -95,6 +95,7 @@ async function updatePartnerStatus(partnerId, action, actorUserId, actorRole) {
 // Update partner featured eligibility
 async function updatePartnerFeaturedEligibility(partnerId, approved_for_featured, reason, actorUserId, actorRole) {
   const result = await adminRepository.updatePartnerFeaturedEligibility(partnerId, approved_for_featured);
+  
   if (!result) {
     throw new AppError(404, "Partner not found");
   }

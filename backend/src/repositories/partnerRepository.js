@@ -1,5 +1,5 @@
-const { getPool } = require('../config/db');
-const { extractCity } = require('../utils/queries');
+const { getPool } = require("../config/db");
+const { extractCity } = require("../utils/queries");
 
 const pool = getPool();
 
@@ -19,7 +19,7 @@ async function listPartners({ category = null } = {}) {
     ORDER BY p.name ASC
   `;
   const result = await pool.query(query, [category || null]);
-  
+
   return result.rows.map((r) => ({
     id: r.id,
     name: r.name,
@@ -46,13 +46,16 @@ async function getPartnerById(partnerId, requireApproval = true) {
      LEFT JOIN categories c ON p.category_id = c.id 
      WHERE p.id = $1
   `;
-  
   // Add approval filter for public access
   if (requireApproval) {
-    query += ` AND p.is_active = true 
-               AND (p.status IS NULL OR p.status IN ('active', 'approved'))`;
+    query += `
+    AND p.is_active = true
+    AND p.status IN ('active', 'approved')
+  `;
+    // query += ` AND p.is_active = true
+    //            AND (p.status IS NULL OR p.status IN ('active', 'approved','rejected'))`;
   }
-  
+
   const result = await pool.query(query, [partnerId]);
   return result.rows[0];
 }
@@ -89,10 +92,10 @@ async function createPartner(partnerData) {
     latitude,
     longitude,
     is_active = false,
-    status = 'pending',
+    status = "pending",
     cuisine_types = [],
     dietary_preferences = [],
-    avg_cost_for_two = null
+    avg_cost_for_two = null,
   } = partnerData;
 
   const result = await pool.query(
@@ -111,10 +114,10 @@ async function createPartner(partnerData) {
       latitude,
       longitude,
       is_active,
-      status || 'pending',
+      status || "pending",
       Array.isArray(cuisine_types) ? cuisine_types : [],
       Array.isArray(dietary_preferences) ? dietary_preferences : [],
-      avg_cost_for_two
+      avg_cost_for_two,
     ]
   );
   return result.rows[0];
@@ -123,11 +126,21 @@ async function createPartner(partnerData) {
 // Update partner
 async function updatePartner(partnerId, updates) {
   const allowedFields = [
-    'name', 'description', 'address', 'phone_number', 'email',
-    'partner_discount_percentage', 'rating', 'is_active', 'website_url',
-    'partner_category_type', 'cuisine_types', 'dietary_preferences', 'avg_cost_for_two'
+    "name",
+    "description",
+    "address",
+    "phone_number",
+    "email",
+    "partner_discount_percentage",
+    "rating",
+    "is_active",
+    "website_url",
+    "partner_category_type",
+    "cuisine_types",
+    "dietary_preferences",
+    "avg_cost_for_two",
   ];
-  
+
   const updateFields = [];
   const values = [];
   let paramCount = 0;
@@ -136,11 +149,11 @@ async function updatePartner(partnerId, updates) {
     if (allowedFields.includes(key) && value !== undefined) {
       paramCount++;
       // Handle array fields (cuisine_types, dietary_preferences) specially
-      if (['cuisine_types', 'dietary_preferences'].includes(key)) {
-        const arrVal = Array.isArray(value) ? value : (value ? [value] : []);
+      if (["cuisine_types", "dietary_preferences"].includes(key)) {
+        const arrVal = Array.isArray(value) ? value : value ? [value] : [];
         updateFields.push(`${key} = $${paramCount}::text[]`);
         values.push(arrVal);
-      } else if (key === 'avg_cost_for_two') {
+      } else if (key === "avg_cost_for_two") {
         updateFields.push(`${key} = $${paramCount}::numeric`);
         values.push(value);
       } else {
@@ -151,16 +164,16 @@ async function updatePartner(partnerId, updates) {
   }
 
   if (updateFields.length === 0) {
-    throw new Error('No valid fields to update');
+    throw new Error("No valid fields to update");
   }
 
   paramCount++;
-  updateFields.push('updated_at = CURRENT_TIMESTAMP');
+  updateFields.push("updated_at = CURRENT_TIMESTAMP");
   values.push(partnerId);
 
   const result = await pool.query(
     `UPDATE partners 
-     SET ${updateFields.join(', ')}
+     SET ${updateFields.join(", ")}
      WHERE id = $${paramCount} 
      RETURNING *`,
     values
@@ -239,10 +252,16 @@ async function getPartnerDashboardStats(partnerId) {
   return {
     partner: partnerResult.rows[0],
     menu_items_count: parseInt(menuResult.rows[0].count),
-    total_orders: parseInt(ordersData.total_orders || 0) + parseInt(bookingsData.total_bookings || 0),
-    today_orders: parseInt(ordersData.today_orders || 0) + parseInt(bookingsData.today_bookings || 0),
-    total_revenue: parseFloat(ordersData.total_revenue || 0) + parseFloat(bookingsData.bookings_revenue || 0),
-    recent_orders: recentOrdersResult.rows
+    total_orders:
+      parseInt(ordersData.total_orders || 0) +
+      parseInt(bookingsData.total_bookings || 0),
+    today_orders:
+      parseInt(ordersData.today_orders || 0) +
+      parseInt(bookingsData.today_bookings || 0),
+    total_revenue:
+      parseFloat(ordersData.total_revenue || 0) +
+      parseFloat(bookingsData.bookings_revenue || 0),
+    recent_orders: recentOrdersResult.rows,
   };
 }
 
@@ -319,21 +338,21 @@ async function getPartnerAnalytics(partnerId, daysWindow = 30) {
       avgOrderValue: parseFloat(summary.avg_order_value || 0),
       totalCustomers: summary.total_customers || 0,
       repeatCustomersPercent: repeatRate,
-      completionRatePercent: completionRate
+      completionRatePercent: completionRate,
     },
-    trends: trendsResult.rows.map(row => ({
+    trends: trendsResult.rows.map((row) => ({
       period: row.period,
       bookings: row.bookings,
-      revenue: parseFloat(row.revenue || 0)
+      revenue: parseFloat(row.revenue || 0),
     })),
-    top_offers: topOffersResult.rows.map(row => ({
+    top_offers: topOffersResult.rows.map((row) => ({
       id: row.id,
       title: row.title,
       service_type: row.service_type,
       booking_count: row.booking_count,
-      revenue: parseFloat(row.revenue || 0)
+      revenue: parseFloat(row.revenue || 0),
     })),
-    period: daysWindow.toString()
+    period: daysWindow.toString(),
   };
 }
 
@@ -345,7 +364,10 @@ async function updatePartnerMenuImages(partnerId, menuImages) {
     WHERE id = $2
     RETURNING *
   `;
-  const result = await pool.query(query, [JSON.stringify(menuImages), partnerId]);
+  const result = await pool.query(query, [
+    JSON.stringify(menuImages),
+    partnerId,
+  ]);
   return result.rows[0];
 }
 
@@ -359,13 +381,13 @@ async function getPartnerWithMenuImages(partnerId, requireApproval = true) {
     LEFT JOIN categories c ON p.category_id = c.id
     WHERE p.id = $1
   `;
-  
+
   // Add approval filter for public access - menu should only be visible for approved partners
   if (requireApproval) {
     query += ` AND p.is_active = true 
                AND (p.status IS NULL OR p.status IN ('active', 'approved'))`;
   }
-  
+
   const result = await pool.query(query, [partnerId]);
   return result.rows[0];
 }
@@ -381,5 +403,5 @@ module.exports = {
   getPartnerDashboardStats,
   getPartnerAnalytics,
   updatePartnerMenuImages,
-  getPartnerWithMenuImages
+  getPartnerWithMenuImages,
 };
