@@ -181,7 +181,7 @@ function AppRoutes() {
       <Route
         path="/partner/console"
         element={
-          <ProtectedRoute requireAuth={true} requirePartner = {true}>
+          <ProtectedRoute requireAuth={false} requirePartner = {true}>
             <PartnerDashboardPage />
           </ProtectedRoute>
         }
