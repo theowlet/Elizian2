@@ -91,7 +91,6 @@ async function updatePartnerStatus(partnerId, action, actorUserId, actorRole) {
 
   return partnerResult.data;
 }
-
 // Update partner featured eligibility
 async function updatePartnerFeaturedEligibility(partnerId, approved_for_featured, reason, actorUserId, actorRole) {
   const result = await adminRepository.updatePartnerFeaturedEligibility(partnerId, approved_for_featured);
