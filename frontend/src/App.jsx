@@ -150,7 +150,7 @@ function AppRoutes() {
       <Route
         path="/partner/console"
         element={
-          <ProtectedRoute requireAuth={false}>
+          <ProtectedRoute requireAuth={true} requirePartner = {true}>
             <PartnerDashboardPage />
           </ProtectedRoute>
         }
@@ -173,7 +173,7 @@ function AppRoutes() {
           <ProtectedRoute requireAuth={false}>
             <AdminDashboardPage />
           </ProtectedRoute>
-        }
+        } 
       />
       <Route
         path="/admin/multi-tier"
