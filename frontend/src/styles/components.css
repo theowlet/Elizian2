@@ -1,0 +1,151 @@
+/* Location Selector Styles */
+.location-selector {
+  position: relative;
+  z-index: 100;
+}
+
+.location-selector-button {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 180px;
+  text-align: left;
+  backdrop-filter: blur(10px);
+}
+
+.location-selector-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.location-selector-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.location-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 320px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  z-index: 1001;
+  overflow: hidden;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Loading Spinner Styles */
+.spinner {
+  display: inline-block;
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top-color: #004F4A;
+  animation: spin 1s ease-in-out infinite;
+}
+
+.spinner-sm {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
+.spinner-md {
+  width: 40px;
+  height: 40px;
+  border-width: 3px;
+}
+
+.spinner-lg {
+  width: 60px;
+  height: 60px;
+  border-width: 4px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error Message Styles */
+.error-message {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 16px;
+  color: #dc2626;
+}
+
+.error-message.warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #d97706;
+}
+
+.error-message.info {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.error-message.success {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #059669;
+}
+
+/* Utility Classes */
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.bg-hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.border-color {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.primary-color {
+  color: #004F4A;
+}
+
+.primary-dark {
+  color: #00332e;
+}
+
+.secondary-color {
+  color: #6b7280;
+}
+
+.secondary-dark {
+  color: #4b5563;
+}
+
+.bg-light {
+  background: #f9fafb;
+}

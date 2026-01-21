@@ -1,0 +1,374 @@
+/* ============================================
+   ELIZIAN LANDING PAGE STYLES
+   ============================================ */
+
+.elizian-landing-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg) 40%, #0c1219 100%);
+  color: var(--text);
+  padding-bottom: 2rem;
+}
+
+/* Header */
+.elizian-landing-header {
+  padding: 1rem 2rem;
+  background: rgba(15, 23, 32, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.elizian-landing-header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.elizian-landing-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--brand1);
+}
+
+.elizian-landing-logo-img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.elizian-landing-logo-text {
+  font-family: 'Playfair Display', serif;
+}
+
+.elizian-landing-auth-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.elizian-landing-btn {
+  padding: 0.625rem 1.5rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9375rem;
+}
+
+.elizian-landing-btn-text {
+  background: transparent;
+  color: var(--text);
+}
+
+.elizian-landing-btn-text:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.elizian-landing-btn-primary {
+  background: var(--accent-gradient);
+  color: white;
+}
+
+.elizian-landing-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-glow);
+}
+
+/* Hero Section */
+.elizian-landing-hero {
+  text-align: center;
+  padding: 4rem 2rem 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.elizian-landing-hero-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #e0b56f, #f5e6b2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+
+.elizian-landing-hero-subtitle {
+  font-size: 1.25rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* Search Bar */
+.elizian-landing-search {
+  padding: 0 2rem 2rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.elizian-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.elizian-search-icon {
+  position: absolute;
+  left: 1rem;
+  color: var(--muted);
+  z-index: 1;
+}
+
+.elizian-search-input {
+  width: 100%;
+  padding: 0.875rem 1rem 0.875rem 3rem;
+  background: rgba(15, 23, 32, 0.8);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 1rem;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.2s ease;
+}
+
+.elizian-search-input:focus {
+  outline: none;
+  border-color: var(--brand1);
+  box-shadow: 0 0 0 3px rgba(94, 23, 235, 0.1);
+  background: rgba(15, 23, 32, 0.95);
+}
+
+.elizian-search-input::placeholder {
+  color: var(--muted);
+}
+
+/* Category Filters */
+.elizian-landing-categories {
+  padding: 0 2rem 2rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.elizian-categories-scroll {
+  display: flex;
+  gap: 0.75rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-bottom: 0.5rem;
+}
+
+.elizian-category-chip {
+  padding: 0.625rem 1.25rem;
+  border-radius: 20px;
+  background: rgba(15, 23, 32, 0.8);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9375rem;
+}
+
+.elizian-category-chip:hover {
+  border-color: var(--brand1);
+  color: var(--text);
+}
+
+.elizian-category-chip.active {
+  background: var(--accent-gradient);
+  color: white;
+  border-color: transparent;
+  box-shadow: var(--shadow-glow);
+}
+
+/* Content Section */
+.elizian-landing-content {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.elizian-landing-section-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+/* Experiences Grid */
+.elizian-experiences-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.elizian-experience-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-card);
+}
+
+.elizian-experience-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow), var(--shadow-glow);
+  border-color: var(--brand1);
+}
+
+.elizian-experience-card-image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  display: block;
+}
+
+.elizian-experience-card-content {
+  padding: 1.25rem;
+}
+
+.elizian-trending-badge {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: #1f2937;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  display: inline-block;
+  letter-spacing: 0.05em;
+}
+
+.elizian-experience-card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+}
+
+.elizian-experience-card-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+
+.elizian-experience-card-price {
+  color: var(--success);
+  font-weight: 600;
+  font-size: 1.125rem;
+}
+
+.elizian-experience-placeholder {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 3rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.elizian-placeholder-text {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.elizian-loading {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 3rem;
+  color: var(--muted);
+}
+
+.elizian-spinner {
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top: 3px solid var(--brand1);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ============================================
+   RESPONSIVE - MOBILE (max-width: 768px)
+   ============================================ */
+
+@media (max-width: 768px) {
+  .elizian-landing-header {
+    padding: 1rem;
+  }
+
+  .elizian-landing-header-content {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .elizian-landing-hero {
+    padding: 2rem 1rem 1rem;
+  }
+
+  .elizian-landing-hero-title {
+    font-size: 2rem;
+  }
+
+  .elizian-landing-hero-subtitle {
+    font-size: 1rem;
+  }
+
+  .elizian-landing-search {
+    padding: 0 1rem 1.5rem;
+  }
+
+  .elizian-landing-categories {
+    padding: 0 1rem 1.5rem;
+  }
+
+  .elizian-landing-content {
+    padding: 1.5rem 1rem;
+  }
+
+  .elizian-landing-section-title {
+    font-size: 1.5rem;
+  }
+
+  .elizian-experiences-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .elizian-landing-auth-buttons {
+    gap: 0.5rem;
+  }
+
+  .elizian-landing-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+}
+
+
+

@@ -1,0 +1,85 @@
+/* ============================================
+   ELIZIAN HOME PAGE STYLES
+   ============================================ */
+
+.elizian-home-page {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  padding: 2rem;
+}
+
+.elizian-content-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow-card);
+}
+
+.elizian-home-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.elizian-home-subtitle {
+  font-size: 1.125rem;
+  color: var(--muted);
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+.elizian-btn-primary {
+  padding: 0.875rem 1.5rem;
+  background: var(--accent-gradient);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-glow);
+  font-family: 'Inter', sans-serif;
+}
+
+.elizian-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 40px rgba(94, 23, 235, 0.4), var(--shadow-glow);
+}
+
+.elizian-btn-primary:active {
+  transform: translateY(0);
+}
+
+/* ============================================
+   RESPONSIVE - MOBILE (max-width: 768px)
+   ============================================ */
+
+@media (max-width: 768px) {
+  .elizian-home-page {
+    padding: 1rem;
+  }
+
+  .elizian-content-wrapper {
+    padding: 1.5rem;
+  }
+
+  .elizian-home-title {
+    font-size: 2rem;
+  }
+
+  .elizian-home-subtitle {
+    font-size: 1rem;
+  }
+}
+
+
+

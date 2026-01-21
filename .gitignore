@@ -1,0 +1,84 @@
+# Environment
+*.env
+.env
+
+# Logs
+*.log
+
+# Node modules
+backend/node_modules/
+frontend/node_modules/
+
+# Upload folders
+backend/uploads/
+frontend/uploads/
+
+# Build artifacts
+dist/
+build/
+
+# OS files
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+
+# Unnecessary project files
+railway.json
+vercel.json
+
+
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+.env.bak
+
+# Log files
+*.log
+*.out
+server.out
+server.log
+otp.log
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+/ios
+/android
+.vercel
+
+# Uploaded files (user-generated content)
+frontend/public/uploads/
