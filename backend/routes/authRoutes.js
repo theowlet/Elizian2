@@ -45,11 +45,5 @@ router.post('/reset-password', authController.resetPassword);
 // User profile endpoint (requires authentication)
 router.get('/user/profile', authenticateToken, authController.getProfile);
 
-// M-PIN endpoints
-router.post('/set-mpin', authenticateToken, authController.setMpin);
-router.post('/verify-mpin', authController.verifyMpin);
-router.post('/check-mpin', authController.checkMpinExists);
-router.post('/reset-mpin', authenticateToken, authController.resetMpin);
-
 module.exports = router;
 

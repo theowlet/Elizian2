@@ -613,14 +613,12 @@ async function getBookingDetails(bookingId) {
     const booking = result.rows[0];
     
     // Get tier information if it exists
-    // Use user_tier_at_booking (actual column name) instead of tier_achieved_at_booking
-    const tierName = booking.user_tier_at_booking || booking.current_tier_name;
-    if (tierName) {
+    if (booking.tier_achieved_at_booking) {
       const tierQuery = `
-        SELECT * FROM loyalty_tiers 
-        WHERE tier_name = $1
+        SELECT * FROM tier_benefits 
+        WHERE tier = $1
       `;
-      const tierResult = await pool.query(tierQuery, [tierName]);
+      const tierResult = await pool.query(tierQuery, [booking.tier_achieved_at_booking]);
       booking.tier_info = tierResult.rows[0] || null;
     }
     
@@ -647,9 +645,9 @@ async function updateBookingStatus(bookingId, status, reason, actorId, actorRole
   try {
     await client.query('BEGIN');
     
-    // Get current booking (including voucher_state and voucher_code)
+    // Get current booking
     const bookingResult = await client.query(
-      'SELECT *, voucher_state, voucher_code FROM bookings WHERE id = $1 FOR UPDATE',
+      'SELECT * FROM bookings WHERE id = $1 FOR UPDATE',
       [bookingId]
     );
     
@@ -674,43 +672,6 @@ async function updateBookingStatus(bookingId, status, reason, actorId, actorRole
        RETURNING *`,
       [status, bookingId]
     );
-    
-    // Sync voucher_state with booking status (if voucher_code exists)
-    if (currentBooking.voucher_code) {
-      try {
-        const voucherStateMachine = require('./voucherStateMachine');
-        const currentVoucherState = currentBooking.voucher_state || 'created';
-        
-        // Map booking status to voucher_state transitions
-        let newVoucherState = null;
-        if (status === 'confirmed' && currentVoucherState === 'booked') {
-          newVoucherState = 'active';
-        } else if (status === 'cancelled' && ['booked', 'active', 'created'].includes(currentVoucherState)) {
-          newVoucherState = 'cancelled';
-        } else if (status === 'pending' && currentVoucherState === 'created') {
-          newVoucherState = 'booked';
-        }
-        
-        // Transition voucher state if needed
-        if (newVoucherState && voucherStateMachine.isValidTransition(currentVoucherState, newVoucherState)) {
-          await voucherStateMachine.transitionState({
-            bookingId: bookingId,
-            voucherCode: currentBooking.voucher_code,
-            fromState: currentVoucherState,
-            toState: newVoucherState,
-            actorId: actorId,
-            actorRole: actorRole,
-            reasonCode: 'booking_status_update',
-            reasonText: `Booking status changed from '${previousStatus}' to '${status}'`,
-            executor: client
-          });
-          log(`✅ Voucher state synced: ${currentVoucherState} → ${newVoucherState} (Booking: ${bookingId})`);
-        }
-      } catch (stateError) {
-        // Log but don't fail booking status update
-        logError('⚠️ Voucher state sync error (non-blocking):', stateError);
-      }
-    }
     
     // Log audit
     await writeAudit(client, {

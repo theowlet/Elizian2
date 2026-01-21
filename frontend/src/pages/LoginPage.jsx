@@ -1,54 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../styles/auth.css';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
-
-  // Check for pending booking after successful login
-  useEffect(() => {
-    const checkPendingBooking = () => {
-      const pendingBooking = sessionStorage.getItem('pendingBooking');
-      if (pendingBooking) {
-        try {
-          const bookingData = JSON.parse(pendingBooking);
-          console.log('📋 Resuming booking after login:', bookingData);
-          // Navigate to booking page with deal info
-          navigate('/events/booking', {
-            state: {
-              dealId: bookingData.dealId,
-              serviceType: bookingData.serviceType,
-              partnerId: bookingData.partnerId
-            }
-          });
-          // Clear pending booking
-          sessionStorage.removeItem('pendingBooking');
-        } catch (err) {
-          console.error('Error parsing pending booking:', err);
-        }
-      } else if (location.state?.bookingDealId) {
-        // Alternative: booking info passed via navigation state
-        navigate('/events/booking', {
-          state: {
-            dealId: location.state.bookingDealId
-          }
-        });
-      }
-    };
-
-    // Check if user is already logged in (token exists)
-    const token = localStorage.getItem('token');
-    if (token) {
-      // User is already logged in, check for pending booking
-      checkPendingBooking();
-    }
-  }, [navigate, location]);
 
   const handlePhoneInput = (e) => {
     const value = e.target.value.replace(/\D/g, '').slice(0, 10);
@@ -71,27 +31,8 @@ const LoginPage = () => {
     setError('');
 
     try {
-      // First, check if user has M-PIN
-      console.log('🔄 Checking M-PIN status...');
-      const checkResponse = await fetch(`${API_BASE}/api/v1/auth/check-mpin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone_number: phoneNumber })
-      });
-
-      const checkResult = await checkResponse.json();
-      console.log('📥 M-PIN check result:', checkResult);
-
-      // If user has M-PIN, redirect to M-PIN login
-      if (checkResult.success && checkResult.data?.has_mpin) {
-        console.log('✅ User has M-PIN, redirecting to M-PIN login');
-        sessionStorage.setItem('phoneForMPin', phoneNumber);
-        navigate('/mpin-login');
-        return;
-      }
-
-      // User doesn't have M-PIN - proceed with OTP flow
-      console.log('🔄 User has no M-PIN, sending OTP...');
+      console.log('🔄 Sending OTP request to:', `${API_BASE}/api/v1/auth/send-otp`);
+      
       const response = await fetch(`${API_BASE}/api/v1/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

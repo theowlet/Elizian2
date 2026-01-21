@@ -89,9 +89,7 @@
   </div>
 
   <script>
-   const apiUrl = (window.parent && window.parent.MY_GLOBAL_CONFIG && window.parent.MY_GLOBAL_CONFIG.apiUrl) 
-            || (window.MY_GLOBAL_CONFIG && window.MY_GLOBAL_CONFIG.apiUrl)
-            || null;
+   const apiUrl = window.parent.MY_GLOBAL_CONFIG.apiUrl;
     const API_BASE = apiUrl || 'http://localhost:3000';
     let otpVerified = false;
     let verifiedPhone = null;
@@ -230,15 +228,8 @@
         if(!data.success){ err.textContent = data.error || 'Login failed'; return; }
         localStorage.setItem('token', data.token);
         localStorage.setItem('userInfo', JSON.stringify(data.user || {}));
-        // Redirect to React Router admin route (works with Vite)
-        // If accessed directly, use admin.html; if via React Router, use /admin
-        if (window.top === window.self) {
-          // Direct access - redirect to React Router route
-          window.location.href = `/admin`;
-        } else {
-          // Iframe access - redirect parent to React Router route
-          window.top.location.href = `/admin`;
-        }
+        // window.location.href = '/admin.html';
+        window.top.location.href = `/admin`;
       }catch(e){ err.textContent = e.message || 'Network error'; }
     }
 

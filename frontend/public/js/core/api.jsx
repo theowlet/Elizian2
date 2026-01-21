@@ -5,10 +5,9 @@
  * @version 1.0.0
  */
 
-// IMPORTANT: Use explicit .jsx extensions so the browser loads correct module URLs
-import { CONFIG } from './config.jsx';
-import { getAuthToken, logout } from './auth.jsx';
-import { showNotification } from '../ui/notifications.jsx';
+import { CONFIG } from './config';
+import { getAuthToken, logout } from './auth';
+import { showNotification } from '../ui/notifications';
 
 // ==========================================
 // API CLIENT

@@ -13,9 +13,6 @@ router.get('/', authenticateToken, bookingController.listBookings);
 // Get booking by ID
 router.get('/:id', authenticateToken, bookingController.getBooking);
 
-// Update/Reschedule booking
-router.put('/:id', authenticateToken, bookingController.updateBooking);
-
 // Confirm payment
 router.put('/:bookingId/confirm-payment', authenticateToken, bookingController.confirmPayment);
 

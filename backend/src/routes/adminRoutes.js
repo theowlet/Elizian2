@@ -4,8 +4,6 @@ const requireSuperAdmin = require('../middleware/requireSuperAdmin');
 const adminController = require('../controllers/adminController');
 const adminService = require('../services/adminService');
 const rewardsController = require('../controllers/rewardsController');
-const adminRedemptionController = require('../controllers/adminRedemptionController');
-const { adminOverrideRateLimiter } = require('../middleware/rateLimiter');
 const { getUserRoleById } = require('../utils/queries');
 
 const router = express.Router();
@@ -149,16 +147,6 @@ router.get('/bookings/stats', adminController.getBookingStats);
 router.get('/bookings/:id', adminController.getBookingDetails);
 router.put('/bookings/:id/status', adminController.updateBookingStatus);
 router.post('/bookings/:id/refund', adminController.processRefund);
-
-// Redemption & Settlement Management (Enterprise Features)
-router.put('/redemptions/:redemptionId/settlement', adminOverrideRateLimiter, adminRedemptionController.updateSettlementStatus);
-router.post('/redemptions/:redemptionId/freeze', adminOverrideRateLimiter, adminRedemptionController.freezeSettlement);
-router.post('/redemptions/:redemptionId/dispute', adminOverrideRateLimiter, adminRedemptionController.raiseDispute);
-router.get('/redemptions', adminRedemptionController.listRedemptions);
-router.get('/vouchers/:voucherCode/audit', adminRedemptionController.getVoucherAuditTrail);
-router.get('/bookings/:bookingId/audit', adminRedemptionController.getBookingAuditTrail);
-router.get('/bookings/:bookingId/state-history', adminRedemptionController.getStateHistory);
-router.get('/redemptions/:redemptionId/overrides', adminRedemptionController.getAdminOverrides);
 
 module.exports = router;
 

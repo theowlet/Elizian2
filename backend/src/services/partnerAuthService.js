@@ -1,7 +1,7 @@
 const partnerRepository = require('../repositories/partnerRepository');
 const partnerAuthRepository = require('../repositories/partnerAuthRepository');
 const partnerOtpRepository = require('../repositories/partnerOtpRepository');
-const { sendPasswordRecoveryEmail } = require('../../emailService');
+const { sendPasswordRecoveryEmail } = require('../../../emailService');
 const { AppError } = require('../../utils/response');
 const { logError, log } = require('../../utils/logger');
 
@@ -35,11 +35,6 @@ async function forgotPassword(email) {
 
   // Send email
   const emailResult = await sendPasswordRecoveryEmail(partner.email, otp, partner.name);
-  
-  // Log OTP in development mode (always log for testing)
-  if (process.env.NODE_ENV === 'development' || process.env.LOG_OTP === 'true') {
-    log(`🔐 [DEV] Partner Password Recovery OTP for ${partner.email}: ${otp} (expires in 15 minutes)`);
-  }
   
   if (emailResult.success) {
     log(`✅ Password recovery email sent to ${partner.email}`);
@@ -107,11 +102,6 @@ async function resendOtp(email) {
   await partnerOtpRepository.createOtp(partner.id, otp, 'password_recovery', otpExpiry);
 
   const emailResult = await sendPasswordRecoveryEmail(partner.email, otp, partner.name);
-  
-  // Log OTP in development mode (always log for testing)
-  if (process.env.NODE_ENV === 'development' || process.env.LOG_OTP === 'true') {
-    log(`🔐 [DEV] Partner Password Recovery OTP (Resend) for ${partner.email}: ${otp} (expires in 15 minutes)`);
-  }
   
   if (emailResult.success) {
     log(`✅ Password recovery email resent to ${partner.email}`);

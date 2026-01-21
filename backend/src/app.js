@@ -19,13 +19,7 @@ const app = express();
 // CORS Configuration
 const corsOptions = {
   origin: config.isProduction
-    ? (process.env.CORS_ALLOWED_ORIGINS 
-        ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(o => o.trim())
-        : [
-            process.env.FRONTEND_URL || 'http://localhost:8080',
-            'http://localhost:8080',
-            'http://127.0.0.1:8080'
-          ])
+    ? (process.env.FRONTEND_URL || 'http://localhost:8080')
     : config.cors.allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   credentials: true,
@@ -200,10 +194,6 @@ app.use('/api/v1/account', accountRoutes);
 // Import and mount booking routes
 const bookingRoutes = require('./routes/bookingRoutes');
 app.use('/api/v1/bookings', bookingRoutes);
-
-// Import and mount redemption routes (voucher redemption system)
-const redemptionRoutes = require('./routes/redemptionRoutes');
-app.use('/api/v1/redemptions', redemptionRoutes);
 
 // Import and mount voucher routes
 const voucherRoutes = require('./routes/voucherRoutes');

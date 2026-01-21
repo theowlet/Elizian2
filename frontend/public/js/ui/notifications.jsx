@@ -5,7 +5,7 @@
  * @version 1.0.0
  */
 
-import { CONFIG } from '../core/config.jsx';
+import { CONFIG } from '../core/config';
 
 // ==========================================
 // NOTIFICATION TYPES

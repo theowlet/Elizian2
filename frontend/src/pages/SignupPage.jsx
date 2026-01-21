@@ -1,23 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import PasswordVisibilityToggle from '../components/PasswordVisibilityToggle';
 import '../styles/auth.css';
-import '../styles/password-toggle.css';
 
 const SignupPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const phoneFromOTP = location.state?.phone || '';
-  
-  // Check if OTP was already verified (from login screen)
-  // Backend marks OTP as verified in otp_sessions table, so we trust that
-  // BUT: OTP can expire (30 min timeout), so we need to handle expiration
-  const [isOtpPreVerified, setIsOtpPreVerified] = useState(!!phoneFromOTP); // If phone is passed via location.state, OTP was verified
-  const [otpExpired, setOtpExpired] = useState(false); // Track if OTP expired after pre-verification
-  
-  // Store OTP verification timestamp to detect expiration client-side (optional optimization)
-  // Note: Backend is source of truth, but we can show warning if user takes too long
-  const [otpVerifiedAt, setOtpVerifiedAt] = useState(isOtpPreVerified ? Date.now() : null);
   
   const [formData, setFormData] = useState({
     phone_number: phoneFromOTP,
@@ -28,8 +16,7 @@ const SignupPage = () => {
   });
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [otpSent, setOtpSent] = useState(false);
-  // If OTP was pre-verified, mark as verified immediately
-  const [otpVerified, setOtpVerified] = useState(isOtpPreVerified);
+  const [otpVerified, setOtpVerified] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -74,12 +61,6 @@ const SignupPage = () => {
 
   const handleSendOTP = async (e) => {
     e.preventDefault();
-
-    // CRITICAL: If OTP was already verified on login screen, skip redundant OTP
-    if (isOtpPreVerified && otpVerified) {
-      setError('OTP has already been verified. Please complete your profile.');
-      return;
-    }
 
     if (!formData.first_name || !formData.phone_number) {
       setError('Name and phone number are required');
@@ -143,9 +124,6 @@ const SignupPage = () => {
 
       if (result.success) {
         setOtpVerified(true);
-        setOtpVerifiedAt(Date.now()); // Store verification timestamp
-        setOtpExpired(false); // Clear expired flag if OTP was re-verified
-        setIsOtpPreVerified(false); // After re-verification, treat as on-screen verification
         setError('');
       } else {
         setError(result.error || 'Invalid OTP');
@@ -189,13 +167,8 @@ const SignupPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // CRITICAL: If OTP expired, user MUST re-verify before submitting
     if (!otpVerified) {
-      if (otpExpired) {
-        setError('OTP verification expired. Please verify OTP again before submitting.');
-      } else {
-        setError('Please verify OTP first');
-      }
+      setError('Please verify OTP first');
       return;
     }
 
@@ -218,106 +191,32 @@ const SignupPage = () => {
     setError('');
 
     try {
-      // Build registration payload
-      const registrationPayload = {
-        phone_number: formData.phone_number,
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email || null,
-        password: formData.password || null,
-        role: 'user'
-      };
-
-      // CRITICAL FIX: NEVER send otp_code during registration
-      // OTP was already verified (pre-verified or on-screen) - backend trusts verified session
-      // Registration must consume that trust, not re-validate OTP
-      // Backend checks otp_sessions table for verified OTP (60-min timeout)
-      // Do NOT add otp_code to payload - this causes redundant verification and 403/500 errors
-      
-      // Verify OTP was checked before allowing registration
-      if (!otpVerified) {
-        setError('OTP verification required. Please verify your phone number first.');
-        setLoading(false);
-        return;
-      }
-      
-      console.log('[Registration] OTP already verified - trusting verified session (no otp_code sent)');
-
+      // Use the verified OTP code for registration
       const response = await fetch(`${API_BASE}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(registrationPayload)
+        body: JSON.stringify({
+          phone_number: formData.phone_number,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          email: formData.email || null,
+          password: formData.password || null,
+          otp_code: otp.join(''),
+          role: 'user'
+        })
       });
 
       const result = await response.json();
 
-      // Debug logging
-      console.log('[Registration] Response status:', response.status);
-      console.log('[Registration] Response data:', result);
-
-      // CRITICAL: Handle OTP expiration (403 Forbidden)
-      if (response.status === 403 && (result.error?.includes('OTP verification expired') || result.error?.includes('expired'))) {
-        // OTP session expired - reset pre-verified state and allow re-verification
-        setError('OTP verification expired. Please verify again.');
-        setOtpVerified(false);
-        setOtpSent(false);
-        setOtp(['', '', '', '', '', '']);
-        setOtpExpired(true); // Mark that OTP expired
-        setIsOtpPreVerified(false); // Clear pre-verified flag so we send otp_code on next submit
-        setOtpVerifiedAt(null); // Clear timestamp
-        // User must re-verify OTP before submitting again
-        return;
-      }
-
-      // Handle non-200 status codes
-      if (!response.ok) {
-        const errorMsg = result.error || result.message || `Registration failed with status ${response.status}`;
-        console.error('[Registration] Error:', errorMsg);
-        setError(errorMsg);
-        setLoading(false);
-        return;
-      }
-
-      // Backend returns token in result.data.token (via successResponse)
-      const token = result.data?.token || result.token;
-      const user = result.data?.user || result.user;
-
-      console.log('[Registration] Extracted token:', token ? 'Present' : 'Missing');
-      console.log('[Registration] Extracted user:', user ? 'Present' : 'Missing');
-      console.log('[Registration] Result success:', result.success);
-
-      if (result.success && token) {
-        console.log('[Registration] ✅ Success - storing token and redirecting to M-PIN setup');
-        localStorage.setItem('token', token);
-        localStorage.setItem('userToken', token); // Legacy support
-        localStorage.setItem('userInfo', JSON.stringify(user));
-        localStorage.setItem('user', JSON.stringify(user));
-        // Clear loading state before navigation
-        setLoading(false);
-        // Redirect to M-PIN setup (mandatory for new users)
-        // Use setTimeout to ensure state updates complete before navigation
-        setTimeout(() => {
-          console.log('[Registration] Navigating to /mpin-setup');
-          navigate('/mpin-setup', { replace: true });
-        }, 100);
+      if (result.success && result.token) {
+        localStorage.setItem('token', result.token);
+        localStorage.setItem('user', JSON.stringify(result.user));
+        navigate('/home');
       } else {
-        const errorMsg = result.error || result.message || 'Registration failed - missing token or success flag';
-        console.error('[Registration] ❌ Failed:', errorMsg);
-        console.error('[Registration] Full result:', result);
-        console.error('[Registration] Response status:', response.status);
-        setError(errorMsg);
-        setLoading(false);
+        setError(result.error || 'Registration failed');
       }
     } catch (err) {
-      // Handle network errors or other exceptions
-      if (err.message?.includes('expired') || err.message?.includes('OTP')) {
-        setError('OTP verification expired. Please verify again.');
-        setOtpVerified(false);
-        setOtpSent(false);
-        setOtp(['', '', '', '', '', '']);
-      } else {
-        setError('Network error. Please try again.');
-      }
+      setError('Network error. Please try again.');
       console.error('Signup error:', err);
     } finally {
       setLoading(false);
@@ -372,15 +271,14 @@ const SignupPage = () => {
                     handleChange({ ...e, target: { ...e.target, value, name: 'phone_number' } });
                   }}
                   maxLength={10}
-                  disabled={(otpSent && !otpVerified) || (isOtpPreVerified && otpVerified && !error?.includes('expired'))}
-                  readOnly={isOtpPreVerified && otpVerified && !error?.includes('expired')}
+                  disabled={otpSent && !otpVerified}
                   required
                 />
               </div>
             </div>
 
-            {/* OTP Input Section - Shown after OTP is sent, OR if OTP expired */}
-            {((otpSent && !otpVerified && !isOtpPreVerified) || (error?.includes('expired') && isOtpPreVerified)) && (
+            {/* OTP Input Section - Shown after OTP is sent */}
+            {otpSent && !otpVerified && (
               <div className="elizian-auth-form-group">
                 <label className="elizian-auth-label">Enter OTP</label>
                 <p style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>
@@ -422,38 +320,6 @@ const SignupPage = () => {
               </div>
             )}
 
-            {/* Show message if OTP was pre-verified */}
-            {isOtpPreVerified && otpVerified && !error?.includes('expired') && (
-              <div className="elizian-auth-form-group" style={{ marginBottom: '16px' }}>
-                <div style={{ 
-                  padding: '12px', 
-                  backgroundColor: '#d1fae5', 
-                  border: '1px solid #059669',
-                  borderRadius: '8px',
-                  color: '#065f46',
-                  fontSize: '14px'
-                }}>
-                  ✅ Phone number verified. Please complete your profile.
-                </div>
-              </div>
-            )}
-            
-            {/* Show warning if OTP might be expired (client-side check, backend is source of truth) */}
-            {isOtpPreVerified && otpVerifiedAt && (Date.now() - otpVerifiedAt > 25 * 60 * 1000) && (
-              <div className="elizian-auth-form-group" style={{ marginBottom: '16px' }}>
-                <div style={{ 
-                  padding: '12px', 
-                  backgroundColor: '#fef3c7', 
-                  border: '1px solid #f59e0b',
-                  borderRadius: '8px',
-                  color: '#92400e',
-                  fontSize: '14px'
-                }}>
-                  ⚠️ OTP verification may expire soon. Please complete registration quickly.
-                </div>
-              </div>
-            )}
-
             {/* Additional fields shown after OTP verification */}
             {otpVerified && (
               <>
@@ -483,12 +349,13 @@ const SignupPage = () => {
 
                 <div className="elizian-auth-form-group">
                   <label className="elizian-auth-label">Password (Optional)</label>
-                  <PasswordVisibilityToggle
-                    id="password"
-                    value={formData.password || ''}
-                    onChange={(e) => handleChange({ target: { name: 'password', value: e.target.value } })}
+                  <input 
+                    type="password" 
+                    name="password"
+                    className="elizian-auth-input" 
                     placeholder="Create a password (min 8 characters)"
-                    error={formData.password && formData.password.length > 0 && formData.password.length < 8 ? 'Password must be at least 8 characters' : null}
+                    value={formData.password}
+                    onChange={handleChange}
                   />
                 </div>
 
@@ -510,17 +377,15 @@ const SignupPage = () => {
             <button 
               type="submit" 
               className="elizian-auth-submit-btn" 
-              disabled={loading || (otpSent && !otpVerified && !isOtpPreVerified && otp.join('').length !== 6)}
+              disabled={loading || (otpSent && !otpVerified && otp.join('').length !== 6)}
             >
               {loading 
-                ? (otpSent && !otpVerified && !isOtpPreVerified ? 'Verifying...' : 'Creating Account...')
-                : isOtpPreVerified && otpVerified
-                  ? 'Sign Up'
-                  : otpSent && !otpVerified && !isOtpPreVerified
-                    ? 'Verify OTP'
-                    : otpVerified
-                      ? 'Sign Up'
-                      : 'Send OTP'
+                ? (otpSent && !otpVerified ? 'Verifying...' : 'Creating Account...')
+                : otpSent && !otpVerified 
+                  ? 'Verify OTP'
+                  : otpVerified
+                    ? 'Sign Up'
+                    : 'Send OTP'
               }
             </button>
           </form>

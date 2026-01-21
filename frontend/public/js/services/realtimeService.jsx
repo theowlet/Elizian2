@@ -169,28 +169,10 @@
 
     try {
       const io = await loadSocketIO();
-      
-      // Determine server URL - use CONFIG.API_BASE_URL if available, otherwise fallback
-      let url = serverUrl;
-      if (!url) {
-        if (CONFIG?.API_BASE_URL) {
-          // Extract base URL from API_BASE_URL (remove /api/v1)
-          url = CONFIG.API_BASE_URL.replace("/api/v1", "").replace("/api", "");
-        } else if (CONFIG?.API_BASE) {
-          url = CONFIG.API_BASE.replace("/api/v1", "").replace("/api", "");
-        } else {
-          // Fallback to backend default port (3000)
-          // Check if we're in development or production
-          const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-          url = isDev ? "http://localhost:3000" : window.location.origin;
-        }
-      }
-      
-      // Ensure URL doesn't have trailing slash and uses correct protocol
-      url = url.replace(/\/$/, '');
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = `http://${url}`;
-      }
+      const url =
+        serverUrl ||
+        CONFIG.API_BASE?.replace("/api/v1", "") ||
+        "http://localhost:3000";
 
       // 1. Cleanup existing socket if it exists to prevent multiple instances
       if (socket) {
@@ -202,9 +184,6 @@
         transports: ["websocket", "polling"],
         reconnection: true,
         reconnectionAttempts: maxReconnectAttempts,
-        reconnectionDelay: 2000,
-        reconnectionDelayMax: 5000,
-        timeout: 10000, // 10 second connection timeout
         // 2. Add Authentication
         auth: {
           token: localStorage.getItem("token"), // Or your auth logic
@@ -216,10 +195,8 @@
 
       return true;
     } catch (error) {
-      // Silently handle initialization errors - WebSocket is optional
-      if (FEATURES.REALTIME_FALLBACK) {
-        startPollingFallback();
-      }
+      console.error("❌ WebSocket Initialization Failed:", error);
+      if (FEATURES.REALTIME_FALLBACK) startPollingFallback();
       return false;
     }
   }
@@ -229,7 +206,6 @@
 
     socket.on("connect", () => {
       isConnected = true;
-      reconnectAttempts = 0;
       console.log("✅ WebSocket connected");
 
       // Re-join rooms using a Set to ensure uniqueness
@@ -243,32 +219,6 @@
         socket.connect();
       }
       if (FEATURES.REALTIME_FALLBACK) startPollingFallback();
-    });
-
-    // Handle connection errors gracefully (suppress console errors)
-    socket.on("connect_error", (error) => {
-      // Only log if we haven't exceeded max attempts
-      if (reconnectAttempts < maxReconnectAttempts) {
-        reconnectAttempts++;
-        // Silently handle connection errors - WebSocket is optional
-        if (FEATURES.REALTIME_FALLBACK) {
-          startPollingFallback();
-        }
-      } else {
-        // After max attempts, stop trying and use fallback
-        console.log("🟡 WebSocket unavailable, using polling fallback");
-        if (FEATURES.REALTIME_FALLBACK) {
-          startPollingFallback();
-        }
-      }
-    });
-
-    // Handle general errors
-    socket.on("error", (error) => {
-      // Silently handle errors - WebSocket is optional
-      if (FEATURES.REALTIME_FALLBACK && !pollingFallback) {
-        startPollingFallback();
-      }
     });
 
     // Message mapping - use a generic relay if many events are similar
@@ -496,22 +446,15 @@
   // Export to window
   window.realtimeService = realtimeService;
 
-  // Auto-connect if enabled (with error suppression)
+  // Auto-connect if enabled
   if (ENABLE_REALTIME) {
     // Wait for DOM to be ready
-    const attemptConnection = () => {
-      connect().catch(() => {
-        // Silently handle connection failures - WebSocket is optional
-        // Fallback to polling will be handled by connect() function
-      });
-    };
-    
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", () => {
-        setTimeout(attemptConnection, 1000); // Delay to ensure server is ready
+        setTimeout(() => connect(), 1000); // Delay to ensure server is ready
       });
     } else {
-      setTimeout(attemptConnection, 1000);
+      setTimeout(() => connect(), 1000);
     }
   }
 

@@ -12,8 +12,6 @@ const SCREEN_MAP = {
   login: 'loginScreen',
   otp: 'otpScreen',
   signup: 'signupScreen',
-  'mpin-setup': 'mpinSetupScreen',
-  'mpin-login': 'mpinLoginScreen',
   profile: 'profileScreen',
   events: 'eventsScreen',
   restaurants: 'restaurantsScreen'
@@ -47,7 +45,7 @@ export function navigateTo(screenName, options = {}) {
     target.classList.add('active');
 
     // Handle auth modals
-    if (['login', 'otp', 'signup', 'mpin-setup', 'mpin-login'].includes(screenName)) {
+    if (['login', 'otp', 'signup'].includes(screenName)) {
       const container = target.querySelector('.auth-modal-container');
       if (container) {
         container.style.display = 'flex';
@@ -56,22 +54,6 @@ export function navigateTo(screenName, options = {}) {
       // Handle signup screen special logic
       if (screenName === 'signup') {
         handleSignupScreenInit();
-      }
-      
-      // Handle M-PIN setup screen - focus on input
-      if (screenName === 'mpin-setup') {
-        setTimeout(() => {
-          const mpinInput = document.getElementById('mpinInput');
-          if (mpinInput) mpinInput.focus();
-        }, 300);
-      }
-      
-      // Handle M-PIN login screen - focus on input
-      if (screenName === 'mpin-login') {
-        setTimeout(() => {
-          const mpinInput = document.getElementById('mpinLoginInput');
-          if (mpinInput) mpinInput.focus();
-        }, 300);
       }
     }
 

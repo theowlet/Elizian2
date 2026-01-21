@@ -1,0 +1,46 @@
+Elizian Production Database Package
+Generated: Fri Dec  5 07:12:02 IST 2025
+Package: elizian-production-db-20251205
+
+FILES INCLUDED:
+==============
+
+CRITICAL FILES (10):
+1. db/20241118_add_offer_status.sql
+2. db/20250106_voucher_fixes.sql
+3. db/20250107_bank_offers_reservations.sql
+4. db/20250107_loyalty_tiers_system.sql
+5. db/20250108_tier_system_compatibility.sql
+6. db/20251108_ezt_token_updates.sql
+7. db/20251108_offer_discount_updates.sql
+8. db/20251108_retrospective_signup_bonus.sql
+9. db/20251108_update_tiers.sql
+10. db/20251205_admin_console_fix.sql
+11. db/add_featured_moderation.sql
+12. db/add_otp_registration_tracking.sql
+13. db/add_role_id_column.sql
+14. db/deal_slots.sql
+15. db/elizian_schema.sql
+16. db/event_categories.sql
+17. db/event_v2_taxonomy.sql
+18. db/fix_multi_tier_schema.sql
+19. db/food_menu_categories.sql
+20. db/multi_tier_partners.sql
+21. migrations/2025-01-18-consolidate-trending.sql
+22. migrations/2025-01-20-add-partner-email-verification.sql
+23. migrations/2025-01-20-add-partner-webhooks.sql
+24. migrations/2025-01-20-add-payments-table.sql
+25. migrations/2025-01-21-create-restaurant-availability.sql
+26. migrations/2025-01-21-fix-all-bookings-columns.sql
+27. migrations/2025-01-21-fix-booking-type-constraint-final.sql
+28. migrations/2025-01-21-fix-loyalty-points-fk-deferrable.sql
+29. migrations/2025-11-28-add-gst-number.sql
+30. migrations/2025-11-29-add-dietary-and-cost.sql
+31. migrations/2025-11-29-partner-dining-metadata.sql
+32. migrations/add_cuisine_to_partners.sql
+
+Total files: 32
+
+DOCUMENTATION:
+PRODUCTION_DB_DEPLOYMENT.md
+PRODUCTION_FILES_CHECKLIST.md

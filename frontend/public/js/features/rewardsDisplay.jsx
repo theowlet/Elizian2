@@ -3,7 +3,7 @@
  * Handles loading and displaying rewards data (EZT, loyalty points, tier history)
  */
 
-const API_BASE = window.CONFIG?.API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:3000';
+const API_BASE = window.CONFIG?.API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:5001';
 
 /**
  * Load and display complete rewards summary

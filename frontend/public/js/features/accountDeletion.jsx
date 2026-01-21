@@ -6,7 +6,7 @@
 
 const API_BASE = typeof CONFIG !== 'undefined' && CONFIG.API_BASE_URL 
   ? CONFIG.API_BASE_URL 
-  : 'http://localhost:3000';
+  : 'http://localhost:5001';
 
 /**
  * Check account deletion status and update UI

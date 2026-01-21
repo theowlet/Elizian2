@@ -9,7 +9,7 @@ const LandingPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
 
   useEffect(() => {
     loadTrendingExperiences(selectedCategory);
@@ -21,13 +21,11 @@ const LandingPage = () => {
       let url = `${API_BASE}/api/v1/offers?trending=true&limit=20&is_active=true`;
       
       if (category !== 'all') {
-        // CRITICAL: Map frontend category to backend service_type
-        // Backend uses 'spa-and-salon', not 'spa'
         const categoryToServiceType = {
           'dining': 'dining',
           'events': 'events',
           'healthcare': 'healthcare',
-          'spa': 'spa-and-salon', // Frontend 'spa' → Backend 'spa-and-salon'
+          'spa': 'spa',
           'wellness': 'wellness',
           'travel': 'travel',
           'others': 'others'
@@ -35,43 +33,14 @@ const LandingPage = () => {
         const serviceType = categoryToServiceType[category];
         if (serviceType) {
           url += `&service_type=${serviceType}`;
-          console.log(`🔍 Filtering by category: ${category} → service_type: ${serviceType}`);
         }
-      } else {
-        console.log('📦 Loading all trending experiences (no filter)');
       }
-      
       const response = await fetch(url);
       const result = await response.json();
 
-      if (result.success && result.data) {
-        // CRITICAL: Only set experiences if data exists and matches the filter
-        // If filtering by a specific category and no results, show empty state
-        if (result.data.length > 0) {
-          // Double-check client-side: ensure all returned items match the selected category
-          if (category !== 'all') {
-            const categoryToServiceType = {
-              'dining': 'dining',
-              'events': 'events',
-              'healthcare': 'healthcare',
-              'spa': 'spa-and-salon',
-              'wellness': 'wellness',
-              'travel': 'travel',
-              'others': 'others'
-            };
-            const expectedServiceType = categoryToServiceType[category];
-            const filtered = result.data.filter(exp => exp.service_type === expectedServiceType);
-            console.log(`✅ Filtered ${filtered.length} experiences matching ${category} (${expectedServiceType}) out of ${result.data.length} total`);
-            setTrendingExperiences(filtered);
-          } else {
-            setTrendingExperiences(result.data);
-          }
-        } else {
-          console.log(`⚠️ No experiences found for category: ${category}`);
-          setTrendingExperiences([]);
-        }
+      if (result.success && result.data && result.data.length > 0) {
+        setTrendingExperiences(result.data);
       } else {
-        console.log(`⚠️ API returned no data for category: ${category}`);
         setTrendingExperiences([]);
       }
     } catch (error) {

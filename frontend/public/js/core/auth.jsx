@@ -2,8 +2,7 @@
 // AUTHENTICATION MODULE
 // ==================================
 
-// IMPORTANT: Use explicit .jsx extension so the browser can resolve the module path correctly
-import { CONFIG } from './config.jsx';
+import { CONFIG } from './config';
 
 // Constants
 const OTP_VERIFICATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
@@ -21,8 +20,8 @@ function resolveTierIcon(tierName = '') {
   if (TIER_ICON_MAP[key]) return TIER_ICON_MAP[key];
   return '/assets/Aether.png';
 }
-import { apiCall } from './api.jsx';
-import { navigateTo } from '../ui/navigation.jsx';
+import { apiCall } from './api';
+import { navigateTo } from '../ui/navigation';
 import { 
   cleanPhoneNumber, 
   validatePhoneNumber, 
@@ -35,7 +34,7 @@ import {
   getStorageItem,
   removeStorageItem,
   handleError
-} from '../utils/utils.jsx';
+} from '../utils/utils';
 
 let currentPhone = '';
 let otpSessionId = null;
@@ -103,7 +102,7 @@ export async function sendOTPFromForm(phoneNumberOverride = null) {
 
   try {
     // Use CONFIG if available, otherwise fallback to localhost
-    const API_BASE_URL = CONFIG?.API_BASE_URL?.replace('/api/v1', '') || "http://localhost:3000";
+    const API_BASE_URL = CONFIG?.API_BASE_URL?.replace('/api/v1', '') || "http://localhost:5001";
     const fullUrl = `${API_BASE_URL}/api/v1/auth/send-otp`;
     
     console.log('Sending OTP request to:', fullUrl);
@@ -224,51 +223,22 @@ export async function verifyOTPFromForm() {
     // Extract data from response (backend wraps in { success, message, data })
     const data = verifyData.data || verifyData;
 
-    // Step 2: Interpret response in the same order the backend uses:
-    // 1) requires_registration
-    // 2) has_mpin
-    // 3) token (existing user without M-PIN)
-
-    // 1) New user - needs registration
-    if (data.requires_registration || data.requiresRegistration) {
-      // Store phone temporarily in sessionStorage (not localStorage)
-      // This tells signup screen that OTP was already verified
-      sessionStorage.setItem('tempRegistrationPhone', currentPhone);
-      sessionStorage.setItem('phoneForOTP', currentPhone);
-      // Set flags for handleSignup to use
-      localStorage.setItem('registrationPhone', currentPhone);
-      localStorage.setItem('otpVerified', 'true');
-      alert('OTP verified! Please complete your registration');
-      navigateTo('signup');
-    }
-    // 2) Existing user with M-PIN already set (no token returned)
-    else if (data.has_mpin || data.hasMpin) {
-      sessionStorage.setItem('phoneForMPin', currentPhone);
-      sessionStorage.removeItem('phoneForOTP');
-      alert('OTP verified! Please enter your M-PIN.');
-      navigateTo('mpin-login');
-    }
-    // 3) Existing user without M-PIN - token + user returned
-    else if (data.token) {
-      const hasMpin = data.has_mpin || data.hasMpin || false;
-      
+    // Step 2: Check if user exists or needs registration
+    if (data.token) {
+      // Existing user - login successful
       // Store token as plain string (not JSON stringified)
       localStorage.setItem('token', data.token);
-      localStorage.setItem('userToken', data.token); // Legacy support
-      localStorage.setItem('userInfo', JSON.stringify(data.user));
-      localStorage.setItem('user', JSON.stringify(data.user));
+      setStorageItem('userInfo', data.user);
       
-      if (hasMpin) {
-        // Edge case: token + has_mpin both present – treat as M-PIN login path
-        sessionStorage.setItem('phoneForMPin', currentPhone);
-        sessionStorage.removeItem('phoneForOTP');
-        alert('OTP verified! Please enter your M-PIN.');
-        navigateTo('mpin-login');
-      } else {
-        // User doesn't have M-PIN - redirect to setup
-        alert(`Welcome back, ${data.user.first_name}! Please set your M-PIN.`);
-        navigateTo('mpin-setup');
-      }
+      alert(`Welcome back, ${data.user.first_name}!`);
+      navigateTo('home');
+    } else if (data.requiresRegistration) {
+      // New user - needs registration
+      // Store phone temporarily in sessionStorage (not localStorage)
+      sessionStorage.setItem('tempRegistrationPhone', currentPhone);
+      
+      alert('OTP verified! Please complete your registration');
+      navigateTo('signup');
     } else {
       console.error('Unexpected response structure:', verifyData);
       throw new Error('Unexpected response from server');
@@ -329,17 +299,12 @@ export async function registerNewUser() {
 
     if (data.success) {
       // Store user info and token
-      const token = data.data?.token || data.token;
-      const user = data.data?.user || data.user;
+      // Store token as plain string (not JSON stringified)
+      localStorage.setItem('token', data.data?.token || data.token);
+      setStorageItem('userInfo', data.data?.user || data.user);
       
-      localStorage.setItem('token', token);
-      localStorage.setItem('userToken', token); // Legacy support
-      localStorage.setItem('userInfo', JSON.stringify(user));
-      localStorage.setItem('user', JSON.stringify(user));
-      
-      alert(`Welcome to Elizian, ${firstName}! Please set your M-PIN to continue.`);
-      // CRITICAL: Redirect to M-PIN setup (mandatory for new users)
-      navigateTo('mpin-setup');
+      alert(`Welcome to Elizian, ${firstName}!`);
+      navigateTo('home');
     } else {
       throw new Error(data.error || 'Registration failed');
     }
@@ -393,15 +358,6 @@ export function logout() {
   removeStorageItem('token');
   removeStorageItem('userInfo');
   removeStorageItem('verifiedOTP');
-  
-  // Clear M-PIN related session data
-  sessionStorage.removeItem('phoneForMPin');
-  sessionStorage.removeItem('phoneForOTP');
-  sessionStorage.removeItem('forceMpinReset');
-  sessionStorage.removeItem('tempRegistrationPhone');
-  sessionStorage.removeItem('registrationPhone');
-  sessionStorage.removeItem('otpVerified');
-  
   navigateTo('login');
 }
 
@@ -477,7 +433,7 @@ export async function updateProfileInfo() {
       return;
     }
     
-    const apiBase = CONFIG.API_BASE_URL || "http://localhost:3000/api/v1";
+    const apiBase = CONFIG.API_BASE_URL || "http://localhost:5001/api/v1";
     const response = await fetch(`${apiBase}/user/profile`, {
       headers: {
         'Authorization': `Bearer ${token}`,

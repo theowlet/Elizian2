@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "node node_modules/vite/bin/vite.js",
-    "start": "node server.js",
+    "dev": "vite",
+    "start": "npx react-scripts start",
     "build": "vite build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
@@ -32,8 +32,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "dotenv": "^17.2.3",
-    "http-server": "^14.1.1",
-    "vite": "^6.4.1"
+    "vite": "^6.0.1"
   },
   "browserslist": {
     "production": [

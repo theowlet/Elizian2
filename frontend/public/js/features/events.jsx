@@ -7,7 +7,7 @@ import { escapeHtml } from '../utils/utils.jsx';
 import { getUserInfo } from '../core/storage.jsx';
 
 // API Base URL for image loading
-const API_BASE = "http://localhost:3000";
+const API_BASE = "http://localhost:5001";
 
 // ==================================
 // EVENT DISCOVERY & RENDERING (ES MODULE EXPORTS)
