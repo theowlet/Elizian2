@@ -645,7 +645,7 @@
         <div class="header-content">
             <div class="logo">
                 <div class="logo-icon">
-                    <img src="mockups/images/z.png" alt="Z Logo" style="width: 24px; height: 24px; object-fit: contain;">
+                    <img src="assets/z.png" alt="Z Logo" style="width: 24px; height: 24px; object-fit: contain;">
                 </div>
                 <span>EZNet Event Partner Console</span>
             </div>
@@ -1619,7 +1619,9 @@
 
     <script>
         // Configuration
-        const API_BASE =  window.parent.MY_GLOBAL_CONFIG.apiUrl || 'http://localhost:3000';
+        const API_BASE = (window.parent && window.parent.MY_GLOBAL_CONFIG && window.parent.MY_GLOBAL_CONFIG.apiUrl) 
+            || (window.MY_GLOBAL_CONFIG && window.MY_GLOBAL_CONFIG.apiUrl)
+            || 'http://localhost:3000';
         window.CONFIG = window.CONFIG || {};
         window.CONFIG.API_BASE = `${API_BASE}/api/v1`;
         window.CONFIG.FEATURES = {
@@ -4619,7 +4621,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
                 
                 let errorMessage = 'Network error. ';
                 if (error.message.includes('Failed to fetch')) {
-                    errorMessage += 'Please check if the backend server is running on http://localhost:5001';
+                    errorMessage += 'Please check if the backend server is running on http://localhost:3000';
                 } else {
                     errorMessage += error.message || 'Please check your connection.';
                 }
@@ -4916,7 +4918,6 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
     </script>
     
     <!-- EZNet Common Utilities -->
-    <script src="./js/utils/eznet-utils.jsx"></script>
     
     <!-- EZNet Data Models (Backend API Compatible) -->
 </body>

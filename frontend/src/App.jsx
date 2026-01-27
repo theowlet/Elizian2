@@ -11,8 +11,13 @@ import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import OTPScreen from "./pages/OTPScreen";
 import SignupPage from "./pages/SignupPage";
+import MPinSetupScreen from "./pages/MPinSetupScreen";
+import MPinLoginScreen from "./pages/MPinLoginScreen";
 import HomePage from "./pages/HomePage";
 import EventBooking from "./pages/EventBooking";
+import BookingHistory from "./pages/BookingHistory";
+import BookingDetails from "./pages/BookingDetails";
+import RescheduleBooking from "./pages/RescheduleBooking";
 import WellnessPage from "./pages/WellnessPage";
 import HealthWellnessPage from "./pages/HealthWellnessPage";
 import DataEntry from "./pages/DataEntry";
@@ -109,6 +114,8 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/otp" element={<OTPScreen />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/mpin-setup" element={<MPinSetupScreen />} />
+      <Route path="/mpin-login" element={<MPinLoginScreen />} />
 
       {/* Protected User Routes */}
       <Route
@@ -124,6 +131,30 @@ function AppRoutes() {
         element={
           <ProtectedRoute requireAuth={true}>
             <EventBooking />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/bookings"
+        element={
+          <ProtectedRoute requireAuth={true}>
+            <BookingHistory />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/booking/:id"
+        element={
+          <ProtectedRoute requireAuth={true}>
+            <BookingDetails />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/booking/:id/reschedule"
+        element={
+          <ProtectedRoute requireAuth={true}>
+            <RescheduleBooking />
           </ProtectedRoute>
         }
       />

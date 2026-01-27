@@ -1,4 +1,6 @@
-const API_BASE = window.parent.MY_GLOBAL_CONFIG.apiUrl || 'http://localhost:3000';
+// Use correct backend port (3000 is the default)
+const API_BASE = window.parent.MY_GLOBAL_CONFIG?.apiUrl || 
+                 (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin);
 
 const state = {
   sections: [
@@ -1037,7 +1039,11 @@ function renderDealCard(deal) {
   const canPromote = deal.status === 'active' || deal.status === 'paused';
   const disableTrendingActions = deal.status === 'expired' || !canPromote;
 
-  const approveBtn = `<button class="btn btn-primary btn-xs ${perms.approve ? '' : 'disabled'}" data-action="approveDeal" data-id="${deal.id}" data-partner="${deal.partner_id}" ${perms.approve ? '' : 'disabled'}>Approve</button>`;
+  // Show "Approved" and disable button when deal is already approved (active status)
+  const isApproved = deal.status === 'active';
+  const approveBtn = isApproved
+    ? `<button class="btn btn-secondary btn-xs disabled" data-action="approveDeal" data-id="${deal.id}" data-partner="${deal.partner_id}" disabled style="opacity: 0.6; cursor: not-allowed;">Approved</button>`
+    : `<button class="btn btn-primary btn-xs ${perms.approve ? '' : 'disabled'}" data-action="approveDeal" data-id="${deal.id}" data-partner="${deal.partner_id}" ${perms.approve ? '' : 'disabled'}>Approve</button>`;
   const rejectBtn = `<button class="btn btn-secondary btn-xs ${perms.reject ? '' : 'disabled'}" data-action="rejectDeal" data-id="${deal.id}" data-partner="${deal.partner_id}" ${perms.reject ? '' : 'disabled'}>Reject</button>`;
   const pauseBtn = `<button class="btn btn-secondary btn-xs ${perms.pause ? '' : 'disabled'}" data-action="pauseDeal" data-id="${deal.id}" data-partner="${deal.partner_id}" ${perms.pause ? '' : 'disabled'}>${deal.status === 'paused' ? 'Resume' : 'Pause'}</button>`;
   
@@ -1054,7 +1060,7 @@ function renderDealCard(deal) {
        </button>`;
 
   // Add 'approved' class for inverse styling when deal is active
-  const isApproved = deal.status === 'active';
+  // Note: isApproved is already defined above for the approve button
   const cardClass = `card deal-card ${isApproved ? 'deal-approved' : ''}`;
   
   return `

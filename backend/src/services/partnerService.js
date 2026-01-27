@@ -304,13 +304,24 @@ async function updatePartnerMenuImages(partnerId, menuImages = []) {
     throw new AppError(404, "Partner not found");
   }
   const normalized = Array.isArray(menuImages) ? menuImages : [];
-  const imageS3Urls = await uploadToS3(normalized)
-  const updated = await partnerRepository.updatePartnerMenuImages(partnerId, imageS3Urls);
+  
+  // Check if menuImages are file objects (for S3 upload) or paths (already stored locally)
+  // If first item is a string starting with '/', treat as local paths
+  // Otherwise, treat as file objects and upload to S3
+  const isLocalPath = normalized.length > 0 && typeof normalized[0] === 'string' && normalized[0].startsWith('/');
+  
+  let finalImageUrls = normalized;
+  if (!isLocalPath && normalized.length > 0) {
+    // Upload to S3 if file objects provided
+    finalImageUrls = await uploadToS3(normalized);
+  }
+  
+  const updated = await partnerRepository.updatePartnerMenuImages(partnerId, finalImageUrls);
   return parseMenuImages(updated);
 }
 
-async function getPartnerWithMenuImages(partnerId) {
-  const partner = await partnerRepository.getPartnerWithMenuImages(partnerId);
+async function getPartnerWithMenuImages(partnerId, requireApproval = true) {
+  const partner = await partnerRepository.getPartnerWithMenuImages(partnerId, requireApproval);
   if (!partner) {
     throw new AppError(404, "Partner not found");
   }

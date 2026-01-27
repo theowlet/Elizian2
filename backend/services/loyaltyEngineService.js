@@ -5,8 +5,9 @@ const { emitRealtimeEvent, REALTIME_EVENTS } = require('../src/utils/realtimeEmi
 
 const pool = getPool();
 
-async function getCurrentBalance(userId) {
-  const result = await pool.query(
+async function getCurrentBalance(userId, executor = null) {
+  const db = executor || pool;
+  const result = await db.query(
     `SELECT balance_after 
      FROM loyalty_activity 
      WHERE user_id = $1 
@@ -44,13 +45,35 @@ async function recordActivity({
   pointsEarned = 0,
   pointsSpent = 0,
   description = null,
-  metadata = null
+  metadata = null,
+  executor = null  // Optional: transaction client for atomicity
 }) {
   try {
-    const previousBalance = await getCurrentBalance(userId);
+    // Use provided executor (transaction client) or fall back to pool
+    const db = executor || pool;
+    
+    // Set constraint to deferred if using transaction client (for foreign key constraints)
+    // This allows foreign key checks to be deferred until COMMIT
+    if (executor) {
+      try {
+        // Try to set all constraints to deferred (works if constraints are DEFERRABLE)
+        await executor.query('SET CONSTRAINTS ALL DEFERRED');
+      } catch (constraintError) {
+        // If that fails, try to set the specific constraint
+        try {
+          await executor.query('SET CONSTRAINTS loyalty_points_booking_id_fkey DEFERRED');
+        } catch (specificError) {
+          // If constraint doesn't exist or isn't deferrable, log but continue
+          // The migration should have made it DEFERRABLE INITIALLY DEFERRED
+          logError('⚠️ Could not defer constraint (may need migration):', specificError.message);
+        }
+      }
+    }
+    
+    const previousBalance = await getCurrentBalance(userId, executor);
     const balanceAfter = previousBalance + pointsEarned - pointsSpent;
 
-    await pool.query(
+    await db.query(
       `INSERT INTO loyalty_activity (
         user_id, source, description, points_earned, points_spent,
         balance_after, reference_id, metadata
@@ -78,7 +101,7 @@ async function recordActivity({
       transactionType = 'expired';
     }
     
-    await pool.query(
+    await db.query(
       `INSERT INTO loyalty_points (user_id, booking_id, points_earned, points_balance, transaction_type, description)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [

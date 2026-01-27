@@ -93,7 +93,7 @@
   <header class="global-header" id="globalHeader" style="display: none;">
     <div class="header-content" style="display:flex; justify-content:space-between; align-items:center; padding:1rem 2rem; background:var(--card); box-shadow:var(--shadow); position:sticky; top:0; z-index:9999;">
       <div class="logo" style="display:flex; align-items:center; gap:0.5rem; font-weight:700; color:var(--primary);">
-        <img src="mockups/images/z.png" alt="Logo" style="width:28px; height:28px; object-fit:contain;">
+        <img src="assets/z.png" alt="Logo" style="width:28px; height:28px; object-fit:contain;">
         <span>Elizian</span>
       </div>
       <div class="header-actions" style="display:flex; align-items:center; gap:1rem;">
@@ -267,11 +267,11 @@
                     oninput="validatePhoneInput(this)"
                   />
           </div>
-                <button type="button" class="auth-submit-btn" style="margin-top:0.75rem;background:#004F4A" onclick="sendSignupOTP()" id="sendSignupOtpBtn">Send OTP</button>
+                <button type="button" class="auth-submit-btn" style="margin-top:0.75rem;background:#004F4A;display:none !important;visibility:hidden !important;" onclick="sendSignupOTP()" id="sendSignupOtpBtn">Send OTP</button>
           </div>
           
-              <!-- OTP Verification Section -->
-              <div class="auth-form-group" id="signupOtpGroup" style="display: none;">
+              <!-- OTP Verification Section (Hidden by default - only shown if OTP not verified) -->
+              <div class="auth-form-group" id="signupOtpGroup" style="display: none !important; visibility: hidden;">
                 <label class="auth-label">Enter OTP <span style="font-weight:400;color:#6b7280;">(6 digits)</span></label>
                 <div class="otp-input-container">
                   <div class="otp-inputs-wrapper">
@@ -297,8 +297,33 @@
           
               <div class="auth-form-group">
                 <label class="auth-label">Password <span style="font-weight:400;color:#6b7280;">(optional)</span></label>
-                <input type="password" id="signupPasswordInput" class="auth-input" placeholder="••••••••"
-                  autocomplete="new-password" name="elizian_signup_password" value="">
+                <div class="password-input-wrapper">
+                  <input 
+                    type="password" 
+                    id="signupPasswordInput" 
+                    class="auth-input" 
+                    placeholder="••••••••"
+                    autocomplete="new-password" 
+                    name="elizian_signup_password" 
+                    value=""
+                  />
+                  <button 
+                    type="button" 
+                    class="password-toggle-btn" 
+                    onclick="togglePasswordVisibility('signupPasswordInput', this)"
+                    aria-label="Show password"
+                    tabindex="0"
+                  >
+                    <svg class="eye-icon eye-closed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg class="eye-icon eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  </button>
+                </div>
           </div>
           
               <div class="auth-form-group">
@@ -320,6 +345,155 @@
             <div class="auth-footer">
               <p>Already have an account? <a href="#" onclick="showScreen('login'); return false;">Login</a></p>
           </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- M-PIN Setup Screen (Mandatory after first registration) -->
+      <div id="mpinSetupScreen" class="screen hidden" data-screen="mpin-setup">
+        <div class="auth-modal-container">
+          <div class="auth-modal">
+            <h2 class="auth-modal-title">Create M-PIN</h2>
+            <p class="auth-modal-subtitle">Set a 4-digit M-PIN for faster login</p>
+            
+            <form class="auth-form" onsubmit="handleMPinSetup(event)">
+              <div id="mpinSetupError" class="auth-error" style="display: none;" role="alert"></div>
+              
+              <div class="auth-form-group">
+                <label class="auth-label">Enter 4-Digit M-PIN</label>
+                <div class="password-input-wrapper">
+                  <input 
+                    type="password" 
+                    id="mpinInput" 
+                    class="auth-input" 
+                    placeholder="Enter 4 digits"
+                    maxlength="4"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocomplete="off"
+                    oninput="validateMPinInput(this)"
+                    required
+                  />
+                  <button 
+                    type="button" 
+                    class="password-toggle-btn" 
+                    onclick="toggleMPinVisibility('mpinInput', this)"
+                    aria-label="Show M-PIN"
+                    tabindex="0"
+                  >
+                    <svg class="eye-icon eye-closed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg class="eye-icon eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  </button>
+                </div>
+                <div id="mpinError" class="auth-error" style="display: none; margin-top: 0.5rem;"></div>
+              </div>
+
+              <div class="auth-form-group">
+                <label class="auth-label">Confirm M-PIN</label>
+                <div class="password-input-wrapper">
+                  <input 
+                    type="password" 
+                    id="mpinConfirmInput" 
+                    class="auth-input" 
+                    placeholder="Confirm 4 digits"
+                    maxlength="4"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocomplete="off"
+                    oninput="validateMPinConfirmInput(this)"
+                    required
+                  />
+                  <button 
+                    type="button" 
+                    class="password-toggle-btn" 
+                    onclick="toggleMPinVisibility('mpinConfirmInput', this)"
+                    aria-label="Show M-PIN"
+                    tabindex="0"
+                  >
+                    <svg class="eye-icon eye-closed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg class="eye-icon eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  </button>
+                </div>
+                <div id="mpinConfirmError" class="auth-error" style="display: none; margin-top: 0.5rem;"></div>
+              </div>
+
+              <button type="submit" class="auth-submit-btn" id="setMpinBtn">Set M-PIN</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- M-PIN Login Screen (For returning users with M-PIN) -->
+      <div id="mpinLoginScreen" class="screen hidden" data-screen="mpin-login">
+        <div class="auth-modal-container">
+          <div class="auth-modal">
+            <button class="auth-modal-close" onclick="showScreen('login')">&times;</button>
+            <h2 class="auth-modal-title">Enter M-PIN</h2>
+            <p class="auth-modal-subtitle">Enter your 4-digit M-PIN to continue</p>
+            
+            <form class="auth-form" onsubmit="handleMPinLogin(event)">
+              <div id="mpinLoginError" class="auth-error" style="display: none;" role="alert"></div>
+              
+              <div class="auth-form-group">
+                <label class="auth-label">M-PIN</label>
+                <div class="password-input-wrapper">
+                  <input 
+                    type="password" 
+                    id="mpinLoginInput" 
+                    class="auth-input" 
+                    placeholder="Enter 4-digit M-PIN"
+                    maxlength="4"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocomplete="off"
+                    oninput="validateMPinLoginInput(this)"
+                    onpaste="event.preventDefault(); return false;"
+                    required
+                  />
+                  <button 
+                    type="button" 
+                    class="password-toggle-btn" 
+                    onclick="toggleMPinVisibility('mpinLoginInput', this)"
+                    aria-label="Show M-PIN"
+                    tabindex="0"
+                  >
+                    <svg class="eye-icon eye-closed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg class="eye-icon eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" class="auth-submit-btn" id="verifyMpinBtn">Login</button>
+
+              <div class="auth-footer">
+                <button
+                  type="button"
+                  onclick="handleForgotMPin()"
+                  class="elizian-link-btn"
+                  style="background: none; border: none; color: #004F4A; cursor: pointer; text-decoration: underline; font-size: 14px; margin-top: 1rem;"
+                >
+                  Forgot M-PIN? Login using OTP
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
@@ -779,8 +953,132 @@
   <!-- Minimal navigation fallback to ensure modals/screens can open from landing -->
   <script>
     (function(){
+      // Define fallback functions BEFORE modules load
+      
+      // Fallback logout function
+      if (!window.logout) {
+        window.logout = function() {
+          // Clear all authentication data
+          localStorage.removeItem('token');
+          localStorage.removeItem('userToken');
+          localStorage.removeItem('userInfo');
+          localStorage.removeItem('user');
+          localStorage.removeItem('partnerToken');
+          localStorage.removeItem('partnerInfo');
+          localStorage.removeItem('verifiedOTP');
+          
+          // Clear M-PIN related session data
+          sessionStorage.removeItem('phoneForMPin');
+          sessionStorage.removeItem('phoneForOTP');
+          sessionStorage.removeItem('forceMpinReset');
+          sessionStorage.removeItem('tempRegistrationPhone');
+          sessionStorage.removeItem('registrationPhone');
+          sessionStorage.removeItem('otpVerified');
+          
+          alert('Logged out successfully');
+          window.location.reload();
+        };
+      }
+      
+      // Fallback filterByCategory function
+      if (!window.filterByCategory) {
+        window.filterByCategory = function(category) {
+          console.log('Filtering by category:', category);
+          // Update active state for category chips
+          document.querySelectorAll('.category-chip').forEach(chip => {
+            chip.classList.remove('active');
+            if (chip.dataset.category === category) {
+              chip.classList.add('active');
+            }
+          });
+          // Update active tab
+          document.querySelectorAll('.tab').forEach(tab => {
+            tab.classList.remove('active');
+            if (tab.dataset.category === category) {
+              tab.classList.add('active');
+            }
+          });
+        };
+      }
+      
       if (!window.navigateTo) {
         window.navigateTo = function(screenName) {
+          // CRITICAL: Protect dashboard access - require M-PIN for home screen
+          if (screenName === 'home' || screenName === 'homeScreen') {
+            // Bypass check if M-PIN was just set (flag set in handleMPinSetup)
+            const mpinJustSet = sessionStorage.getItem('mpinJustSet') === 'true';
+            if (mpinJustSet) {
+              // Clear the flag and allow navigation
+              sessionStorage.removeItem('mpinJustSet');
+              console.log('✅ Bypassing M-PIN check - M-PIN was just set');
+              proceedWithNavigation(screenName);
+              return;
+            }
+            
+            const token = localStorage.getItem('token') || localStorage.getItem('userToken');
+            if (token) {
+              // Check M-PIN status before allowing dashboard access
+              const userInfoStr = localStorage.getItem('userInfo') || localStorage.getItem('user');
+              if (userInfoStr) {
+                try {
+                  const userInfo = JSON.parse(userInfoStr);
+                  const phone = userInfo.phone_number;
+                  
+                  if (phone) {
+                    // Async check - prevent navigation until verified
+                    const apiBase = window.API_BASE || (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+                      ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+                      : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com');
+                    fetch(`${apiBase}/api/v1/auth/check-mpin`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ phone_number: phone })
+                    })
+                    .then(res => res.json())
+                    .then(result => {
+                      if (!result.success || !result.data?.has_mpin) {
+                        // M-PIN not set - redirect to M-PIN setup
+                        console.warn('⚠️ Dashboard access blocked - M-PIN not set');
+                        alert('Please set your M-PIN to access the dashboard.');
+                        window.navigateTo('mpin-setup');
+                        return;
+                      }
+                      // M-PIN is set - allow navigation
+                      proceedWithNavigation(screenName);
+                    })
+                    .catch(err => {
+                      console.error('Error checking M-PIN:', err);
+                      // On error, block access to be safe
+                      alert('Unable to verify M-PIN status. Please login again.');
+                      window.navigateTo('login');
+                    });
+                    return; // Exit early - navigation will happen in callback
+                  }
+                } catch (err) {
+                  console.error('Error parsing user info:', err);
+                }
+              } else {
+                // No user info - require login
+                console.warn('⚠️ Dashboard access blocked - no user info');
+                alert('Please login to access the dashboard.');
+                window.navigateTo('login');
+                return;
+              }
+            } else {
+              // No token - require login
+              console.warn('⚠️ Dashboard access blocked - no token');
+              alert('Please login to access the dashboard.');
+              window.navigateTo('login');
+              return;
+            }
+          }
+          
+          // For non-home screens, proceed normally
+          proceedWithNavigation(screenName);
+        };
+        
+        // Helper function to actually perform navigation
+        function proceedWithNavigation(screenName) {
           try {
             var screens = document.querySelectorAll('.screen');
             screens.forEach(function(el){ el.classList.add('hidden'); el.classList.remove('active'); });
@@ -791,7 +1089,9 @@
               login: 'loginScreen',
               otp: 'otpScreen',
               signup: 'signupScreen',
-              profile: 'profileScreen'
+              profile: 'profileScreen',
+              'mpin-setup': 'mpinSetupScreen',
+              'mpin-login': 'mpinLoginScreen'
             };
             var targetId = idMap[screenName] || (screenName + 'Screen');
             var target = document.getElementById(targetId);
@@ -799,29 +1099,111 @@
               target.classList.remove('hidden');
               target.classList.add('active');
               // Ensure auth modals overlay properly
-              if (screenName === 'login' || screenName === 'otp' || screenName === 'signup') {
+              if (screenName === 'login' || screenName === 'otp' || screenName === 'signup' || screenName === 'mpin-setup' || screenName === 'mpin-login') {
                 var container = target.querySelector('.auth-modal-container');
                 if (container) { container.style.display = 'flex'; }
                 // Clear potential browser autofill on signup
                 if (screenName === 'signup') {
-                  var emailEl = document.getElementById('signupEmailInput');
-                  var passEl = document.getElementById('signupPasswordInput');
-                  var phoneEl = document.getElementById('signupPhoneInput');
-                  if (emailEl) emailEl.value = '';
-                  if (passEl) passEl.value = '';
-                  // Prefill phone with verified phone if present and lock it
-                  try {
-                    var regPhone = localStorage.getItem('registrationPhone') || '';
-                    var otpV = localStorage.getItem('otpVerified');
-                    // Accept JSON-stringified or plain 'true'
-                    otpV = (otpV || '').replace(/\"/g,'');
-                    if (otpV === 'true' && regPhone && phoneEl) {
-                      phoneEl.value = regPhone;
-                      phoneEl.readOnly = true;
-                    } else if (phoneEl) {
-                      phoneEl.readOnly = false;
+                  // Function to hide OTP section when OTP is already verified
+                  function hideOtpSectionIfVerified() {
+                    const tempPhone = sessionStorage.getItem('tempRegistrationPhone');
+                    const otpGroup = document.getElementById('signupOtpGroup');
+                    const phoneInput = document.getElementById('signupPhoneInput');
+                    const sendOtpBtn = document.getElementById('sendSignupOtpBtn');
+                    const emailEl = document.getElementById('signupEmailInput');
+                    const passEl = document.getElementById('signupPasswordInput');
+                    
+                    // Clear email and password fields
+                    if (emailEl) emailEl.value = '';
+                    if (passEl) passEl.value = '';
+                    
+                    console.log('[Signup Init] Checking for pre-verified OTP. tempPhone:', tempPhone);
+                    
+                    if (tempPhone && otpGroup && phoneInput) {
+                      console.log('[Signup Init] ✅ OTP already verified - hiding OTP section for phone:', tempPhone);
+                      
+                      // FORCE HIDE OTP section with multiple methods
+                      otpGroup.style.display = 'none';
+                      otpGroup.style.visibility = 'hidden';
+                      otpGroup.style.height = '0';
+                      otpGroup.style.overflow = 'hidden';
+                      otpGroup.style.margin = '0';
+                      otpGroup.style.padding = '0';
+                      otpGroup.style.opacity = '0';
+                      otpGroup.setAttribute('data-hidden', 'true');
+                      
+                      // Pre-fill and lock phone number
+                      phoneInput.value = tempPhone;
+                      phoneInput.disabled = true;
+                      phoneInput.readOnly = true;
+                      phoneInput.style.backgroundColor = '#1f2937';
+                      phoneInput.style.cursor = 'not-allowed';
+                      
+                      // FORCE HIDE Send OTP button
+                      if (sendOtpBtn) {
+                        sendOtpBtn.style.display = 'none';
+                        sendOtpBtn.style.visibility = 'hidden';
+                        sendOtpBtn.style.height = '0';
+                        sendOtpBtn.style.overflow = 'hidden';
+                        sendOtpBtn.style.opacity = '0';
+                        sendOtpBtn.setAttribute('data-hidden', 'true');
+                      }
+                      
+                      // Set flags for handleSignup to use
+                      localStorage.setItem('registrationPhone', tempPhone);
+                      localStorage.setItem('otpVerified', 'true');
+                    } else {
+                      // Check if OTP was verified via signup screen OTP flow
+                      const regPhone = localStorage.getItem('registrationPhone') || '';
+                      const otpV = (localStorage.getItem('otpVerified') || '').replace(/\"/g,'');
+                      
+                      if (otpV === 'true' && regPhone && phoneInput) {
+                        // OTP verified via signup screen - hide OTP section
+                        phoneInput.value = regPhone;
+                        phoneInput.readOnly = true;
+                        phoneInput.disabled = false;
+                        if (otpGroup) {
+                          otpGroup.style.display = 'none';
+                          otpGroup.setAttribute('data-hidden', 'true');
+                        }
+                        if (sendOtpBtn) {
+                          sendOtpBtn.style.display = 'none';
+                          sendOtpBtn.setAttribute('data-hidden', 'true');
+                        }
+                      } else {
+                        // No OTP verified - OTP section stays hidden by default (shown only when Send OTP clicked)
+                        if (phoneInput) {
+                          phoneInput.disabled = false;
+                          phoneInput.readOnly = false;
+                        }
+                      }
                     }
-                  } catch (e) {}
+                  }
+                  
+                  // Run immediately
+                  setTimeout(hideOtpSectionIfVerified, 0);
+                  
+                  // Also run when screen becomes visible (handles timing issues)
+                  const signupScreen = document.getElementById('signupScreen');
+                  if (signupScreen) {
+                    // Use MutationObserver to ensure OTP stays hidden
+                    const observer = new MutationObserver(function(mutations) {
+                      const tempPhone = sessionStorage.getItem('tempRegistrationPhone');
+                      if (tempPhone) {
+                        hideOtpSectionIfVerified();
+                      }
+                    });
+                    
+                    observer.observe(signupScreen, {
+                      attributes: true,
+                      attributeFilter: ['class'],
+                      childList: false,
+                      subtree: false
+                    });
+                    
+                    // Clean up observer after 5 seconds (screen should be stable by then)
+                    setTimeout(() => observer.disconnect(), 5000);
+                  }
                 }
               }
             } else {
@@ -842,7 +1224,7 @@
     // Phone number validation - MUST be global for oninput handler
     function validatePhoneInput(input) {
       if (!input) {
-        console.error('[validatePhoneInput] No input element provided!');
+        // No input element – nothing to validate
         return;
       }
       
@@ -861,23 +1243,21 @@
       
       console.log('[validatePhoneInput] Cleaned value:', value, 'Length:', value.length);
       
-      // Find continue button - try multiple methods
-      let continueBtn = document.getElementById('continueBtn');
+      // Find the relevant action button for this screen (login uses #sendOtpBtn)
+      let continueBtn = null;
       
-      // If not found, try finding in the same screen as the input
-      if (!continueBtn && input.closest) {
-        const screen = input.closest('.screen');
-        if (screen) {
-          continueBtn = screen.querySelector('#continueBtn');
-        }
+      // Prefer a button within the same screen as the input
+      const screen = input.closest ? input.closest('.screen') : null;
+      if (screen) {
+        continueBtn = screen.querySelector('#sendOtpBtn');
       }
       
-      // If still not found, try querySelector
+      // Fallbacks
       if (!continueBtn) {
-        continueBtn = document.querySelector('#continueBtn');
+        continueBtn = document.getElementById('sendOtpBtn');
       }
       
-      console.log('[validatePhoneInput] Continue button found:', !!continueBtn);
+      console.log('[validatePhoneInput] Continue/Send OTP button found:', !!continueBtn);
       
       if (continueBtn) {
         const isValid = value.length === 10;
@@ -911,8 +1291,9 @@
           opacity: window.getComputedStyle(continueBtn).opacity
         });
       } else {
-        console.error('[validatePhoneInput] ❌ Continue button not found!');
-        console.error('[validatePhoneInput] Attempted to find in:', input.closest('.screen')?.id || 'document');
+        // Button not yet in DOM or on a different screen - exit quietly
+        // This can happen during screen transitions; it's not an error.
+        return;
       }
     }
     
@@ -1050,13 +1431,18 @@
     import { loadEventsFromBackend, renderEventsList } from './js/features/events.jsx';
     import { loadRestaurantsFromBackend, renderRestaurantsList, showRestaurantDetails } from './js/features/restaurants.jsx';
     import { getUserLocation } from './js/ui/map.jsx';
-    import { calculateDistance, formatDistance } from './js/utils/utils.jsx';
+    import { calculateDistance, formatDistance, escapeHtml } from './js/utils/utils.jsx';
     import { computeDiscountSummary, formatDiscount, hasValidDiscount, getEffectivePrice } from './js/utils/discountCalculator.jsx';
     import { categoryToServiceType, serviceTypeToCategory, getCategoryMetadata, getCategoryNavItems } from './js/utils/categoryMapper.jsx';
     import { getOfferImageUrl, getEventImageUrl, getPartnerImageUrl, normalizeImageUrl, getImageHtml } from './js/utils/imageUtils.jsx';
     
-    // API Base URL for image loading
-    const API_BASE = "http://localhost:5001";
+    // API Base URL - use CONFIG if available, fallback for compatibility
+    const API_BASE = (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+      ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+      : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com');
+    
+    // Make API_BASE globally available for inline handlers
+    window.API_BASE = API_BASE;
     
     // Make functions globally available for onclick handlers
     window.sendOTPFromForm = sendOTPFromForm;
@@ -1065,6 +1451,19 @@
     
     window.logout = logout;
     window.showRestaurantDetails = showRestaurantDetails;
+    
+    // Make filterByCategory available immediately (before modules load)
+    if (typeof window.filterByCategory === 'undefined') {
+      window.filterByCategory = function(category) {
+        console.log('Filtering by category:', category);
+        // Fallback implementation - will be overridden when modules load
+        const activeChip = document.querySelector(`.category-chip[data-category="${category}"]`);
+        if (activeChip) {
+          document.querySelectorAll('.category-chip').forEach(chip => chip.classList.remove('active'));
+          activeChip.classList.add('active');
+        }
+      };
+    }
     
     // Make discount and category utilities globally available
     window.computeDiscountSummary = computeDiscountSummary;
@@ -1723,18 +2122,46 @@
     // Load trending deals (for carousel)
     async function loadTrendingDeals(serviceType = null) {
       const container = document.getElementById('trendingCarousel');
-      if (!container) return;
+      if (!container) {
+        console.warn('⚠️ trendingCarousel container not found');
+        return;
+      }
+      
+      // Ensure API_BASE is defined (fallback for safety)
+      const apiBase = API_BASE || window.API_BASE || ((typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+        ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+        : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com'));
       
       try {
         container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading trending deals...</div>';
         
-        let url = `${API_BASE}/api/v1/offers?trending=true&limit=10&is_active=true`;
+        let url = `${apiBase}/api/v1/offers?trending=true&limit=10&is_active=true`;
         if (serviceType) {
           url += `&service_type=${serviceType}`;
         }
         
         console.log('🔥 Loading TRENDING deals from:', url);
-        const response = await fetch(url);
+        console.log('🔍 API_BASE resolved to:', apiBase);
+        
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout after 10 seconds')), 10000)
+        );
+        
+        const fetchPromise = fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ HTTP error response:', response.status, errorText);
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
         
         console.log('🔥 Trending deals response:', result);
@@ -1883,8 +2310,9 @@
       
       // Render deal cards with enhanced design system
       container.innerHTML = deals.map(deal => {
+        // Use imageUtils to normalize image URL (handles invalid URLs like "{}")
         const imageUrl = window.getOfferImageUrl ? window.getOfferImageUrl(deal) : 
-          (deal.image_url ? 
+          (deal.image_url && deal.image_url !== '{}' && deal.image_url.trim() !== '' ? 
             (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
             '/assets/default-offer.jpg');
         const summary = computeDiscountSummary(deal);
@@ -1904,31 +2332,37 @@
           }
         }
         
+        // Escape user-generated content to prevent XSS
+        const safeTitle = escapeHtml(deal.title || '');
+        const safePartnerName = escapeHtml(deal.partner_name || '');
+        // Use the original offer ID (UUID) so details lookups work correctly
+        const safeDealId = String(deal.id || '');
+        
         return `
-          <div class="card-enhanced trending-card" onclick="openOfferDetails('${deal.id}')">
+          <div class="card-enhanced trending-card" onclick="openOfferDetails('${safeDealId}')">
             <div class="card-image-container">
-              <img src="${imageUrl}" class="card-image" alt="${deal.title}" 
+              <img src="${imageUrl}" class="card-image" alt="${safeTitle}" 
                    onerror="this.src='/assets/default-offer.jpg'" loading="lazy">
               <div class="card-badges">
                 <span class="badge badge-trending">🔥 TRENDING</span>
                 ${hasDiscount ? 
                   `<span class="badge badge-discount">${formattedPercent ? `${formattedPercent}% OFF` : `₹${formattedAmount} OFF`}</span>` : ''}
               </div>
-              <button class="btn-icon-floating" onclick="event.stopPropagation(); toggleFavorite('${deal.id}')" aria-label="Add to favorites">
+              <button class="btn-icon-floating" onclick="event.stopPropagation(); toggleFavorite('${safeDealId}')" aria-label="Add to favorites">
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M10 17.5L3 11C1 9 1 5 4 3C6 2 8 2 10 4C12 2 14 2 16 3C19 5 19 9 17 11L10 17.5Z"/>
                 </svg>
               </button>
             </div>
             <div class="card-content">
-              <h3 class="card-title">${deal.title}</h3>
+              <h3 class="card-title">${safeTitle}</h3>
               <div class="flex items-center gap-2 mb-4">
                 ${deal.rating ? `
                   <span class="rating-badge">
                     ⭐ ${deal.rating.toFixed(1)}
                   </span>
                 ` : ''}
-                <span class="text-secondary text-sm">${deal.partner_name}</span>
+                <span class="text-secondary text-sm">${safePartnerName}</span>
               </div>
               ${distanceHTML ? `<div class="mb-4">${distanceHTML}</div>` : ''}
               ${hasDiscount ? `
@@ -1944,7 +2378,7 @@
                   <span class="price-current">₹${(discounted > 0 ? discounted : original).toFixed(0)}</span>
                 </div>
               ` : ''}
-              <button class="btn-primary" onclick="event.stopPropagation(); openOfferDetails('${deal.id}')">
+              <button class="btn-primary" onclick="event.stopPropagation(); openOfferDetails('${safeDealId}')">
                 <span>View Details</span>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -2136,14 +2570,24 @@
         return Promise.resolve();
       }
       
+      // Ensure API_BASE is defined (fallback for safety)
+      const apiBase = API_BASE || window.API_BASE || ((typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+        ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+        : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com'));
+      
       try {
         container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading partner deals...</div>';
         
+        // CRITICAL: Load ALL deals (trending AND non-trending) for "All Partner Deals" section
         // Don't pass trending=false - this ensures we get ALL deals including trending ones
         // Trending deals appear at the top because backend sorts promoted entries first
-        let url = `${API_BASE}/api/v1/offers?limit=100&is_active=true`;
+        // When serviceType is provided (from filterByCategory), it filters the deals
+        let url = `${apiBase}/api/v1/offers?limit=100&is_active=true`;
         if (serviceType) {
           url += `&service_type=${serviceType}`;
+          console.log(`🔍 Filtering "All Partner Deals" by service_type: ${serviceType}`);
+        } else {
+          console.log('📦 Loading ALL partner deals (no service_type filter - shows all categories)');
         }
         
         // Add advanced filters if active
@@ -2167,7 +2611,27 @@
         }
         
         console.log('📦 Loading ALL partner deals from:', url);
-        const response = await fetch(url);
+        console.log('🔍 API_BASE resolved to:', apiBase);
+        
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout after 10 seconds')), 10000)
+        );
+        
+        const fetchPromise = fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ HTTP error response:', response.status, errorText);
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
         
         console.log('📦 Partner deals response:', result);
@@ -2226,8 +2690,9 @@
       }
       
       container.innerHTML = infiniteDeals.map((deal, index) => {
+        // Use imageUtils to normalize image URL (handles invalid URLs like "{}")
         const imageUrl = window.getOfferImageUrl ? window.getOfferImageUrl(deal) : 
-          (deal.image_url ? 
+          (deal.image_url && deal.image_url !== '{}' && deal.image_url.trim() !== '' ? 
             (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
             '/assets/default-offer.jpg');
         
@@ -2245,10 +2710,19 @@
         const rating = '4.5'; // TODO: Get from partner/booking data
         const cuisine = deal.service_type === 'dining' ? 'Italian' : deal.category_name || '';
         
+        // Escape user-generated content to prevent XSS
+        const safeTitle = escapeHtml(deal.title || '');
+        const safePartnerName = escapeHtml(deal.partner_name || 'Partner');
+        const safeCategoryName = escapeHtml(deal.category_name || '');
+        const safeCuisine = escapeHtml(cuisine);
+        // Preserve full UUID so offer details API/cache lookup succeeds
+        const safeDealId = String(deal.id || '');
+        const safeServiceType = escapeHtml(deal.service_type || '');
+        
         return `
-          <div class="deal-card enhanced-deal-card" onclick="openOfferDetails('${deal.id}')" data-index="${index}">
+          <div class="deal-card enhanced-deal-card" onclick="openOfferDetails('${safeDealId}')" data-index="${index}">
             <div class="deal-image-wrapper">
-              <img src="${imageUrl}" class="deal-image" alt="${deal.title}"
+              <img src="${imageUrl}" class="deal-image" alt="${safeTitle}"
                    onerror="this.src='/assets/default-offer.jpg'">
               ${isDealTrending(deal) ? 
                 `<div class="trending-badge">🔥 TRENDING</div>` : ''}
@@ -2262,13 +2736,13 @@
               })()}
             </div>
             <div class="deal-info">
-              <h3 class="restaurant-name">${deal.partner_name || 'Partner'}</h3>
-              <h4 class="deal-title">${deal.title}</h4>
+              <h3 class="restaurant-name">${safePartnerName}</h3>
+              <h4 class="deal-title">${safeTitle}</h4>
               
               <div class="meta-info">
                 ${rating ? `<span class="rating">⭐ ${rating}</span>` : ''}
                 ${distance ? `<span class="distance">📍 ${distance}</span>` : ''}
-                ${cuisine ? `<span class="cuisine">🍽️ ${cuisine}</span>` : ''}
+                ${safeCuisine ? `<span class="cuisine">🍽️ ${safeCuisine}</span>` : ''}
               </div>
               
               ${summary.hasDiscount ? `
@@ -2292,7 +2766,7 @@
                 </div>
               ` : ''}
               
-              <button class="btn-book-now" onclick="event.stopPropagation(); openOfferDetails('${deal.id}')">
+              <button class="btn-book-now" onclick="event.stopPropagation(); openOfferDetails('${safeDealId}')">
                 ${deal.service_type === 'dining' ? 'Book Table' : deal.service_type === 'events' ? 'Book Event' : 'Book Now'}
                 <span class="icon">→</span>
               </button>
@@ -2537,7 +3011,29 @@
         return;
       }
       
-      const serviceType = category === 'all' ? null : (window.categoryToServiceType ? window.categoryToServiceType(category) : null);
+      // Map frontend category to backend service_type
+      // CRITICAL: spa maps to spa-and-salon for backend
+      const categoryToServiceTypeMap = {
+        'all': null,
+        'dining': 'dining',
+        'events': 'events',
+        'healthcare': 'healthcare',
+        'spa': 'spa-and-salon',  // Frontend 'spa' → Backend 'spa-and-salon'
+        'wellness': 'wellness',
+        'travel': 'travel',
+        'others': 'others'
+      };
+      
+      // Use module function if available, otherwise use fallback map
+      let serviceType = null;
+      if (category !== 'all') {
+        if (window.categoryToServiceType && typeof window.categoryToServiceType === 'function') {
+          serviceType = window.categoryToServiceType(category);
+        } else {
+          serviceType = categoryToServiceTypeMap[category] || null;
+        }
+      }
+      
       currentServiceTypeFilter = serviceType;
       
       // Load experiences for landing page if on onboarding screen
@@ -2611,7 +3107,7 @@
     window.openOfferDetails = async function(offerId) {
       const API_BASE = window.API_BASE || 
                        (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
-                       'http://localhost:5001';
+                       'http://localhost:3000';
       
       let offer = allDealsData.find(o => o.id === offerId) || 
                   trendingDealsData.find(o => o.id === offerId) ||
@@ -2642,9 +3138,9 @@
         return;
       }
       
-      // Normalize image URL using utility
+      // Normalize image URL using utility (handles invalid URLs like "{}" or null)
       const normalizedImageUrl = window.getOfferImageUrl ? window.getOfferImageUrl(offer) : 
-        (offer.image_url ? 
+        (offer.image_url && offer.image_url !== '{}' && offer.image_url.trim() !== '' ? 
           (offer.image_url.startsWith('http') ? offer.image_url : `${API_BASE}${offer.image_url}`) :
           '/assets/default-offer.jpg');
       
@@ -2782,7 +3278,7 @@
     async function loadMenuImages(partnerId, offerId) {
       const API_BASE = window.API_BASE || 
                        (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
-                       'http://localhost:5001';
+                       'http://localhost:3000';
       
       const menuSection = document.getElementById(`menuImagesSection-${offerId}`);
       if (!menuSection) return;
@@ -2897,7 +3393,7 @@
     window.openMenuImageViewer = function(images, startIndex = 0) {
       const API_BASE = window.API_BASE || 
                        (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
-                       'http://localhost:5001';
+                       'http://localhost:3000';
       
       let currentIndex = startIndex;
       
@@ -3055,7 +3551,7 @@
     window.downloadMenuImage = function() {
       const API_BASE = window.API_BASE || 
                        (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
-                       'http://localhost:5001';
+                       'http://localhost:3000';
       
       const currentImg = window.menuViewerImages[window.menuViewerCurrentIndex];
       const imgUrl = currentImg.startsWith('http') ? currentImg : API_BASE + currentImg;
@@ -3073,7 +3569,7 @@
     function updateMenuViewerImage() {
       const API_BASE = window.API_BASE || 
                        (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
-                       'http://localhost:5001';
+                       'http://localhost:3000';
       
       const img = document.getElementById('menuViewerImage');
       const indicator = document.getElementById('menuPageIndicator');
@@ -3184,7 +3680,7 @@
         // Get API base URL (try multiple sources)
         const API_BASE = window.API_BASE || 
                         (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
-                        'http://localhost:5001';
+                        'http://localhost:3000';
         
         // Clean token - remove quotes if JSON stringified
         const cleanToken = token.replace(/^["']|["']$/g, '');
@@ -3845,7 +4341,7 @@
         // Get API base URL
         const API_BASE = window.API_BASE || 
                         (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL?.replace('/api/v1', '')) ||
-                        'http://localhost:5001';
+                        'http://localhost:3000';
         
         // Determine slot_id if time slot selected
         let slotId = null;
@@ -4060,7 +4556,7 @@
         
         // Provide more helpful error messages
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          errorMessage = 'Network error. Please check if the backend server is running on http://localhost:5001';
+          errorMessage = 'Network error. Please check if the backend server is running on http://localhost:3000';
         } else if (error.message.includes('Unexpected token') || error.message.includes('<!DOCTYPE')) {
           errorMessage = 'Server returned an error page instead of JSON. The booking endpoint may not exist or the server may have crashed.';
         } else if (error.message.includes('Invalid token') || error.message.includes('403') || error.message.includes('401')) {
@@ -4380,7 +4876,7 @@
     
     // Main function to load all home screen data
     async function loadHomeScreenData() {
-      console.log('Loading enhanced home screen...');
+      console.log('🔄 Loading enhanced home screen...');
       
       // Ensure "All" category is selected by default
       currentServiceTypeFilter = null;
@@ -4397,43 +4893,114 @@
       
       // Quick access bar removed - category tabs handle filtering
       
-      // Load all sections
-      await Promise.all([
-        loadTrendingDeals(null),
-        loadNearbyRestaurants(),
-        loadOngoingEvents(),
-        loadUpcomingEvents(),
-        loadAllDeals(null)
-      ]);
+      // Load all sections with individual error handling to prevent one failure from blocking others
+      const loadPromises = [
+        loadTrendingDeals(null).catch(err => {
+          console.error('❌ Failed to load trending deals:', err);
+          return null; // Don't throw, allow other loads to continue
+        }),
+        loadNearbyRestaurants().catch(err => {
+          console.error('❌ Failed to load nearby restaurants:', err);
+          return null;
+        }),
+        loadOngoingEvents().catch(err => {
+          console.error('❌ Failed to load ongoing events:', err);
+          return null;
+        }),
+        loadUpcomingEvents().catch(err => {
+          console.error('❌ Failed to load upcoming events:', err);
+          return null;
+        }),
+        loadAllDeals(null).catch(err => {
+          console.error('❌ Failed to load all deals:', err);
+          return null;
+        })
+      ];
       
-      // Load bottom navigation
-      loadBottomNav();
-      
-      console.log('✅ Enhanced home screen loaded successfully');
+      try {
+        await Promise.allSettled(loadPromises);
+        
+        // Load bottom navigation
+        if (typeof loadBottomNav === 'function') {
+          loadBottomNav();
+        }
+        
+        console.log('✅ Enhanced home screen loaded successfully');
+      } catch (error) {
+        console.error('❌ Error loading home screen data:', error);
+        // Ensure all containers show empty state if everything fails
+        const containers = [
+          document.getElementById('trendingCarousel'),
+          document.getElementById('allDealsGrid'),
+          document.getElementById('nearbyRestaurantsGrid'),
+          document.getElementById('ongoingEventsGrid'),
+          document.getElementById('upcomingEventsGrid')
+        ];
+        containers.forEach(container => {
+          if (container && container.innerHTML.includes('spinner')) {
+            container.innerHTML = '<p class="empty-state">Unable to load content. Please refresh the page.</p>';
+          }
+        });
+      }
     }
+    
+    // Make loadHomeScreenData globally available
+    window.loadHomeScreenData = loadHomeScreenData;
     
     // Load Nearby Restaurants
     async function loadNearbyRestaurants() {
       const container = document.getElementById('nearbyRestaurantsGrid');
       if (!container) return;
       
+      // Ensure API_BASE is defined (fallback for safety)
+      const apiBase = API_BASE || window.API_BASE || ((typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+        ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+        : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com'));
+      
       try {
-        const url = `${API_BASE}/api/v1/offers?limit=5&service_type=dining&is_active=true`;
-        const response = await fetch(url);
+        const url = `${apiBase}/api/v1/offers?limit=5&service_type=dining&is_active=true`;
+        
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout after 10 seconds')), 10000)
+        );
+        
+        const fetchPromise = fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
         
         if (result.success && result.data && result.data.length > 0) {
+          // CRITICAL: Filter to ONLY dining deals (double-check client-side)
+          // Backend should already filter by service_type=dining, but ensure client-side too
+          const diningDeals = result.data.filter(deal => 
+            deal.service_type === 'dining' || deal.service_type === null || !deal.service_type
+          );
+          
           // Sort restaurants by distance if location service available
-          let sortedRestaurants = result.data;
+          let sortedRestaurants = diningDeals;
           if (window.locationService) {
-            sortedRestaurants = window.locationService.sortByDistance(result.data);
+            sortedRestaurants = window.locationService.sortByDistance(diningDeals);
           }
           const restaurants = sortedRestaurants.slice(0, 5);
+          
+          const apiBase = API_BASE || window.API_BASE || ((typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+            ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+            : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com'));
           
           container.innerHTML = restaurants.map(deal => {
             const imageUrl = window.getOfferImageUrl ? window.getOfferImageUrl(deal) : 
               (deal.image_url ? 
-                (deal.image_url.startsWith('http') ? deal.image_url : `${API_BASE}${deal.image_url}`) :
+                (deal.image_url.startsWith('http') ? deal.image_url : `${apiBase}${deal.image_url}`) :
                 '/assets/default-offer.jpg');
             const summary = computeDiscountSummary(deal);
             
@@ -4444,12 +5011,18 @@
               distanceText = distance ? distance.formatted : '';
             }
             
+            // Escape user-generated content to prevent XSS
+            const safeTitle = escapeHtml(deal.title || '');
+            const safePartnerName = escapeHtml(deal.partner_name || '');
+            const safeCategoryName = escapeHtml(deal.category_name || 'Restaurant');
+            const safeDealId = String(deal.id || '').replace(/[^0-9]/g, ''); // Sanitize ID
+            
             return `
-              <div class="restaurant-card" onclick="openOfferDetails('${deal.id}')">
-                <img src="${imageUrl}" alt="${deal.title}" onerror="this.src='/assets/default-offer.jpg'">
+              <div class="restaurant-card" onclick="openOfferDetails('${safeDealId}')">
+                <img src="${imageUrl}" alt="${safeTitle}" onerror="this.src='/assets/default-offer.jpg'">
                 <div class="restaurant-info">
-                  <h4>${deal.partner_name}</h4>
-                  <p class="restaurant-cuisine">${deal.category_name || 'Restaurant'}</p>
+                  <h4>${safePartnerName}</h4>
+                  <p class="restaurant-cuisine">${safeCategoryName}</p>
                   <div class="restaurant-meta">
                     <span>⭐ ${deal.rating ? deal.rating.toFixed(1) : '4.5'}</span>
                     ${distanceText ? `<span>📍 ${distanceText}</span>` : ''}
@@ -4475,9 +5048,31 @@
       const container = document.getElementById('ongoingEventsGrid');
       if (!container) return;
       
+      // Ensure API_BASE is defined (fallback for safety)
+      const apiBase = API_BASE || window.API_BASE || ((typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+        ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+        : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com'));
+      
       try {
-        const url = `${API_BASE}/api/v1/offers?limit=20&service_type=events&is_active=true`;
-        const response = await fetch(url);
+        const url = `${apiBase}/api/v1/offers?limit=20&service_type=events&is_active=true`;
+        
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout after 10 seconds')), 10000)
+        );
+        
+        const fetchPromise = fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
         
         if (result.success && result.data && result.data.length > 0) {
@@ -4505,12 +5100,16 @@
                 year: 'numeric'
               }) : 'Ongoing';
               
+              // Escape user-generated content to prevent XSS
+              const safeTitle = escapeHtml(deal.title || '');
+              const safeDealId = String(deal.id || '').replace(/[^0-9]/g, ''); // Sanitize ID
+              
               return `
-                <div class="event-card ongoing-event" onclick="openOfferDetails('${deal.id}')">
-                  <img src="${imageUrl}" alt="${deal.title}" onerror="this.src='/assets/default-offer.jpg'">
+                <div class="event-card ongoing-event" onclick="openOfferDetails('${safeDealId}')">
+                  <img src="${imageUrl}" alt="${safeTitle}" onerror="this.src='/assets/default-offer.jpg'">
                   <div class="event-info">
                     <span class="live-badge">🔴 LIVE</span>
-                    <h4>${deal.title}</h4>
+                    <h4>${safeTitle}</h4>
                     <p class="event-date">⏰ Until ${endDate}</p>
                     ${summary.hasDiscount ? `
                       <div class="event-discount">${summary.percent > 0 ? `${summary.percent.toFixed(0)}% OFF` : ''}</div>
@@ -4536,9 +5135,31 @@
       const container = document.getElementById('upcomingEventsGrid');
       if (!container) return;
       
+      // Ensure API_BASE is defined (fallback for safety)
+      const apiBase = API_BASE || window.API_BASE || ((typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+        ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+        : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com'));
+      
       try {
-        const url = `${API_BASE}/api/v1/offers?limit=20&service_type=events&is_active=true`;
-        const response = await fetch(url);
+        const url = `${apiBase}/api/v1/offers?limit=20&service_type=events&is_active=true`;
+        
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout after 10 seconds')), 10000)
+        );
+        
+        const fetchPromise = fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        const response = await Promise.race([fetchPromise, timeoutPromise]);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
         
         if (result.success && result.data && result.data.length > 0) {
@@ -4563,11 +5184,15 @@
               year: 'numeric'
             }) : 'TBA';
             
+            // Escape user-generated content to prevent XSS
+            const safeTitle = escapeHtml(deal.title || '');
+            const safeDealId = String(deal.id || '').replace(/[^0-9]/g, ''); // Sanitize ID
+            
             return `
-              <div class="event-card" onclick="openOfferDetails('${deal.id}')">
-                <img src="${imageUrl}" alt="${deal.title}" onerror="this.src='/assets/default-offer.jpg'">
+              <div class="event-card" onclick="openOfferDetails('${safeDealId}')">
+                <img src="${imageUrl}" alt="${safeTitle}" onerror="this.src='/assets/default-offer.jpg'">
                 <div class="event-info">
-                  <h4>${deal.title}</h4>
+                  <h4>${safeTitle}</h4>
                   <p class="event-date">📅 ${eventDate}</p>
                   ${summary.hasDiscount ? `
                     <div class="event-discount">${summary.percent > 0 ? `${summary.percent.toFixed(0)}% OFF` : ''}</div>
@@ -5123,7 +5748,7 @@
         container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading trending experiences...</div>';
 
         // Always fetch trending offers for trending experiences
-        let url = 'http://localhost:5001/api/v1/offers?trending=true&limit=20&is_active=true';
+        let url = 'http://localhost:3000/api/v1/offers?trending=true&limit=20&is_active=true';
         
         // Optionally filter by service type if category is specified
         if (category !== 'all') {
@@ -5169,7 +5794,9 @@
       const container = document.getElementById('landingExperiencesContainer');
       if (!container) return;
 
-      const API_BASE = 'http://localhost:5001';
+      const API_BASE = window.API_BASE || (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+        ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+        : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com');
 
       container.innerHTML = experiences.map(exp => {
         const imageUrl = exp.image_url ? 
@@ -5312,6 +5939,44 @@
       // Setup event listeners
       setupEventListeners();
       
+      // Watch for signup screen visibility to ensure OTP section is hidden if OTP already verified
+      const signupScreen = document.getElementById('signupScreen');
+      if (signupScreen) {
+        const observer = new MutationObserver(function(mutations) {
+          mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+              const isVisible = signupScreen.classList.contains('active') && 
+                               !signupScreen.classList.contains('hidden');
+              if (isVisible) {
+                // Re-check and hide OTP section if OTP was already verified
+                const tempPhone = sessionStorage.getItem('tempRegistrationPhone');
+                const otpGroup = document.getElementById('signupOtpGroup');
+                const phoneInput = document.getElementById('signupPhoneInput');
+                const sendOtpBtn = document.getElementById('sendSignupOtpBtn');
+                
+                if (tempPhone && otpGroup && phoneInput) {
+                  console.log('[Signup Observer] Hiding OTP section - OTP already verified');
+                  otpGroup.style.display = 'none';
+                  otpGroup.style.visibility = 'hidden';
+                  otpGroup.style.height = '0';
+                  otpGroup.style.overflow = 'hidden';
+                  phoneInput.value = tempPhone;
+                  phoneInput.disabled = true;
+                  phoneInput.readOnly = true;
+                  if (sendOtpBtn) {
+                    sendOtpBtn.style.display = 'none';
+                    sendOtpBtn.style.visibility = 'hidden';
+                  }
+                  localStorage.setItem('registrationPhone', tempPhone);
+                  localStorage.setItem('otpVerified', 'true');
+                }
+              }
+            }
+          });
+        });
+        observer.observe(signupScreen, { attributes: true, attributeFilter: ['class'] });
+      }
+      
       // Initialize screens & tiers UI
       initializeScreens();
       initHomeInteractions();
@@ -5354,26 +6019,59 @@
   <script>
     // Logout function (works for both user and partner)
     function logoutGlobal() {
+      // Clear all authentication data
       localStorage.removeItem('userToken');
       localStorage.removeItem('userInfo');
       localStorage.removeItem('partnerToken');
       localStorage.removeItem('partnerInfo');
       localStorage.removeItem('verifiedOTP');
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Clear M-PIN related session data
+      sessionStorage.removeItem('phoneForMPin');
+      sessionStorage.removeItem('phoneForOTP');
+      sessionStorage.removeItem('forceMpinReset');
+      sessionStorage.removeItem('tempRegistrationPhone');
+      sessionStorage.removeItem('registrationPhone');
+      sessionStorage.removeItem('otpVerified');
+      
       window.location.href = 'partner-login.html'; // adjust if your login page name differs
     }
 
-    // Auto-update header with user name & show/hide logout
+    // CRITICAL: App must ALWAYS start with mobile + OTP entry point
+    // Do NOT auto-navigate based on token - user must authenticate via OTP first
     document.addEventListener('DOMContentLoaded', () => {
-      const token = localStorage.getItem('userToken') || localStorage.getItem('partnerToken') || localStorage.getItem('token');
-      const userInfo = localStorage.getItem('userInfo') || localStorage.getItem('partnerInfo');
+      // Always show onboarding/login screen first (single entry point requirement)
+      const onboardingScreen = document.getElementById('onboardingScreen');
+      const loginScreen = document.getElementById('loginScreen');
+      
+      // Ensure onboarding screen is visible (default active state)
+      if (onboardingScreen) {
+        onboardingScreen.classList.remove('hidden');
+        onboardingScreen.classList.add('active');
+      }
+      
+      // Hide all other screens initially
+      document.querySelectorAll('.screen').forEach(screen => {
+        if (screen.id !== 'onboardingScreen') {
+          screen.classList.add('hidden');
+          screen.classList.remove('active');
+        }
+      });
+      
+      console.log('✅ App initialized - starting with onboarding/login screen (single entry point)');
       const userNameEl = document.getElementById('headerUserName');
       const globalHeader = document.getElementById('globalHeader');
       const logoutBtn = document.getElementById('globalLogoutBtn');
 
-      // Only show header on non-onboarding screens
+      // Only show header on non-onboarding screens (but don't auto-navigate)
       const currentScreen = document.querySelector('.screen.active');
       const isOnboarding = currentScreen && currentScreen.id === 'onboardingScreen';
+      
+      // Get token and userInfo for header display only (not for navigation)
+      const token = localStorage.getItem('userToken') || localStorage.getItem('partnerToken') || localStorage.getItem('token');
+      const userInfo = localStorage.getItem('userInfo') || localStorage.getItem('partnerInfo');
 
       if (token && !isOnboarding) {
         globalHeader.style.display = 'block';
@@ -5437,7 +6135,10 @@
           // sendOTPFromForm will handle navigation to OTP screen
         } else {
           // Fallback: direct API call
-          const response = await fetch('http://localhost:5001/api/v1/auth/send-otp', {
+          const apiBase = window.API_BASE || (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+            ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+            : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com');
+          const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -5467,6 +6168,214 @@
       }
     }
 
+    // ============================================
+    // LOGIN OTP HANDLERS
+    // ============================================
+    
+    // Handle OTP input for login screen
+    window.handleOTPInput = function(index) {
+      const otpInputs = document.querySelectorAll('.otp-input');
+      const currentInput = otpInputs[index];
+      if (!currentInput) return;
+      
+      // Only allow digits
+      const value = currentInput.value.replace(/\D/g, '').slice(0, 1);
+      currentInput.value = value;
+      
+      // Auto-focus next input
+      if (value && index < 5) {
+        otpInputs[index + 1]?.focus();
+      }
+      
+      // Check if all filled and auto-verify
+      const allFilled = Array.from(otpInputs).every(input => input.value);
+      if (allFilled && otpInputs.length === 6) {
+        // Auto-verify when all 6 digits are entered
+        setTimeout(() => verifyOTPFromForm(), 100);
+      }
+    };
+    
+    // Handle OTP keydown for login screen
+    window.handleOTPKeydown = function(index, event) {
+      const otpInputs = document.querySelectorAll('.otp-input');
+      const currentInput = otpInputs[index];
+      if (!currentInput) return;
+      
+      // Backspace: clear and go to previous
+      if (event.key === 'Backspace' && !currentInput.value && index > 0) {
+        otpInputs[index - 1]?.focus();
+      }
+      
+      // Arrow keys
+      if (event.key === 'ArrowLeft' && index > 0) {
+        otpInputs[index - 1]?.focus();
+        event.preventDefault();
+      }
+      if (event.key === 'ArrowRight' && index < 5) {
+        otpInputs[index + 1]?.focus();
+        event.preventDefault();
+      }
+      
+      // Handle paste
+      if (event.key === 'v' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        navigator.clipboard.readText().then(text => {
+          const otpCode = text.replace(/\D/g, '').slice(0, 6);
+          otpInputs.forEach((input, idx) => {
+            if (input) input.value = otpCode[idx] || '';
+          });
+          otpInputs[Math.min(otpCode.length, otpInputs.length - 1)]?.focus();
+          
+          // Auto-verify if all 6 digits pasted
+          if (otpCode.length === 6) {
+            setTimeout(() => verifyOTPFromForm(), 100);
+          }
+        }).catch(() => {});
+      }
+    };
+    
+    // Verify OTP from login form
+    window.verifyOTPFromForm = async function() {
+      const otpInputs = document.querySelectorAll('.otp-input');
+      const otpCode = Array.from(otpInputs).map(input => input.value || '').join('');
+      
+      if (otpCode.length !== 6) {
+        alert('Please enter the complete 6-digit OTP');
+        return;
+      }
+      
+      // Get phone number from login input or session storage
+      const phoneInput = document.getElementById('loginPhoneInput');
+      const phone = phoneInput?.value?.trim().replace(/\D/g, '') || 
+                   sessionStorage.getItem('phoneForOTP')?.replace(/\D/g, '') || '';
+      
+      if (!phone || phone.length !== 10) {
+        alert('Phone number is required');
+        return;
+      }
+      
+      const verifyBtn = document.getElementById('verifyOtpBtn');
+      if (verifyBtn) {
+        verifyBtn.disabled = true;
+        verifyBtn.textContent = 'Verifying...';
+      }
+      
+      // Use config-driven API base URL
+      const apiBase = window.API_BASE || (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+        ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+        : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com');
+      
+      try {
+        const response = await fetch(`${apiBase}/api/v1/auth/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone_number: phone,
+            otp_code: otpCode
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // CRITICAL: Post-OTP decision logic - must follow exact order:
+          // 1. requires_registration (first-time user)
+          // 2. has_mpin (returning user with M-PIN)
+          // 3. token (legacy user without M-PIN - must set M-PIN)
+          
+          const forceMpinReset = sessionStorage.getItem('forceMpinReset') === 'true';
+          
+          // STEP 1: Check if user needs registration (FIRST-TIME USER)
+          if (result.data?.requires_registration || result.data?.requiresRegistration || result.requires_registration || result.requiresRegistration) {
+            // Set tempRegistrationPhone for signup screen to detect and hide OTP section
+            const cleanPhone = phone.replace(/\D/g, '').slice(-10); // Ensure 10 digits
+            sessionStorage.setItem('tempRegistrationPhone', cleanPhone);
+            sessionStorage.setItem('phoneForOTP', cleanPhone);
+            sessionStorage.removeItem('forceMpinReset');
+            sessionStorage.removeItem('phoneForMPin');
+            // Set flags immediately so signup screen can detect
+            localStorage.setItem('registrationPhone', cleanPhone);
+            localStorage.setItem('otpVerified', 'true');
+            console.log('[OTP Verify] Setting tempRegistrationPhone:', cleanPhone);
+            alert('OTP verified! Please complete your registration.');
+            showScreen('signup');
+            return;
+          }
+          
+          // STEP 2: Check if user has M-PIN (RETURNING USER WITH M-PIN)
+          if (result.data?.has_mpin && !forceMpinReset) {
+            // User has M-PIN - redirect to M-PIN login (do NOT auto-login)
+            sessionStorage.setItem('phoneForMPin', phone);
+            sessionStorage.removeItem('phoneForOTP');
+            sessionStorage.removeItem('forceMpinReset');
+            alert('OTP verified! Please enter your M-PIN.');
+            showScreen('mpin-login');
+            setTimeout(() => {
+              const mpinInput = document.getElementById('mpinLoginInput');
+              if (mpinInput) mpinInput.focus();
+            }, 300);
+            return;
+          }
+          
+          // STEP 3: User exists but no M-PIN (LEGACY USER OR FORGOT M-PIN FLOW)
+          if (result.data?.token && result.data?.user) {
+            const token = result.data.token;
+            const user = result.data.user;
+            
+            // Store token and user info
+            localStorage.setItem('token', token);
+            localStorage.setItem('userToken', token); // Legacy support
+            localStorage.setItem('userInfo', JSON.stringify(user));
+            localStorage.setItem('user', JSON.stringify(user));
+            
+            sessionStorage.removeItem('phoneForOTP');
+            sessionStorage.removeItem('phoneForMPin');
+            
+            // If forcing M-PIN reset (Forgot M-PIN flow), redirect to M-PIN setup
+            if (forceMpinReset) {
+              sessionStorage.removeItem('forceMpinReset');
+              alert('OTP verified! Please set a new M-PIN.');
+              showScreen('mpin-setup');
+              setTimeout(() => {
+                const mpinInput = document.getElementById('mpinInput');
+                if (mpinInput) mpinInput.focus();
+              }, 300);
+              return;
+            }
+            
+            // Normal flow: User exists but no M-PIN - MUST set M-PIN before dashboard access
+            alert('OTP verified! Please set your M-PIN to continue.');
+            showScreen('mpin-setup');
+            setTimeout(() => {
+              const mpinInput = document.getElementById('mpinInput');
+              if (mpinInput) mpinInput.focus();
+            }, 300);
+            return;
+          }
+          
+          // Fallback: Unexpected response
+          console.error('Unexpected OTP verification response:', result);
+          alert('Unexpected response. Please try again.');
+        } else {
+          alert(result.error || 'Invalid OTP. Please try again.');
+          // Clear OTP inputs on error
+          otpInputs.forEach(input => input.value = '');
+          otpInputs[0]?.focus();
+        }
+      } catch (error) {
+        console.error('OTP verification error:', error);
+        alert('Failed to verify OTP. Please check your connection.');
+        // Clear OTP inputs on error
+        otpInputs.forEach(input => input.value = '');
+        otpInputs[0]?.focus();
+      } finally {
+        if (verifyBtn) {
+          verifyBtn.disabled = false;
+          verifyBtn.textContent = 'Verify OTP';
+        }
+      }
+    };
+
     // Resend OTP function
     window.resendOTP = async function() {
       const phoneInput = document.getElementById('loginPhoneInput') || document.getElementById('phoneInput');
@@ -5485,7 +6394,10 @@
         if (typeof sendOTPFromForm === 'function') {
           await sendOTPFromForm(phone);
         } else {
-          const response = await fetch('http://localhost:5001/api/v1/auth/send-otp', {
+          const apiBase = window.API_BASE || (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+            ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+            : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com');
+          const response = await fetch(`${apiBase}/api/v1/auth/send-otp`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -5532,12 +6444,19 @@
       }
 
     // OTP verification logic:
-    // - If OTP is verified in this session, always proceed (use the verified phone)
-    // - If OTP is not verified and user typed a phone, ask them to verify first
-    var registrationPhone = localStorage.getItem('registrationPhone') || '';
+    // - Check sessionStorage first (from login screen OTP verification)
+    // - Fall back to localStorage (from signup screen OTP verification)
+    var registrationPhone = sessionStorage.getItem('tempRegistrationPhone') || localStorage.getItem('registrationPhone') || '';
     var otpVerifiedRaw = localStorage.getItem('otpVerified') || '';
     // Accept JSON-stringified '"true"' or plain 'true'
     var otpVerified = otpVerifiedRaw.replace(/\"/g,'') === 'true';
+    
+    // If OTP was verified on login screen, we have tempRegistrationPhone in sessionStorage
+    if (sessionStorage.getItem('tempRegistrationPhone')) {
+      otpVerified = true;
+      registrationPhone = sessionStorage.getItem('tempRegistrationPhone');
+    }
+    
     if (!otpVerified && phone) {
       alert('Please verify OTP for this mobile number before signing up.');
       return;
@@ -5609,22 +6528,32 @@
 
         const result = await response.json();
 
-        if (result.success && result.token) {
+        // Handle both response formats: result.token or result.data.token
+        const token = result.data?.token || result.token;
+        const user = result.data?.user || result.user;
+        
+        if (result.success && token) {
           // Store token and user info
-          localStorage.setItem('userToken', result.token);
-          localStorage.setItem('userInfo', JSON.stringify(result.user || {}));
+          localStorage.setItem('token', token);
+          localStorage.setItem('userToken', token); // Legacy support
+          localStorage.setItem('userInfo', JSON.stringify(user || {}));
+          localStorage.setItem('user', JSON.stringify(user || {}));
+          
           if (typeof joinUserRealtimeRoom === 'function') {
             joinUserRealtimeRoom();
           }
           
           // Show success message
-          alert('Account created successfully!');
+          alert('Account created successfully! Please set your M-PIN to continue.');
           
-          // Redirect to home screen
-          showScreen('home');
-          if (typeof loadHomeScreenData === 'function') {
-            loadHomeScreenData();
-          }
+          // CRITICAL: Redirect to M-PIN setup screen (blocks navigation until M-PIN is set)
+          showScreen('mpin-setup');
+          
+          // Focus on M-PIN input
+          setTimeout(() => {
+            const mpinInput = document.getElementById('mpinInput');
+            if (mpinInput) mpinInput.focus();
+          }, 300);
         } else {
           alert(result.error || 'Registration failed. Please try again.');
         }
@@ -5767,6 +6696,14 @@
     
     // Send OTP for signup form (shows inline OTP section instead of navigating)
     window.sendSignupOTP = async function() {
+      // CRITICAL: Check if OTP was already verified on login screen
+      const tempPhone = sessionStorage.getItem('tempRegistrationPhone');
+      if (tempPhone) {
+        console.log('[sendSignupOTP] OTP already verified - preventing redundant OTP request');
+        alert('OTP has already been verified. Please complete your profile.');
+        return;
+      }
+      
       const phoneInput = document.getElementById('signupPhoneInput');
       if (!phoneInput || !phoneInput.value) {
         alert('Please enter your phone number first');
@@ -5779,6 +6716,13 @@
         return;
       }
       
+      // Check if phone is disabled (meaning OTP was already verified)
+      if (phoneInput.disabled || phoneInput.readOnly) {
+        console.log('[sendSignupOTP] Phone is locked - OTP already verified');
+        alert('OTP has already been verified. Please complete your profile.');
+        return;
+      }
+      
       const sendBtn = document.getElementById('sendSignupOtpBtn');
       if (sendBtn) {
         sendBtn.disabled = true;
@@ -5786,7 +6730,7 @@
       }
       
       try {
-        const response = await fetch('http://localhost:5001/api/v1/auth/send-otp', {
+        const response = await fetch('http://localhost:3000/api/v1/auth/send-otp', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone_number: phone })
@@ -5818,17 +6762,428 @@
       }
     };
 
+    // ============================================
+    // M-PIN SETUP HANDLER (Mandatory after registration)
+    // ============================================
+    
+    // Toggle M-PIN visibility (reusable for M-PIN inputs)
+    window.toggleMPinVisibility = function(inputId, button) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      
+      // Toggle eye icons
+      const closedIcon = button.querySelector('.eye-closed');
+      const openIcon = button.querySelector('.eye-open');
+      if (closedIcon && openIcon) {
+        closedIcon.style.display = isPassword ? 'none' : 'block';
+        openIcon.style.display = isPassword ? 'block' : 'none';
+      }
+      
+      // Update aria-label
+      button.setAttribute('aria-label', isPassword ? 'Hide M-PIN' : 'Show M-PIN');
+      button.setAttribute('aria-pressed', isPassword ? 'true' : 'false');
+    };
+    
+    // Toggle password visibility (reusable for password inputs)
+    window.togglePasswordVisibility = function(inputId, button) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      
+      // Toggle eye icons
+      const closedIcon = button.querySelector('.eye-closed');
+      const openIcon = button.querySelector('.eye-open');
+      if (closedIcon && openIcon) {
+        closedIcon.style.display = isPassword ? 'none' : 'block';
+        openIcon.style.display = isPassword ? 'block' : 'none';
+      }
+      
+      // Update aria-label
+      button.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+      button.setAttribute('aria-pressed', isPassword ? 'true' : 'false');
+    };
+    
+    // Handle M-PIN setup form submission
+    window.handleMPinSetup = async function(event) {
+      event.preventDefault();
+      
+      const mpinInput = document.getElementById('mpinInput');
+      const mpinConfirmInput = document.getElementById('mpinConfirmInput');
+      const errorDiv = document.getElementById('mpinSetupError');
+      const mpinErrorDiv = document.getElementById('mpinError');
+      const mpinConfirmErrorDiv = document.getElementById('mpinConfirmError');
+      const submitBtn = document.getElementById('setMpinBtn');
+      
+      // Clear previous errors
+      errorDiv.style.display = 'none';
+      mpinErrorDiv.style.display = 'none';
+      mpinConfirmErrorDiv.style.display = 'none';
+      
+      const mpin = mpinInput.value.trim();
+      const mpinConfirm = mpinConfirmInput.value.trim();
+      
+      // Validation: exactly 4 digits, numeric only
+      if (!mpin || mpin.length !== 4) {
+        mpinErrorDiv.textContent = 'M-PIN must be exactly 4 digits';
+        mpinErrorDiv.style.display = 'block';
+        mpinInput.focus();
+        return;
+      }
+      
+      if (!/^\d{4}$/.test(mpin)) {
+        mpinErrorDiv.textContent = 'M-PIN must contain only numbers';
+        mpinErrorDiv.style.display = 'block';
+        mpinInput.focus();
+        return;
+      }
+      
+      // Validate confirmation
+      if (mpin !== mpinConfirm) {
+        mpinConfirmErrorDiv.textContent = 'M-PINs do not match';
+        mpinConfirmErrorDiv.style.display = 'block';
+        mpinConfirmInput.focus();
+        return;
+      }
+      
+      // Disable submit button
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Setting M-PIN...';
+      }
+      
+      try {
+        const token = localStorage.getItem('token') || localStorage.getItem('userToken');
+        if (!token) {
+          throw new Error('Session expired. Please login again.');
+        }
+        
+        const apiBase = window.API_BASE || (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+          ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+          : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com');
+        const response = await fetch(`${apiBase}/api/v1/auth/set-mpin`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ mpin })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success || response.ok) {
+          // M-PIN set successfully - hide visibility, clear inputs, proceed to home
+          mpinInput.type = 'password';
+          mpinConfirmInput.type = 'password';
+          mpinInput.value = '';
+          mpinConfirmInput.value = '';
+          
+          // Set flag to bypass M-PIN check (M-PIN was just set successfully)
+          sessionStorage.setItem('mpinJustSet', 'true');
+          
+          alert('M-PIN set successfully!');
+          
+          // Navigate to home - bypass M-PIN check since we just set it
+          // Use direct navigation instead of showScreen to avoid protection check
+          const homeScreen = document.getElementById('homeScreen');
+          if (homeScreen) {
+            document.querySelectorAll('.screen').forEach(s => {
+              s.classList.remove('active');
+              s.classList.add('hidden');
+            });
+            homeScreen.classList.remove('hidden');
+            homeScreen.classList.add('active');
+            
+            // Load home screen data
+            if (typeof loadHomeScreenData === 'function') {
+              loadHomeScreenData();
+            }
+            
+            console.log('✅ Navigated to home after M-PIN setup');
+          } else {
+            // Fallback to showScreen if direct navigation fails
+            showScreen('home');
+          }
+        } else {
+          throw new Error(result.error || result.message || 'Failed to set M-PIN');
+        }
+      } catch (err) {
+        console.error('M-PIN setup error:', err);
+        errorDiv.textContent = err.message || 'Failed to set M-PIN. Please try again.';
+        errorDiv.style.display = 'block';
+        
+        // Reset visibility on error
+        mpinInput.type = 'password';
+        mpinConfirmInput.type = 'password';
+        mpinInput.value = '';
+        mpinConfirmInput.value = '';
+        mpinInput.focus();
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Set M-PIN';
+        }
+      }
+    };
+    
+    // ============================================
+    // M-PIN INPUT VALIDATION FUNCTIONS
+    // ============================================
+    
+    // Validate M-PIN input (4 digits, numeric only)
+    window.validateMPinInput = function(input) {
+      if (!input) return;
+      
+      let value = input.value.replace(/\D/g, ''); // Remove non-digits
+      value = value.slice(0, 4); // Limit to 4 digits
+      input.value = value;
+      
+      // Clear error when typing
+      const errorDiv = document.getElementById('mpinError');
+      if (errorDiv) {
+        errorDiv.style.display = 'none';
+      }
+      
+      // Auto-focus next input if 4 digits entered
+      if (value.length === 4) {
+        const mpinConfirmInput = document.getElementById('mpinConfirmInput');
+        if (mpinConfirmInput) {
+          setTimeout(() => mpinConfirmInput.focus(), 50);
+        }
+      }
+    };
+    
+    // Validate M-PIN confirmation input
+    window.validateMPinConfirmInput = function(input) {
+      if (!input) return;
+      
+      let value = input.value.replace(/\D/g, ''); // Remove non-digits
+      value = value.slice(0, 4); // Limit to 4 digits
+      input.value = value;
+      
+      // Clear error when typing
+      const errorDiv = document.getElementById('mpinConfirmError');
+      if (errorDiv) {
+        errorDiv.style.display = 'none';
+      }
+      
+      // Check if M-PINs match when confirmation is complete
+      if (value.length === 4) {
+        const mpinInput = document.getElementById('mpinInput');
+        if (mpinInput && mpinInput.value.length === 4) {
+          if (mpinInput.value !== value) {
+            const errorDiv = document.getElementById('mpinConfirmError');
+            if (errorDiv) {
+              errorDiv.textContent = 'M-PINs do not match';
+              errorDiv.style.display = 'block';
+            }
+          }
+        }
+      }
+    };
+    
+    // ============================================
+    // M-PIN LOGIN HANDLER (For returning users)
+    // ============================================
+    
+    // Validate M-PIN login input (numeric only, max 4 digits)
+    window.validateMPinLoginInput = function(input) {
+      // Remove any non-numeric characters
+      let value = input.value.replace(/\D/g, '');
+      // Limit to 4 digits
+      value = value.slice(0, 4);
+      input.value = value;
+      
+      // Clear error when typing
+      const errorDiv = document.getElementById('mpinLoginError');
+      if (errorDiv) {
+        errorDiv.style.display = 'none';
+      }
+      
+      // Auto-submit when 4 digits entered
+      if (value.length === 4) {
+        setTimeout(() => {
+          const form = input.closest('form');
+          if (form) {
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn && !submitBtn.disabled) {
+              form.dispatchEvent(new Event('submit', { cancelable: true }));
+            }
+          }
+        }, 100);
+      }
+    };
+    
+    // Handle M-PIN login form submission
+    window.handleMPinLogin = async function(event) {
+      event.preventDefault();
+      
+      const mpinInput = document.getElementById('mpinLoginInput');
+      const errorDiv = document.getElementById('mpinLoginError');
+      const submitBtn = document.getElementById('verifyMpinBtn');
+      const phone = sessionStorage.getItem('phoneForMPin') || sessionStorage.getItem('phoneForOTP');
+      
+      if (!phone) {
+        errorDiv.textContent = 'Phone number not found. Please login again.';
+        errorDiv.style.display = 'block';
+        setTimeout(() => {
+          showScreen('login');
+        }, 2000);
+        return;
+      }
+      
+      const mpin = mpinInput.value.trim();
+      
+      // Validation: exactly 4 digits, numeric only
+      if (!mpin || mpin.length !== 4) {
+        errorDiv.textContent = 'Please enter 4-digit M-PIN';
+        errorDiv.style.display = 'block';
+        mpinInput.focus();
+        return;
+      }
+      
+      if (!/^\d{4}$/.test(mpin)) {
+        errorDiv.textContent = 'M-PIN must contain only numbers';
+        errorDiv.style.display = 'block';
+        mpinInput.focus();
+        return;
+      }
+      
+      // Disable submit button
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Verifying...';
+      }
+      
+      try {
+        const apiBase = window.API_BASE || (typeof CONFIG !== 'undefined' && CONFIG?.API_BASE_URL) 
+          ? CONFIG.API_BASE_URL.replace('/api/v1', '') 
+          : (window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://api.yourdomain.com');
+        const response = await fetch(`${apiBase}/api/v1/auth/verify-mpin`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            phone_number: phone,
+            mpin: mpin
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success && (result.data?.token || result.token)) {
+          // Login successful - hide visibility, clear input, store token
+          mpinInput.type = 'password';
+          mpinInput.value = '';
+          
+          const token = result.data?.token || result.token;
+          const user = result.data?.user || result.user;
+          
+          localStorage.setItem('token', token);
+          localStorage.setItem('userToken', token); // Legacy support
+          localStorage.setItem('userInfo', JSON.stringify(user || {}));
+          localStorage.setItem('user', JSON.stringify(user || {}));
+          
+          sessionStorage.removeItem('phoneForMPin');
+          sessionStorage.removeItem('phoneForOTP');
+          
+          // Join realtime room if available
+          if (typeof joinUserRealtimeRoom === 'function') {
+            joinUserRealtimeRoom();
+          }
+          
+          alert('Login successful!');
+          
+          // Navigate to home
+          showScreen('home');
+          if (typeof loadHomeScreenData === 'function') {
+            loadHomeScreenData();
+          }
+        } else {
+          // Handle failed attempts
+          const failedAttempts = result.data?.failed_attempts || 0;
+          const isLocked = result.data?.is_locked || false;
+          
+          if (isLocked) {
+            errorDiv.textContent = 'Too many failed attempts. Account locked. Please use OTP login.';
+            errorDiv.style.display = 'block';
+            // Redirect to OTP after 3 seconds
+            setTimeout(() => {
+              handleForgotMPin();
+            }, 3000);
+          } else {
+            const remainingAttempts = 5 - failedAttempts;
+            errorDiv.textContent = result.error || result.message || `Invalid M-PIN. ${remainingAttempts > 0 ? remainingAttempts + ' attempt(s) remaining.' : 'Please use OTP login.'}`;
+            errorDiv.style.display = 'block';
+          }
+          
+          // Reset visibility and clear input on error
+          mpinInput.type = 'password';
+          mpinInput.value = '';
+          mpinInput.focus();
+        }
+      } catch (err) {
+        console.error('M-PIN login error:', err);
+        errorDiv.textContent = err.message || 'Network error. Please try again.';
+        errorDiv.style.display = 'block';
+        
+        // Reset visibility and clear input on error
+        mpinInput.type = 'password';
+        mpinInput.value = '';
+        mpinInput.focus();
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Login';
+        }
+      }
+    };
+    
+    // Handle "Forgot M-PIN" - redirect to OTP flow (forces M-PIN reset)
+    window.handleForgotMPin = function() {
+      const phone = sessionStorage.getItem('phoneForMPin') || sessionStorage.getItem('phoneForOTP');
+      
+      if (!phone) {
+        alert('Phone number not found. Please login again.');
+        showScreen('login');
+        return;
+      }
+      
+      // Clear M-PIN session, set OTP session
+      sessionStorage.setItem('phoneForOTP', phone);
+      sessionStorage.removeItem('phoneForMPin');
+      
+      // Set flag to indicate OTP login should force M-PIN reset
+      sessionStorage.setItem('forceMpinReset', 'true');
+      
+      // Navigate to OTP screen
+      showScreen('otp');
+      
+      // Focus on first OTP input
+      setTimeout(() => {
+        const firstOtpInput = document.querySelector('.otp-input');
+        if (firstOtpInput) firstOtpInput.focus();
+      }, 300);
+    };
+    
     // Make handlers globally available
-    window.handleLogin = handleLogin;
+    window.handleLogin = handleOTPLogin; // Alias for handleOTPLogin
+    window.handleOTPLogin = handleOTPLogin;
     window.handleSignup = handleSignup;
   </script>
 
   <!-- Load Navigation Module -->
-  <script src="/js/ui/navigation-bar.js"></script>
+  <script type="module" src="/js/ui/navigation-bar.jsx"></script>
 
   <!-- Load Location Service -->
-  <script src="/js/services/locationService.js"></script>
-  <script type="module" src="/js/utils/mobileEnhancements.js"></script>
+  <script type="module" src="/js/services/locationService.jsx"></script>
+  <script type="module" src="/js/utils/mobileEnhancements.jsx"></script>
 
   <!-- LocalStorage helpers to read values saved via setStorageItem(JSON) -->
   <script>
