@@ -50,7 +50,7 @@ async function getPartnerById(partnerId, requireApproval = true) {
   if (requireApproval) {
     query += `
     AND p.is_active = true
-    AND p.status IN ('active', 'approved')
+    AND p.status IN ('active', 'approved',)
   `;
     // query += ` AND p.is_active = true
     //            AND (p.status IS NULL OR p.status IN ('active', 'approved','rejected'))`;

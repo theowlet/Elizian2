@@ -2196,7 +2196,7 @@ async function checkAuth() {
     if (result.data?.first_name) {
       const welcomeEl = $('#adminWelcome');
       if (welcomeEl) {
-        welcomeEl.textContent = `Welcome back, ${result.data.first_name}`;
+        welcomeEl.textContent = `Welcome back, ${result.data.first_name.charAt(0).toUpperCase() + result.data.first_name.slice(1)}`;
       }
     }
 
