@@ -1,0 +1,249 @@
+/* ============================================
+   ELIZIAN USER PROFILE PAGE
+   ============================================ */
+
+.profile-page {
+  min-height: 100vh;
+  background: var(--bg-light, #f9fafb);
+  color: var(--text-color, #1f2937);
+  padding: 1rem 1rem 2rem;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.profile-back {
+  background: none;
+  border: none;
+  color: var(--primary-color, #004f4a);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+
+.profile-back:hover {
+  text-decoration: underline;
+}
+
+.profile-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.profile-loading,
+.profile-error {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-light, #6b7280);
+}
+
+.profile-error {
+  color: #b91c1c;
+}
+
+.profile-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.profile-section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--border-color, #e5e7eb);
+}
+
+.profile-photo-section {
+  display: flex;
+  justify-content: center;
+}
+
+.profile-photo {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile-section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-light, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.75rem 0;
+}
+
+.profile-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.profile-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  gap: 1rem;
+}
+
+.profile-list li:last-child {
+  border-bottom: none;
+}
+
+.profile-label {
+  font-size: 0.875rem;
+  color: var(--text-light, #6b7280);
+  flex-shrink: 0;
+}
+
+.profile-value {
+  font-size: 1rem;
+  text-align: right;
+  word-break: break-word;
+}
+
+.profile-tokens {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.profile-token-item {
+  text-align: center;
+  padding: 0.75rem;
+  background: var(--bg-light, #f9fafb);
+  border-radius: 8px;
+}
+
+.profile-token-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-light, #6b7280);
+  margin-bottom: 0.25rem;
+}
+
+.profile-token-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--primary-color, #004f4a);
+}
+
+.profile-tier-name {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.profile-tier-progress {
+  margin-top: 0.75rem;
+}
+
+.profile-tier-next {
+  font-size: 0.875rem;
+  color: var(--text-light, #6b7280);
+  margin: 0 0 0.5rem 0;
+}
+
+.profile-progress-bar-wrap {
+  position: relative;
+  height: 8px;
+  background: var(--border-color, #e5e7eb);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.profile-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--secondary-color, #059669), var(--primary-color, #004f4a));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.profile-progress-text {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 0 1px #000;
+}
+
+.profile-btn {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.profile-btn.primary {
+  background: var(--primary-color, #004f4a);
+  color: #fff;
+}
+
+.profile-btn.primary:hover {
+  background: #003d39;
+}
+
+.profile-btn.secondary {
+  background: #fff;
+  color: var(--text-color, #1f2937);
+  border: 1px solid var(--border-color, #e5e7eb);
+  margin-top: 1rem;
+}
+
+.profile-btn.secondary:hover {
+  background: var(--bg-light, #f9fafb);
+}
+
+.profile-btn.logout {
+  background: transparent;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.profile-btn.logout:hover {
+  background: #fef2f2;
+}
+
+.profile-link {
+  background: none;
+  border: none;
+  color: var(--primary-color, #004f4a);
+  font-size: 0.9375rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.profile-link:hover {
+  color: #003d39;
+}
+
+.profile-hint {
+  font-size: 0.875rem;
+  color: var(--text-light, #6b7280);
+  margin: 0.5rem 0 0 0;
+  line-height: 1.5;
+}
+
+.profile-actions {
+  margin-top: 0.5rem;
+}

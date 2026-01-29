@@ -3,22 +3,25 @@ import { useNavigate } from "react-router-dom";
 import DealMenuPane from "../components/DealMenuPane";
 
 const HomePage = () => {
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
   const navigate = useNavigate();
-  
+
   const [currentSection, setCurrentSection] = useState("home");
   // const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState(null);
   const [activeCategory, setActiveCategory] = useState("all");
   const [showNearMe, setShowNearMe] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
+
   // Single source of truth: all deals fetched once
   const [allDeals, setAllDeals] = useState([]);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState({});
   const [currentLocation, setCurrentLocation] = useState("");
-  const [userCoordinates, setUserCoordinates] = useState({ latitude: null, longitude: null });
+  const [userCoordinates, setUserCoordinates] = useState({
+    latitude: null,
+    longitude: null,
+  });
   const [selectedDeal, setSelectedDeal] = useState(null);
   const [isMenuPaneOpen, setIsMenuPaneOpen] = useState(false);
 
@@ -44,13 +47,13 @@ const HomePage = () => {
   // CATEGORY TO SERVICE TYPE MAPPING
   // ============================================
   const categoryToServiceType = {
-    'dining': 'dining',
-    'events': 'events',
-    'healthcare': 'healthcare',
-    'spa': 'spa-and-salon', // CRITICAL: Frontend 'spa' → Backend 'spa-and-salon'
-    'wellness': 'wellness',
-    'travel': 'travel',
-    'others': 'others'
+    dining: "dining",
+    events: "events",
+    healthcare: "healthcare",
+    spa: "spa-and-salon", // CRITICAL: Frontend 'spa' → Backend 'spa-and-salon'
+    wellness: "wellness",
+    travel: "travel",
+    others: "others",
   };
 
   // ============================================
@@ -59,12 +62,14 @@ const HomePage = () => {
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
     if (!lat1 || !lon1 || !lat2 || !lon2) return Infinity;
     const R = 6371; // Earth's radius in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c; // Distance in km
   };
@@ -86,18 +91,22 @@ const HomePage = () => {
    */
   const getTrendingDeals = (deals, selectedCategory) => {
     if (!deals || deals.length === 0) return [];
-    
+
     // Filter by is_trending flag
-    let trending = deals.filter(deal => deal.is_trending === true || deal.featured === true);
-    
+    let trending = deals.filter(
+      (deal) => deal.is_trending === true || deal.featured === true,
+    );
+
     // Apply category filter if not "all"
-    if (selectedCategory !== 'all') {
+    if (selectedCategory !== "all") {
       const expectedServiceType = categoryToServiceType[selectedCategory];
       if (expectedServiceType) {
-        trending = trending.filter(deal => deal.service_type === expectedServiceType);
+        trending = trending.filter(
+          (deal) => deal.service_type === expectedServiceType,
+        );
       }
     }
-    
+
     return trending;
   };
 
@@ -110,71 +119,85 @@ const HomePage = () => {
    */
   const getTopRestaurants = (deals, userLat, userLon) => {
     if (!deals || deals.length === 0) {
-      console.log('⚠️ [getTopRestaurants] No deals available');
+      console.log("⚠️ [getTopRestaurants] No deals available");
       return [];
     }
-    
+
     // Filter ONLY dining deals
-    let restaurants = deals.filter(deal => {
-      const isDining = deal.service_type === 'dining';
+    let restaurants = deals.filter((deal) => {
+      const isDining = deal.service_type === "dining";
       if (!isDining) {
-        console.log(`⚠️ [getTopRestaurants] Skipping non-dining deal: ${deal.title} (service_type: ${deal.service_type})`);
+        console.log(
+          `⚠️ [getTopRestaurants] Skipping non-dining deal: ${deal.title} (service_type: ${deal.service_type})`,
+        );
       }
       return isDining;
     });
-    
-    console.log(`✅ [getTopRestaurants] Found ${restaurants.length} dining deals out of ${deals.length} total deals`);
-    
+
+    console.log(
+      `✅ [getTopRestaurants] Found ${restaurants.length} dining deals out of ${deals.length} total deals`,
+    );
+
     // Calculate and add distance for each restaurant
     if (userLat && userLon) {
-      console.log(`📍 [getTopRestaurants] User location available: ${userLat}, ${userLon}`);
-      
-      restaurants = restaurants.map(deal => {
+      console.log(
+        `📍 [getTopRestaurants] User location available: ${userLat}, ${userLon}`,
+      );
+
+      restaurants = restaurants.map((deal) => {
         const dealLat = deal.latitude || deal.partner_latitude;
         const dealLon = deal.longitude || deal.partner_longitude;
-        
+
         if (!dealLat || !dealLon) {
           // Deal has no location - include it but mark as "N/A"
           return {
             ...deal,
             distanceKm: Infinity,
-            distanceFormatted: 'Location not available'
+            distanceFormatted: "Location not available",
           };
         }
-        
+
         const distance = calculateDistance(userLat, userLon, dealLat, dealLon);
         return {
           ...deal,
           distanceKm: distance,
-          distanceFormatted: formatDistance(distance)
+          distanceFormatted: formatDistance(distance),
         };
       });
-      
+
       // Filter by 25km radius (but keep deals without location)
-      const withinRadius = restaurants.filter(r => r.distanceKm <= 25);
-      const withoutLocation = restaurants.filter(r => !isFinite(r.distanceKm));
-      
+      const withinRadius = restaurants.filter((r) => r.distanceKm <= 25);
+      const withoutLocation = restaurants.filter(
+        (r) => !isFinite(r.distanceKm),
+      );
+
       restaurants = [...withinRadius, ...withoutLocation];
-      
+
       // Sort by distance ASC (nearest first), deals without location go to end
       restaurants.sort((a, b) => {
         if (!isFinite(a.distanceKm)) return 1;
         if (!isFinite(b.distanceKm)) return -1;
         return a.distanceKm - b.distanceKm;
       });
-      
-      console.log(`✅ [getTopRestaurants] After filtering: ${withinRadius.length} within 25km, ${withoutLocation.length} without location`);
+
+      console.log(
+        `✅ [getTopRestaurants] After filtering: ${withinRadius.length} within 25km, ${withoutLocation.length} without location`,
+      );
     } else {
       // If no user location, show ALL dining deals (without distance sorting)
-      console.log('⚠️ [getTopRestaurants] No user location - showing all dining deals');
-      restaurants = restaurants.map(deal => ({
+      console.log(
+        "⚠️ [getTopRestaurants] No user location - showing all dining deals",
+      );
+      restaurants = restaurants.map((deal) => ({
         ...deal,
         distanceKm: Infinity,
-        distanceFormatted: 'Distance unavailable'
+        distanceFormatted: "Distance unavailable",
       }));
     }
-    
-    console.log(`✅ [getTopRestaurants] Returning ${restaurants.length} restaurants`);
+
+    console.log(
+      `✅ [getTopRestaurants] Returning ${restaurants.length} restaurants`,
+    );
     return restaurants;
   };
 
@@ -185,23 +208,23 @@ const HomePage = () => {
    */
   const getLiveEvents = (deals) => {
     if (!deals || deals.length === 0) return [];
-    
+
     const now = new Date();
-    
+
     // Filter ONLY events
-    let events = deals.filter(deal => deal.service_type === 'events');
-    
+    let events = deals.filter((deal) => deal.service_type === "events");
+
     // Filter for ongoing events
-    events = events.filter(event => {
+    events = events.filter((event) => {
       if (!event.start_date) return false;
-      
+
       const startDate = new Date(event.start_date);
       const endDate = event.end_date ? new Date(event.end_date) : null;
-      
+
       // Event has started (start_date <= now) and hasn't ended yet
       return startDate <= now && (!endDate || endDate >= now);
     });
-    
+
     return events.slice(0, 5); // Top 5 live events
   };
 
@@ -213,26 +236,26 @@ const HomePage = () => {
    */
   const getUpcomingEvents = (deals) => {
     if (!deals || deals.length === 0) return [];
-    
+
     const now = new Date();
-    
+
     // Filter ONLY events
-    let events = deals.filter(deal => deal.service_type === 'events');
-    
+    let events = deals.filter((deal) => deal.service_type === "events");
+
     // Filter for upcoming events (start_date > now)
-    events = events.filter(event => {
+    events = events.filter((event) => {
       if (!event.start_date) return false;
       const startDate = new Date(event.start_date);
       return startDate > now;
     });
-    
+
     // Sort by start_date ASC
     events.sort((a, b) => {
       const dateA = new Date(a.start_date);
       const dateB = new Date(b.start_date);
       return dateA - dateB;
     });
-    
+
     return events.slice(0, 5); // Top 5 upcoming events
   };
 
@@ -243,47 +266,48 @@ const HomePage = () => {
    */
   const getAllPartnerDeals = (deals, selectedCategory) => {
     if (!deals || deals.length === 0) return [];
-    
+
     let allDeals = [...deals];
-    
+
     // Apply category filter if not "all"
-    if (selectedCategory !== 'all') {
+    if (selectedCategory !== "all") {
       const expectedServiceType = categoryToServiceType[selectedCategory];
       if (expectedServiceType) {
-        allDeals = allDeals.filter(deal => deal.service_type === expectedServiceType);
+        allDeals = allDeals.filter(
+          (deal) => deal.service_type === expectedServiceType,
+        );
       }
     }
-    
+
     return allDeals;
   };
 
   // ============================================
   // MEMOIZED SECTION DATA (Derived from allDeals)
   // ============================================
-  
-  const trendingDeals = useMemo(() => 
-    getTrendingDeals(allDeals, activeCategory),
-    [allDeals, activeCategory]
+
+  const trendingDeals = useMemo(
+    () => getTrendingDeals(allDeals, activeCategory),
+    [allDeals, activeCategory],
   );
 
-  const topRestaurants = useMemo(() => 
-    getTopRestaurants(allDeals, userCoordinates.latitude, userCoordinates.longitude),
-    [allDeals, userCoordinates.latitude, userCoordinates.longitude]
+  const topRestaurants = useMemo(
+    () =>
+      getTopRestaurants(
+        allDeals,
+        userCoordinates.latitude,
+        userCoordinates.longitude,
+      ),
+    [allDeals, userCoordinates.latitude, userCoordinates.longitude],
   );
 
-  const liveEvents = useMemo(() => 
-    getLiveEvents(allDeals),
-    [allDeals]
-  );
+  const liveEvents = useMemo(() => getLiveEvents(allDeals), [allDeals]);
 
-  const upcomingEvents = useMemo(() => 
-    getUpcomingEvents(allDeals),
-    [allDeals]
-  );
+  const upcomingEvents = useMemo(() => getUpcomingEvents(allDeals), [allDeals]);
 
-  const allPartnerDeals = useMemo(() => 
-    getAllPartnerDeals(allDeals, activeCategory),
-    [allDeals, activeCategory]
+  const allPartnerDeals = useMemo(
+    () => getAllPartnerDeals(allDeals, activeCategory),
+    [allDeals, activeCategory],
   );
 
   // ============================================
@@ -297,7 +321,7 @@ const HomePage = () => {
     try {
       setLoading(true);
       const url = `${API_BASE}/api/v1/offers?limit=100&is_active=true`;
-      
+
       const response = await fetch(url);
       const result = await response.json();
 
@@ -309,7 +333,9 @@ const HomePage = () => {
           description: item.description,
           price: item.discounted_price || item.original_price || 0,
           originalPrice: item.original_price,
-          image: item.image_url || "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+          image:
+            item.image_url ||
+            "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
           service_type: item.service_type || "others",
           is_trending: item.is_trending || item.featured || false,
           featured: item.featured || false,
@@ -323,7 +349,7 @@ const HomePage = () => {
           partner_name: item.partner_name,
           category_name: item.category_name,
         }));
-        
+
         setAllDeals(formattedDeals);
         console.log(`✅ Loaded ${formattedDeals.length} deals`);
       } else {
@@ -343,45 +369,51 @@ const HomePage = () => {
         (position) => {
           const { latitude, longitude } = position.coords;
           setUserCoordinates({ latitude, longitude });
-          
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
-            .then(response => response.json())
-            .then(data => {
-              const city = data.address.city || data.address.town || data.address.village || "Unknown City";
+
+          fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+          )
+            .then((response) => response.json())
+            .then((data) => {
+              const city =
+                data.address.city ||
+                data.address.town ||
+                data.address.village ||
+                "Unknown City";
               const country = data.address.country || "Unknown Country";
               setCurrentLocation(`${city}, ${country}`);
-              localStorage.setItem('userLocation', `${city}, ${country}`);
+              localStorage.setItem("userLocation", `${city}, ${country}`);
             })
             .catch(() => {
               setCurrentLocation("Mumbai, India");
             });
         },
         () => {
-          const savedLocation = localStorage.getItem('userLocation');
+          const savedLocation = localStorage.getItem("userLocation");
           setCurrentLocation(savedLocation || "Mumbai, India");
-        }
+        },
       );
     } else {
-      const savedLocation = localStorage.getItem('userLocation');
+      const savedLocation = localStorage.getItem("userLocation");
       setCurrentLocation(savedLocation || "Mumbai, India");
     }
   };
 
   useEffect(() => {
-    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    const userData = JSON.parse(localStorage.getItem("user") || "{}");
     setUser(userData);
-    
+
     getUserLocation();
     loadAllDeals();
-    
+
     // Listen for book deal event from menu pane
     const handleBookDealEvent = (e) => {
       handleBookDeal(e.detail);
     };
-    window.addEventListener('bookDeal', handleBookDealEvent);
-    
+    window.addEventListener("bookDeal", handleBookDealEvent);
+
     return () => {
-      window.removeEventListener('bookDeal', handleBookDealEvent);
+      window.removeEventListener("bookDeal", handleBookDealEvent);
     };
   }, []);
 
@@ -405,7 +437,7 @@ const HomePage = () => {
   // Handle clicking on a deal card to open menu
   const handleDealCardClick = (deal, e) => {
     // Don't open menu if clicking on the "Book Now" button
-    if (e.target.closest('.card-action-btn')) {
+    if (e.target.closest(".card-action-btn")) {
       return;
     }
     setSelectedDeal(deal);
@@ -417,77 +449,81 @@ const HomePage = () => {
     // Check authentication first
     if (!isAuthenticated()) {
       // Store deal info for resuming booking after login
-      sessionStorage.setItem('pendingBooking', JSON.stringify({
-        dealId: deal.id,
-        dealTitle: deal.title,
-        serviceType: deal.service_type,
-        partnerId: deal.partner_id,
-        redirectPath: `/home`
-      }));
+      sessionStorage.setItem(
+        "pendingBooking",
+        JSON.stringify({
+          dealId: deal.id,
+          dealTitle: deal.title,
+          serviceType: deal.service_type,
+          partnerId: deal.partner_id,
+          redirectPath: `/home`,
+        }),
+      );
       // Redirect to login with return path
-      navigate('/login', { 
-        state: { 
-          from: { pathname: '/home' },
-          bookingDealId: deal.id 
-        } 
+      navigate("/login", {
+        state: {
+          from: { pathname: "/home" },
+          bookingDealId: deal.id,
+        },
       });
       return;
     }
 
     // User is authenticated - proceed with booking
     // For dining deals, navigate to restaurant booking
-    if (deal.service_type === 'dining') {
+    if (deal.service_type === "dining") {
       // Navigate to booking page or open booking modal
       // For now, navigate to a booking route with deal info
-      navigate(`/events/booking`, { 
-        state: { 
+      navigate(`/events/booking`, {
+        state: {
           deal: deal,
           dealId: deal.id,
-          serviceType: 'dining'
-        } 
+          serviceType: "dining",
+        },
       });
-    } 
+    }
     // For events, navigate to event booking
-    else if (deal.service_type === 'events') {
-      navigate(`/events/booking`, { 
-        state: { 
+    else if (deal.service_type === "events") {
+      navigate(`/events/booking`, {
+        state: {
           deal: deal,
           dealId: deal.id,
-          serviceType: 'events'
-        } 
+          serviceType: "events",
+        },
       });
-    } 
+    }
     // For other types, use generic booking
     else {
-      navigate(`/events/booking`, { 
-        state: { 
+      navigate(`/events/booking`, {
+        state: {
           deal: deal,
           dealId: deal.id,
-          serviceType: deal.service_type || 'others'
-        } 
+          serviceType: deal.service_type || "others",
+        },
       });
     }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    navigate('/login');
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+    navigate("/login");
   };
 
   const handleNavigation = (section) => {
     setCurrentSection(section);
-    console.log("data passed",section);
     setMobileMenuOpen(false);
     if (section === "home") {
       window.scrollTo({ top: 0, behavior: "smooth" });
+    } else if (section === "profile") {
+      navigate("/profile");
     }
   };
 
   // Format price for display
   const formatPrice = (price) => {
-    if (!price) return '₹0';
-    return `₹${parseFloat(price).toLocaleString('en-IN')}`;
+    if (!price) return "₹0";
+    return `₹${parseFloat(price).toLocaleString("en-IN")}`;
   };
 
   return (
@@ -498,10 +534,10 @@ const HomePage = () => {
 
       <header className="top-nav">
         <div className="container nav-container">
-          <div 
+          <div
             className="elizian-landing-logo"
-            onClick={() => navigate('/')}
-            style={{ cursor: 'pointer' }}
+            onClick={() => navigate("/")}
+            style={{ cursor: "pointer" }}
           >
             <img
               src="/assets/z.png"
@@ -567,7 +603,7 @@ const HomePage = () => {
               className="nav-link"
               onClick={(e) => {
                 e.preventDefault();
-                navigate('/bookings');
+                navigate("/bookings");
               }}
             >
               My Bookings
@@ -585,11 +621,13 @@ const HomePage = () => {
           <div className="user-actions">
             {user?.first_name ? (
               <>
-                <span className="welcome-text">Welcome, {user.first_name} {user.last_name || ''}</span>
-                <button 
-                  className="btn btn-secondary" 
-                  onClick={() => navigate('/bookings')}
-                  style={{ marginRight: '0.5rem' }}
+                <span className="welcome-text">
+                  Welcome, {user.first_name} {user.last_name || ""}
+                </span>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => navigate("/bookings")}
+                  style={{ marginRight: "0.5rem" }}
                 >
                   My Bookings
                 </button>
@@ -599,10 +637,16 @@ const HomePage = () => {
               </>
             ) : (
               <>
-                <button className="btn btn-primary" onClick={() => navigate('/login')}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => navigate("/login")}
+                >
                   Login
                 </button>
-                <button className="btn btn-secondary" onClick={() => navigate('/signup')}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => navigate("/signup")}
+                >
                   Sign Up
                 </button>
               </>
@@ -667,7 +711,7 @@ const HomePage = () => {
               className="mobile-nav-link"
               onClick={(e) => {
                 e.preventDefault();
-                navigate('/bookings');
+                navigate("/bookings");
               }}
             >
               My Bookings
@@ -695,9 +739,11 @@ const HomePage = () => {
             <div className="location-details">
               <div className="location-main">
                 {currentLocation}
-               {!currentLocation && <span className="dropdown-arrow">▼</span>}
+                {!currentLocation && <span className="dropdown-arrow">▼</span>}
               </div>
-              {!currentLocation && <div className="location-sub">Detecting your location...</div>}
+              {!currentLocation && (
+                <div className="location-sub">Detecting your location...</div>
+              )}
             </div>
           </div>
         </div>
@@ -799,7 +845,13 @@ const HomePage = () => {
               </div>
             ) : trendingDeals.length === 0 ? (
               <div className="empty-state">
-                <p>No trending experiences found{activeCategory !== 'all' ? ` in ${categories.find(c => c.id === activeCategory)?.name}` : ''}.</p>
+                <p>
+                  No trending experiences found
+                  {activeCategory !== "all"
+                    ? ` in ${categories.find((c) => c.id === activeCategory)?.name}`
+                    : ""}
+                  .
+                </p>
               </div>
             ) : (
               <div className="trending-grid">
@@ -823,11 +875,14 @@ const HomePage = () => {
                       <div className="card-footer">
                         <div className="card-price">
                           {formatPrice(item.price)}
-                          {item.originalPrice && item.originalPrice > item.price && (
-                            <span className="original-price">{formatPrice(item.originalPrice)}</span>
-                          )}
+                          {item.originalPrice &&
+                            item.originalPrice > item.price && (
+                              <span className="original-price">
+                                {formatPrice(item.originalPrice)}
+                              </span>
+                            )}
                         </div>
-                        <button 
+                        <button
                           className="card-action-btn"
                           onClick={() => handleBookDeal(item)}
                         >
@@ -850,13 +905,15 @@ const HomePage = () => {
                 <span className="title-icon">🍽️</span>
                 Top Restaurants Near You
               </h2>
-              <button 
+              <button
                 className="view-all-btn"
                 onClick={() => {
-                  setActiveCategory('dining');
+                  setActiveCategory("dining");
                   // Scroll to All Partner Deals section
                   setTimeout(() => {
-                    document.getElementById('all-partner-deals')?.scrollIntoView({ behavior: 'smooth' });
+                    document
+                      .getElementById("all-partner-deals")
+                      ?.scrollIntoView({ behavior: "smooth" });
                   }, 100);
                 }}
               >
@@ -875,11 +932,11 @@ const HomePage = () => {
             ) : (
               <div className="restaurants-grid">
                 {topRestaurants.map((restaurant) => (
-                  <div 
-                    key={restaurant.id} 
+                  <div
+                    key={restaurant.id}
                     className="restaurant-card"
                     onClick={(e) => handleDealCardClick(restaurant, e)}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: "pointer" }}
                   >
                     <div
                       className="restaurant-image"
@@ -899,13 +956,15 @@ const HomePage = () => {
                           {restaurant.priceRange || "$$"}
                         </div>
                       </div>
-                      <p className="restaurant-cuisine">{restaurant.category_name || "Multi-cuisine"}</p>
+                      <p className="restaurant-cuisine">
+                        {restaurant.category_name || "Multi-cuisine"}
+                      </p>
                       <div className="restaurant-meta">
                         <span className="restaurant-distance">
                           {restaurant.distanceFormatted || "N/A"}
                         </span>
                         <span className="restaurant-action">
-                          <button 
+                          <button
                             className="btn-sm"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -948,11 +1007,11 @@ const HomePage = () => {
             ) : (
               <div className="events-grid">
                 {liveEvents.map((event) => (
-                  <div 
-                    key={event.id} 
+                  <div
+                    key={event.id}
                     className="event-card"
                     onClick={(e) => handleDealCardClick(event, e)}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: "pointer" }}
                   >
                     <div
                       className="event-image"
@@ -965,26 +1024,35 @@ const HomePage = () => {
                     <div className="event-info">
                       <div className="event-header">
                         <h3 className="event-title">{event.title}</h3>
-                        <div className="event-type">{event.category_name || "General"}</div>
+                        <div className="event-type">
+                          {event.category_name || "General"}
+                        </div>
                       </div>
                       <div className="event-meta">
                         <div className="event-time">
                           <span className="time-icon">🕒</span>
                           <span>
-                            {event.start_date ? new Date(event.start_date).toLocaleDateString("en-IN", {
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            }) : "Ongoing"}
+                            {event.start_date
+                              ? new Date(event.start_date).toLocaleDateString(
+                                  "en-IN",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  },
+                                )
+                              : "Ongoing"}
                           </span>
                         </div>
                         <div className="event-location">
                           <span className="location-icon">📍</span>
-                          <span>{event.location || event.partner_name || "Downtown"}</span>
+                          <span>
+                            {event.location || event.partner_name || "Downtown"}
+                          </span>
                         </div>
                       </div>
-                      <button 
+                      <button
                         className="btn btn-primary event-action"
                         onClick={() => handleBookDeal(event)}
                       >
@@ -1006,13 +1074,15 @@ const HomePage = () => {
                 <span className="title-icon">🎭</span>
                 Upcoming Events
               </h2>
-              <button 
+              <button
                 className="view-all-btn"
                 onClick={() => {
-                  setActiveCategory('events');
+                  setActiveCategory("events");
                   // Scroll to All Partner Deals section
                   setTimeout(() => {
-                    document.getElementById('all-partner-deals')?.scrollIntoView({ behavior: 'smooth' });
+                    document
+                      .getElementById("all-partner-deals")
+                      ?.scrollIntoView({ behavior: "smooth" });
                   }, 100);
                 }}
               >
@@ -1031,11 +1101,11 @@ const HomePage = () => {
             ) : (
               <div className="events-scroll">
                 {upcomingEvents.map((event) => (
-                  <div 
-                    key={`upcoming-${event.id}`} 
+                  <div
+                    key={`upcoming-${event.id}`}
                     className="event-scroll-card"
                     onClick={(e) => handleDealCardClick(event, e)}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: "pointer" }}
                   >
                     <div
                       className="event-scroll-image"
@@ -1046,7 +1116,13 @@ const HomePage = () => {
                     <div className="event-scroll-content">
                       <h4>{event.title}</h4>
                       <p>
-                        {event.category_name || "General"} • {event.start_date ? new Date(event.start_date).toLocaleDateString("en-IN", { month: "short", day: "numeric" }) : "Coming Soon"}
+                        {event.category_name || "General"} •{" "}
+                        {event.start_date
+                          ? new Date(event.start_date).toLocaleDateString(
+                              "en-IN",
+                              { month: "short", day: "numeric" },
+                            )
+                          : "Coming Soon"}
                       </p>
                     </div>
                   </div>
@@ -1073,7 +1149,13 @@ const HomePage = () => {
               </div>
             ) : allPartnerDeals.length === 0 ? (
               <div className="empty-state">
-                <p>No deals available{activeCategory !== 'all' ? ` in ${categories.find(c => c.id === activeCategory)?.name}` : ''}.</p>
+                <p>
+                  No deals available
+                  {activeCategory !== "all"
+                    ? ` in ${categories.find((c) => c.id === activeCategory)?.name}`
+                    : ""}
+                  .
+                </p>
               </div>
             ) : (
               <div className="trending-grid">
@@ -1099,11 +1181,14 @@ const HomePage = () => {
                       <div className="card-footer">
                         <div className="card-price">
                           {formatPrice(deal.price)}
-                          {deal.originalPrice && deal.originalPrice > deal.price && (
-                            <span className="original-price">{formatPrice(deal.originalPrice)}</span>
-                          )}
+                          {deal.originalPrice &&
+                            deal.originalPrice > deal.price && (
+                              <span className="original-price">
+                                {formatPrice(deal.originalPrice)}
+                              </span>
+                            )}
                         </div>
-                        <button 
+                        <button
                           className="card-action-btn"
                           onClick={() => navigate(`/experience/${deal.id}`)}
                         >
@@ -1159,7 +1244,9 @@ const HomePage = () => {
             </div> */}
           </div>
           <div className="footer-bottom">
-            <p>&copy; {new Date().getFullYear()} Elizian. All rights reserved.</p>
+            <p>
+              &copy; {new Date().getFullYear()} Elizian. All rights reserved.
+            </p>
           </div>
         </div>
       </footer>
@@ -1187,7 +1274,8 @@ const HomePage = () => {
         }
 
         body {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          font-family:
+            -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           color: var(--text-color);
           line-height: 1.5;
         }
@@ -1647,7 +1735,9 @@ const HomePage = () => {
           border-radius: var(--radius);
           overflow: hidden;
           box-shadow: var(--shadow);
-          transition: transform 0.2s, box-shadow 0.2s;
+          transition:
+            transform 0.2s,
+            box-shadow 0.2s;
         }
 
         .trending-card:hover,

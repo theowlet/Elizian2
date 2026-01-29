@@ -14,6 +14,7 @@ import SignupPage from "./pages/SignupPage";
 import MPinSetupScreen from "./pages/MPinSetupScreen";
 import MPinLoginScreen from "./pages/MPinLoginScreen";
 import HomePage from "./pages/HomePage";
+import Profile from './pages/Profile';
 import EventBooking from "./pages/EventBooking";
 import BookingHistory from "./pages/BookingHistory";
 import BookingDetails from "./pages/BookingDetails";
@@ -131,6 +132,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requireAuth={true}>
             <EventBooking />
+          </ProtectedRoute>
+        }
+      />
+       <Route
+        path="/profile"
+        element={
+          <ProtectedRoute requireAuth={true}>
+            <Profile />
           </ProtectedRoute>
         }
       />
