@@ -305,7 +305,6 @@ export default function PartnerConsole() {
   }
 
   // Simple redeem voucher flow used in scanner section
-  const [scannerResult, setScannerResult] = useState(null);
   async function validateVoucher(code) {
     try {
       const r = await fetch(`${API_BASE}/api/v1/vouchers/${code}`, { headers: headers() });

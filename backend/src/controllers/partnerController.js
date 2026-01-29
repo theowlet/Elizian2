@@ -3,6 +3,7 @@ const { successResponse, errorResponse } = require('../../utils/response');
 const { logError } = require('../../utils/logger');
 const { getUserRoleById } = require('../utils/queries');
 const { writeAudit } = require('../utils/audit');
+const { log } = require('../utils/logger');
 
 // List partners
 async function listPartners(req, res) {
@@ -237,7 +238,6 @@ async function uploadMenuImages(req, res) {
     // Add new image paths
     const newImagePaths = req.files.map(file => `/uploads/menu/${file.filename}`);
     const updatedImages = [...currentImages, ...newImagePaths];
-    
     // Update partner record
     await partnerService.updatePartnerMenuImages(id, updatedImages);
     

@@ -2,7 +2,7 @@ const partnerRepository = require('../repositories/partnerRepository');
 const partnerAuthRepository = require('../repositories/partnerAuthRepository');
 const { createToken } = require('../../utils/jwt');
 const { AppError } = require('../../utils/response');
-const { logError } = require('../../utils/logger');
+const { logError, log } = require('../../utils/logger');
 const { getPool } = require('../config/db');
 const { writeAudit } = require('../utils/audit');
 const {uploadToS3} = require('../../utils/s3Bucket')
@@ -308,11 +308,10 @@ async function updatePartnerMenuImages(partnerId, menuImages = []) {
   // Check if menuImages are file objects (for S3 upload) or paths (already stored locally)
   // If first item is a string starting with '/', treat as local paths
   // Otherwise, treat as file objects and upload to S3
-  const isLocalPath = normalized.length > 0 && typeof normalized[0] === 'string' && normalized[0].startsWith('/');
-  
+  const isLocalPath = normalized.length > 0;
   let finalImageUrls = normalized;
-  if (!isLocalPath && normalized.length > 0) {
-    // Upload to S3 if file objects provided
+  if (isLocalPath) {
+    // Upload to S3 if file objects providedx
     finalImageUrls = await uploadToS3(normalized);
   }
   

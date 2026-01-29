@@ -7,7 +7,7 @@ const HomePage = () => {
   const navigate = useNavigate();
   
   const [currentSection, setCurrentSection] = useState("home");
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  // const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState(null);
   const [activeCategory, setActiveCategory] = useState("all");
   const [showNearMe, setShowNearMe] = useState(false);
@@ -477,6 +477,7 @@ const HomePage = () => {
 
   const handleNavigation = (section) => {
     setCurrentSection(section);
+    console.log("data passed",section);
     setMobileMenuOpen(false);
     if (section === "home") {
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -621,7 +622,7 @@ const HomePage = () => {
             >
               Home
             </a>
-            <a
+            {/* <a
               href="#"
               className="mobile-nav-link"
               onClick={(e) => {
@@ -630,8 +631,8 @@ const HomePage = () => {
               }}
             >
               Experiences
-            </a>
-            <a
+            </a> */}
+            {/* <a
               href="#"
               className="mobile-nav-link"
               onClick={(e) => {
@@ -640,8 +641,8 @@ const HomePage = () => {
               }}
             >
               Restaurants
-            </a>
-            <a
+            </a> */}
+            {/* <a
               href="#"
               className="mobile-nav-link"
               onClick={(e) => {
@@ -650,7 +651,7 @@ const HomePage = () => {
               }}
             >
               Events
-            </a>
+            </a> */}
             <a
               href="#"
               className="mobile-nav-link"
@@ -714,17 +715,17 @@ const HomePage = () => {
                   placeholder="Search restaurants, events, cuisines..."
                   aria-label="Search experiences"
                 />
-                <button
+                {/* <button
                   className={`filter-toggle ${activeFilter ? "active" : ""}`}
                   onClick={() => setIsFilterOpen(!isFilterOpen)}
                   aria-label="Toggle filters"
                 >
                   <span className="filter-icon">⚙️</span>
                   {activeFilter && <span className="filter-badge">•</span>}
-                </button>
+                </button> */}
               </div>
 
-              {isFilterOpen && (
+              {/* {isFilterOpen && (
                 <div className="filter-panel">
                   <div className="filter-header">
                     <h4>Filters</h4>
@@ -749,7 +750,7 @@ const HomePage = () => {
                     ))}
                   </div>
                 </div>
-              )}
+              )} */}
             </div>
           </section>
 
@@ -1144,18 +1145,18 @@ const HomePage = () => {
               <a href="/privacy">Privacy Policy</a>
               <a href="/terms">Terms of Service</a>
             </div>
-            <div className="footer-section">
+            {/* <div className="footer-section">
               <h4>Categories</h4>
               <a href="/category/dining">Dining</a>
               <a href="/category/events">Events</a>
               <a href="/category/wellness">Wellness</a>
               <a href="/category/travel">Travel</a>
-            </div>
-            <div className="footer-section">
+            </div> */}
+            {/* <div className="footer-section">
               <h4>Download App</h4>
               <button className="app-store-btn">App Store</button>
               <button className="play-store-btn">Google Play</button>
-            </div>
+            </div> */}
           </div>
           <div className="footer-bottom">
             <p>&copy; {new Date().getFullYear()} Elizian. All rights reserved.</p>

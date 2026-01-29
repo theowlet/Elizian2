@@ -48,12 +48,12 @@ async function getPartnerById(partnerId, requireApproval = true) {
   `;
   // Add approval filter for public access
   if (requireApproval) {
-    query += `
-    AND p.is_active = true
-    AND p.status IN ('active', 'approved',)
-  `;
-    // query += ` AND p.is_active = true
-    //            AND (p.status IS NULL OR p.status IN ('active', 'approved','rejected'))`;
+  //   query += `
+  //   AND p.is_active = true
+  //   AND p.status IN ('active', 'approved',)
+  // `;
+    query += `AND p.is_active = true
+               AND (p.status IS NULL OR p.status IN ('active', 'approved'))`;
   }
 
   const result = await pool.query(query, [partnerId]);

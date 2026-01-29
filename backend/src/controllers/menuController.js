@@ -1,6 +1,7 @@
 const menuService = require('../services/menuService');
 const { successResponse, errorResponse } = require('../../utils/response');
 const { logError } = require('../../utils/logger');
+const { log } = require('../utils/logger');
 
 // List menu items
 async function listMenuItems(req, res) {
