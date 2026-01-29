@@ -1,6 +1,7 @@
 const bookingService = require("../services/bookingService");
 const { successResponse, errorResponse } = require("../utils/response");
 const { logError } = require("../utils/logger");
+const {getS3FileUrl} = require("../../utils/s3Bucket")
 
 // Create a new booking
 async function createBooking(req, res) {
