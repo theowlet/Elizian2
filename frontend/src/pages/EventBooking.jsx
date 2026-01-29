@@ -424,24 +424,81 @@ const EventBooking = () => {
                 }}
               >
                 <button
+                  type="button"
                   className="elizian-auth-button"
                   onClick={() => navigate("/bookings")}
                   style={{
                     background: "linear-gradient(135deg, #059669, #047857)",
-                    minWidth: "150px",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "10px",
+                    padding: "14px 28px",
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    minWidth: "180px",
+                    cursor: "pointer",
+                    boxShadow: "0 6px 18px rgba(5, 150, 105, 0.35)",
+                    transition: "all 0.25s ease",
                   }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow =
+                      "0 10px 26px rgba(5, 150, 105, 0.45)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow =
+                      "0 6px 18px rgba(5, 150, 105, 0.35)";
+                  }}
+                  onMouseDown={(e) =>
+                    (e.currentTarget.style.transform = "scale(0.97)")
+                  }
+                  onMouseUp={(e) =>
+                    (e.currentTarget.style.transform = "translateY(0)")
+                  }
                 >
                   View My Bookings
                 </button>
+
                 <button
+                  type="button"
                   className="elizian-auth-button"
                   onClick={() => navigate("/home")}
                   style={{
-                    background: "transparent",
-                    color: "#666",
-                    border: "1px solid #ddd",
-                    minWidth: "150px",
+                    background: "#fff",
+                    color: "#374151",
+                    border: "1.5px solid #d1d5db",
+                    borderRadius: "10px",
+                    padding: "14px 28px",
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    minWidth: "180px",
+                    cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.06)",
+                    transition: "all 0.25s ease",
                   }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#f9fafb";
+                    e.currentTarget.style.borderColor = "#059669";
+                    e.currentTarget.style.color = "#059669";
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow =
+                      "0 8px 20px rgba(5, 150, 105, 0.25)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "#fff";
+                    e.currentTarget.style.borderColor = "#d1d5db";
+                    e.currentTarget.style.color = "#374151";
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow =
+                      "0 4px 12px rgba(0, 0, 0, 0.06)";
+                  }}
+                  onMouseDown={(e) =>
+                    (e.currentTarget.style.transform = "scale(0.97)")
+                  }
+                  onMouseUp={(e) =>
+                    (e.currentTarget.style.transform = "translateY(0)")
+                  }
                 >
                   Browse More Deals
                 </button>
