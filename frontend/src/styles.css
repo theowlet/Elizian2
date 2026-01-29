@@ -27,7 +27,7 @@
   --brand-bg-light: var(--card);
   --brand-primary: var(--brand1);
   --brand-accent: #e0b56f;
-  --brand-text: var(--text);
+  /* --brand-text: var(--text); */
   --brand-muted: var(--muted);
   
   /* Gradients */
