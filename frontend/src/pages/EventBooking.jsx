@@ -377,7 +377,7 @@ const EventBooking = () => {
                   </div>
                 )}
 
-                <div style={{ marginBottom: "1rem" }}>
+                <div style={{ marginBottom: "1rem" }}> 
                   <div
                     style={{
                       color: "#666",
