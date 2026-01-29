@@ -74,7 +74,7 @@ const uploadToS3 = async (files) => {
     ContentType: "application/octet-stream",
   }));
 
-  return `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${key}`;
+  return key;
 };
 
 
@@ -89,7 +89,7 @@ const uploadToS3 = async (files) => {
 };
 
 const getS3FileUrl = (key) => {
-  return `https://${BUCKET_NAME}.s3.${region}.amazonaws.com${key}`;
+  return `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${key}`;
 };
 
 module.exports = {

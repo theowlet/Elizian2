@@ -103,7 +103,7 @@ async function createOffer(partnerId, offerData) {
     if (!finalImageUrl && offerData.image_base64) {
       log('📤 Processing offer image upload...');
       try {
-        finalImageUrl = handleOfferImageUpload(offerData.image_base64, offerData.image_filename);
+        finalImageUrl = await handleOfferImageUpload(offerData.image_base64, offerData.image_filename);
         log(`✅ Offer image uploaded successfully: ${finalImageUrl}`);
       } catch (imageErr) {
         logError('❌ Offer image upload failed:', imageErr);
