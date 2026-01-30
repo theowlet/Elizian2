@@ -297,15 +297,33 @@ const RescheduleBooking = () => {
                 className="elizian-auth-button"
                 disabled={loading || !newDate}
                 style={{
-                  padding: "0.5rem 1rem",
-                  background: loading
-                    ? "#ccc"
-                    : "linear-gradient(135deg, #059669, #047857)",
-                  color: "#ef4444",
-                  border: "1px solid #ef4444",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  fontSize: "0.9rem",
+                  padding: "10px 18px",
+                  background:
+                    loading || !newDate
+                      ? "#d1d5db"
+                      : "linear-gradient(135deg, #059669, #047857)",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "10px",
+                  fontSize: "15px",
+                  fontWeight: 600,
+                  cursor: loading || !newDate ? "not-allowed" : "pointer",
+                  boxShadow:
+                    loading || !newDate
+                      ? "none"
+                      : "0 6px 18px rgba(5, 150, 105, 0.35)",
+                  transition: "all 0.25s ease",
+                }}
+                onMouseEnter={(e) => {
+                  if (loading || !newDate) return;
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow =
+                    "0 10px 24px rgba(5, 150, 105, 0.45)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow =
+                    "0 6px 18px rgba(5, 150, 105, 0.35)";
                 }}
               >
                 {loading ? "Processing..." : "Confirm Reschedule"}
