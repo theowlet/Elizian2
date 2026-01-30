@@ -298,7 +298,9 @@ const RescheduleBooking = () => {
                 disabled={loading || !newDate}
                 style={{
                   padding: "0.5rem 1rem",
-                  background: "transparent",
+                  background: loading
+                    ? "#ccc"
+                    : "linear-gradient(135deg, #059669, #047857)",
                   color: "#ef4444",
                   border: "1px solid #ef4444",
                   borderRadius: "8px",
