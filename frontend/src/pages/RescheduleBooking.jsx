@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import "../styles/auth.css";
 
@@ -13,6 +13,8 @@ const RescheduleBooking = () => {
   const [error, setError] = useState("");
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
+
+  const bookingTimeRef = useRef(null);
 
   useEffect(() => {
     if (!booking && id) {
@@ -43,6 +45,7 @@ const RescheduleBooking = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
+          console.log("this is api data");
           setBooking(result.data);
           if (result.data.booking_date) {
             const date = new Date(result.data.booking_date);
@@ -175,9 +178,7 @@ const RescheduleBooking = () => {
           >
             &times;
           </button>
-
           <h2 className="elizian-auth-modal-title">Reschedule Booking</h2>
-
           <div
             style={{
               background: "#f8f9fa",
@@ -190,39 +191,58 @@ const RescheduleBooking = () => {
               <strong>Current Booking:</strong>
             </div>
             <div style={{ fontSize: "0.9rem", color: "#666" }}>
-              <div>{booking.deal_title || "N/A"}</div>
+              <div
+                style={{
+                  color: "#047857",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  textTransform: "capitalize",
+                }}
+              >
+                {booking.status || "N/A"}
+              </div>
               <div>Date: {formatDate(booking.booking_date)}</div>
               {booking.booking_time && <div>Time: {booking.booking_time}</div>}
             </div>
           </div>
-
+          x
           <form className="elizian-auth-form" onSubmit={handleSubmit}>
             {error && (
               <div className="elizian-auth-error" role="alert">
                 {error}
               </div>
             )}
-
             <div className="elizian-auth-form-group">
               <label className="elizian-auth-label" htmlFor="newDate">
                 New Booking Date
               </label>
               <input
-                id="newDate"
+                id="bookingTime"
+                name="bookingTime"
                 type="date"
-                className="elizian-auth-input"
+                ref={bookingTimeRef}
+                className="elizian-auth-input elizian-time-input"
                 value={newDate}
                 onChange={(e) => setNewDate(e.target.value)}
-                min={new Date().toISOString().split("T")[0]}
+                onClick={() => bookingTimeRef.current?.showPicker?.()}
                 required
-                aria-required="true"
               />
             </div>
-
             <div className="elizian-auth-form-group">
-              <label className="elizian-auth-label" htmlFor="newTime">
+              <label
+                className="elizian-auth-label"
+                htmlFor="newTime"
+                style={{ cursor: newDate ? "pointer" : "not-allowed" }}
+                onClick={() => {
+                  if (newDate) {
+                    document.getElementById("newTime")?.focus();
+                    document.getElementById("newTime")?.showPicker?.();
+                  }
+                }}
+              >
                 New Booking Time
               </label>
+
               <input
                 id="newTime"
                 type="time"
@@ -233,6 +253,11 @@ const RescheduleBooking = () => {
                 disabled={!newDate}
                 aria-required="true"
                 aria-disabled={!newDate}
+                onClick={(e) => {
+                  if (newDate) {
+                    e.currentTarget.showPicker?.();
+                  }
+                }}
               />
               {!newDate && (
                 <small
