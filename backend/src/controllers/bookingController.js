@@ -1,7 +1,7 @@
 const bookingService = require("../services/bookingService");
 const { successResponse, errorResponse } = require("../utils/response");
 const { logError } = require("../utils/logger");
-const {getS3FileUrl} = require("../../utils/s3Bucket")
+const { getS3FileUrl } = require("../../utils/s3Bucket");
 
 // Create a new booking
 async function createBooking(req, res) {
@@ -135,6 +135,11 @@ async function getBooking(req, res) {
       try {
         const qrCodeRegenerationService = require("../services/qrCodeRegenerationService");
         booking = await qrCodeRegenerationService.regenerateQRCode(id);
+        booking = {
+          ...booking,
+          qr_code_url: getS3FileUrl(booking.data[qr_code_url]),
+        };
+        log(`✅ QR code regenerated for booking ${booking}`);
         log(`✅ QR code regenerated for booking ${id}`);
       } catch (regenerateError) {
         // Log but don't fail - booking can still be returned without QR code

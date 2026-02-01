@@ -1227,7 +1227,7 @@ const HomePage = () => {
               <h4>Quick Links</h4>
               <a href="/about">About Us</a>
               <a href="/contact">Contact</a>
-              <a href="/privacy">Privacy Policy</a>
+              <a href="/privacy_policy">Privacy Policy</a>
               <a href="/terms">Terms of Service</a>
             </div>
             {/* <div className="footer-section">
