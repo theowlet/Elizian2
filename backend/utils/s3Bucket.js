@@ -4,13 +4,21 @@ const { crypto } = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
+const https = require("https");
+const { NodeHttpHandler } = require("@aws-sdk/node-http-handler");
 
 // Get bucket name from environment
 const BUCKET_NAME = process.env.AWS_BUCKET_NAME;
 const region = process.env.AWS_REGION || "us-east-1";
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false, // ⚠️ temporary
+});
 // Initialize the S3 Client
 const s3 = new S3Client({
   region: process.env.AWS_REGION || "us-east-1",
+  requestHandler: new NodeHttpHandler({
+    httpsAgent,
+  }),
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,

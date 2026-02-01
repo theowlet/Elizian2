@@ -23,6 +23,7 @@ import WellnessPage from "./pages/WellnessPage";
 import HealthWellnessPage from "./pages/HealthWellnessPage";
 import DataEntry from "./pages/DataEntry";
 import MultiTierAdmin from "./pages/MultiTierAdmin";
+import PrivacyPolicyContent from "./pages/PrivacyPolicyContent"
 import {
   AdminPage,
   PartnerPage,
@@ -140,6 +141,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requireAuth={true}>
             <Profile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/privacy_policy"
+        element={
+          <ProtectedRoute requireAuth={true}>
+            <PrivacyPolicyContent />
           </ProtectedRoute>
         }
       />

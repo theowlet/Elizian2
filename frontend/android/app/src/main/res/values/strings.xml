@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">elizian</string>
+    <string name="title_activity_main">elizian</string>
+    <string name="package_name">com.elizian.elzApp</string>
+    <string name="custom_url_scheme">com.elizian.elzApp</string>
+</resources>
