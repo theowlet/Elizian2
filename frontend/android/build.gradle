@@ -1,9 +1,4 @@
-// subprojects {
-//     tasks.withType(JavaCompile).configureEach {
-//         sourceCompatibility = JavaVersion.VERSION_17.toString()
-//         targetCompatibility = JavaVersion.VERSION_17.toString()
-//     }
-// }
+
 
 buildscript {
     
@@ -12,7 +7,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.android.tools.build:gradle:8.9.1'
         classpath 'com.google.gms:google-services:4.4.4'
 
         // NOTE: Do not place your application dependencies here; they belong

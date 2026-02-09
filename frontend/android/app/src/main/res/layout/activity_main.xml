@@ -7,6 +7,10 @@
     tools:context=".MainActivity">
 
     <WebView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:rotation="0"
+        android:rotationX="-15"
+        android:visibility="visible"
+        tools:visibility="visible" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

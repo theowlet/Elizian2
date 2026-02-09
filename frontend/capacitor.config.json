@@ -1,5 +1,12 @@
 {
-  "appId": "com.elizian.elzApp",
-  "appName": "elizian",
-  "webDir": "dist"
+  "appId": "in.elizian.elzapp",
+  "appName": "Elizian",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "elizian.in",
+      "*.elizian.in"
+    ]
+  }
 }

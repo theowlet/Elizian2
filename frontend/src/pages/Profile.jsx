@@ -1,24 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import '../styles/auth.css';
-import '../styles/profile.css';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import "../styles/auth.css";
+import "../styles/profile.css";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 const Profile = () => {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [tierInfo, setTierInfo] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [showChangePasswordHint, setShowChangePasswordHint] = useState(false);
 
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
 
   useEffect(() => {
-    console.log("navigation done")
+    console.log("navigation done");
     if (!token) {
-      navigate('/login', { replace: true });
+      navigate("/login", { replace: true });
       return;
     }
     loadProfile();
@@ -27,27 +27,27 @@ const Profile = () => {
 
   const loadProfile = async () => {
     try {
-      setError('');
+      setError("");
       const res = await fetch(`${API_BASE}/api/v1/user/profile`, {
         headers: {
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
       if (res.status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        navigate('/login', { replace: true });
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        navigate("/login", { replace: true });
         return;
       }
       const data = await res.json();
       if (data.success && data.data) {
         setProfile(data.data);
       } else {
-        setError(data.message || 'Failed to load profile');
+        setError(data.message || "Failed to load profile");
       }
     } catch (err) {
-      setError('Could not load profile. Please try again.');
+      setError("Could not load profile. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -58,7 +58,7 @@ const Profile = () => {
       const res = await fetch(`${API_BASE}/api/v1/user/tier`, {
         headers: {
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
       });
       if (res.ok) {
@@ -71,15 +71,19 @@ const Profile = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login', { replace: true });
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    navigate("/login", { replace: true });
   };
 
   const formatDate = (d) => {
-    if (!d) return '—';
+    if (!d) return "—";
     const date = new Date(d);
-    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    return date.toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   };
 
   if (loading) {
@@ -94,7 +98,11 @@ const Profile = () => {
     return (
       <div className="profile-page">
         <div className="profile-error">{error}</div>
-        <button type="button" className="profile-btn secondary" onClick={() => navigate('/home')}>
+        <button
+          type="button"
+          className="profile-btn secondary"
+          onClick={() => navigate("/home")}
+        >
           Back to Home
         </button>
       </div>
@@ -102,20 +110,21 @@ const Profile = () => {
   }
 
   const name = profile
-    ? [profile.first_name, profile.last_name].filter(Boolean).join(' ') || '—'
-    : '—';
-  const email = profile?.email || '—';
-  const phone = profile?.phone_number || '—';
+    ? [profile.first_name, profile.last_name].filter(Boolean).join(" ") || "—"
+    : "—";
+  const email = profile?.email || "—";
+  const phone = profile?.phone_number || "—";
   const available = Number(profile?.ezt_balance ?? 0);
   const earned = Number(profile?.ezt_total_earned ?? 0);
   const spent = Number(profile?.ezt_total_spent ?? 0);
-  const tierName = profile?.tier_name || tierInfo?.current?.name || '—';
+  const tierName = profile?.tier_name || tierInfo?.current?.name || "—";
   const photoUrl = profile?.profile_photo_url;
   const address = profile?.address;
   const dob = profile?.date_of_birth;
   const gender = profile?.gender;
   const progress = tierInfo?.progress;
-  const hasProgress = progress && (progress.percentage != null || progress.nextTier);
+  const hasProgress =
+    progress && (progress.percentage != null || progress.nextTier);
 
   return (
     <div className="profile-page">
@@ -123,7 +132,7 @@ const Profile = () => {
         <button
           type="button"
           className="profile-back"
-          onClick={() => navigate('/home')}
+          onClick={() => navigate("/home")}
           aria-label="Back to home"
         >
           ← Back
@@ -135,11 +144,7 @@ const Profile = () => {
         {/* Optional: Profile photo */}
         {photoUrl && (
           <section className="profile-section profile-photo-section">
-            <img
-              src={photoUrl}
-              alt="Profile"
-              className="profile-photo"
-            />
+            <img src={photoUrl} alt="Profile" className="profile-photo" />
           </section>
         )}
 
@@ -147,9 +152,18 @@ const Profile = () => {
         <section className="profile-section">
           <h2 className="profile-section-title">Personal information</h2>
           <ul className="profile-list">
-            <li><span className="profile-label">Name</span><span className="profile-value">{name}</span></li>
-            <li><span className="profile-label">Email</span><span className="profile-value">{email}</span></li>
-            <li><span className="profile-label">Phone</span><span className="profile-value">{phone}</span></li>
+            <li>
+              <span className="profile-label">Name</span>
+              <span className="profile-value">{name}</span>
+            </li>
+            <li>
+              <span className="profile-label">Email</span>
+              <span className="profile-value">{email}</span>
+            </li>
+            <li>
+              <span className="profile-label">Phone</span>
+              <span className="profile-value">{phone}</span>
+            </li>
           </ul>
         </section>
 
@@ -158,9 +172,24 @@ const Profile = () => {
           <section className="profile-section">
             <h2 className="profile-section-title">Additional details</h2>
             <ul className="profile-list">
-              {address && <li><span className="profile-label">Address</span><span className="profile-value">{address}</span></li>}
-              {dob && <li><span className="profile-label">Date of birth</span><span className="profile-value">{formatDate(dob)}</span></li>}
-              {gender && <li><span className="profile-label">Gender</span><span className="profile-value">{gender}</span></li>}
+              {address && (
+                <li>
+                  <span className="profile-label">Address</span>
+                  <span className="profile-value">{address}</span>
+                </li>
+              )}
+              {dob && (
+                <li>
+                  <span className="profile-label">Date of birth</span>
+                  <span className="profile-value">{formatDate(dob)}</span>
+                </li>
+              )}
+              {gender && (
+                <li>
+                  <span className="profile-label">Gender</span>
+                  <span className="profile-value">{gender}</span>
+                </li>
+              )}
             </ul>
           </section>
         )}
@@ -171,15 +200,21 @@ const Profile = () => {
           <div className="profile-tokens">
             <div className="profile-token-item">
               <span className="profile-token-label">Available</span>
-              <span className="profile-token-value">{available.toLocaleString('en-IN')}</span>
+              <span className="profile-token-value">
+                {available.toLocaleString("en-IN")}
+              </span>
             </div>
             <div className="profile-token-item">
               <span className="profile-token-label">Earned</span>
-              <span className="profile-token-value">{earned.toLocaleString('en-IN')}</span>
+              <span className="profile-token-value">
+                {earned.toLocaleString("en-IN")}
+              </span>
             </div>
             <div className="profile-token-item">
               <span className="profile-token-label">Spent</span>
-              <span className="profile-token-value">{spent.toLocaleString('en-IN')}</span>
+              <span className="profile-token-value">
+                {spent.toLocaleString("en-IN")}
+              </span>
             </div>
           </div>
         </section>
@@ -194,9 +229,16 @@ const Profile = () => {
               {progress.nextTier && (
                 <p className="profile-tier-next">
                   Next: {progress.nextTier}
-                  {progress.amountNeeded != null && progress.amountNeeded > 0 && (
-                    <span> — Spend ₹{progress.amountNeeded.toLocaleString('en-IN')} more</span>
-                  )}
+                  {progress.amountNeeded != null &&
+                    progress.amountNeeded > 0 && (
+                      <span>
+                        {" "}
+                        — Spend ₹{progress.amountNeeded.toLocaleString(
+                          "en-IN",
+                        )}{" "}
+                        more
+                      </span>
+                    )}
                 </p>
               )}
               {progress.percentage != null && (
@@ -205,7 +247,9 @@ const Profile = () => {
                     className="profile-progress-bar"
                     style={{ width: `${Math.min(100, progress.percentage)}%` }}
                   />
-                  <span className="profile-progress-text">{Math.round(progress.percentage)}%</span>
+                  <span className="profile-progress-text">
+                    {Math.round(progress.percentage)}%
+                  </span>
                 </div>
               )}
             </div>
@@ -217,9 +261,39 @@ const Profile = () => {
           <button
             type="button"
             className="profile-btn primary"
-            onClick={() => navigate('/bookings')}
+            onClick={() => navigate("/bookings")}
           >
             View my bookings
+          </button>
+          <button
+            type="button"
+            style={{
+              padding: "12px 24px",
+              width: "100%",
+              background: "linear-gradient(135deg, #ef4444, #dc2626)",
+              color: "#fff",
+              border: "none",
+              marginTop: "10px",
+              borderRadius: "8px",
+              fontWeight: "600",
+              fontSize: "15px",
+              letterSpacing: "0.3px",
+              cursor: "pointer",
+              transition: "all 0.25s ease",
+              boxShadow: "0 6px 14px rgba(220,38,38,0.25)",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = "scale(1.03)";
+              e.currentTarget.style.boxShadow =
+                "0 8px 18px rgba(220,38,38,0.35)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+              e.currentTarget.style.boxShadow =
+                "0 6px 14px rgba(220,38,38,0.25)";
+            }}
+          >
+            Delete Account
           </button>
         </section>
 
@@ -234,7 +308,8 @@ const Profile = () => {
           </button>
           {showChangePasswordHint && (
             <p className="profile-hint">
-              Use &quot;Forgot password&quot; on the login page. We’ll send a code to your email to set a new password.
+              Use &quot;Forgot password&quot; on the login page. We’ll send a
+              code to your email to set a new password.
             </p>
           )}
         </section>

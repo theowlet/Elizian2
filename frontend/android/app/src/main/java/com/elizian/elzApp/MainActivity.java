@@ -1,4 +1,4 @@
-package com.elizian.elzApp;
+package in.elizian.elzapp;
 
 import com.getcapacitor.BridgeActivity;
 

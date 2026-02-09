@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">elizian</string>
     <string name="title_activity_main">elizian</string>
-    <string name="package_name">com.elizian.elzApp</string>
-    <string name="custom_url_scheme">com.elizian.elzApp</string>
+    <string name="package_name">in.elizian.elzapp</string>
+    <string name="custom_url_scheme">in.elizian.elzapp</string>
 </resources>
