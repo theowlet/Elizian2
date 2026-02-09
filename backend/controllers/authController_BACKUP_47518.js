@@ -21,28 +21,6 @@ const verifyOtp = async (req, res, next) => {
       otpCode: req.body.otp_code
     });
 
-<<<<<<< HEAD
-    if (result.requires_registration) {
-      return successResponse(res, 200, 'OTP verified successfully. Please complete registration.', {
-        requires_registration: true,
-        has_mpin: false
-      });
-    }
-
-    // If user has M-PIN, return has_mpin flag instead of token
-    if (result.has_mpin) {
-      return successResponse(res, 200, 'OTP verified. Please enter M-PIN.', {
-        has_mpin: true,
-        user: result.user
-      });
-    }
-
-    // User exists but no M-PIN - return token (existing behavior)
-    successResponse(res, 200, 'OTP verified successfully', {
-      token: result.token,
-      user: result.user,
-      has_mpin: false
-=======
     if (result.requiresRegistration) {
       return successResponse(res, 200, 'OTP verified successfully. Please complete registration.', {
         requiresRegistration: true
@@ -52,7 +30,6 @@ const verifyOtp = async (req, res, next) => {
     successResponse(res, 200, 'OTP verified successfully', {
       token: result.token,
       user: result.user
->>>>>>> fc616c9334a19875b6b0a92712584137fffd73dc
     });
   } catch (error) {
     next(error);
@@ -111,7 +88,7 @@ const getProfile = async (req, res, next) => {
         message: 'Authentication required'
       });
     }
-    
+
     const profile = await authService.getUserProfile(userId);
     successResponse(res, 200, 'Profile retrieved successfully', profile);
   } catch (error) {
@@ -144,7 +121,7 @@ const verifyMpin = async (req, res, next) => {
   try {
     const { phone_number, mpin } = req.body;
     const result = await authService.verifyMpin(phone_number, mpin);
-    
+
     // Return token at top level for frontend compatibility
     res.status(200).json({
       success: true,

@@ -5,7 +5,8 @@ const { AppError } = require('../../utils/response');
 const { logError } = require('../../utils/logger');
 const { getPool } = require('../config/db');
 const { writeAudit } = require('../utils/audit');
-const {uploadToS3} = require('../../utils/s3Bucket')
+const { uploadToS3 } = require('../../utils/s3Bucket')
+const { ethers } = require('ethers');
 
 const pool = getPool();
 
@@ -37,13 +38,28 @@ async function createPartner(partnerData, actorUserId, actorRole) {
     is_active: normalizedIsActive,
     status: normalizedIsActive ? 'active' : 'pending'
   });
-  
   // Log audit trail
   await writeAudit(actorUserId, actorRole, 'partner_create', 'partner', partner.id, {
     partner_name: partnerData.name,
     category_id: partnerData.category_id,
     is_active: partnerData.is_active
   });
+
+  // Create Ethereum wallet for partner
+  try {
+    const wallet = ethers.Wallet.createRandom();
+    const publicKey = wallet.address;
+    const privateKey = wallet.privateKey;
+
+    await pool.query(
+      `INSERT INTO accounts (partner_id, public_key, private_key) VALUES ($1, $2, $3)`,
+      [partner.id, publicKey, privateKey]
+    );
+
+    console.log(`✅ Ethereum wallet created for partner ${partner.id}: ${publicKey}`);
+  } catch (error) {
+    logError(`❌ Error creating wallet for partner ${partner.id}:`, error);
+  }
 
   return partner;
 }
@@ -79,7 +95,7 @@ async function loginPartner(email, password) {
   const normalizedEmail = email.toLowerCase().trim();
 
   const partner = await partnerRepository.getPartnerByEmail(normalizedEmail);
-  
+
   // Don't reveal if partner exists or is inactive - use generic error
   if (!partner) {
     logError(`[Partner Login] Failed login attempt for: ${normalizedEmail}`);
@@ -93,7 +109,7 @@ async function loginPartner(email, password) {
 
   const auth = await partnerAuthRepository.getPartnerAuth(partner.id);
   const isValidPassword = auth ? await partnerAuthRepository.comparePassword(password, auth.password_hash) : false;
-  
+
   if (!auth || !isValidPassword) {
     logError(`[Partner Login] Invalid credentials for partner: ${partner.id} (${normalizedEmail})`);
     throw new AppError(401, "Invalid email or password");
@@ -189,7 +205,18 @@ async function registerPartner(registrationData) {
       [partner.id, passwordHash]
     );
 
+    // Create Ethereum wallet for partner within registration transaction
+    const wallet = ethers.Wallet.createRandom();
+    const publicKey = wallet.address;
+    const privateKey = wallet.privateKey;
+
+    await client.query(
+      `INSERT INTO accounts (partner_id, public_key, private_key) VALUES ($1, $2, $3)`,
+      [partner.id, publicKey, privateKey]
+    );
+
     await client.query('COMMIT');
+    console.log(`✅ Partner registered and wallet created for ${partner.id}: ${publicKey}`);
 
     return {
       pendingApproval: true,
@@ -226,7 +253,7 @@ async function getPartnerAnalytics(partnerId, period = '30') {
 async function getPartnerRewardsAnalytics(partnerId) {
   const { getPool } = require('../config/db');
   const pool = getPool();
-  
+
   try {
     // Get all bookings for this partner with rewards data
     const bookingsResult = await pool.query(
@@ -247,20 +274,20 @@ async function getPartnerRewardsAnalytics(partnerId) {
       LIMIT 100`,
       [partnerId]
     );
-    
+
     const bookings = bookingsResult.rows;
-    
+
     // Calculate totals
     const totalEztDistributed = bookings.reduce((sum, b) => sum + parseFloat(b.ezt_earned || 0), 0);
     const totalLoyaltyPoints = bookings.reduce((sum, b) => sum + parseFloat(b.points_earned || 0), 0);
-    
+
     // Get customer tiers distribution
     const customerTiers = {};
     bookings.forEach(booking => {
       const tier = booking.customer_tier || booking.user_tier_at_booking || 'Ather';
       customerTiers[tier] = (customerTiers[tier] || 0) + 1;
     });
-    
+
     // Calculate average tier (weighted)
     const tierValues = { 'Ather': 1, 'Nova': 2, 'Luminar': 3, 'Valiant': 4, 'Echelon': 5 };
     let avgTier = 'N/A';
@@ -272,7 +299,7 @@ async function getPartnerRewardsAnalytics(partnerId) {
       const tierIndex = Math.round(avgTierValue) - 1;
       avgTier = Object.keys(tierValues)[Math.max(0, Math.min(tierIndex, 4))] || 'Ather';
     }
-    
+
     // Recent bookings with rewards (last 10)
     const recentBookings = bookings.slice(0, 10).map(b => ({
       id: b.id,
@@ -283,7 +310,7 @@ async function getPartnerRewardsAnalytics(partnerId) {
       loyalty_points_earned: parseFloat(b.points_earned || 0),
       created_at: b.created_at
     }));
-    
+
     return {
       total_ezt_distributed: totalEztDistributed,
       total_loyalty_points: totalLoyaltyPoints,
