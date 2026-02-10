@@ -17,7 +17,18 @@ function createPool() {
       ssl: false
       // ssl: config.database.ssl
     }
+      connectionString: config.database.url,
+      ssl: false
+      // ssl: config.database.ssl
+    }
     : {
+      user: process.env.DB_USER,
+      host: process.env.DB_HOST,
+      database: process.env.DB_NAME,
+      password: process.env.DB_PASSWORD,
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      ssl: false
+    };
       user: process.env.DB_USER,
       host: process.env.DB_HOST,
       database: process.env.DB_NAME,
@@ -227,6 +238,66 @@ async function initAccountsTable() {
   }
 }
 
+// Patch partners table for missing columns
+async function patchPartnersTable() {
+  try {
+    await pool.query(`
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='partners' AND column_name='status') THEN
+          ALTER TABLE partners ADD COLUMN status VARCHAR(50) DEFAULT 'pending';
+        END IF;
+      END $$;
+    `);
+    log('✅ Partners table patched');
+  } catch (err) {
+    logError('Failed to patch partners table:', err);
+  }
+}
+
+// Initialize accounts table
+async function initAccountsTable() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+        partner_id UUID REFERENCES partners(id) ON DELETE CASCADE,
+        public_key VARCHAR(255) NOT NULL,
+        private_key VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT user_or_partner CHECK (
+          (user_id IS NOT NULL AND partner_id IS NULL) OR 
+          (user_id IS NULL AND partner_id IS NOT NULL)
+        )
+      );
+      
+      -- Add partner_id column if it doesn't exist (for existing tables)
+      DO $$ 
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='accounts' AND column_name='partner_id') THEN
+          ALTER TABLE accounts ADD COLUMN partner_id UUID REFERENCES partners(id) ON DELETE CASCADE;
+          -- Make user_id nullable if it was NOT NULL
+          ALTER TABLE accounts ALTER COLUMN user_id DROP NOT NULL;
+          -- Add constraint
+          ALTER TABLE accounts ADD CONSTRAINT user_or_partner CHECK (
+            (user_id IS NOT NULL AND partner_id IS NULL) OR 
+            (user_id IS NULL AND partner_id IS NOT NULL)
+          );
+        END IF;
+      END $$;
+
+      CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
+      CREATE INDEX IF NOT EXISTS idx_accounts_partner_id ON accounts(partner_id);
+    `);
+    log('✅ Accounts table initialized');
+  } catch (err) {
+    logError('Failed to initialize accounts table:', err);
+    throw err;
+  }
+}
+
 // Initialize orders table
 async function initOrdersTable() {
   try {
@@ -299,10 +370,13 @@ async function initializeAllTables() {
   const p = getPool();
   pool = p; // Set global pool reference
 
+
   try {
     await initMissingTables();
     await initOffersTable();
     await initMenuItemsTable();
+    await initAccountsTable();
+    await patchPartnersTable();
     await initAccountsTable();
     await initOrdersTable();
     log('✅ All database tables initialized');
@@ -319,6 +393,8 @@ module.exports = {
   initMissingTables,
   initOffersTable,
   initMenuItemsTable,
+  initAccountsTable,
+  patchPartnersTable,
   initAccountsTable,
   initOrdersTable,
   initializeAllTables

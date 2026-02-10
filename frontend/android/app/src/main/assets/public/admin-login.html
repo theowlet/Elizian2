@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Elizian Super Admin Login</title>
+  <link rel="icon" href="/favicon.ico" />
+  <style>
+    :root {
+      --brand: #004F4A;
+      --gold: #CBB26A;
+      --bg: #0f172a;
+      --card: #111827;
+      --muted: #9ca3af;
+      --error: #ef4444;
+    }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto; background: var(--bg); color: #e5e7eb; }
+    .wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    .card { width: 100%; max-width: 420px; background: var(--card); border: 1px solid #1f2937; border-radius: 14px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    h1 { margin: 0 0 8px; font-weight: 800; color: var(--gold); font-size: 26px; }
+    p.sub { margin: 0 0 20px; color: var(--muted); }
+    label { display:block; margin: 12px 0 6px; font-weight: 600; }
+    input, select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #334155; background: #0b1220; color: #e5e7eb; }
+    .row { display:flex; gap: 10px; }
+    button { width: 100%; padding: 12px; margin-top: 14px; background: var(--brand); color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer; }
+    button.secondary { background: transparent; border: 1px solid #334155; color: #e5e7eb; }
+    .note { margin-top: 14px; color: var(--muted); font-size: 13px; text-align: center; }
+    .error { color: var(--error); font-size: 13px; margin-top: 8px; min-height: 18px; }
+    .success { color: #10b981; font-size: 13px; margin-top: 8px; min-height: 18px; }
+    .tabs { display:flex; gap:8px; margin-bottom: 14px; }
+    .tab { flex:1; text-align:center; padding:10px; border-radius: 10px; border:1px solid #334155; cursor:pointer; }
+    .tab.active { background: #0b1220; border-color: var(--gold); color: var(--gold); font-weight:700; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Super Admin</h1>
+      <p class="sub">Sign in or create a new super admin</p>
+
+      <div class="tabs">
+        <div id="tab-login" class="tab active" onclick="switchTab('login')">Login</div>
+        <div id="tab-register" class="tab" onclick="switchTab('register')">Create Account</div>
+      </div>
+
+      <div id="loginPane">
+        <label>Email</label>
+        <input id="loginEmail" type="email" placeholder="you@example.com" autocomplete="username" />
+        <label>Password</label>
+        <input id="loginPassword" type="password" placeholder="••••••••" autocomplete="current-password" />
+        <div class="error" id="loginError"></div>
+        <button onclick="adminLogin()">Login</button>
+      </div>
+
+      <div id="registerPane" style="display:none;">
+        <label>📱 Mobile Number <span style="color:var(--error);">*</span></label>
+        <input id="regPhone" type="tel" placeholder="10-digit mobile number" maxlength="10" pattern="[0-9]{10}" required />
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button onclick="sendAdminOTP()" id="sendOtpBtn" style="flex:1;">Send OTP</button>
+          <button onclick="verifyAdminOTP()" id="verifyOtpBtn" style="flex:1;" disabled>Verify OTP</button>
+        </div>
+        <input id="regOtpCode" type="text" placeholder="Enter 6-digit OTP" maxlength="6" pattern="[0-9]{6}" style="margin-top:8px;" disabled />
+        <div id="otpStatus" class="error" style="min-height:18px;"></div>
+        
+        <hr style="border:none; border-top:1px solid #334155; margin:20px 0;" />
+        
+        <div class="row">
+          <div style="flex:1;">
+            <label>First name <span style="color:var(--error);">*</span></label>
+            <input id="regFirst" type="text" placeholder="First" required />
+          </div>
+          <div style="flex:1;">
+            <label>Last name</label>
+            <input id="regLast" type="text" placeholder="Last" />
+          </div>
+        </div>
+        <label>Email <span style="color:var(--muted); font-size:12px;">(optional - for fallback login)</span></label>
+        <input id="regEmail" type="email" placeholder="you@example.com (optional)" autocomplete="username" />
+        <label>Password <span style="color:var(--muted); font-size:12px;">(optional - min 6 chars if provided)</span></label>
+        <input id="regPassword" type="password" placeholder="Create password (optional)" autocomplete="new-password" />
+        <div class="error" id="regError"></div>
+        <div class="success" id="regSuccess"></div>
+        <button id="registerBtn" onclick="adminRegister()" disabled>Create Super Admin</button>
+        <button class="secondary" onclick="switchTab('login')">Back to Login</button>
+      </div>
+
+      <!-- <div class="note">After login, you’ll be redirected to <strong>admin.html</strong>.</div> -->
+    </div>
+  </div>
+
+  <script>
+   const apiUrl = (window.parent && window.parent.MY_GLOBAL_CONFIG && window.parent.MY_GLOBAL_CONFIG.apiUrl) 
+            || (window.MY_GLOBAL_CONFIG && window.MY_GLOBAL_CONFIG.apiUrl)
+            || null;
+    const API_BASE = apiUrl || 'http://localhost:3000';
+    let otpVerified = false;
+    let verifiedPhone = null;
+
+    function switchTab(which){
+      document.getElementById('tab-login').classList.toggle('active', which==='login');
+      document.getElementById('tab-register').classList.toggle('active', which==='register');
+      document.getElementById('loginPane').style.display = which==='login' ? '' : 'none';
+      document.getElementById('registerPane').style.display = which==='register' ? '' : 'none';
+      
+      // Reset OTP state when switching tabs
+      if(which === 'register'){
+        otpVerified = false;
+        verifiedPhone = null;
+        document.getElementById('regOtpCode').value = '';
+        document.getElementById('regOtpCode').disabled = true;
+        document.getElementById('verifyOtpBtn').disabled = true;
+        document.getElementById('registerBtn').disabled = true;
+        document.getElementById('otpStatus').textContent = '';
+        document.getElementById('regPhone').readOnly = false;
+      }
+    }
+
+    async function sendAdminOTP(){
+      const phone = document.getElementById('regPhone').value.trim().replace(/[\s\-+()]/g, '').replace(/^91/, '');
+      const statusEl = document.getElementById('otpStatus');
+      const sendBtn = document.getElementById('sendOtpBtn');
+      const verifyBtn = document.getElementById('verifyOtpBtn');
+      const otpInput = document.getElementById('regOtpCode');
+      
+      if(!phone || phone.length !== 10 || !/^\d{10}$/.test(phone)){
+        statusEl.textContent = 'Please enter a valid 10-digit mobile number';
+        statusEl.className = 'error';
+        return;
+      }
+      
+      try{
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Sending...';
+        statusEl.textContent = '';
+        
+        const res = await fetch(`${API_BASE}/api/v1/auth/send-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone_number: phone })
+        });
+        
+        const data = await res.json();
+        
+        if(!data.success){
+          statusEl.textContent = data.error || 'Failed to send OTP';
+          statusEl.className = 'error';
+          sendBtn.disabled = false;
+          sendBtn.textContent = 'Send OTP';
+          return;
+        }
+        
+        statusEl.textContent = 'OTP sent! Check your backend terminal or otp.log file for the code.';
+        statusEl.className = 'success';
+        otpInput.disabled = false;
+        verifyBtn.disabled = false;
+        document.getElementById('regPhone').readOnly = true;
+        otpVerified = false;
+        verifiedPhone = null;
+        
+      }catch(e){
+        statusEl.textContent = e.message || 'Network error';
+        statusEl.className = 'error';
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send OTP';
+      }
+    }
+
+    async function verifyAdminOTP(){
+      const phone = document.getElementById('regPhone').value.trim().replace(/[\s\-+()]/g, '').replace(/^91/, '');
+      const otpCode = document.getElementById('regOtpCode').value.trim();
+      const statusEl = document.getElementById('otpStatus');
+      const verifyBtn = document.getElementById('verifyOtpBtn');
+      const registerBtn = document.getElementById('registerBtn');
+      
+      if(!otpCode || otpCode.length !== 6 || !/^\d{6}$/.test(otpCode)){
+        statusEl.textContent = 'Please enter a valid 6-digit OTP';
+        statusEl.className = 'error';
+        return;
+      }
+      
+      try{
+        verifyBtn.disabled = true;
+        verifyBtn.textContent = 'Verifying...';
+        statusEl.textContent = '';
+        
+        const res = await fetch(`${API_BASE}/api/v1/auth/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone_number: phone, otp_code: otpCode })
+        });
+        
+        const data = await res.json();
+        
+        if(!data.success){
+          statusEl.textContent = data.error || 'Invalid OTP';
+          statusEl.className = 'error';
+          verifyBtn.disabled = false;
+          verifyBtn.textContent = 'Verify OTP';
+          return;
+        }
+        
+        otpVerified = true;
+        verifiedPhone = phone;
+        statusEl.textContent = '✓ OTP verified! You can now complete registration.';
+        statusEl.className = 'success';
+        registerBtn.disabled = false;
+        verifyBtn.textContent = '✓ Verified';
+        verifyBtn.disabled = true;
+        
+      }catch(e){
+        statusEl.textContent = e.message || 'Network error';
+        statusEl.className = 'error';
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Verify OTP';
+      }
+    }
+
+    async function adminLogin(){
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const err = document.getElementById('loginError');
+      err.textContent = '';
+      if(!email || !password){ err.textContent = 'Enter email and password'; return; }
+      try{
+        const res = await fetch(`${API_BASE}/api/v1/auth/login`,{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if(!data.success){ err.textContent = data.error || 'Login failed'; return; }
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('userInfo', JSON.stringify(data.user || {}));
+        // Redirect to React Router admin route (works with Vite)
+        // If accessed directly, use admin.html; if via React Router, use /admin
+        if (window.top === window.self) {
+          // Direct access - redirect to React Router route
+          window.location.href = `/admin`;
+        } else {
+          // Iframe access - redirect parent to React Router route
+          window.top.location.href = `/admin`;
+        }
+      }catch(e){ err.textContent = e.message || 'Network error'; }
+    }
+
+    async function adminRegister(){
+      if(!otpVerified || !verifiedPhone){
+        document.getElementById('regError').textContent = 'Please verify your phone number with OTP first';
+        return;
+      }
+      
+      const phone = verifiedPhone;
+      const first_name = document.getElementById('regFirst').value.trim();
+      const last_name = document.getElementById('regLast').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const password = document.getElementById('regPassword').value;
+      const err = document.getElementById('regError');
+      const ok = document.getElementById('regSuccess');
+      err.textContent = ''; ok.textContent = '';
+      
+      // Validation
+      if(!first_name){ 
+        err.textContent = 'First name is required'; 
+        return; 
+      }
+      
+      // Email is optional, but if provided, validate format
+      if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        err.textContent = 'Invalid email format';
+        return;
+      }
+      
+      // Password is optional, but if provided, validate strength
+      if(password && password.length > 0 && password.length < 6) {
+        err.textContent = 'Password must be at least 6 characters long if provided';
+        return;
+      }
+      
+      try{
+        const registerBtn = document.getElementById('registerBtn');
+        registerBtn.disabled = true;
+        registerBtn.textContent = 'Creating...';
+        
+        const res = await fetch(`${API_BASE}/api/v1/auth/register`,{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            phone_number: phone,
+            name: `${first_name} ${last_name}`.trim(),
+            first_name,
+            last_name,
+            email: email || undefined,
+            password: password || undefined,
+            role: 'super_admin'
+          })
+        });
+        
+        const data = await res.json();
+        
+        console.log('Registration response:', data);
+        console.log('Response status:', res.status);
+        
+        if(!data.success){ 
+          // Show detailed error message
+          let errorMsg = data.error || data.message || 'Registration failed';
+          if(data.details) {
+            console.error('Registration error details:', data.details);
+          }
+          err.textContent = errorMsg;
+          
+          // If super admin already exists, suggest login
+          if(data.error && data.error.includes('already exists')) {
+            err.textContent += '. Please log in instead.';
+            setTimeout(() => switchTab('login'), 2000);
+          }
+          
+          registerBtn.disabled = false;
+          registerBtn.textContent = 'Create Super Admin';
+          return; 
+        }
+        
+        ok.textContent = 'Super admin created successfully! You can now login.';
+        
+        // Auto-fill login form if email provided
+        switchTab('login');
+        if(email){
+          document.getElementById('loginEmail').value = email;
+        }
+        
+        // Clear registration form
+        document.getElementById('regFirst').value = '';
+        document.getElementById('regLast').value = '';
+        document.getElementById('regEmail').value = '';
+        document.getElementById('regPassword').value = '';
+        document.getElementById('regPhone').value = '';
+        document.getElementById('regOtpCode').value = '';
+        
+        registerBtn.disabled = false;
+        registerBtn.textContent = 'Create Super Admin';
+      }catch(e){ 
+        console.error('Registration error:', e);
+        err.textContent = e.message || 'Network error. Please check if the server is running.';
+        const registerBtn = document.getElementById('registerBtn');
+        registerBtn.disabled = false;
+        registerBtn.textContent = 'Create Super Admin';
+      }
+    }
+  </script>
+</body>
+</html>
+
+

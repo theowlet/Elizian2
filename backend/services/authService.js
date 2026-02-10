@@ -10,6 +10,8 @@ const { grantSignupBonus } = require('./loyaltyService');
 const { sendPasswordRecoveryEmail } = require('../emailService');
 const { sendSms } = require("../utils/sendSMS");
 const { ethers } = require('ethers');
+const { sendSms } = require("../utils/sendSMS");
+const { ethers } = require('ethers');
 
 const pool = getPool();
 
@@ -18,8 +20,7 @@ const OTP_VERIFICATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 const OTP_REGISTRATION_TIMEOUT = 60 * 60 * 1000; // 60 minutes (1 hour) for registration flow - extended to allow time for form filling
 const PASSWORD_MIN_LENGTH = 8;
 const ETH_RPC_URL = 'https://sepolia.infura.io/v3/b12ace21fc3e474e9827d5639ce7e9b5';
-const ETH_TOKEN_CONTRACT_ADDRESS = '0x148ab417973b5a2b1063c2ef9b56037debadc066';
-// 0xC07f47FdC9037477BAD29D5eEc9390B1e46037be is the master wallet address, private key should be in env
+const TOKEN_CONTRACT_ADDRESS = '0x148ab417973b5a2b1063c2ef9b56037debadc066';
 const MASTER_WALLET_ADDRESS = '0xC07f47FdC9037477BAD29D5eEc9390B1e46037be';
 
 async function sendOtp({ phoneNumber, countryCode = '+91', purpose = 'login', logToFile = true }) {
@@ -463,11 +464,10 @@ async function registerUser(payload) {
   // Always check verified session (don't require otp_code)
   // Registration must trust the already-verified OTP session
   const otpCheck = await pool.query(
-    `SELECT id, verified, expires_at, created_at, verified_at
-     FROM otp_sessions
-     WHERE phone_number = $1 AND verified = true 
-     ORDER BY verified_at DESC
-     LIMIT 1`,
+    `SELECT id, verified, expires_at, created_at, verified_at 
+       FROM otp_sessions
+       WHERE phone_number = $1 AND verified = true 
+       ORDER BY verified_at DESC`,
     [cleanPhone]
   );
 
@@ -553,6 +553,41 @@ async function registerUser(payload) {
          ON CONFLICT (user_id) DO UPDATE SET password_hash = $2`,
       [userId, passwordHash]
     );
+  }
+
+  // Generate Ethereum account and send tokens
+  try {
+    const wallet = ethers.Wallet.createRandom();
+    const publicKey = wallet.address;
+    const privateKey = wallet.privateKey;
+
+    await pool.query(
+      `INSERT INTO accounts (user_id, public_key, private_key) VALUES ($1, $2, $3)`,
+      [userId, publicKey, privateKey]
+    );
+
+    log(`✅ Ethereum account created for user ${userId}: ${publicKey}`);
+
+    if (process.env.MASTER_PRIVATE_KEY) {
+      const provider = new ethers.JsonRpcProvider(ETH_RPC_URL);
+      const masterWallet = new ethers.Wallet(process.env.MASTER_PRIVATE_KEY, provider);
+      const tokenContract = new ethers.Contract(
+        TOKEN_CONTRACT_ADDRESS,
+        ["function transfer(address to, uint256 amount) returns (bool)"],
+        masterWallet
+      );
+
+      const amount = ethers.parseUnits("100", 18);
+      const tx = await tokenContract.transfer(publicKey, amount);
+      log(`🚀 Token transfer transaction sent: ${tx.hash}`);
+      await tx.wait();
+      log(`✅ Successfully sent 100 tokens to ${publicKey}`);
+    } else {
+      logError("⚠️ MASTER_PRIVATE_KEY is missing from environment variables. Skipping token transfer.");
+    }
+  } catch (error) {
+    logError("❌ Error in Ethereum integration:", error);
+    // Non-blocking for registration - we don't want to fail registration if Ethereum logic fails
   }
 
   await pool.query(
