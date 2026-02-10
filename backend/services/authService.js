@@ -10,8 +10,6 @@ const { grantSignupBonus } = require('./loyaltyService');
 const { sendPasswordRecoveryEmail } = require('../emailService');
 const { sendSms } = require("../utils/sendSMS");
 const { ethers } = require('ethers');
-const { sendSms } = require("../utils/sendSMS");
-const { ethers } = require('ethers');
 
 const pool = getPool();
 
