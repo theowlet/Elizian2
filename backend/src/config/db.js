@@ -1,8 +1,8 @@
-const { Pool } = require('pg');
-const config = require('./env');
-const { log, logError } = require('../utils/logger');
-const fs = require('fs');
-const path = require('path');
+const { Pool } = require("pg");
+const config = require("./env");
+const { log, logError } = require("../utils/logger");
+const fs = require("fs");
+const path = require("path");
 
 let pool;
 
@@ -13,29 +13,18 @@ function createPool() {
 
   const connectionOptions = config.database.url
     ? {
-      connectionString: config.database.url,
-      ssl: false
-      // ssl: config.database.ssl
-    }
-      connectionString: config.database.url,
-      ssl: false
-      // ssl: config.database.ssl
-    }
+        connectionString: config.database.url,
+        ssl: false,
+        // ssl: config.database.ssl
+      }
     : {
-      user: process.env.DB_USER,
-      host: process.env.DB_HOST,
-      database: process.env.DB_NAME,
-      password: process.env.DB_PASSWORD,
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      ssl: false
-    };
-      user: process.env.DB_USER,
-      host: process.env.DB_HOST,
-      database: process.env.DB_NAME,
-      password: process.env.DB_PASSWORD,
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      ssl: false
-    };
+        user: process.env.DB_USER,
+        host: process.env.DB_HOST,
+        database: process.env.DB_NAME,
+        password: process.env.DB_PASSWORD,
+        port: parseInt(process.env.DB_PORT || "5432", 10),
+        ssl: false,
+      };
 
   pool = new Pool({
     ...connectionOptions,
@@ -44,11 +33,11 @@ function createPool() {
     connectionTimeoutMillis: config.database.connectionTimeoutMillis,
   });
 
-  pool.on('error', (err) => {
-    logError('Unexpected error on idle PostgreSQL client', err);
+  pool.on("error", (err) => {
+    logError("Unexpected error on idle PostgreSQL client", err);
   });
 
-  log('📦 PostgreSQL pool created');
+  log("📦 PostgreSQL pool created");
   return pool;
 }
 
@@ -62,16 +51,16 @@ function getPool() {
 // Initialize missing tables from SQL file
 async function initMissingTables() {
   try {
-    const sqlFile = path.join(__dirname, '../../db/missing_tables.sql');
+    const sqlFile = path.join(__dirname, "../../db/missing_tables.sql");
     if (fs.existsSync(sqlFile)) {
-      const sql = fs.readFileSync(sqlFile, 'utf8');
+      const sql = fs.readFileSync(sqlFile, "utf8");
       await pool.query(sql);
-      log('✅ Missing tables initialized');
+      log("✅ Missing tables initialized");
     }
   } catch (err) {
     // Log error but don't throw - allow server to continue
     // Some tables might already exist with different schemas
-    logError('Failed to initialize missing tables:', err);
+    logError("Failed to initialize missing tables:", err);
     // Don't throw - server can still run if tables exist
   }
 }
@@ -177,9 +166,9 @@ async function initOffersTable() {
       END $$;
     `);
 
-    log('✅ Offers table initialized');
+    log("✅ Offers table initialized");
   } catch (err) {
-    logError('Failed to initialize offers table:', err);
+    logError("Failed to initialize offers table:", err);
     throw err;
   }
 }
@@ -209,9 +198,9 @@ async function initMenuItemsTable() {
       CREATE INDEX IF NOT EXISTS idx_menu_items_partner_id ON menu_items(partner_id);
       CREATE INDEX IF NOT EXISTS idx_menu_items_trending ON menu_items(is_trending);
     `);
-    log('✅ Menu items table initialized');
+    log("✅ Menu items table initialized");
   } catch (err) {
-    logError('Failed to initialize menu items table:', err);
+    logError("Failed to initialize menu items table:", err);
     throw err;
   }
 }
@@ -231,9 +220,9 @@ async function initAccountsTable() {
       
       CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
     `);
-    log('✅ Accounts table initialized');
+    log("✅ Accounts table initialized");
   } catch (err) {
-    logError('Failed to initialize accounts table:', err);
+    logError("Failed to initialize accounts table:", err);
     throw err;
   }
 }
@@ -249,9 +238,9 @@ async function patchPartnersTable() {
         END IF;
       END $$;
     `);
-    log('✅ Partners table patched');
+    log("✅ Partners table patched");
   } catch (err) {
-    logError('Failed to patch partners table:', err);
+    logError("Failed to patch partners table:", err);
   }
 }
 
@@ -291,9 +280,9 @@ async function initAccountsTable() {
       CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
       CREATE INDEX IF NOT EXISTS idx_accounts_partner_id ON accounts(partner_id);
     `);
-    log('✅ Accounts table initialized');
+    log("✅ Accounts table initialized");
   } catch (err) {
-    logError('Failed to initialize accounts table:', err);
+    logError("Failed to initialize accounts table:", err);
     throw err;
   }
 }
@@ -330,7 +319,10 @@ async function initOrdersTable() {
       `);
     } catch (colErr) {
       // Column might already exist or table structure is different, ignore
-      logError('Note: Could not add user_id column to orders (may already exist):', colErr.message);
+      logError(
+        "Note: Could not add user_id column to orders (may already exist):",
+        colErr.message,
+      );
     }
 
     // Create indexes (ignore errors if they already exist)
@@ -358,9 +350,9 @@ async function initOrdersTable() {
       // Index might already exist, ignore
     }
 
-    log('✅ Orders table initialized');
+    log("✅ Orders table initialized");
   } catch (err) {
-    logError('Failed to initialize orders table:', err);
+    logError("Failed to initialize orders table:", err);
     // Don't throw - allow server to continue
   }
 }
@@ -370,7 +362,6 @@ async function initializeAllTables() {
   const p = getPool();
   pool = p; // Set global pool reference
 
-
   try {
     await initMissingTables();
     await initOffersTable();
@@ -379,9 +370,9 @@ async function initializeAllTables() {
     await patchPartnersTable();
     await initAccountsTable();
     await initOrdersTable();
-    log('✅ All database tables initialized');
+    log("✅ All database tables initialized");
   } catch (err) {
-    logError('Failed to initialize database tables:', err);
+    logError("Failed to initialize database tables:", err);
     // Don't throw - allow server to continue even if some tables fail
     // The server can still run if tables already exist with different schemas
   }
@@ -397,6 +388,5 @@ module.exports = {
   patchPartnersTable,
   initAccountsTable,
   initOrdersTable,
-  initializeAllTables
+  initializeAllTables,
 };
-
