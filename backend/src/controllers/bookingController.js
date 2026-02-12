@@ -137,7 +137,7 @@ async function getBooking(req, res) {
         booking = await qrCodeRegenerationService.regenerateQRCode(id);
         booking = {
           ...booking,
-          qr_code_url: getS3FileUrl(booking.data[qr_code_url]),
+          qr_code_url: getS3FileUrl(booking.qr_code_url),
         };
         log(`✅ QR code regenerated for booking ${booking}`);
         log(`✅ QR code regenerated for booking ${id}`);

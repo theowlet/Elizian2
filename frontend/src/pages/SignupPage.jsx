@@ -107,7 +107,7 @@ const SignupPage = () => {
         setOtpSent(true);
         setError('');
       } else {
-        setError(result.error || 'Failed to send OTP');
+        setError(result?.message ?? result?.error ?? 'Failed to send OTP');
       }
     } catch (err) {
       setError('Network error. Please try again.');
@@ -148,7 +148,7 @@ const SignupPage = () => {
         setIsOtpPreVerified(false); // After re-verification, treat as on-screen verification
         setError('');
       } else {
-        setError(result.error || 'Invalid OTP');
+        setError(result?.message ?? result?.error ?? 'Invalid OTP');
       }
     } catch (err) {
       setError('Network error. Please try again.');
@@ -177,7 +177,7 @@ const SignupPage = () => {
         alert('OTP resent successfully!');
         document.getElementById('otp-0')?.focus();
       } else {
-        setError(result.error || 'Failed to resend OTP');
+        setError(result?.message ?? result?.error ?? 'Failed to resend OTP');
       }
     } catch (err) {
       setError('Network error. Please try again.');
@@ -271,7 +271,7 @@ const SignupPage = () => {
 
       // Handle non-200 status codes
       if (!response.ok) {
-        const errorMsg = result.error || result.message || `Registration failed with status ${response.status}`;
+        const errorMsg = result?.message ?? result?.error ?? `Registration failed with status ${response.status}`;
         console.error('[Registration] Error:', errorMsg);
         setError(errorMsg);
         setLoading(false);
@@ -301,7 +301,7 @@ const SignupPage = () => {
           navigate('/mpin-setup', { replace: true });
         }, 100);
       } else {
-        const errorMsg = result.error || result.message || 'Registration failed - missing token or success flag';
+        const errorMsg = result?.message ?? result?.error ?? 'Registration failed - missing token or success flag';
         console.error('[Registration] ❌ Failed:', errorMsg);
         console.error('[Registration] Full result:', result);
         console.error('[Registration] Response status:', response.status);

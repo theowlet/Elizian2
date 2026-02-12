@@ -336,17 +336,17 @@ async function listPublicOffers(filters = {}) {
     : 100;
 
   const enforceActiveFilters = isActiveParam === false ? false : !admin;
+  const includeExpired = Boolean(filters.include_expired);
 
   const repoFilters = {
     status: enforceActiveFilters ? OFFER_STATUS.ACTIVE : null,
-    not_expired: enforceActiveFilters,
-    // Do NOT enforce has_started here; frontend decides whether to show
-    // ongoing vs upcoming events based on start_date.
+    not_expired: includeExpired ? false : enforceActiveFilters,
     has_started: false,
     service_type: serviceTypeParam || null,
     trending: trending === true ? true : null,
     limit: normalizedLimit,
-    admin: Boolean(admin)
+    admin: Boolean(admin),
+    partner_ids: filters.partner_ids && Array.isArray(filters.partner_ids) ? filters.partner_ids : null,
   };
 
   log('[offerService] listPublicOffers request', {
@@ -374,11 +374,24 @@ async function listPublicOffers(filters = {}) {
   }
 }
 
+async function getPublicOfferById(offerId) {
+  const offer = await offerRepository.getOfferById(offerId, true);
+  if (!offer) return null;
+  const { getS3FileUrl } = require('../../utils/s3Bucket');
+  return {
+    ...offer,
+    image_url: offer.image_url ? getS3FileUrl(offer.image_url) : null,
+    perk_type: offer.perk_type || 'discount',
+    perk_description: offer.perk_description || null
+  };
+}
+
 module.exports = {
   listOffersByPartner,
   createOffer,
   updateOffer,
   deleteOffer,
-  listPublicOffers
+  listPublicOffers,
+  getPublicOfferById
 };
 

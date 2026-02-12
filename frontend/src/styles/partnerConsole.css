@@ -204,6 +204,13 @@
   gap: 12px;
 }
 
+.pc-map-preview { margin-top: 8px; }
+.pc-map-hint { font-size: 0.9rem; color: var(--muted); margin: 0 0 10px 0; line-height: 1.4; }
+.pc-map-embed { border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.pc-open-maps-btn { display: inline-block; padding: 8px 16px; background: var(--brand1); color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+.pc-open-maps-btn:hover { opacity: 0.9; color: #fff; }
+.pc-geo-badge { display: inline-block; margin-left: 8px; font-size: 0.75rem; color: var(--success); background: rgba(16, 185, 129, 0.15); padding: 4px 8px; border-radius: 6px; }
+
 .pc-badge {
   padding: 4px 8px;
   border-radius: 999px;

@@ -12,7 +12,7 @@ const successResponse = (res, statusCode, message = 'Success', data = null) => {
 };
 
 const errorResponse = (res, statusCode, message, details = null) => {
-  const response = { success: false, error: message };
+  const response = { success: false, message, error: message };
   if (details) {
     response.details = details;
   }

@@ -28,8 +28,19 @@ const pool = getPool();
  * @returns {Object} Redemption record
  */
 async function redeemVoucher(redemptionData) {
+  // STABILIZATION FIX: Deprecate basic redemption in favour of enhanced service.
+  // The basic version lacks state-machine validation, geo-verification,
+  // settlement tracking, and tier processing at redemption time.
+  // Delegate to enhancedRedemptionService to ensure all business rules apply.
+  log('⚠️ DEPRECATED: redeemVoucher called directly — delegating to redeemVoucherEnhanced');
+  const enhancedRedemptionService = require('./enhancedRedemptionService');
+  return enhancedRedemptionService.redeemVoucherEnhanced(redemptionData);
+}
+
+// Original implementation kept as _redeemVoucherLegacy for reference only — NOT exported
+async function _redeemVoucherLegacy(redemptionData) {
   const client = await pool.connect();
-  
+
   try {
     const {
       voucher_code,

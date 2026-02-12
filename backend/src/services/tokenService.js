@@ -182,47 +182,58 @@ const updateTierProgress = async (userId, amountSpent) => {
 };
 
 // Redeem EZT tokens at checkout (₹100 per EZT, supports 5 decimal places)
-const redeemTokens = async (userId, eztAmount, transactionId = null, description = '') => {
+// STABILIZATION FIX: Accept optional executor (transaction client) to prevent race conditions
+// When called from bookingService.createBooking, the transaction client is passed to ensure
+// token balance checks and updates are atomic within the booking transaction.
+const redeemTokens = async (userId, eztAmount, transactionId = null, description = '', executor = null) => {
+  const client = executor || await pool.connect();
+  const shouldRelease = !executor;
   try {
-    // Get user's current token balance
-    const userResult = await pool.query(
-      'SELECT available_tokens, total_tokens_spent FROM users WHERE id = $1',
+    if (!executor) await client.query('BEGIN');
+
+    // STABILIZATION FIX: Use FOR UPDATE to prevent concurrent token overdraw
+    // Without this lock, two concurrent bookings could both read the same balance
+    // and both succeed, allowing the user to spend more EZT than they own.
+    const userResult = await client.query(
+      'SELECT available_tokens, total_tokens_spent FROM users WHERE id = $1 FOR UPDATE',
       [userId]
     );
-    
+
     if (userResult.rows.length === 0) {
       throw new Error('User not found');
     }
-    
+
     const availableTokens = parseFloat(userResult.rows[0].available_tokens || 0);
     const eztToRedeem = parseFloat(eztAmount);
-    
+
     if (eztToRedeem > availableTokens) {
       throw new Error(`Insufficient EZT balance. Available: ${availableTokens.toFixed(5)}, Required: ${eztToRedeem.toFixed(5)}`);
     }
-    
+
     // Calculate discount amount (1 EZT = ₹100)
     const discountAmount = eztToRedeem * 100;
-    
+
     // Update user's token balance
     const balanceBefore = availableTokens;
     const balanceAfter = availableTokens - eztToRedeem;
-    
-    await pool.query(
-      `UPDATE users 
+
+    await client.query(
+      `UPDATE users
        SET available_tokens = available_tokens - $1,
            total_tokens_spent = total_tokens_spent + $1
        WHERE id = $2`,
       [eztToRedeem, userId]
     );
-    
+
     // Record in token ledger
-    await pool.query(
+    await client.query(
       `INSERT INTO token_ledger (user_id, transaction_id, amount, ledger_type, balance_before, balance_after, description)
        VALUES ($1, $2, $3, 'spent', $4, $5, $6)`,
       [userId, transactionId, eztToRedeem, balanceBefore, balanceAfter, description || `Redeemed for discount (₹${discountAmount})`]
     );
-    
+
+    if (!executor) await client.query('COMMIT');
+
     log(`✅ Redeemed ${eztToRedeem.toFixed(5)} EZT from user ${userId} (₹${discountAmount} discount)`);
 
     emitRealtimeEvent(REALTIME_EVENTS.TOKENS_UPDATED, {
@@ -234,7 +245,7 @@ const redeemTokens = async (userId, eztAmount, transactionId = null, description
       totalSpent: parseFloat(userResult.rows[0].total_tokens_spent || 0) + eztToRedeem,
       timestamp: new Date().toISOString()
     });
-    
+
     return {
       eztRedeemed: eztToRedeem,
       discountAmount: discountAmount,
@@ -242,15 +253,45 @@ const redeemTokens = async (userId, eztAmount, transactionId = null, description
       balanceAfter: balanceAfter
     };
   } catch (error) {
+    if (!executor) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+    }
     logError('❌ Error redeeming tokens:', error);
     throw error;
+  } finally {
+    if (shouldRelease) client.release();
   }
+};
+
+// Credit a fixed EZT amount (e.g. staff check-in reward) without tier calculation
+const creditFixed = async (userId, amount, description = '') => {
+  if (!userId || amount == null || amount <= 0) return 0;
+  const amt = parseFloat(amount);
+  const userResult = await pool.query(
+    'SELECT available_tokens FROM users WHERE id = $1',
+    [userId]
+  );
+  if (userResult.rows.length === 0) return 0;
+  const balanceBefore = parseFloat(userResult.rows[0].available_tokens || 0);
+  const balanceAfter = balanceBefore + amt;
+  await pool.query(
+    `UPDATE users SET available_tokens = available_tokens + $1, total_tokens_earned = COALESCE(total_tokens_earned, 0) + $1 WHERE id = $2`,
+    [amt, userId]
+  );
+  await pool.query(
+    `INSERT INTO token_ledger (user_id, amount, ledger_type, balance_before, balance_after, description)
+     VALUES ($1, $2, 'earned', $3, $4, $5)`,
+    [userId, amt, balanceBefore, balanceAfter, description || 'Staff check-in reward']
+  );
+  log(`✅ Credited ${amt} EZT to user ${userId}: ${description || 'Staff check-in reward'}`);
+  return amt;
 };
 
 module.exports = {
   getTokenPercentage,
   awardTokens,
   updateTierProgress,
-  redeemTokens
+  redeemTokens,
+  creditFixed
 };
 

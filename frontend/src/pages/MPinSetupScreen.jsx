@@ -106,7 +106,7 @@ const MPinSetupScreen = () => {
         alert('M-PIN set successfully!');
         navigate('/home');
       } else {
-        throw new Error(result.error || result.message || 'Failed to set M-PIN');
+        throw new Error(result?.message ?? result?.error ?? 'Failed to set M-PIN');
       }
     } catch (err) {
       console.error('M-PIN setup error:', err);

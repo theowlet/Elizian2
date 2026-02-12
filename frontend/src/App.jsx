@@ -22,6 +22,11 @@ import RescheduleBooking from "./pages/RescheduleBooking";
 import WellnessPage from "./pages/WellnessPage";
 import HealthWellnessPage from "./pages/HealthWellnessPage";
 import DataEntry from "./pages/DataEntry";
+import VenueDetailPage from "./pages/VenueDetailPage";
+import VenueMapPage from "./pages/VenueMapPage";
+import EventsPage from "./pages/EventsPage";
+import EventDetailPage from "./pages/EventDetailPage";
+import MyPassesPage from "./pages/MyPassesPage";
 import MultiTierAdmin from "./pages/MultiTierAdmin";
 import PrivacyPolicyContent from "./pages/PrivacyPolicyContent"
 import {
@@ -128,6 +133,9 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/venue/:id" element={<VenueDetailPage />} />
+      <Route path="/venues/map" element={<VenueMapPage />} />
+      <Route path="/events" element={<EventsPage />} />
       <Route
         path="/events/booking"
         element={
@@ -136,6 +144,8 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/events/:id" element={<EventDetailPage />} />
+      <Route path="/passes" element={<ProtectedRoute requireAuth={true}><MyPassesPage /></ProtectedRoute>} />
        <Route
         path="/profile"
         element={

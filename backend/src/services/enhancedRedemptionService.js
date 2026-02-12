@@ -15,6 +15,20 @@ const { log, logError } = require('../../utils/logger');
 
 const pool = getPool();
 
+/** Haversine distance in km */
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 /**
  * Enhanced voucher redemption with enterprise features
  * @param {Object} redemptionData - Redemption details
@@ -32,7 +46,9 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       ezt_co_pay_amount,
       net_amount_from_user,
       redeemed_by_user_id = null,
-      redemption_notes = null
+      redemption_notes = null,
+      redemption_latitude = null,
+      redemption_longitude = null
     } = redemptionData;
 
     const {
@@ -352,41 +368,73 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       [booking.id]
     );
 
+    // Geo-verification: check if redemption location is within venue radius (e.g. 500m)
+    const GEO_RADIUS_KM = 0.5;
+    let geo_verified = false;
+    if (redemption_latitude != null && redemption_longitude != null) {
+      const partnerLoc = await client.query(
+        'SELECT latitude, longitude FROM partners WHERE id = $1',
+        [partner_id]
+      );
+      const p = partnerLoc.rows[0];
+      if (p && p.latitude != null && p.longitude != null) {
+        const km = haversineKm(
+          Number(p.latitude),
+          Number(p.longitude),
+          Number(redemption_latitude),
+          Number(redemption_longitude)
+        );
+        geo_verified = km <= GEO_RADIUS_KM;
+      }
+    }
+
     // Create redemption audit record with settlement_status = 'pending'
     // CRITICAL: Financial fields must be properly typed (DECIMAL) and immutable after redemption
-    const redemptionResult = await client.query(
-      `INSERT INTO redemption_audit (
-        booking_id,
-        voucher_code,
-        redeemed_by_partner_id,
-        total_bill_amount,
-        ezt_co_pay_amount,
-        net_amount_from_user,
-        redeemed_by_user_id,
-        redemption_notes,
-        redemption_status,
-        settlement_status,
-        metadata
-      ) VALUES ($1, $2, $3, $4::DECIMAL(12, 2), $5::DECIMAL(12, 2), $6::DECIMAL(12, 2), $7, $8, 'redeemed', 'pending', $9)
-      RETURNING *`,
-      [
-        booking.id,
-        voucher_code,
-        partner_id,
-        parseFloat(total_bill_amount) || 0, // Ensure numeric type
-        parseFloat(ezt_co_pay_amount) || 0, // Ensure numeric type
-        parseFloat(net_amount_from_user) || 0, // Ensure numeric type
-        redeemed_by_user_id,
-        redemption_notes,
-        JSON.stringify({
-          booking_reference: booking.booking_reference,
-          original_total_price: booking.total_price,
-          original_fiat_amount: booking.fiat_amount,
-          redeemed_at: new Date().toISOString(),
-          validation_warnings: validationResult.warnings
-        })
-      ]
-    );
+    const metadataJson = JSON.stringify({
+      booking_reference: booking.booking_reference,
+      original_total_price: booking.total_price,
+      original_fiat_amount: booking.fiat_amount,
+      redeemed_at: new Date().toISOString(),
+      validation_warnings: validationResult.warnings
+    });
+    const baseParams = [
+      booking.id,
+      voucher_code,
+      partner_id,
+      parseFloat(total_bill_amount) || 0,
+      parseFloat(ezt_co_pay_amount) || 0,
+      parseFloat(net_amount_from_user) || 0,
+      redeemed_by_user_id,
+      redemption_notes,
+      metadataJson
+    ];
+    let redemptionResult;
+    try {
+      redemptionResult = await client.query(
+        `INSERT INTO redemption_audit (
+          booking_id, voucher_code, redeemed_by_partner_id,
+          total_bill_amount, ezt_co_pay_amount, net_amount_from_user,
+          redeemed_by_user_id, redemption_notes, redemption_status, settlement_status, metadata,
+          redemption_latitude, redemption_longitude, geo_verified
+        ) VALUES ($1, $2, $3, $4::DECIMAL(12, 2), $5::DECIMAL(12, 2), $6::DECIMAL(12, 2), $7, $8, 'redeemed', 'pending', $9, $10, $11, $12)
+        RETURNING *`,
+        [...baseParams, redemption_latitude, redemption_longitude, geo_verified]
+      );
+    } catch (insertErr) {
+      if (insertErr.message && insertErr.message.includes('redemption_latitude')) {
+        redemptionResult = await client.query(
+          `INSERT INTO redemption_audit (
+            booking_id, voucher_code, redeemed_by_partner_id,
+            total_bill_amount, ezt_co_pay_amount, net_amount_from_user,
+            redeemed_by_user_id, redemption_notes, redemption_status, settlement_status, metadata
+          ) VALUES ($1, $2, $3, $4::DECIMAL(12, 2), $5::DECIMAL(12, 2), $6::DECIMAL(12, 2), $7, $8, 'redeemed', 'pending', $9)
+          RETURNING *`,
+          baseParams
+        );
+      } else {
+        throw insertErr;
+      }
+    }
 
     const redemption = redemptionResult.rows[0];
 
@@ -548,6 +596,22 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
         }
       } else {
         log(`⚠️ Skipping tier processing for free redemption (bill amount = 0), booking ${booking.id}`);
+      }
+
+      // EZ Club: cross-network check-in count and qualification (idempotent per redemption)
+      try {
+        await client.query(
+          `UPDATE users SET
+            ez_club_network_check_ins = COALESCE(ez_club_network_check_ins, 0) + 1,
+            ez_club_member = ((COALESCE(ez_club_network_check_ins, 0) + 1) >= 5) OR COALESCE(ez_club_member, false),
+            ez_club_qualified_at = CASE WHEN ((COALESCE(ez_club_network_check_ins, 0) + 1) >= 5) AND ez_club_qualified_at IS NULL THEN CURRENT_TIMESTAMP ELSE ez_club_qualified_at END
+           WHERE id = $1`,
+          [booking.user_id]
+        );
+      } catch (ezClubErr) {
+        if (ezClubErr.code !== '42703' && !String(ezClubErr.message || '').includes('ez_club')) {
+          logError('⚠️ EZ Club update error (non-fatal):', ezClubErr);
+        }
       }
     } else {
       // Tier processing already done - log for audit

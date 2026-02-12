@@ -81,6 +81,7 @@ function normalizeOffer(offer) {
     status: offer.status || 'draft',
     is_active: offer.is_active !== undefined ? Boolean(offer.is_active) : true,
     is_trending: trendingFlag,
+    featured: trendingFlag,
     // Deprecated field retained for backward compatibility
     is_promoted: trendingFlag,
     
@@ -96,7 +97,16 @@ function normalizeOffer(offer) {
     applicable_days: offer.applicable_days || null,
     min_purchase_amount: parseFloat(offer.min_purchase_amount) || null,
     promo_code: offer.promo_code || null,
-    ezt_equivalent: parseFloat(offer.ezt_equivalent) || null
+    ezt_equivalent: parseFloat(offer.ezt_equivalent) || null,
+
+    // Geo & discovery (Phase 1 Rich Venue Feed)
+    distance_km: offer.distance_km != null ? Number(offer.distance_km) : null,
+    partner_approved_for_featured: Boolean(offer.partner_approved_for_featured),
+    perk_type: offer.perk_type || 'discount',
+    perk_description: offer.perk_description || null,
+    partner_rating: offer.partner_rating != null ? Number(offer.partner_rating) : null,
+    partner_latitude: offer.partner_latitude != null ? Number(offer.partner_latitude) : null,
+    partner_longitude: offer.partner_longitude != null ? Number(offer.partner_longitude) : null,
   };
 }
 

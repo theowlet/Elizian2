@@ -112,7 +112,7 @@ const RescheduleBooking = () => {
         navigate(`/booking/${id}`, { state: { booking: result.data } });
       } else {
         setError(
-          result.error || result.message || "Failed to reschedule booking",
+          result?.message ?? result?.error ?? "Failed to reschedule booking",
         );
       }
     } catch (err) {

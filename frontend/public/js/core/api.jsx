@@ -64,11 +64,13 @@ export async function apiCall(endpoint, method = 'GET', data = null, options = {
       };
     }
     
-    // Handle other errors
+    // Handle other errors (backend may send message and/or error)
     if (!response.ok) {
+      const errMsg = result?.message ?? result?.error ?? CONFIG.ERRORS.SERVER;
       return {
         success: false,
-        error: result.error || CONFIG.ERRORS.SERVER,
+        error: errMsg,
+        message: errMsg,
         statusCode: response.status
       };
     }

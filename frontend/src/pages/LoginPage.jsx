@@ -9,7 +9,7 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
   // Check for pending booking after successful login
   useEffect(() => {
@@ -79,8 +79,19 @@ const LoginPage = () => {
         body: JSON.stringify({ phone_number: phoneNumber })
       });
 
-      const checkResult = await checkResponse.json();
+      let checkResult;
+      try {
+        checkResult = await checkResponse.json();
+      } catch (_) {
+        setError(checkResponse.ok ? 'Invalid response from server.' : `Server error (${checkResponse.status}). Check API is running at ${API_BASE}.`);
+        return;
+      }
       console.log('📥 M-PIN check result:', checkResult);
+
+      if (!checkResponse.ok) {
+        setError(checkResult?.message ?? checkResult?.error ?? `Request failed (${checkResponse.status}).`);
+        return;
+      }
 
       // If user has M-PIN, redirect to M-PIN login
       if (checkResult.success && checkResult.data?.has_mpin) {
@@ -99,30 +110,34 @@ const LoginPage = () => {
       });
 
       console.log('📥 Response status:', response.status);
-      
-      const result = await response.json();
+
+      let result;
+      try {
+        result = await response.json();
+      } catch (_) {
+        setError(response.ok ? 'Invalid response from server.' : `Server error (${response.status}). Check API at ${API_BASE}.`);
+        return;
+      }
       console.log('📥 Response data:', result);
 
       if (result.success) {
         console.log('✅ OTP sent successfully');
-        // Store phone number for OTP verification page
         sessionStorage.setItem('phoneForOTP', phoneNumber);
-        
-        // Show success message if in development
         if (result.data?.otp) {
           console.log('🔐 Development OTP:', result.data.otp);
           alert(`Development Mode: Your OTP is ${result.data.otp}`);
         }
-        
-        // Navigate to OTP screen
         navigate('/otp');
       } else {
         console.error('❌ OTP send failed:', result.error);
-        setError(result.error || 'Failed to send OTP. Please try again.');
+        setError(result?.message ?? result?.error ?? 'Failed to send OTP. Please try again.');
       }
     } catch (err) {
-      console.error('💥 Network error:', err);
-      setError('Network error. Please check your connection and try again.');
+      console.error('💥 Request failed:', err);
+      const isNetwork = err?.message === 'Failed to fetch' || err?.name === 'TypeError';
+      setError(isNetwork
+        ? `Cannot reach server. Check that the backend is running and VITE_API_BASE_URL is correct (current: ${API_BASE}).`
+        : (err.message || 'Something went wrong. Please try again.'));
     } finally {
       setLoading(false);
     }

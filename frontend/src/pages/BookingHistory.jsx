@@ -147,7 +147,7 @@ const BookingHistory = () => {
         await loadBookings(); // Reload bookings
       } else {
         const result = await response.json();
-        alert(result.error || 'Failed to cancel booking');
+        alert(result?.message ?? result?.error ?? 'Failed to cancel booking');
       }
     } catch (err) {
       console.error('Error cancelling booking:', err);

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import PasswordVisibilityToggle from '../components/PasswordVisibilityToggle';
 import '../styles/auth.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 /**
  * M-PIN Login Screen
@@ -50,7 +50,14 @@ const MPinLoginScreen = () => {
         })
       });
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (_) {
+        setError(response.ok ? 'Invalid response from server.' : `Server error (${response.status}). Check API at ${API_BASE}.`);
+        setMpin('');
+        return;
+      }
 
       if (result.success && result.token) {
         // Login successful
@@ -88,14 +95,17 @@ const MPinLoginScreen = () => {
         if (newAttempts >= 5) {
           setError('Too many failed attempts. Account locked. Please use OTP login.');
         } else {
-          setError(result.error || result.message || `Invalid M-PIN. ${5 - newAttempts} attempt(s) remaining.`);
+          setError(result?.message ?? result?.error ?? `Invalid M-PIN. ${5 - newAttempts} attempt(s) remaining.`);
         }
         setMpin(''); // Clear M-PIN on error
       }
     } catch (err) {
       console.error('M-PIN verification error:', err);
-      setError(err.message || 'Network error. Please try again.');
-      setMpin(''); // Clear M-PIN on error
+      const isNetwork = err?.message === 'Failed to fetch' || err?.name === 'TypeError';
+      setError(isNetwork
+        ? `Cannot reach server. Check backend is running and VITE_API_BASE_URL is correct (current: ${API_BASE}).`
+        : (err.message || 'Something went wrong. Please try again.'));
+      setMpin('');
     } finally {
       setLoading(false);
     }

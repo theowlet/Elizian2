@@ -215,6 +215,18 @@ app.use('/api/v1/partners', voucherRoutes.partnerVoucherRouter);
 const partnerRoutes = require('./routes/partnerRoutes');
 app.use('/api/v1/partners', partnerRoutes);
 
+// In-app messaging (conversations)
+const conversationRoutes = require('./routes/conversationRoutes');
+app.use('/api/v1/conversations', conversationRoutes);
+
+// Subscription passes
+const subscriptionPassRoutes = require('./routes/subscriptionPassRoutes');
+app.use('/api/v1/passes', subscriptionPassRoutes);
+
+// Prelaunch / founding member (user list)
+const prelaunchRoutes = require('./routes/prelaunchRoutes');
+app.use('/api/v1/prelaunch', prelaunchRoutes);
+
 // Import and mount event routes
 const eventRoutes = require('./routes/eventRoutes');
 app.use('/api/v1/events', eventRoutes);
@@ -271,6 +283,9 @@ app.use('/api/v1/achievements', achievementRoutes);
 // Import and mount referral routes (referral program)
 const referralRoutes = require('./routes/referralRoutes');
 app.use('/api/v1/referrals', referralRoutes);
+
+const recommendationRoutes = require('./routes/recommendationRoutes');
+app.use('/api/v1/recommendations', recommendationRoutes);
 
 // Import and mount system settings routes (configuration management)
 const systemSettingsRoutes = require('./routes/systemSettingsRoutes');

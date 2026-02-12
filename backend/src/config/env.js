@@ -28,14 +28,17 @@ const config = {
   },
   cors: {
     allowedOrigins: process.env.CORS_ALLOWED_ORIGINS
-      ? process.env.CORS_ALLOWED_ORIGINS.split(',')
+      ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((o) => o.trim())
       : [
           'http://localhost:8080',
           'http://localhost:8081',
           'http://localhost:3000',
+          'http://localhost:4000',
+          'http://localhost:5001',
           'http://localhost:5173',
           'http://127.0.0.1:8080',
-          'http://127.0.0.1:8081'
+          'http://127.0.0.1:8081',
+          'http://127.0.0.1:5173'
         ]
   },
   database: {
@@ -57,6 +60,14 @@ const config = {
     otpMaxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS || '5', 10)
   }
 };
+
+// STABILIZATION FIX: Fail fast if JWT secret is not set in production
+// The default 'your-secret-key-change-in-production' is intentionally weak
+// and must be replaced before deploying to production.
+if (config.isProduction && config.security.jwtSecret.includes('change-in-production')) {
+  console.error('FATAL: JWT_SECRET must be set to a strong secret in production. Refusing to start.');
+  process.exit(1);
+}
 
 module.exports = config;
 

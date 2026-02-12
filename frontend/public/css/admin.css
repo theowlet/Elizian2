@@ -574,6 +574,15 @@ body {
   gap: 0.5rem;
 }
 
+.admin-maps-link {
+  color: var(--primary, #2563eb);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+.admin-maps-link:hover {
+  text-decoration: underline;
+}
+
 .deal-title h3 {
   margin: 0;
   font-size: 1.1rem;

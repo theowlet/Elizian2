@@ -107,7 +107,7 @@ const OTPScreen = () => {
         }
       } else {
         console.error('❌ OTP verification failed:', verifyResult.error);
-        setError(verifyResult.error || 'Invalid OTP');
+        setError(verifyResult?.message ?? verifyResult?.error ?? 'Invalid OTP');
       }
     } catch (err) {
       setError('Network error. Please try again.');
@@ -136,7 +136,7 @@ const OTPScreen = () => {
         setOtp(['', '', '', '', '', '']);
         document.getElementById('otp-0')?.focus();
       } else {
-        setError(result.error || 'Failed to resend OTP');
+        setError(result?.message ?? result?.error ?? 'Failed to resend OTP');
       }
     } catch (err) {
       setError('Network error. Please try again.');

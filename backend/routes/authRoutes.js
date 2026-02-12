@@ -45,10 +45,10 @@ router.post('/reset-password', authController.resetPassword);
 // User profile endpoint (requires authentication)
 router.get('/user/profile', authenticateToken, authController.getProfile);
 
-// M-PIN endpoints
+// M-PIN endpoints (validatePhoneNumber normalizes phone so MPIN lookup works)
 router.post('/set-mpin', authenticateToken, authController.setMpin);
-router.post('/verify-mpin', authController.verifyMpin);
-router.post('/check-mpin', authController.checkMpinExists);
+router.post('/verify-mpin', validatePhoneNumber, authController.verifyMpin);
+router.post('/check-mpin', validatePhoneNumber, authController.checkMpinExists);
 router.post('/reset-mpin', authenticateToken, authController.resetMpin);
 
 module.exports = router;

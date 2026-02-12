@@ -37,6 +37,15 @@ function createPool() {
     logError("Unexpected error on idle PostgreSQL client", err);
   });
 
+  // STABILIZATION FIX: Ensure all PostgreSQL connections use UTC timezone
+  // This prevents timezone mismatch between JavaScript new Date() (server TZ)
+  // and PostgreSQL CURRENT_TIMESTAMP (database TZ). Without this, offer
+  // start/end date comparisons can be off by hours, causing deals to appear
+  // started or expired at wrong times.
+  pool.on("connect", (client) => {
+    client.query("SET timezone = 'UTC'");
+  });
+
   log("📦 PostgreSQL pool created");
   return pool;
 }
@@ -92,6 +101,8 @@ async function initOffersTable() {
         applicable_categories JSONB,
         min_purchase_amount DECIMAL(10, 2),
         promo_code VARCHAR(50),
+        perk_type VARCHAR(50) DEFAULT 'discount',
+        perk_description TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );

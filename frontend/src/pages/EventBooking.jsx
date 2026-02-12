@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "../styles/auth.css";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
 
 // Screen states
 const SCREEN_SELECTION = "selection";
@@ -66,13 +66,16 @@ const EventBooking = () => {
     }
   }, [location]);
 
+  // STABILIZATION FIX: Fetch single deal by ID instead of loading ALL offers
+  // Previously fetched up to 1000 offers and filtered client-side — wasteful
+  // on mobile networks and O(n) when O(1) is available via /offers/:id endpoint.
   const fetchDealDetails = async (dealId) => {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
 
       const response = await fetch(
-        `${API_BASE}/api/v1/offers?limit=1000&is_active=true`,
+        `${API_BASE}/api/v1/offers/${dealId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -84,24 +87,16 @@ const EventBooking = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
-          const foundDeal = Array.isArray(result.data)
-            ? result.data.find((d) => d.id === dealId)
-            : null;
-
-          if (foundDeal) {
-            console.log("✅ Found deal:", foundDeal);
-            setDeal(foundDeal);
-          } else {
-            setError(
-              `Deal not found or no longer available. The deal may have expired or the partner may not be approved.`,
-            );
-          }
+          console.log("✅ Found deal:", result.data);
+          setDeal(result.data);
         } else {
-          setError(result.error || "Failed to load deal details");
+          setError(
+            "Deal not found or no longer available. The deal may have expired or the partner may not be approved.",
+          );
         }
       } else {
         const errorData = await response.json().catch(() => ({}));
-        setError(errorData.error || "Failed to load deal details");
+        setError(errorData?.message ?? errorData?.error ?? "Failed to load deal details");
       }
     } catch (err) {
       console.error("Error fetching deal:", err);
@@ -200,7 +195,7 @@ const EventBooking = () => {
         console.log("✅ Booking created:", result.data);
       } else {
         const errorMsg =
-          result.error || result.message || "Failed to create booking";
+          result?.message ?? result?.error ?? "Failed to create booking";
         console.error("❌ Booking failed:", {
           status: response.status,
           error: errorMsg,

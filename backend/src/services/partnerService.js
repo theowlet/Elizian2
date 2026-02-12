@@ -1,27 +1,79 @@
 const partnerRepository = require('../repositories/partnerRepository');
 const partnerAuthRepository = require('../repositories/partnerAuthRepository');
+const offerRepository = require('../repositories/offerRepository');
+const geocodingService = require('./geocodingService');
 const { createToken } = require('../../utils/jwt');
 const { AppError } = require('../../utils/response');
 const { logError, log } = require('../../utils/logger');
 const { getPool } = require('../config/db');
 const { writeAudit } = require('../utils/audit');
-const { uploadToS3 } = require('../../utils/s3Bucket')
+const { uploadToS3, getS3FileUrl } = require('../../utils/s3Bucket');
 const { ethers } = require('ethers');
 
 const pool = getPool();
 
-// List partners
+// List partners (optional: category, lat, lon for distance sort)
 async function listPartners(filters = {}) {
-  return await partnerRepository.listPartners(filters);
+  const partners = await partnerRepository.listPartners(filters);
+  const { lat, lon } = filters;
+  if (lat != null && lon != null && typeof lat === 'number' && typeof lon === 'number') {
+    const R = 6371; // km
+    partners.sort((a, b) => {
+      const dA = (a.latitude != null && a.longitude != null)
+        ? haversineKm(lat, lon, Number(a.latitude), Number(a.longitude), R)
+        : Infinity;
+      const dB = (b.latitude != null && b.longitude != null)
+        ? haversineKm(lat, lon, Number(b.latitude), Number(b.longitude), R)
+        : Infinity;
+      return dA - dB;
+    });
+  }
+  return partners;
 }
 
-// Get partner by ID
-async function getPartnerById(partnerId) {
-  const partner = await partnerRepository.getPartnerById(partnerId);
+function haversineKm(lat1, lon1, lat2, lon2, R = 6371) {
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Get partner by ID (requireApproval = false for partner's own profile e.g. /partners/me)
+async function getPartnerById(partnerId, requireApproval = true) {
+  const partner = await partnerRepository.getPartnerById(partnerId, requireApproval);
   if (!partner) {
     throw new AppError(404, "Partner not found");
   }
   return partner;
+}
+
+/**
+ * Get full venue detail for public venue page: partner, menu images, hours, review stats, active offers.
+ */
+async function getVenueDetail(partnerId) {
+  const venue = await partnerRepository.getVenueDetail(partnerId, true);
+  if (!venue) {
+    throw new AppError(404, "Venue not found");
+  }
+  const allOffers = await offerRepository.listOffersByPartner(partnerId);
+  const now = new Date();
+  const activeOffers = (allOffers || []).filter((o) => {
+    const active = (o.status === 'active' || o.is_active === true) && (!o.end_date || new Date(o.end_date) >= now);
+    return active;
+  }).map((o) => ({
+    ...o,
+    image_url: o.image_url ? getS3FileUrl(o.image_url) : null,
+    perk_type: o.perk_type || 'discount',
+    perk_description: o.perk_description || null,
+  }));
+  return {
+    ...venue,
+    offers: activeOffers,
+  };
 }
 
 // Create partner (admin only)
@@ -61,6 +113,27 @@ async function createPartner(partnerData, actorUserId, actorRole) {
     logError(`❌ Error creating wallet for partner ${partner.id}:`, error);
   }
 
+  // Geo-enable: geocode address on create (do not block save on failure)
+  if (partnerData.address && typeof partnerData.address === 'string' && partnerData.address.trim()) {
+    try {
+      const geo = await geocodingService.geocodeAddress(partnerData.address.trim());
+      if (geo) {
+        await partnerRepository.updatePartnerGeo(partner.id, {
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+          place_id: geo.place_id || null,
+          geo_verified: true,
+          formatted_address: geo.formatted_address || null,
+        });
+      } else {
+        await partnerRepository.updatePartnerGeo(partner.id, { geo_verified: false });
+      }
+    } catch (err) {
+      logError('[Partner create] Geocoding failed', { partnerId: partner.id, error: err?.message });
+      try { await partnerRepository.updatePartnerGeo(partner.id, { geo_verified: false }); } catch (_) {}
+    }
+  }
+
   return partner;
 }
 
@@ -71,7 +144,34 @@ async function updatePartner(partnerId, updates) {
     throw new AppError(404, "Partner not found");
   }
 
-  return await partnerRepository.updatePartner(partnerId, updates);
+  await partnerRepository.updatePartner(partnerId, updates);
+
+  // Geo-enable: when address is changed, geocode and update geo fields (do not block save on failure)
+  const newAddress = updates.address;
+  if (newAddress !== undefined && typeof newAddress === 'string' && newAddress.trim()) {
+    const sameAddress = partner.address && String(partner.address).trim() === newAddress.trim();
+    if (!sameAddress) {
+      try {
+        const geo = await geocodingService.geocodeAddress(newAddress.trim());
+        if (geo) {
+          await partnerRepository.updatePartnerGeo(partnerId, {
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+            place_id: geo.place_id || null,
+            geo_verified: true,
+            formatted_address: geo.formatted_address || null,
+          });
+        } else {
+          await partnerRepository.updatePartnerGeo(partnerId, { geo_verified: false });
+        }
+      } catch (err) {
+        logError('[Partner update] Geocoding failed', { partnerId, error: err?.message });
+        try { await partnerRepository.updatePartnerGeo(partnerId, { geo_verified: false }); } catch (_) {}
+      }
+    }
+  }
+
+  return await partnerRepository.getPartnerById(partnerId);
 }
 
 // Delete partner
@@ -373,6 +473,7 @@ function parseMenuImages(partner) {
 module.exports = {
   listPartners,
   getPartnerById,
+  getVenueDetail,
   createPartner,
   updatePartner,
   deletePartner,

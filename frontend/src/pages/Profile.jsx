@@ -44,7 +44,7 @@ const Profile = () => {
       if (data.success && data.data) {
         setProfile(data.data);
       } else {
-        setError(data.message || "Failed to load profile");
+        setError(data?.message ?? data?.error ?? "Failed to load profile");
       }
     } catch (err) {
       setError("Could not load profile. Please try again.");
@@ -219,6 +219,18 @@ const Profile = () => {
           </div>
         </section>
 
+        {/* My passes */}
+        <section className="profile-section">
+          <h2 className="profile-section-title">Subscription passes</h2>
+          <button
+            type="button"
+            className="profile-btn primary"
+            onClick={() => navigate("/passes")}
+          >
+            My passes
+          </button>
+        </section>
+
         {/* Must: Current tier name */}
         <section className="profile-section">
           <h2 className="profile-section-title">Current tier</h2>
@@ -251,6 +263,26 @@ const Profile = () => {
                     {Math.round(progress.percentage)}%
                   </span>
                 </div>
+              )}
+            </div>
+          )}
+          {/* EZ Club (cross-network tier) */}
+          {(profile?.ez_club?.member || (profile?.ez_club?.network_check_ins ?? 0) > 0) && (
+            <div className="profile-ez-club" style={{ marginTop: "12px", padding: "10px 12px", background: profile?.ez_club?.member ? "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)" : "#2d2d44", borderRadius: "8px", border: profile?.ez_club?.member ? "1px solid #4a69bd" : "1px solid #333" }}>
+              {profile?.ez_club?.member ? (
+                <>
+                  <span className="profile-ez-club-badge" style={{ fontWeight: 600, color: "#7eb8da" }}>★ EZ Club member</span>
+                  <p style={{ margin: "6px 0 0", fontSize: "0.9rem", color: "#aaa" }}>
+                    Priority reservations, exclusive events, early access across the network.
+                    {profile?.ez_club?.qualified_at && (
+                      <span> Member since {formatDate(profile.ez_club.qualified_at)}.</span>
+                    )}
+                  </p>
+                </>
+              ) : (
+                <p style={{ margin: 0, fontSize: "0.9rem", color: "#aaa" }}>
+                  Network check-ins: {profile?.ez_club?.network_check_ins ?? 0}. Redeem at 5+ venues to join EZ Club.
+                </p>
               )}
             </div>
           )}

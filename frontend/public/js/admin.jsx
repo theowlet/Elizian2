@@ -577,7 +577,8 @@ function renderPartnerCard(partner) {
       <div class="partner-meta">
         <div>📧 ${escapeHtml(partner.email || '—')}</div>
         <div>📞 ${escapeHtml(partner.phone_number || '—')}</div>
-        <div>📍 ${escapeHtml(partner.address || '—')}</div>
+        <div>📍 ${escapeHtml(partner.address || partner.formatted_address || '—')}${partner.geo_verified ? ' <span class="badge badge-success" title="Address geo-verified">Verified</span>' : ''}</div>
+        ${(partner.latitude != null && partner.longitude != null) ? `<div><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(partner.latitude + ',' + partner.longitude)}" target="_blank" rel="noopener noreferrer" class="admin-maps-link">Open in Google Maps</a></div>` : ''}
       </div>
       <div class="partner-stats">
         <span>Tier: ${escapeHtml(partner.tier || 'Standard')}</span>

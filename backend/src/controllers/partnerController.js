@@ -8,12 +8,36 @@ const { log } = require('../utils/logger');
 // List partners
 async function listPartners(req, res) {
   try {
-    const { category } = req.query;
-    const partners = await partnerService.listPartners({ category });
-    res.json({ success: true, category: category || "all", data: partners });
+    const { category, lat, lon } = req.query;
+    const filters = { category: category || null };
+    if (lat != null && lon != null) {
+      const nLat = parseFloat(lat);
+      const nLon = parseFloat(lon);
+      if (!Number.isNaN(nLat) && !Number.isNaN(nLon)) {
+        filters.lat = nLat;
+        filters.lon = nLon;
+      }
+    }
+    const partners = await partnerService.listPartners(filters);
+    res.json({ success: true, category: filters.category || "all", data: partners });
   } catch (err) {
     logError('Partners error:', err);
     errorResponse(res, 500, err.message || "Failed to retrieve partners");
+  }
+}
+
+// Get current partner profile (authenticated). Returns full partner including address, latitude, longitude, geo_verified for console.
+async function getPartnerMe(req, res) {
+  try {
+    const partnerId = req.partnerId;
+    if (!partnerId) {
+      return errorResponse(res, 401, "Partner authentication required");
+    }
+    const partner = await partnerService.getPartnerById(partnerId, false);
+    successResponse(res, 200, "Partner profile retrieved successfully", partner);
+  } catch (err) {
+    logError("❌ Partner me error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to retrieve partner profile");
   }
 }
 
@@ -26,6 +50,18 @@ async function getPartner(req, res) {
   } catch (err) {
     logError("❌ Partner retrieval error:", err);
     errorResponse(res, err.statusCode || 500, err.message || "Failed to retrieve partner");
+  }
+}
+
+// Get full venue detail for public venue page (profile, menu, hours, reviews summary, active offers)
+async function getVenueDetail(req, res) {
+  try {
+    const { id } = req.params;
+    const venue = await partnerService.getVenueDetail(id);
+    successResponse(res, 200, "Venue detail retrieved successfully", venue);
+  } catch (err) {
+    logError("❌ Venue detail error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to retrieve venue detail");
   }
 }
 
@@ -297,7 +333,9 @@ async function deleteMenuImage(req, res) {
 
 module.exports = {
   listPartners,
+  getPartnerMe,
   getPartner,
+  getVenueDetail,
   createPartner,
   updatePartner,
   deletePartner,

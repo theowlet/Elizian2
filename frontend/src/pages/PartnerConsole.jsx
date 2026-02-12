@@ -33,6 +33,11 @@ function Sidebar({ active, onNavigate }) {
     ['orders', 'Bookings'],
     ['analytics', 'Analytics'],
     ['offers', 'Offers'],
+    ['campaigns', 'Campaigns'],
+    ['guests', 'Guests'],
+    ['tiers', 'Venue Tiers'],
+    ['messages', 'Messages'],
+    ['staff', 'Staff Rewards'],
     ['scanner', 'QR Scanner']
   ];
 
@@ -78,8 +83,33 @@ export default function PartnerConsole() {
   const [orders, setOrders] = useState([]);
   const [bookings, setBookings] = useState([]); // New: Bookings with QR codes
   const [offers, setOffers] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
+  const [guests, setGuests] = useState([]);
+  const [guestProfile, setGuestProfile] = useState(null);
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [guestNoteText, setGuestNoteText] = useState('');
+  const [addingNote, setAddingNote] = useState(false);
+  const [venueTiers, setVenueTiers] = useState([]);
+  const [showTierModal, setShowTierModal] = useState(false);
+  const [tierForm, setTierForm] = useState({ tier_name: '', tier_level: 1, perks_description: '', display_order: 0, is_active: true, min_visits: '', min_spend: '' });
+  const [tierEditId, setTierEditId] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [selectedConvId, setSelectedConvId] = useState(null);
+  const [convMessages, setConvMessages] = useState([]);
+  const [convMessageInput, setConvMessageInput] = useState('');
+  const [sendingConvMessage, setSendingConvMessage] = useState(false);
+  const [passRedeemCode, setPassRedeemCode] = useState('');
+  const [passRedeemResult, setPassRedeemResult] = useState(null);
+  const [redeemingPass, setRedeemingPass] = useState(false);
   const [analytics, setAnalytics] = useState(null);
   const [scannerResult, setScannerResult] = useState(null);
+  const [staffList, setStaffList] = useState([]);
+  const [staffCheckIns, setStaffCheckIns] = useState([]);
+  const [staffAddEmail, setStaffAddEmail] = useState('');
+  const [staffCheckInUserId, setStaffCheckInUserId] = useState('');
+  const [staffCheckInEzt, setStaffCheckInEzt] = useState('10');
+  const [addingStaff, setAddingStaff] = useState(false);
+  const [recordingCheckIn, setRecordingCheckIn] = useState(false);
 
   // Modals
   const [showOfferModal, setShowOfferModal] = useState(false);
@@ -94,6 +124,10 @@ export default function PartnerConsole() {
   });
   const [offerEditId, setOfferEditId] = useState(null);
   const [menuEditId, setMenuEditId] = useState(null);
+  const [showCampaignModal, setShowCampaignModal] = useState(false);
+  const [campaignForm, setCampaignForm] = useState({ title: '', body: '', segment_filter: null });
+  const [campaignEditId, setCampaignEditId] = useState(null);
+  const [sendingCampaignId, setSendingCampaignId] = useState(null);
 
   const [serviceTypes, setServiceTypes] = useState([]);
   const [serviceCategories, setServiceCategories] = useState([]);
@@ -115,15 +149,14 @@ export default function PartnerConsole() {
     setToken(storedToken);
 
     if (partnerInfo) {
-      try { 
-        setPartner(JSON.parse(partnerInfo)); 
-      } catch(e) { 
+      try {
+        setPartner(JSON.parse(partnerInfo));
+      } catch (e) {
         console.error('Error parsing partnerInfo:', e);
-        loadPartnerData(); 
       }
-    } else {
-      loadPartnerData();
     }
+    // Always fetch full partner from server (includes address, latitude, longitude, geo_verified for map)
+    loadPartnerData();
 
     // initial loads
     loadServiceTypes();
@@ -217,6 +250,209 @@ export default function PartnerConsole() {
     } catch (e) { console.error(e); }
   }
 
+  async function loadCampaigns() {
+    if (!partner) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/campaigns`, { headers: headers() });
+      const j = await r.json();
+      if (j.success) setCampaigns(j.data || []);
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadGuests() {
+    if (!partner) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/guests`, { headers: headers() });
+      const j = await r.json();
+      if (j.success) setGuests(j.data || []);
+    } catch (e) { console.error(e); }
+  }
+
+  async function openGuestProfile(userId) {
+    if (!partner) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/guests/${userId}`, { headers: headers() });
+      const j = await r.json();
+      if (j.success) { setGuestProfile(j.data); setGuestNoteText(''); setShowGuestModal(true); }
+      else showNotification(j.message || 'Failed to load guest', 'error');
+    } catch (e) { showNotification('Network error', 'error'); }
+  }
+
+  async function addGuestNoteSubmit(e) {
+    e.preventDefault();
+    if (!partner || !guestProfile || !guestNoteText.trim()) return;
+    setAddingNote(true);
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/guests/${guestProfile.user_id}/notes`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ note: guestNoteText.trim() }),
+      });
+      const j = await r.json();
+      if (j.success) {
+        setGuestNoteText('');
+        openGuestProfile(guestProfile.user_id);
+      } else showNotification(j.message || 'Failed to add note', 'error');
+    } catch (err) { showNotification('Network error', 'error'); }
+    finally { setAddingNote(false); }
+  }
+
+  async function loadVenueTiers() {
+    if (!partner) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/tiers`, { headers: headers() });
+      const j = await r.json();
+      if (j.success) setVenueTiers(j.data || []);
+    } catch (e) { console.error(e); }
+  }
+
+  function openAddTier() {
+    setTierEditId(null);
+    setTierForm({ tier_name: '', tier_level: 1, perks_description: '', display_order: 0, is_active: true, min_visits: '', min_spend: '' });
+    setShowTierModal(true);
+  }
+
+  function openEditTier(t) {
+    setTierEditId(t.id);
+    const min = t.min_visits_or_spend || {};
+    setTierForm({
+      tier_name: t.tier_name || '',
+      tier_level: t.tier_level ?? 1,
+      perks_description: t.perks_description || '',
+      display_order: t.display_order ?? 0,
+      is_active: t.is_active !== false,
+      min_visits: min.min_visits != null ? min.min_visits : '',
+      min_spend: min.min_spend != null ? min.min_spend : '',
+    });
+    setShowTierModal(true);
+  }
+
+  async function saveTier(e) {
+    e.preventDefault();
+    if (!partner) return;
+    const min_visits_or_spend = {};
+    if (tierForm.min_visits !== '' && tierForm.min_visits != null) min_visits_or_spend.min_visits = Number(tierForm.min_visits);
+    if (tierForm.min_spend !== '' && tierForm.min_spend != null) min_visits_or_spend.min_spend = Number(tierForm.min_spend);
+    const payload = {
+      tier_name: tierForm.tier_name.trim(),
+      tier_level: Number(tierForm.tier_level) || 1,
+      perks_description: tierForm.perks_description.trim() || null,
+      display_order: Number(tierForm.display_order) || 0,
+      is_active: tierForm.is_active,
+      min_visits_or_spend: Object.keys(min_visits_or_spend).length ? min_visits_or_spend : null,
+    };
+    try {
+      const url = tierEditId ? `${API_BASE}/api/v1/partners/${partner.id}/tiers/${tierEditId}` : `${API_BASE}/api/v1/partners/${partner.id}/tiers`;
+      const r = await fetch(url, { method: tierEditId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(payload) });
+      const j = await r.json();
+      if (j.success) { setShowTierModal(false); loadVenueTiers(); showNotification(tierEditId ? 'Tier updated' : 'Tier created'); }
+      else showNotification(j.message || 'Failed', 'error');
+    } catch (err) { showNotification('Network error', 'error'); }
+  }
+
+  async function loadStaff() {
+    if (!partner) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/staff`, { headers: headers() });
+      const j = await r.json();
+      if (j.success) setStaffList(j.data || []);
+    } catch (e) { console.error(e); }
+  }
+  async function loadStaffCheckIns() {
+    if (!partner) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/staff/check-ins?limit=30`, { headers: headers() });
+      const j = await r.json();
+      if (j.success) setStaffCheckIns(j.data || []);
+    } catch (e) { console.error(e); }
+  }
+  async function addStaff(e) {
+    e.preventDefault();
+    if (!partner || !staffAddEmail.trim()) return;
+    setAddingStaff(true);
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/staff`, {
+        method: 'POST', headers: headers(), body: JSON.stringify({ email: staffAddEmail.trim() }),
+      });
+      const j = await r.json();
+      if (j.success) { setStaffAddEmail(''); loadStaff(); showNotification('Staff added'); }
+      else showNotification(j.message ?? j.error ?? 'Failed to add staff', 'error');
+    } catch (err) { showNotification('Network error', 'error'); }
+    finally { setAddingStaff(false); }
+  }
+  async function removeStaff(userId) {
+    if (!partner || !window.confirm('Remove this staff member?')) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/staff/${userId}`, { method: 'DELETE', headers: headers() });
+      const j = await r.json();
+      if (j.success) { loadStaff(); showNotification('Staff removed'); }
+      else showNotification(j.message ?? j.error ?? 'Failed', 'error');
+    } catch (err) { showNotification('Network error', 'error'); }
+  }
+  async function recordStaffCheckIn(e) {
+    e.preventDefault();
+    if (!partner || !staffCheckInUserId) return;
+    setRecordingCheckIn(true);
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/staff/check-in`, {
+        method: 'POST', headers: headers(),
+        body: JSON.stringify({ user_id: staffCheckInUserId, ezt_earned: parseFloat(staffCheckInEzt) || 10 }),
+      });
+      const j = await r.json();
+      if (j.success) { setStaffCheckInUserId(''); loadStaffCheckIns(); showNotification(`Check-in recorded. ${j.data?.ezt_earned ?? 10} EZT credited.`); }
+      else showNotification(j.message ?? j.error ?? 'Failed to record check-in', 'error');
+    } catch (err) { showNotification('Network error', 'error'); }
+    finally { setRecordingCheckIn(false); }
+  }
+
+  async function deleteTier(id) {
+    if (!partner || !window.confirm('Delete this tier?')) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/tiers/${id}`, { method: 'DELETE', headers: headers() });
+      const j = await r.json();
+      if (j.success) { loadVenueTiers(); showNotification('Tier deleted'); }
+      else showNotification(j.message || 'Delete failed', 'error');
+    } catch (err) { showNotification('Network error', 'error'); }
+  }
+
+  async function loadConversations() {
+    if (!partner) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations`, { headers: headers() });
+      const j = await r.json();
+      if (j.success) setConversations(j.data || []);
+    } catch (e) { console.error(e); }
+  }
+
+  async function selectConversation(conv) {
+    setSelectedConvId(conv.id);
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/conversations/${conv.id}/messages`, { headers: headers() });
+      const j = await r.json();
+      if (j.success && j.data) setConvMessages(Array.isArray(j.data.messages) ? j.data.messages : j.data);
+      else setConvMessages([]);
+    } catch (e) { setConvMessages([]); }
+  }
+
+  async function sendConvMessage(e) {
+    e.preventDefault();
+    if (!partner || !selectedConvId || !convMessageInput.trim() || sendingConvMessage) return;
+    setSendingConvMessage(true);
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/conversations/${selectedConvId}/messages`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ body: convMessageInput.trim() }),
+      });
+      const j = await r.json();
+      if (j.success && j.data) {
+        setConvMessages(prev => [...prev, j.data]);
+        setConvMessageInput('');
+      }
+    } catch (err) {}
+    setSendingConvMessage(false);
+  }
+
   async function loadAnalytics() {
     if (!partner) return;
     try {
@@ -231,6 +467,11 @@ export default function PartnerConsole() {
     // lazy load
     if (section === 'menu') loadMenuItems();
     if (section === 'offers') loadOffers();
+    if (section === 'campaigns') loadCampaigns();
+    if (section === 'guests') loadGuests();
+    if (section === 'tiers') loadVenueTiers();
+    if (section === 'messages') loadConversations();
+    if (section === 'staff') { loadStaff(); loadStaffCheckIns(); }
     if (section === 'orders') {
       loadOrders();
       loadBookings(); // Also load bookings
@@ -271,7 +512,7 @@ export default function PartnerConsole() {
       const r = await fetch(url, { method: offerEditId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(offerForm) });
       const j = await r.json();
       if (j.success) { setShowOfferModal(false); loadOffers(); }
-      else alert('Failed: ' + (j.error || 'unknown'));
+      else alert('Failed: ' + (j.message ?? j.error ?? 'unknown'));
     } catch (err) { console.error(err); }
   }
 
@@ -300,7 +541,7 @@ export default function PartnerConsole() {
       const r = await fetch(url, { method: menuEditId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(menuForm) });
       const j = await r.json();
       if (j.success) { setShowMenuModal(false); loadMenuItems(); }
-      else alert('Failed: ' + (j.error || 'unknown'));
+      else alert('Failed: ' + (j.message ?? j.error ?? 'unknown'));
     } catch (err) { console.error(err); }
   }
 
@@ -389,7 +630,7 @@ export default function PartnerConsole() {
         const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}`, { method: 'PUT', headers: headers(), body: JSON.stringify(payload) });
         const j = await r.json();
         if (j.success) { setPartner(j.data); localStorage.setItem('partnerInfo', JSON.stringify(j.data)); alert('Saved'); }
-        else alert('Save failed: ' + (j.error || 'unknown'));
+        else alert('Save failed: ' + (j.message ?? j.error ?? 'unknown'));
       } catch (e) { console.error(e); }
     }
 
@@ -403,7 +644,26 @@ export default function PartnerConsole() {
           </div>
           <div className="pc-form-group"><label>Phone</label><input id="venuePhone" className="pc-form-input" defaultValue={partner?.phone_number || partner?.phone || ''} /></div>
           <div className="pc-form-group"><label>GST</label><input id="venueGST" className="pc-form-input" defaultValue={partner?.gst_number || ''} /></div>
-          <div className="pc-form-group"><label>Address</label><textarea id="venueAddress" className="pc-form-input">{partner?.address || ''}</textarea></div>
+          <div className="pc-form-group"><label>Address</label><textarea id="venueAddress" className="pc-form-input" placeholder="Enter complete venue address (street, city, state, pincode)">{partner?.address || ''}</textarea></div>
+          <div className="pc-form-group pc-map-preview">
+            <label>Location &amp; map</label>
+            {partner?.latitude != null && partner?.longitude != null ? (
+              <>
+                <div className="pc-map-embed">
+                  <iframe title="Venue location" src={`https://www.google.com/maps?q=${partner.latitude},${partner.longitude}&z=15&output=embed`} width="100%" height="180" style={{ border: 0, borderRadius: 8 }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
+                </div>
+                <a className="pc-open-maps-btn" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(partner.latitude + ',' + partner.longitude)}`} target="_blank" rel="noopener noreferrer">Open in Google Maps</a>
+                {partner?.geo_verified && <span className="pc-geo-badge" title="Address verified">📍 Verified</span>}
+              </>
+            ) : (
+              <>
+                <p className="pc-map-hint">Enter your venue address above and click <strong>Save Changes</strong> to verify your location and see the map here.</p>
+                {(partner?.address || partner?.formatted_address) && (
+                  <a className="pc-open-maps-btn" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((partner?.formatted_address || partner?.address || '').trim())}`} target="_blank" rel="noopener noreferrer">Open address in Google Maps</a>
+                )}
+              </>
+            )}
+          </div>
           <div className="pc-form-grid">
             <div className="pc-form-group"><label>Venue Type</label><select id="venueType" className="pc-form-input" defaultValue={partner?.partner_category_type || ''}><option value="">Select</option><option value="dining">Dining</option><option value="events">Events</option><option value="spa-and-salon">Spa & Salon</option><option value="wellness">Wellness</option><option value="travel">Travel</option><option value="others">Others</option></select></div>
             <div className="pc-form-group"><label>Partner Discount %</label><input id="discountPercentage" className="pc-form-input" defaultValue={partner?.partner_discount_percentage || 0} type="number"/></div>
@@ -469,6 +729,297 @@ export default function PartnerConsole() {
       const j = await r.json();
       if (j.success) loadOffers(); else showNotification('Delete failed');
     } catch (e) { console.error(e); }
+  }
+
+  function openAddCampaign() {
+    setCampaignEditId(null);
+    setCampaignForm({ title: '', body: '', segment_filter: null });
+    setShowCampaignModal(true);
+  }
+
+  function openEditCampaign(c) {
+    setCampaignEditId(c.id);
+    setCampaignForm({
+      title: c.title || '',
+      body: c.body || '',
+      segment_filter: c.segment_filter ? JSON.stringify(c.segment_filter, null, 2) : '',
+    });
+    setShowCampaignModal(true);
+  }
+
+  async function saveCampaign(e) {
+    e.preventDefault();
+    if (!partner) return;
+    const payload = { title: campaignForm.title.trim(), body: campaignForm.body.trim() };
+    let segment_filter = null;
+    if (campaignForm.segment_filter && campaignForm.segment_filter.trim()) {
+      try {
+        segment_filter = JSON.parse(campaignForm.segment_filter);
+      } catch (_) {
+        showNotification('Invalid JSON in segment filter', 'error');
+        return;
+      }
+    }
+    payload.segment_filter = segment_filter;
+    try {
+      const url = campaignEditId
+        ? `${API_BASE}/api/v1/partners/${partner.id}/campaigns/${campaignEditId}`
+        : `${API_BASE}/api/v1/partners/${partner.id}/campaigns`;
+      const r = await fetch(url, {
+        method: campaignEditId ? 'PUT' : 'POST',
+        headers: headers(),
+        body: JSON.stringify(payload),
+      });
+      const j = await r.json();
+      if (j.success) {
+        setShowCampaignModal(false);
+        loadCampaigns();
+        showNotification(campaignEditId ? 'Campaign updated' : 'Campaign created');
+      } else {
+        showNotification(j.message || 'Failed', 'error');
+      }
+    } catch (err) {
+      showNotification('Network error', 'error');
+    }
+  }
+
+  async function sendCampaignClick(id) {
+    if (!partner) return;
+    if (!window.confirm('Send this campaign now? (Notifications will be sent to guests.)')) return;
+    setSendingCampaignId(id);
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/campaigns/${id}/send`, {
+        method: 'POST',
+        headers: headers(),
+      });
+      const j = await r.json();
+      if (j.success) {
+        loadCampaigns();
+        showNotification('Campaign sent');
+      } else {
+        showNotification(j.message || 'Send failed', 'error');
+      }
+    } catch (err) {
+      showNotification('Network error', 'error');
+    } finally {
+      setSendingCampaignId(null);
+    }
+  }
+
+  function CampaignsSection() {
+    return (
+      <div>
+        <div className="pc-content-header">
+          <h1>Notification Campaigns</h1>
+          <div>
+            <button className="btn btn-primary" onClick={loadCampaigns}>Refresh</button>
+            <button className="btn btn-primary" onClick={openAddCampaign} style={{ marginLeft: 8 }}>New campaign</button>
+          </div>
+        </div>
+        <p style={{ color: '#666', marginBottom: 16 }}>Send push-style messages to your guests. Create a draft, then send when ready.</p>
+        <div className="pc-table-container">
+          <table className="pc-table">
+            <thead>
+              <tr><th>Title</th><th>Status</th><th>Created</th><th>Sent at</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {campaigns.length === 0 ? (
+                <tr><td colSpan={5} style={{ textAlign: 'center', padding: 24 }}>No campaigns yet. Create one to notify your guests.</td></tr>
+              ) : campaigns.map(c => (
+                <tr key={c.id}>
+                  <td>{c.title}</td>
+                  <td><span className={`pc-badge pc-badge-${c.status === 'sent' ? 'success' : c.status === 'cancelled' ? 'error' : 'warning'}`}>{c.status}</span></td>
+                  <td>{c.created_at ? new Date(c.created_at).toLocaleString() : '—'}</td>
+                  <td>{c.sent_at ? new Date(c.sent_at).toLocaleString() : '—'}</td>
+                  <td>
+                    <div className="pc-actions">
+                      {c.status !== 'sent' && <button className="btn btn-sm btn-secondary" onClick={() => openEditCampaign(c)}>Edit</button>}
+                      {c.status !== 'sent' && <button className="btn btn-sm btn-primary" onClick={() => sendCampaignClick(c.id)} disabled={sendingCampaignId === c.id}>{sendingCampaignId === c.id ? 'Sending…' : 'Send now'}</button>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  function GuestsSection() {
+    return (
+      <div>
+        <div className="pc-content-header">
+          <h1>Guests (CRM)</h1>
+          <div><button className="btn btn-primary" onClick={loadGuests}>Refresh</button></div>
+        </div>
+        <p style={{ color: '#666', marginBottom: 16 }}>Guests who have booked or redeemed at your venue. View profile and add notes.</p>
+        <div className="pc-table-container">
+          <table className="pc-table">
+            <thead>
+              <tr><th>Guest</th><th>Contact</th><th>Visits</th><th>Total spend</th><th>Last visit</th><th>Tier</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {guests.length === 0 ? (
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24 }}>No guests yet. Guests appear after confirmed or redeemed bookings.</td></tr>
+              ) : guests.map(g => (
+                <tr key={g.user_id}>
+                  <td>{[g.first_name, g.last_name].filter(Boolean).join(' ') || '—'}</td>
+                  <td>{g.email || g.phone_number || '—'}</td>
+                  <td>{g.visit_count}</td>
+                  <td>₹{Number(g.total_spend || 0).toFixed(2)}</td>
+                  <td>{g.last_visit ? new Date(g.last_visit).toLocaleDateString() : '—'}</td>
+                  <td>{g.tier_name || '—'}</td>
+                  <td><button className="btn btn-sm btn-primary" onClick={() => openGuestProfile(g.user_id)}>View & notes</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  function TiersSection() {
+    return (
+      <div>
+        <div className="pc-content-header">
+          <h1>Venue Tiers</h1>
+          <div>
+            <button className="btn btn-primary" onClick={loadVenueTiers}>Refresh</button>
+            <button className="btn btn-primary" onClick={openAddTier} style={{ marginLeft: 8 }}>Add tier</button>
+          </div>
+        </div>
+        <p style={{ color: '#666', marginBottom: 16 }}>Define custom loyalty tiers for your venue (e.g. Silver, Gold). Set min visits or spend and perks.</p>
+        <div className="pc-table-container">
+          <table className="pc-table">
+            <thead>
+              <tr><th>Tier name</th><th>Level</th><th>Min visits / spend</th><th>Perks</th><th>Order</th><th>Active</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {venueTiers.length === 0 ? (
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24 }}>No tiers yet. Add tiers to recognize your regular guests.</td></tr>
+              ) : venueTiers.map(t => (
+                <tr key={t.id}>
+                  <td>{t.tier_name}</td>
+                  <td>{t.tier_level}</td>
+                  <td>{t.min_visits_or_spend ? JSON.stringify(t.min_visits_or_spend) : '—'}</td>
+                  <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.perks_description || '—'}</td>
+                  <td>{t.display_order}</td>
+                  <td><span className={`pc-badge pc-badge-${t.is_active ? 'success' : 'error'}`}>{t.is_active ? 'Yes' : 'No'}</span></td>
+                  <td>
+                    <button className="btn btn-sm btn-secondary" onClick={() => openEditTier(t)}>Edit</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => deleteTier(t.id)} style={{ marginLeft: 4 }}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  function MessagesSection() {
+    return (
+      <div>
+        <div className="pc-content-header">
+          <h1>Messages</h1>
+          <div><button className="btn btn-primary" onClick={loadConversations}>Refresh</button></div>
+        </div>
+        <p style={{ color: '#666', marginBottom: 16 }}>Conversations with guests. Click a conversation to view and reply.</p>
+        <div style={{ display: 'flex', gap: 16, minHeight: 400 }}>
+          <div style={{ width: 280, border: '1px solid #eee', borderRadius: 8, overflow: 'auto' }}>
+            {conversations.length === 0 ? (
+              <p style={{ padding: 16, color: '#888' }}>No conversations yet.</p>
+            ) : (
+              conversations.map(c => (
+                <div key={c.id} onClick={() => selectConversation(c)} style={{ padding: 12, borderBottom: '1px solid #eee', cursor: 'pointer', background: selectedConvId === c.id ? '#f0f9ff' : 'transparent' }}>
+                  <strong>{[c.first_name, c.last_name].filter(Boolean).join(' ') || c.email || 'Guest'}</strong>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.last_message || 'No messages'}</p>
+                </div>
+              ))
+            )}
+          </div>
+          <div style={{ flex: 1, border: '1px solid #eee', borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column' }}>
+            {!selectedConvId ? (
+              <p style={{ color: '#888' }}>Select a conversation</p>
+            ) : (
+              <>
+                <div style={{ flex: 1, overflow: 'auto', marginBottom: 16 }}>
+                  {convMessages.length === 0 ? <p style={{ color: '#888' }}>No messages</p> : convMessages.map(m => (
+                    <div key={m.id} style={{ marginBottom: 8, textAlign: m.sender_type === 'partner' ? 'right' : 'left' }}>
+                      <span style={{ display: 'inline-block', padding: '8px 12px', borderRadius: 8, background: m.sender_type === 'partner' ? '#dbeafe' : '#f3f4f6', maxWidth: '80%' }}>{m.body}</span>
+                      <div style={{ fontSize: '0.75rem', color: '#888', marginTop: 2 }}>{new Date(m.created_at).toLocaleString()}</div>
+                    </div>
+                  ))}
+                </div>
+                <form onSubmit={sendConvMessage} style={{ display: 'flex', gap: 8 }}>
+                  <input type="text" className="pc-form-input" value={convMessageInput} onChange={e => setConvMessageInput(e.target.value)} placeholder="Type a message..." style={{ flex: 1 }} />
+                  <button type="submit" className="btn btn-primary" disabled={!convMessageInput.trim() || sendingConvMessage}>{sendingConvMessage ? 'Sending…' : 'Send'}</button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function StaffSection() {
+    return (
+      <div>
+        <div className="pc-content-header">
+          <h1>Staff Rewards</h1>
+          <div><button className="btn btn-primary" onClick={() => { loadStaff(); loadStaffCheckIns(); }}>Refresh</button></div>
+        </div>
+        <p style={{ color: '#666', marginBottom: 16 }}>Add staff by email. When they check in at your venue, award them EZT to spend across the network.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          <div>
+            <h2 style={{ fontSize: '1rem', marginBottom: 12 }}>Add staff</h2>
+            <form onSubmit={addStaff} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input type="email" className="pc-form-input" value={staffAddEmail} onChange={e => setStaffAddEmail(e.target.value)} placeholder="Staff email" style={{ flex: 1 }} />
+              <button type="submit" className="btn btn-primary" disabled={!staffAddEmail.trim() || addingStaff}>{addingStaff ? 'Adding…' : 'Add'}</button>
+            </form>
+            <h2 style={{ fontSize: '1rem', marginBottom: 12 }}>Staff list</h2>
+            <table className="pc-table" style={{ width: '100%' }}>
+              <thead><tr><th>Name</th><th>Email</th><th>Actions</th></tr></thead>
+              <tbody>
+                {staffList.length === 0 ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: 16 }}>No staff added. Add by email above.</td></tr> : staffList.map(s => (
+                  <tr key={s.user_id}><td>{[s.first_name, s.last_name].filter(Boolean).join(' ') || '—'}</td><td>{s.email || '—'}</td><td><button type="button" className="btn btn-sm" onClick={() => removeStaff(s.user_id)}>Remove</button></td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h2 style={{ fontSize: '1rem', marginBottom: 12 }}>Record check-in</h2>
+            <form onSubmit={recordStaffCheckIn} style={{ marginBottom: 16 }}>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', marginBottom: 4 }}>Staff member</label>
+                <select className="pc-form-input" value={staffCheckInUserId} onChange={e => setStaffCheckInUserId(e.target.value)} style={{ width: '100%' }}>
+                  <option value="">Select…</option>
+                  {staffList.map(s => <option key={s.user_id} value={s.user_id}>{[s.first_name, s.last_name].filter(Boolean).join(' ') || s.email || s.user_id}</option>)}
+                </select>
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <label style={{ display: 'block', marginBottom: 4 }}>EZT to award</label>
+                <input type="number" className="pc-form-input" value={staffCheckInEzt} onChange={e => setStaffCheckInEzt(e.target.value)} min={1} step={1} style={{ width: '100%' }} />
+              </div>
+              <button type="submit" className="btn btn-primary" disabled={!staffCheckInUserId || recordingCheckIn}>{recordingCheckIn ? 'Recording…' : 'Record check-in'}</button>
+            </form>
+            <h2 style={{ fontSize: '1rem', marginBottom: 12 }}>Recent check-ins</h2>
+            <table className="pc-table" style={{ width: '100%' }}>
+              <thead><tr><th>Staff</th><th>Date</th><th>EZT</th></tr></thead>
+              <tbody>
+                {staffCheckIns.length === 0 ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: 16 }}>No check-ins yet.</td></tr> : staffCheckIns.map(c => (
+                  <tr key={c.id}><td>{[c.first_name, c.last_name].filter(Boolean).join(' ') || c.email || '—'}</td><td>{new Date(c.checked_in_at).toLocaleString()}</td><td>{Number(c.ezt_earned)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   function OrdersSection() {
@@ -663,9 +1214,38 @@ export default function PartnerConsole() {
               </div>
             ) : null}
           </div>
+          <hr style={{margin:'24px 0'}} />
+          <h3 style={{marginBottom:12}}>Redeem subscription pass</h3>
+          <div className="pc-form-group">
+            <label>Pass code</label>
+            <input className="pc-form-input" value={passRedeemCode} onChange={e => setPassRedeemCode(e.target.value)} placeholder="Enter customer pass code" />
+          </div>
+          <button className="btn btn-primary" onClick={redeemPassCode} disabled={!passRedeemCode.trim() || redeemingPass}>{redeemingPass ? 'Redeeming…' : 'Redeem pass'}</button>
+          {passRedeemResult && (
+            <div style={{marginTop:12, padding:12, borderRadius:8, background: passRedeemResult.success ? '#f0fdf4' : '#fee2e2', border: `1px solid ${passRedeemResult.success ? '#10b981' : '#ef4444'}`}}>
+              {passRedeemResult.success ? 'Pass redeemed successfully.' : (passRedeemResult.message || 'Failed to redeem.')}
+            </div>
+          )}
         </div>
       </div>
     );
+  }
+
+  async function redeemPassCode() {
+    if (!partner || !passRedeemCode.trim() || redeemingPass) return;
+    setRedeemingPass(true);
+    setPassRedeemResult(null);
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/passes/redeem`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ code: passRedeemCode.trim() }),
+      });
+      const j = await r.json();
+      setPassRedeemResult(j);
+      if (j.success) { setPassRedeemCode(''); showNotification('Pass redeemed'); }
+    } catch (err) { setPassRedeemResult({ success: false, message: 'Network error' }); }
+    setRedeemingPass(false);
   }
 
   async function validateVoucher(voucherCode) {
@@ -800,7 +1380,7 @@ export default function PartnerConsole() {
         loadBookings();
         loadDashboard();
       } else {
-        showNotification(result.error || 'Redemption failed', 'error');
+        showNotification(result.message ?? result.error ?? 'Redemption failed', 'error');
       }
     } catch (error) {
       console.error('Redemption error:', error);
@@ -826,6 +1406,11 @@ export default function PartnerConsole() {
             {activeSection === 'orders' && <OrdersSection />}
             {activeSection === 'analytics' && <AnalyticsSection />}
             {activeSection === 'offers' && <OffersSection />}
+            {activeSection === 'campaigns' && <CampaignsSection />}
+            {activeSection === 'guests' && <GuestsSection />}
+            {activeSection === 'tiers' && <TiersSection />}
+            {activeSection === 'messages' && <MessagesSection />}
+            {activeSection === 'staff' && <StaffSection />}
             {activeSection === 'scanner' && <QRScannerSection />}
           </main>
         </div>
@@ -837,7 +1422,79 @@ export default function PartnerConsole() {
           <div className="pc-form-group"><label>Offer Title *</label><input className="pc-form-input" required value={offerForm.title||''} onChange={e=>setOfferForm({...offerForm, title: e.target.value})} /></div>
           <div className="pc-form-group"><label>Service Type</label><select className="pc-form-input" value={offerForm.service_type||''} onChange={e=>setOfferForm({...offerForm, service_type: e.target.value})}><option value="">Select</option><option value="dining">Dining</option><option value="events">Events</option><option value="spa-and-salon">Spa & Salon</option><option value="wellness">Wellness</option><option value="travel">Travel</option><option value="healthcare">Healthcare</option><option value="others">Others</option></select></div>
           <div className="pc-form-grid"><div className="pc-form-group"><label>Start Date</label><input type="datetime-local" className="pc-form-input" value={offerForm.start_date||''} onChange={e=>setOfferForm({...offerForm, start_date: e.target.value})} /></div><div className="pc-form-group"><label>End Date</label><input type="datetime-local" className="pc-form-input" value={offerForm.end_date||''} onChange={e=>setOfferForm({...offerForm, end_date: e.target.value})} /></div></div>
+          <div className="pc-form-group"><label>Perk type</label><select className="pc-form-input" value={offerForm.perk_type||'discount'} onChange={e=>setOfferForm({...offerForm, perk_type: e.target.value})}><option value="discount">Discount</option><option value="free_item">Free item</option><option value="secret_menu">Secret menu</option><option value="priority_access">Priority access</option><option value="other">Other</option></select></div>
+          <div className="pc-form-group"><label>Perk description (optional)</label><textarea className="pc-form-input" rows={2} value={offerForm.perk_description||''} onChange={e=>setOfferForm({...offerForm, perk_description: e.target.value})} placeholder="e.g. Complimentary dessert with main" /></div>
           <div style={{display:'flex', gap:8, justifyContent:'flex-end', marginTop:16}}><button type="button" className="btn btn-secondary" onClick={()=>setShowOfferModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">Save Offer</button></div>
+        </form>
+      </Modal>
+
+      {/* Campaign modal */}
+      <Modal id="campaignModal" title={campaignEditId ? 'Edit campaign' : 'New campaign'} show={showCampaignModal} onClose={() => setShowCampaignModal(false)} width={560}>
+        <form onSubmit={saveCampaign}>
+          <div className="pc-form-group"><label>Title *</label><input className="pc-form-input" required value={campaignForm.title} onChange={e => setCampaignForm({ ...campaignForm, title: e.target.value })} placeholder="e.g. Weekend special" /></div>
+          <div className="pc-form-group"><label>Message body *</label><textarea className="pc-form-input" required rows={4} value={campaignForm.body} onChange={e => setCampaignForm({ ...campaignForm, body: e.target.value })} placeholder="Your message to guests..." /></div>
+          <div className="pc-form-group"><label>Segment filter (optional JSON)</label><textarea className="pc-form-input" rows={2} value={typeof campaignForm.segment_filter === 'string' ? campaignForm.segment_filter : (campaignForm.segment_filter ? JSON.stringify(campaignForm.segment_filter, null, 2) : '')} onChange={e => setCampaignForm({ ...campaignForm, segment_filter: e.target.value })} placeholder='e.g. {"min_visits": 2}' /></div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setShowCampaignModal(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary">{campaignEditId ? 'Update' : 'Create draft'}</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Guest profile modal */}
+      <Modal id="guestModal" title="Guest profile" show={showGuestModal} onClose={() => { setShowGuestModal(false); setGuestProfile(null); }} width={600}>
+        {guestProfile && (
+          <>
+            <div style={{ marginBottom: 16 }}>
+              <p><strong>{[guestProfile.first_name, guestProfile.last_name].filter(Boolean).join(' ') || 'Guest'}</strong></p>
+              <p style={{ color: '#666', fontSize: '0.9rem' }}>{guestProfile.email || guestProfile.phone_number || '—'} · Tier: {guestProfile.tier_name || '—'}</p>
+              <p>Visits: {guestProfile.visit_count} · Total spend: ₹{Number(guestProfile.total_spend || 0).toFixed(2)} · Value score: {guestProfile.value_score ?? '—'}</p>
+            </div>
+            <h4 style={{ marginBottom: 8 }}>Visit history</h4>
+            <div className="pc-table-container" style={{ maxHeight: 200, overflow: 'auto', marginBottom: 16 }}>
+              <table className="pc-table"><thead><tr><th>Ref</th><th>Date</th><th>Offer</th><th>Amount</th><th>Status</th></tr></thead>
+              <tbody>
+                {(guestProfile.visit_history || []).length === 0 ? <tr><td colSpan={5}>No visits</td></tr> : (guestProfile.visit_history || []).map(v => (
+                  <tr key={v.booking_id}><td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{v.booking_reference || v.booking_id?.slice(0,8)}</td><td>{v.booking_date ? new Date(v.booking_date).toLocaleDateString() : '—'}</td><td>{v.offer_title || '—'}</td><td>₹{Number(v.total_price || 0).toFixed(2)}</td><td>{v.status}</td></tr>
+                ))}
+              </tbody></table>
+            </div>
+            <h4 style={{ marginBottom: 8 }}>Notes</h4>
+            <ul style={{ listStyle: 'none', padding: 0, marginBottom: 16, maxHeight: 120, overflow: 'auto' }}>
+              {(guestProfile.notes || []).length === 0 ? <li style={{ color: '#888' }}>No notes yet</li> : (guestProfile.notes || []).map(n => (
+                <li key={n.id} style={{ padding: '6px 0', borderBottom: '1px solid #eee', fontSize: '0.9rem' }}>{n.note} <span style={{ color: '#888', fontSize: '0.8rem' }}>{n.created_at ? new Date(n.created_at).toLocaleString() : ''}</span></li>
+              ))}
+            </ul>
+            <form onSubmit={addGuestNoteSubmit}>
+              <div className="pc-form-group">
+                <label>Add note</label>
+                <textarea className="pc-form-input" rows={2} value={guestNoteText} onChange={e => setGuestNoteText(e.target.value)} placeholder="e.g. Prefers window table" />
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowGuestModal(false)}>Close</button>
+                <button type="submit" className="btn btn-primary" disabled={!guestNoteText.trim() || addingNote}>{addingNote ? 'Adding…' : 'Add note'}</button>
+              </div>
+            </form>
+          </>
+        )}
+      </Modal>
+
+      {/* Venue tier modal */}
+      <Modal id="tierModal" title={tierEditId ? 'Edit tier' : 'Add tier'} show={showTierModal} onClose={() => setShowTierModal(false)} width={480}>
+        <form onSubmit={saveTier}>
+          <div className="pc-form-group"><label>Tier name *</label><input className="pc-form-input" required value={tierForm.tier_name} onChange={e => setTierForm({ ...tierForm, tier_name: e.target.value })} placeholder="e.g. Gold" /></div>
+          <div className="pc-form-group"><label>Tier level</label><input type="number" min={1} className="pc-form-input" value={tierForm.tier_level} onChange={e => setTierForm({ ...tierForm, tier_level: e.target.value })} /></div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div className="pc-form-group" style={{ flex: 1 }}><label>Min visits</label><input type="number" min={0} className="pc-form-input" value={tierForm.min_visits} onChange={e => setTierForm({ ...tierForm, min_visits: e.target.value })} placeholder="Optional" /></div>
+            <div className="pc-form-group" style={{ flex: 1 }}><label>Min spend (₹)</label><input type="number" min={0} className="pc-form-input" value={tierForm.min_spend} onChange={e => setTierForm({ ...tierForm, min_spend: e.target.value })} placeholder="Optional" /></div>
+          </div>
+          <div className="pc-form-group"><label>Perks description</label><textarea className="pc-form-input" rows={2} value={tierForm.perks_description} onChange={e => setTierForm({ ...tierForm, perks_description: e.target.value })} placeholder="e.g. 10% off, free dessert" /></div>
+          <div className="pc-form-group"><label>Display order</label><input type="number" className="pc-form-input" value={tierForm.display_order} onChange={e => setTierForm({ ...tierForm, display_order: e.target.value })} /></div>
+          <div className="pc-form-group"><label><input type="checkbox" checked={tierForm.is_active} onChange={e => setTierForm({ ...tierForm, is_active: e.target.checked })} /> Active</label></div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+            <button type="button" className="btn btn-secondary" onClick={() => setShowTierModal(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary">{tierEditId ? 'Update' : 'Create'}</button>
+          </div>
         </form>
       </Modal>
 

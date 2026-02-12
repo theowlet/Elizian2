@@ -194,7 +194,10 @@ async function createBooking(bookingData) {
     if (ezt_to_redeem && parseFloat(ezt_to_redeem) > 0) {
       try {
         const bookingType = event_id ? 'event' : (offer_id ? 'offer' : 'show');
-        const redeemResult = await tokenService.redeemTokens(user_id, parseFloat(ezt_to_redeem), null, `Redeemed for ${bookingType} booking`);
+        // STABILIZATION FIX: Pass transaction client to redeemTokens to ensure
+        // token balance check + deduction is atomic within the booking transaction.
+        // Prevents concurrent bookings from overdrawing EZT balance.
+        const redeemResult = await tokenService.redeemTokens(user_id, parseFloat(ezt_to_redeem), null, `Redeemed for ${bookingType} booking`, client);
         eztRedeemed = redeemResult.eztRedeemed;
         eztDiscount = redeemResult.discountAmount;
         // BUG FIX #6: Subtract from already discounted amount (finalAmount), not original amount
@@ -328,6 +331,29 @@ async function createBooking(bookingData) {
     bookingPayload.voucher_state = 'created';  // Initial state: CREATED
     bookingPayload.booking_date = bookingDate;  // Set booking date from reservation_data or current
     bookingPayload.booking_time = bookingTime;  // Set booking time from reservation_data or current
+
+    // STABILIZATION FIX: Set voucher expiration to prevent indefinite redemption window
+    // Uses the earlier of: offer end_date or 30 days from now.
+    // Without this, vouchers for expired offers could be redeemed months later.
+    if (offer_id) {
+      const offerForExpiry = await offerRepository.getOfferById(offer_id, false);
+      if (offerForExpiry && offerForExpiry.end_date) {
+        const offerEnd = new Date(offerForExpiry.end_date);
+        const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        bookingPayload.expires_at = offerEnd < thirtyDaysFromNow ? offerEnd : thirtyDaysFromNow;
+      } else {
+        bookingPayload.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      }
+    } else if (event_id) {
+      // Events: expire voucher 24 hours after the event date
+      const eventExpiry = bookingDate
+        ? new Date(new Date(bookingDate).getTime() + 24 * 60 * 60 * 1000)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      bookingPayload.expires_at = eventExpiry;
+    } else {
+      bookingPayload.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    }
+
     // NOTE: qr_code_url will be set AFTER booking creation and QR generation
     
     // Create booking FIRST (before QR generation)

@@ -108,7 +108,27 @@ async function getUserRewardsSummary(userId) {
     // Get tier progress info
     const tierInfo = await tierService.getUserTier(userId);
     
+    // EZ Club (cross-network tier) - optional columns
+    let ezClub = { member: false, networkCheckIns: 0, qualifiedAt: null };
+    try {
+      const ezResult = await pool.query(
+        'SELECT ez_club_member, ez_club_network_check_ins, ez_club_qualified_at FROM users WHERE id = $1',
+        [userId]
+      );
+      if (ezResult.rows[0]) {
+        const r = ezResult.rows[0];
+        ezClub = {
+          member: !!r.ez_club_member,
+          networkCheckIns: parseInt(r.ez_club_network_check_ins || 0, 10),
+          qualifiedAt: r.ez_club_qualified_at || null,
+        };
+      }
+    } catch (_) {
+      // Columns may not exist before migration
+    }
+    
     return {
+      ezClub,
       ezt: {
         balance: parseFloat(user.available_tokens || 0),
         totalEarned: parseFloat(user.total_tokens_earned || 0),

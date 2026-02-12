@@ -28,8 +28,8 @@ function isStatusActive(status) {
 // Set requireApproval=false for admin/internal use
 async function getOfferById(offerId, requireApproval = true) {
   let query = `
-    SELECT po.*, p.id as partner_id, p.is_active as partner_is_active, 
-           p.status as partner_status
+    SELECT po.*, p.id as partner_id, p.name AS partner_name, p.is_active as partner_is_active, 
+           p.status as partner_status, p.latitude AS partner_latitude, p.longitude AS partner_longitude
     FROM partner_offers po 
     JOIN partners p ON po.partner_id = p.id 
     WHERE po.id = $1 
@@ -90,6 +90,8 @@ async function createOffer(partnerId, offerData) {
     is_trending = false,
     forced_by_admin = false,
     status = STATUS.DRAFT,
+    perk_type = "discount",
+    perk_description,
   } = offerData;
 
   const processedApplicableDays = normalizeApplicableDays(applicable_days);
@@ -112,9 +114,9 @@ async function createOffer(partnerId, offerData) {
       applicable_days, applicable_categories, min_purchase_amount, promo_code,
       menu_item_id, applicable_menu_items, discount_applies_to,
       savings, ezt_equivalent, is_active, featured_request_pending,
-      forced_by_admin, status
+      forced_by_admin, status, perk_type, perk_description
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
     RETURNING *
   `,
     [
@@ -146,6 +148,8 @@ async function createOffer(partnerId, offerData) {
       featured_request_pending,
       forced_by_admin,
       finalStatus,
+      perk_type || "discount",
+      perk_description || null,
     ]
   );
 
@@ -181,6 +185,8 @@ async function updateOffer(partnerId, offerId, updates) {
     "featured_request_pending",
     "forced_by_admin",
     "status",
+    "perk_type",
+    "perk_description",
   ];
 
   const updateFields = [];
@@ -335,6 +341,7 @@ async function listPublicOffers(filters = {}) {
     user_latitude = null, // For distance filtering
     user_longitude = null,
     max_distance_km = null,
+    partner_ids = null, // For recommendations: restrict to these partners
   } = filters;
 
   const sanitizedLimit = Math.min(
@@ -349,15 +356,17 @@ async function listPublicOffers(filters = {}) {
   // Partner must be active
   conditions.push("p.is_active = true");
   if (partnerStatusColumnExists) {
+    // Use ::text and LOWER so it works for enum/varchar and any casing
     conditions.push(
-      "(p.status IS NULL OR p.status = ANY(ARRAY['active','approved']::partner_status_enum[]))"
+      "(p.status IS NULL OR LOWER(TRIM(p.status::text)) IN ('active', 'approved'))"
     );
   }
 
   const shouldEnforceActive = !admin && offerStatusColumnExists;
   if (offerStatusColumnExists && (status || shouldEnforceActive)) {
-    const enforcedStatus = status || STATUS.ACTIVE;
-    conditions.push(`(po.status = $${paramIndex} OR po.is_active = true)`);
+    const enforcedStatus = (status || STATUS.ACTIVE).toString().toLowerCase().trim();
+    // Use ::text and LOWER so it works for enum/varchar and any casing
+    conditions.push(`(LOWER(TRIM(po.status::text)) = $${paramIndex} OR po.is_active = true)`);
     params.push(enforcedStatus);
     paramIndex += 1;
   } else if (!offerStatusColumnExists && !admin) {
@@ -379,6 +388,12 @@ async function listPublicOffers(filters = {}) {
     conditions.push(
       "(po.start_date IS NULL OR po.start_date <= CURRENT_TIMESTAMP)"
     );
+  }
+
+  if (partner_ids && Array.isArray(partner_ids) && partner_ids.length > 0) {
+    conditions.push(`po.partner_id = ANY($${paramIndex}::uuid[])`);
+    params.push(partner_ids);
+    paramIndex += 1;
   }
 
   if (service_type) {
@@ -427,22 +442,19 @@ async function listPublicOffers(filters = {}) {
     paramIndex += 1;
   }
 
-  // Filter by distance (requires user location)
-  if (
+  const hasUserLocation =
     user_latitude !== null &&
     user_longitude !== null &&
-    max_distance_km !== null
-  ) {
-    // Use Haversine formula for distance calculation
-    // Distance in km = 6371 * acos(cos(radians(lat1)) * cos(radians(lat2)) * cos(radians(lon2) - radians(lon1)) + sin(radians(lat1)) * sin(radians(lat2)))
+    !Number.isNaN(user_latitude) &&
+    !Number.isNaN(user_longitude);
+
+  // Filter by max distance when user location + max_distance_km provided
+  if (hasUserLocation && max_distance_km != null && max_distance_km > 0) {
     conditions.push(`
-      (6371 * acos(
-        cos(radians($${paramIndex})) * 
-        cos(radians(p.latitude)) * 
-        cos(radians(p.longitude) - radians($${paramIndex + 1})) + 
-        sin(radians($${paramIndex})) * 
-        sin(radians(p.latitude))
-      )) <= $${paramIndex + 2}
+      (6371 * acos(LEAST(1, GREATEST(-1,
+        cos(radians($${paramIndex})) * cos(radians(p.latitude)) * cos(radians(p.longitude) - radians($${paramIndex + 1})) +
+        sin(radians($${paramIndex})) * sin(radians(p.latitude))
+      )))) <= $${paramIndex + 2}
     `);
     params.push(user_latitude, user_longitude, max_distance_km);
     paramIndex += 3;
@@ -451,6 +463,22 @@ async function listPublicOffers(filters = {}) {
   const whereClause = conditions.length
     ? `WHERE ${conditions.join(" AND ")}`
     : "";
+
+  // When user location provided: compute distance_km for sorting and display (geo-sorting)
+  const distanceSelect = hasUserLocation
+    ? `, (6371 * acos(LEAST(1, GREATEST(-1,
+        cos(radians($${paramIndex})) * cos(radians(p.latitude)) * cos(radians(p.longitude) - radians($${paramIndex + 1})) +
+        sin(radians($${paramIndex})) * sin(radians(p.latitude))
+      )))) AS distance_km`
+    : "";
+  if (hasUserLocation) {
+    params.push(user_latitude, user_longitude);
+    paramIndex += 2;
+  }
+
+  const orderByClause = hasUserLocation
+    ? `ORDER BY distance_km ASC NULLS LAST, CASE WHEN po.is_trending = true THEN 1 ELSE 0 END DESC, po.created_at DESC`
+    : `ORDER BY CASE WHEN po.is_trending = true THEN 1 ELSE 0 END DESC, po.created_at DESC`;
 
   const query = `
     SELECT 
@@ -472,6 +500,8 @@ async function listPublicOffers(filters = {}) {
       po.service_type,
       po.image_url,
       po.terms_conditions,
+      po.perk_type,
+      po.perk_description,
       po.created_at,
       p.name AS partner_name,
       p.email AS partner_email,
@@ -481,13 +511,13 @@ async function listPublicOffers(filters = {}) {
       p.rating AS partner_rating,
       p.latitude AS partner_latitude,
       p.longitude AS partner_longitude,
-      p.avg_cost_for_two AS partner_avg_cost_for_two
+      p.avg_cost_for_two AS partner_avg_cost_for_two,
+      p.approved_for_featured AS partner_approved_for_featured
+      ${distanceSelect}
     FROM partner_offers po
     JOIN partners p ON po.partner_id = p.id
     ${whereClause}
-    ORDER BY 
-      CASE WHEN po.is_trending = true THEN 1 ELSE 0 END DESC,
-      po.created_at DESC
+    ${orderByClause}
     LIMIT $${paramIndex}
   `;
 
@@ -539,6 +569,8 @@ async function listPublicOffers(filters = {}) {
       service_type: row.service_type,
       image_url: getS3FileUrl(row.image_url),
       terms_conditions: row.terms_conditions,
+      perk_type: row.perk_type || 'discount',
+      perk_description: row.perk_description || null,
       created_at: row.created_at,
       partner_cuisine_types: row.partner_cuisine_types || [],
       partner_rating:
@@ -551,6 +583,11 @@ async function listPublicOffers(filters = {}) {
         row.partner_avg_cost_for_two !== null
           ? Number(row.partner_avg_cost_for_two)
           : null,
+      distance_km:
+        row.distance_km != null && !Number.isNaN(Number(row.distance_km))
+          ? Math.round(Number(row.distance_km) * 10) / 10
+          : null,
+      partner_approved_for_featured: Boolean(row.partner_approved_for_featured),
     }));
   } catch (error) {
     logError("[offerRepository] listPublicOffers query failed", {

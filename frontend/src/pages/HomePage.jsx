@@ -2,6 +2,11 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import DealMenuPane from "../components/DealMenuPane";
 
+// STABILIZATION FIX: Gate debug logging behind development mode
+// Prevents performance degradation and information leakage in production.
+const isDev = import.meta.env.DEV;
+const debugLog = (...args) => { if (isDev) console.log(...args); };
+
 const HomePage = () => {
   const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
   const navigate = useNavigate();
@@ -24,6 +29,7 @@ const HomePage = () => {
   });
   const [selectedDeal, setSelectedDeal] = useState(null);
   const [isMenuPaneOpen, setIsMenuPaneOpen] = useState(false);
+  const [recommendedDeals, setRecommendedDeals] = useState([]);
 
   const categories = [
     { id: "all", name: "All Experiences", icon: "🌟" },
@@ -119,28 +125,22 @@ const HomePage = () => {
    */
   const getTopRestaurants = (deals, userLat, userLon) => {
     if (!deals || deals.length === 0) {
-      console.log("⚠️ [getTopRestaurants] No deals available");
+      debugLog("⚠️ [getTopRestaurants] No deals available");
       return [];
     }
 
     // Filter ONLY dining deals
     let restaurants = deals.filter((deal) => {
-      const isDining = deal.service_type === "dining";
-      if (!isDining) {
-        console.log(
-          `⚠️ [getTopRestaurants] Skipping non-dining deal: ${deal.title} (service_type: ${deal.service_type})`,
-        );
-      }
-      return isDining;
+      return deal.service_type === "dining";
     });
 
-    console.log(
+    debugLog(
       `✅ [getTopRestaurants] Found ${restaurants.length} dining deals out of ${deals.length} total deals`,
     );
 
     // Calculate and add distance for each restaurant
     if (userLat && userLon) {
-      console.log(
+      debugLog(
         `📍 [getTopRestaurants] User location available: ${userLat}, ${userLon}`,
       );
 
@@ -149,7 +149,6 @@ const HomePage = () => {
         const dealLon = deal.longitude || deal.partner_longitude;
 
         if (!dealLat || !dealLon) {
-          // Deal has no location - include it but mark as "N/A"
           return {
             ...deal,
             distanceKm: Infinity,
@@ -180,12 +179,11 @@ const HomePage = () => {
         return a.distanceKm - b.distanceKm;
       });
 
-      console.log(
+      debugLog(
         `✅ [getTopRestaurants] After filtering: ${withinRadius.length} within 25km, ${withoutLocation.length} without location`,
       );
     } else {
-      // If no user location, show ALL dining deals (without distance sorting)
-      console.log(
+      debugLog(
         "⚠️ [getTopRestaurants] No user location - showing all dining deals",
       );
       restaurants = restaurants.map((deal) => ({
@@ -195,7 +193,7 @@ const HomePage = () => {
       }));
     }
 
-    console.log(
+    debugLog(
       `✅ [getTopRestaurants] Returning ${restaurants.length} restaurants`,
     );
     return restaurants;
@@ -315,19 +313,38 @@ const HomePage = () => {
   // ============================================
 
   /**
-   * Fetch all deals once (single source of truth)
+   * Fetch all deals (single source of truth). Pass coords when "Near Me" is on for geo-sort and distance_km.
    */
-  const loadAllDeals = async () => {
+  const loadAllDeals = async (coords = null) => {
     try {
       setLoading(true);
-      const url = `${API_BASE}/api/v1/offers?limit=100&is_active=true`;
+      const params = new URLSearchParams({ limit: "100", is_active: "true" });
+      if (coords?.latitude != null && coords?.longitude != null) {
+        params.set("user_latitude", coords.latitude);
+        params.set("user_longitude", coords.longitude);
+      }
+      const url = `${API_BASE}/api/v1/offers?${params.toString()}`;
 
       const response = await fetch(url);
       const result = await response.json();
 
-      if (result.success && result.data) {
+      if (!response.ok) {
+        console.error("[Offers] API error:", response.status, result?.message || result?.error || result);
+        setAllDeals([]);
+        return;
+      }
+
+      // Support common response shapes: { data: [] }, { data: { items: [] } }, or array at top level
+      const rawList = Array.isArray(result?.data)
+        ? result.data
+        : Array.isArray(result?.data?.items)
+          ? result.data.items
+          : Array.isArray(result?.items)
+            ? result.items
+            : Array.isArray(result) ? result : [];
+      if (rawList.length > 0) {
         // Format deals with consistent structure
-        const formattedDeals = result.data.map((item) => ({
+        const formattedDeals = rawList.map((item) => ({
           id: item.id,
           title: item.title || item.name,
           description: item.description,
@@ -338,28 +355,80 @@ const HomePage = () => {
             "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
           service_type: item.service_type || "others",
           is_trending: item.is_trending || item.featured || false,
-          featured: item.featured || false,
+          featured: item.featured || item.partner_approved_for_featured || false,
           rating: item.rating || item.partner_rating || 4.5,
           location: item.partner_name || item.location,
           latitude: item.latitude || item.partner_latitude,
           longitude: item.longitude || item.partner_longitude,
           start_date: item.start_date,
           end_date: item.end_date,
-          partner_id: item.partner_id, // CRITICAL: Include partner_id for menu fetching
+          partner_id: item.partner_id,
           partner_name: item.partner_name,
           category_name: item.category_name,
+          perk_type: item.perk_type || "discount",
+          perk_description: item.perk_description,
+          distance_km: item.distance_km != null ? Number(item.distance_km) : null,
+          partner_approved_for_featured: Boolean(item.partner_approved_for_featured),
         }));
 
         setAllDeals(formattedDeals);
         console.log(`✅ Loaded ${formattedDeals.length} deals`);
       } else {
         setAllDeals([]);
+        if (result.success && result.data && !Array.isArray(result.data)) {
+          console.warn("[Offers] API returned data that is not an array:", typeof result.data);
+        } else if (result.success) {
+          console.warn("[Offers] API returned 0 deals. Ensure partners are active/approved, offers are active and not expired. See DEALS-VISIBILITY.md");
+        }
       }
     } catch (error) {
       console.error("Error loading deals:", error);
       setAllDeals([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const formatDealFromApi = (item) => ({
+    id: item.id,
+    title: item.title || item.name,
+    description: item.description,
+    price: item.discounted_price || item.original_price || 0,
+    originalPrice: item.original_price,
+    image: item.image_url || "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    service_type: item.service_type || "others",
+    is_trending: item.is_trending || item.featured || false,
+    featured: item.featured || item.partner_approved_for_featured || false,
+    rating: item.rating || item.partner_rating || 4.5,
+    location: item.partner_name || item.location,
+    latitude: item.latitude || item.partner_latitude,
+    longitude: item.longitude || item.partner_longitude,
+    start_date: item.start_date,
+    end_date: item.end_date,
+    partner_id: item.partner_id,
+    partner_name: item.partner_name,
+    category_name: item.category_name,
+    perk_type: item.perk_type || "discount",
+    perk_description: item.perk_description,
+    distance_km: item.distance_km != null ? Number(item.distance_km) : null,
+    partner_approved_for_featured: Boolean(item.partner_approved_for_featured),
+  });
+
+  const loadRecommendations = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/recommendations/offers`, {
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      const j = await r.json();
+      if (j.success && Array.isArray(j.data)) {
+        setRecommendedDeals(j.data.map(formatDealFromApi));
+      } else {
+        setRecommendedDeals([]);
+      }
+    } catch (e) {
+      setRecommendedDeals([]);
     }
   };
 
@@ -405,6 +474,7 @@ const HomePage = () => {
 
     getUserLocation();
     loadAllDeals();
+    if (localStorage.getItem("token")) loadRecommendations();
 
     // Listen for book deal event from menu pane
     const handleBookDealEvent = (e) => {
@@ -829,11 +899,37 @@ const HomePage = () => {
               <div className="section-controls">
                 <button
                   className={`near-me-toggle ${showNearMe ? "active" : ""}`}
-                  onClick={() => setShowNearMe(!showNearMe)}
+                  onClick={() => {
+                    if (!showNearMe) {
+                      if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                          (pos) => {
+                            const c = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+                            setUserCoordinates(c);
+                            setShowNearMe(true);
+                            loadAllDeals(c);
+                          },
+                          () => setShowNearMe(false),
+                          { enableHighAccuracy: false, timeout: 8000 }
+                        );
+                      } else setShowNearMe(false);
+                    } else {
+                      setShowNearMe(false);
+                      loadAllDeals();
+                    }
+                  }}
                   aria-pressed={showNearMe}
                 >
                   <span className="toggle-icon">📍</span>
                   <span>Near Me</span>
+                </button>
+                <button
+                  className="view-all-btn"
+                  onClick={() => navigate("/venues/map")}
+                  style={{ marginLeft: "8px" }}
+                  title="View venues on map"
+                >
+                  Map
                 </button>
                 <span className="section-subtitle">Popular this week</span>
               </div>
@@ -864,13 +960,23 @@ const HomePage = () => {
                       aria-label={item.title}
                     >
                       <div className="card-badge trending">Trending</div>
+                      {(item.featured || item.partner_approved_for_featured) && (
+                        <div className="card-badge featured" title="Featured venue">⭐ Featured</div>
+                      )}
                       <div className="card-rating">
                         <span className="rating-star">⭐</span>
-                        <span>{item.rating}</span>
+                        <span>{Number(item.rating).toFixed(1)}</span>
                       </div>
                     </div>
                     <div className="card-content">
+                      <div className="card-meta-row">
+                        {item.category_name && <span className="card-category">{item.category_name}</span>}
+                        {item.distance_km != null && <span className="card-distance">{formatDistance(item.distance_km)}</span>}
+                      </div>
                       <h3 className="card-title">{item.title}</h3>
+                      {(item.perk_type && item.perk_type !== "discount") || item.perk_description ? (
+                        <p className="card-perks">{item.perk_description || (item.perk_type === "free_item" ? "Free item" : item.perk_type === "secret_menu" ? "Secret menu" : item.perk_type === "priority_access" ? "Priority access" : item.perk_type)}</p>
+                      ) : null}
                       <p className="card-description">{item.description}</p>
                       <div className="card-footer">
                         <div className="card-price">
@@ -882,12 +988,26 @@ const HomePage = () => {
                               </span>
                             )}
                         </div>
-                        <button
-                          className="card-action-btn"
-                          onClick={() => handleBookDeal(item)}
-                        >
-                          Book Now
-                        </button>
+                        <div className="card-actions">
+                          {item.partner_id && (
+                            <button
+                              type="button"
+                              className="card-link-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/venue/${item.partner_id}`);
+                              }}
+                            >
+                              View venue
+                            </button>
+                          )}
+                          <button
+                            className="card-action-btn"
+                            onClick={() => handleBookDeal(item)}
+                          >
+                            Book Now
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -895,6 +1015,68 @@ const HomePage = () => {
               </div>
             )}
           </section>
+
+          {/* Recommended for you (logged-in, preference-based) */}
+          {recommendedDeals.length > 0 && (
+            <section className="trending-section">
+              <div className="section-header">
+                <h2 className="section-title">
+                  <span className="title-icon">✨</span>
+                  Recommended for you
+                </h2>
+              </div>
+              <div className="trending-grid">
+                {recommendedDeals.map((item) => (
+                  <div
+                    key={item.id}
+                    className="trending-card"
+                    onClick={(e) => handleDealCardClick(item, e)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <div className="card-image" style={{ backgroundImage: `url(${item.image})` }} role="img" aria-label={item.title}>
+                      {(item.featured || item.partner_approved_for_featured) && (
+                        <div className="card-badge featured">⭐ Featured</div>
+                      )}
+                      {item.perk_type && item.perk_type !== "discount" && (
+                        <div className="card-badge perk">{item.perk_type === "free_item" ? "Free item" : item.perk_type}</div>
+                      )}
+                      <div className="card-rating">
+                        <span className="rating-star">⭐</span>
+                        <span>{Number(item.rating).toFixed(1)}</span>
+                      </div>
+                    </div>
+                    <div className="card-content">
+                      <div className="card-meta-row">
+                        {item.category_name && <span className="card-category">{item.category_name}</span>}
+                        {item.distance_km != null && <span className="card-distance">{formatDistance(item.distance_km)}</span>}
+                      </div>
+                      <h3 className="card-title">{item.title}</h3>
+                      {(item.perk_type && item.perk_type !== "discount") || item.perk_description ? (
+                        <p className="card-perks">{item.perk_description || item.perk_type}</p>
+                      ) : null}
+                      <p className="card-description">{item.description}</p>
+                      <div className="card-footer">
+                        <div className="card-price">
+                          {formatPrice(item.price)}
+                          {item.originalPrice && item.originalPrice > item.price && (
+                            <span className="original-price">{formatPrice(item.originalPrice)}</span>
+                          )}
+                        </div>
+                        <div className="card-actions">
+                          {item.partner_id && (
+                            <button type="button" className="card-link-btn" onClick={(e) => { e.stopPropagation(); navigate(`/venue/${item.partner_id}`); }}>
+                              View venue
+                            </button>
+                          )}
+                          <button className="card-action-btn" onClick={() => handleBookDeal(item)}>Book Now</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* ============================================
               2. TOP RESTAURANTS NEAR YOU (NOT affected by category filter)
@@ -1076,17 +1258,9 @@ const HomePage = () => {
               </h2>
               <button
                 className="view-all-btn"
-                onClick={() => {
-                  setActiveCategory("events");
-                  // Scroll to All Partner Deals section
-                  setTimeout(() => {
-                    document
-                      .getElementById("all-partner-deals")
-                      ?.scrollIntoView({ behavior: "smooth" });
-                  }, 100);
-                }}
+                onClick={() => navigate("/events")}
               >
-                View All →
+                View all events →
               </button>
             </div>
 
@@ -1170,13 +1344,26 @@ const HomePage = () => {
                       {deal.is_trending && (
                         <div className="card-badge trending">Trending</div>
                       )}
+                      {(deal.featured || deal.partner_approved_for_featured) && (
+                        <div className="card-badge featured">⭐ Featured</div>
+                      )}
+                      {deal.perk_type && deal.perk_type !== "discount" && (
+                        <div className="card-badge perk">{deal.perk_type === "free_item" ? "Free item" : deal.perk_type === "secret_menu" ? "Secret menu" : deal.perk_type === "priority_access" ? "Priority access" : "Perk"}</div>
+                      )}
                       <div className="card-rating">
                         <span className="rating-star">⭐</span>
-                        <span>{deal.rating}</span>
+                        <span>{Number(deal.rating).toFixed(1)}</span>
                       </div>
                     </div>
                     <div className="card-content">
+                      <div className="card-meta-row">
+                        {deal.category_name && <span className="card-category">{deal.category_name}</span>}
+                        {deal.distance_km != null && <span className="card-distance">{formatDistance(deal.distance_km)}</span>}
+                      </div>
                       <h3 className="card-title">{deal.title}</h3>
+                      {(deal.perk_type && deal.perk_type !== "discount") || deal.perk_description ? (
+                        <p className="card-perks">{deal.perk_description || (deal.perk_type === "free_item" ? "Free item" : deal.perk_type === "secret_menu" ? "Secret menu" : deal.perk_type === "priority_access" ? "Priority access" : deal.perk_type)}</p>
+                      ) : null}
                       <p className="card-description">{deal.description}</p>
                       <div className="card-footer">
                         <div className="card-price">
@@ -1188,12 +1375,26 @@ const HomePage = () => {
                               </span>
                             )}
                         </div>
-                        <button
-                          className="card-action-btn"
-                          onClick={() => navigate(`/experience/${deal.id}`)}
-                        >
-                          View Details
-                        </button>
+                        <div className="card-actions">
+                          {deal.partner_id && (
+                            <button
+                              type="button"
+                              className="card-link-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/venue/${deal.partner_id}`);
+                              }}
+                            >
+                              View venue
+                            </button>
+                          )}
+                          <button
+                            className="card-action-btn"
+                            onClick={() => deal.partner_id ? handleBookDeal(deal) : navigate(`/experience/${deal.id}`)}
+                          >
+                            {deal.partner_id ? "Book Now" : "View Details"}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1251,7 +1452,7 @@ const HomePage = () => {
         </div>
       </footer>
 
-      <style jsx>{`
+      <style>{`
         :root {
           --primary-color: #004f4a;
           --secondary-color: #059669;
@@ -1772,6 +1973,21 @@ const HomePage = () => {
           background: #ef4444;
         }
 
+        .card-badge.perk {
+          top: 12px;
+          left: auto;
+          right: 12px;
+          background: #059669;
+        }
+
+        .card-badge.featured {
+          top: 12px;
+          left: auto;
+          right: 12px;
+          background: #b45309;
+        }
+        .card-badge.trending + .card-badge.featured { right: 12px; top: 40px; }
+
         .event-badge.live {
           background: #10b981;
           padding: 6px 12px;
@@ -1794,6 +2010,31 @@ const HomePage = () => {
 
         .card-content {
           padding: 20px;
+        }
+
+        .card-meta-row {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 6px;
+          flex-wrap: wrap;
+        }
+        .card-category {
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--primary-color);
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+        }
+        .card-distance {
+          font-size: 0.8rem;
+          color: var(--text-light);
+        }
+        .card-perks {
+          font-size: 0.8rem;
+          color: #059669;
+          margin-bottom: 6px;
+          font-style: italic;
         }
 
         .card-title {
@@ -1827,6 +2068,26 @@ const HomePage = () => {
           color: var(--text-light);
           text-decoration: line-through;
           font-weight: normal;
+        }
+
+        .card-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .card-link-btn {
+          padding: 6px 12px;
+          background: transparent;
+          color: var(--primary-color);
+          border: 1px solid var(--primary-color);
+          border-radius: var(--radius-sm);
+          font-size: 0.875rem;
+          cursor: pointer;
+        }
+
+        .card-link-btn:hover {
+          background: rgba(0, 0, 0, 0.05);
         }
 
         .card-action-btn {

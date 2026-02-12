@@ -181,6 +181,40 @@ async function updatePartner(partnerId, updates) {
   return result.rows[0];
 }
 
+/**
+ * Update only geo fields (server-side only, after geocoding). Do not accept from client.
+ */
+async function updatePartnerGeo(partnerId, geo) {
+  if (!geo || (geo.latitude == null && geo.longitude == null && geo.place_id == null && geo.geo_verified == null && geo.formatted_address == null)) {
+    return null;
+  }
+  const updates = {};
+  if (geo.latitude != null) updates.latitude = geo.latitude;
+  if (geo.longitude != null) updates.longitude = geo.longitude;
+  if (geo.place_id !== undefined) updates.place_id = geo.place_id;
+  if (geo.geo_verified !== undefined) updates.geo_verified = Boolean(geo.geo_verified);
+  if (geo.formatted_address !== undefined) updates.formatted_address = geo.formatted_address;
+  if (Object.keys(updates).length === 0) return null;
+
+  const setClauses = [];
+  const values = [];
+  let i = 0;
+  if (updates.latitude != null) { i++; setClauses.push(`latitude = $${i}`); values.push(updates.latitude); }
+  if (updates.longitude != null) { i++; setClauses.push(`longitude = $${i}`); values.push(updates.longitude); }
+  if (updates.place_id !== undefined) { i++; setClauses.push(`place_id = $${i}`); values.push(updates.place_id); }
+  if (updates.geo_verified !== undefined) { i++; setClauses.push(`geo_verified = $${i}`); values.push(updates.geo_verified); }
+  if (updates.formatted_address !== undefined) { i++; setClauses.push(`formatted_address = $${i}`); values.push(updates.formatted_address); }
+  setClauses.push("updated_at = CURRENT_TIMESTAMP");
+  i++;
+  values.push(partnerId);
+
+  const result = await pool.query(
+    `UPDATE partners SET ${setClauses.join(", ")} WHERE id = $${i} RETURNING *`,
+    values
+  );
+  return result.rows[0];
+}
+
 // Delete partner
 async function deletePartner(partnerId) {
   const result = await pool.query(
@@ -392,6 +426,56 @@ async function getPartnerWithMenuImages(partnerId, requireApproval = true) {
   return result.rows[0];
 }
 
+/**
+ * Get venue detail for public venue page: partner, menu images, operating hours, review stats.
+ * Does not include offers (caller should add from offerService).
+ */
+async function getVenueDetail(partnerId, requireApproval = true) {
+  const partner = await getPartnerWithMenuImages(partnerId, requireApproval);
+  if (!partner) return null;
+
+  let reviewStats = { review_count: 0, average_rating: null };
+  try {
+    const reviewResult = await pool.query(
+      `SELECT COUNT(*)::int AS review_count, ROUND(AVG(rating)::numeric, 2) AS average_rating
+       FROM venue_reviews WHERE partner_id = $1`,
+      [partnerId]
+    );
+    if (reviewResult.rows[0]?.review_count > 0) {
+      reviewStats.review_count = reviewResult.rows[0].review_count;
+      reviewStats.average_rating = parseFloat(reviewResult.rows[0].average_rating);
+    }
+  } catch (_) {
+    // venue_reviews table may not exist yet
+  }
+
+  // Partner operating hours (from partner_hours if present)
+  let hours = [];
+  try {
+    const hoursResult = await pool.query(
+      `SELECT day_of_week, opens_at, closes_at, is_closed FROM partner_hours WHERE partner_id = $1 ORDER BY day_of_week`,
+      [partnerId]
+    );
+    hours = hoursResult.rows;
+  } catch (_) {}
+
+  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const hoursFormatted = hours.map((h) => ({
+    day: DAYS[h.day_of_week] || `Day ${h.day_of_week}`,
+    opens_at: h.opens_at,
+    closes_at: h.closes_at,
+    is_closed: h.is_closed,
+  }));
+
+  return {
+    ...partner,
+    menu_images: partner.menu_images || [],
+    review_count: reviewStats.review_count,
+    average_rating: reviewStats.average_rating ?? partner.average_rating ?? partner.rating,
+    operating_hours: hoursFormatted,
+  };
+}
+
 module.exports = {
   listPartners,
   getPartnerById,
@@ -399,9 +483,11 @@ module.exports = {
   getPartnerByEmail,
   createPartner,
   updatePartner,
+  updatePartnerGeo,
   deletePartner,
   getPartnerDashboardStats,
   getPartnerAnalytics,
   updatePartnerMenuImages,
   getPartnerWithMenuImages,
+  getVenueDetail,
 };

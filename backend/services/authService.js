@@ -928,6 +928,23 @@ async function getUserProfile(userId) {
     }
   }
 
+  // EZ Club (optional columns - may not exist before migration)
+  let ezClub = { member: false, network_check_ins: 0, qualified_at: null };
+  try {
+    const ezResult = await pool.query(
+      'SELECT ez_club_member, ez_club_network_check_ins, ez_club_qualified_at FROM users WHERE id = $1',
+      [userId]
+    );
+    if (ezResult.rows[0]) {
+      const r = ezResult.rows[0];
+      ezClub = {
+        member: !!r.ez_club_member,
+        network_check_ins: parseInt(r.ez_club_network_check_ins || 0, 10),
+        qualified_at: r.ez_club_qualified_at || null,
+      };
+    }
+  } catch (_) {}
+
   return {
     id: user.id,
     first_name: user.first_name,
@@ -945,6 +962,8 @@ async function getUserProfile(userId) {
     ezt_balance: parseFloat(user.available_tokens || 0),
     ezt_total_earned: parseFloat(user.total_tokens_earned || 0),
     ezt_total_spent: parseFloat(user.total_tokens_spent || 0),
+    // EZ Club (cross-network tier)
+    ez_club: ezClub,
   };
 }
 

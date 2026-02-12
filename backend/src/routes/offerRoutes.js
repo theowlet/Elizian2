@@ -20,5 +20,8 @@ router.get('/:offerId/availability', (req, res) => {
   });
 });
 
+// Get single offer by ID (public, for event/offer detail pages)
+router.get('/:offerId', offerController.getPublicOfferById);
+
 module.exports = router;
 

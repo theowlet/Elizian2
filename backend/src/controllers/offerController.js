@@ -149,6 +149,7 @@ async function listPublicOffers(req, res) {
       trending: req.query.trending === "true" ? true : null,
       limit: limit,
       admin: req.query.admin === "true",
+      include_expired: req.query.include_expired === "true", // Debug: include expired offers
       cuisine_types: cuisineTypes,
       price_min: priceMin,
       price_max: priceMax,
@@ -188,10 +189,30 @@ async function listPublicOffers(req, res) {
   }
 }
 
+// Get single public offer by ID (e.g. for event detail page)
+async function getPublicOfferById(req, res) {
+  try {
+    const { offerId } = req.params;
+    const offer = await offerService.getPublicOfferById(offerId);
+    if (!offer) {
+      return errorResponse(res, 404, "Offer not found");
+    }
+    successResponse(res, 200, "Offer retrieved successfully", offer);
+  } catch (err) {
+    logError("Get public offer error:", err);
+    errorResponse(
+      res,
+      err.statusCode || 500,
+      err.message || "Failed to fetch offer",
+    );
+  }
+}
+
 module.exports = {
   listOffers,
   createOffer,
   updateOffer,
   deleteOffer,
   listPublicOffers,
+  getPublicOfferById,
 };

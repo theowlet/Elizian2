@@ -600,7 +600,7 @@ const BookingDetails = () => {
                     navigate('/bookings');
                   } else {
                     const result = await response.json();
-                    alert(result.error || 'Failed to cancel booking');
+                    alert(result?.message ?? result?.error ?? 'Failed to cancel booking');
                   }
                 } catch (err) {
                   alert('Network error. Please try again.');

@@ -38,6 +38,62 @@ router.get('/:id/menu-images', partnerController.getMenuImages);
 router.post('/:id/menu-images', menuImageUpload.array('menuImages', 20), partnerController.uploadMenuImages);
 router.delete('/:id/menu-images/:index', partnerController.deleteMenuImage);
 
+// Venue detail page (public): partner profile, menu, hours, reviews summary, active offers
+router.get('/:id/venue-detail', partnerController.getVenueDetail);
+
+// Venue reviews (social proof): list public, submit requires auth
+const reviewController = require('../controllers/reviewController');
+router.get('/:id/reviews', reviewController.listReviews);
+router.post('/:id/reviews', authenticateToken, reviewController.submitReview);
+
+// In-app tips: submit requires auth; list for partner only
+const tipController = require('../controllers/tipController');
+router.post('/:id/tips', authenticateToken, tipController.createTip);
+router.get('/:id/tips', authenticateToken, tipController.listForPartner);
+
+// Merchant notification campaigns (partner-only)
+const campaignController = require('../controllers/campaignController');
+router.get('/:id/campaigns', authenticateToken, campaignController.listForPartner);
+router.post('/:id/campaigns', authenticateToken, campaignController.create);
+router.get('/:id/campaigns/:campaignId', authenticateToken, campaignController.getOne);
+router.put('/:id/campaigns/:campaignId', authenticateToken, campaignController.update);
+router.post('/:id/campaigns/:campaignId/send', authenticateToken, campaignController.sendCampaign);
+
+// Guest CRM (partner-only, authenticated)
+const guestController = require('../controllers/guestController');
+router.get('/:id/guests', authenticateToken, guestController.listGuests);
+router.get('/:id/guests/:userId', authenticateToken, guestController.getGuestProfile);
+router.post('/:id/guests/:userId/notes', authenticateToken, guestController.addGuestNote);
+
+// Per-venue custom tiers (partner-only)
+const venueTierController = require('../controllers/venueTierController');
+router.get('/:id/tiers', authenticateToken, venueTierController.list);
+router.post('/:id/tiers', authenticateToken, venueTierController.create);
+router.put('/:id/tiers/:tierId', authenticateToken, venueTierController.update);
+router.delete('/:id/tiers/:tierId', authenticateToken, venueTierController.remove);
+
+// In-app messaging: user get-or-create conversation with venue; partner list conversations
+const messagingController = require('../controllers/messagingController');
+router.get('/:id/conversations/me', authenticateToken, messagingController.getOrCreateWithPartner);
+router.get('/:id/conversations', authenticateToken, messagingController.listPartnerConversations);
+
+router.post('/:id/passes/redeem', authenticateToken, require('../controllers/subscriptionPassController').redeemAtPartner);
+
+router.get('/:id/prelaunch/check', authenticateToken, require('../controllers/prelaunchController').check);
+router.post('/:id/prelaunch/signup', authenticateToken, require('../controllers/prelaunchController').signup);
+router.get('/:id/prelaunch/signups', authenticateToken, require('../controllers/prelaunchController').listForPartner);
+
+// Staff / Employee Rewards (partner-only)
+const staffController = require('../controllers/staffController');
+router.get('/:id/staff', authenticateToken, staffController.list);
+router.post('/:id/staff', authenticateToken, staffController.addStaff);
+router.delete('/:id/staff/:userId', authenticateToken, staffController.removeStaff);
+router.post('/:id/staff/check-in', authenticateToken, staffController.checkIn);
+router.get('/:id/staff/check-ins', authenticateToken, staffController.listCheckIns);
+
+// Current partner profile (must be before /:id so "me" is not captured as id)
+router.get('/me', authenticateToken, partnerController.getPartnerMe);
+
 router.get('/:id', partnerController.getPartner);
 
 // Admin only routes
