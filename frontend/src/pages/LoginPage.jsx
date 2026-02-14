@@ -9,7 +9,7 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
   // Check for pending booking after successful login
   useEffect(() => {
@@ -42,11 +42,23 @@ const LoginPage = () => {
       }
     };
 
-    // Check if user is already logged in (token exists)
+    // Check if user is already logged in (token exists and valid)
     const token = localStorage.getItem('token');
     if (token) {
-      // User is already logged in, check for pending booking
-      checkPendingBooking();
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.exp * 1000 > Date.now()) {
+          // Token is valid — go to home (or resume pending booking)
+          checkPendingBooking();
+          if (!sessionStorage.getItem('pendingBooking') && !location.state?.bookingDealId) {
+            navigate('/home', { replace: true });
+          }
+          return;
+        }
+      } catch (_) {
+        // Malformed token, clear it
+        localStorage.removeItem('token');
+      }
     }
   }, [navigate, location]);
 

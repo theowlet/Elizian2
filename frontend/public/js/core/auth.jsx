@@ -10,9 +10,9 @@ const OTP_VERIFICATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
 const TIER_ICON_MAP = {
   ather: '/assets/Aether.png',
-  nova: '/assets/nova.png',
-  luminar: '/assets/luminar.png',
-  valiant: '/assets/valiant.png',
+  beacon: '/assets/nova.png',
+  crest: '/assets/luminar.png',
+  ascend: '/assets/valiant.png',
   echelon: '/assets/echelon.png'
 };
 

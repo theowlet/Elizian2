@@ -178,11 +178,55 @@ async function adminAdjustUserTier(userId, newTierName, reason, adminUserId) {
   }
 }
 
+// Admin: Update tier configuration (reward %, spend thresholds, benefits)
+async function adminUpdateTier(tierName, updates, adminUserId = null) {
+  try {
+    const tier = await tierRepository.getTierByName(tierName);
+    if (!tier) {
+      throw new AppError(404, `Tier "${tierName}" not found`);
+    }
+
+    if (updates.ezt_reward_percentage !== undefined) {
+      const pct = parseFloat(updates.ezt_reward_percentage);
+      if (isNaN(pct) || pct < 0 || pct > 100) {
+        throw new AppError(400, 'EZT reward percentage must be between 0 and 100');
+      }
+    }
+
+    if (updates.min_annual_spend !== undefined) {
+      const min = parseFloat(updates.min_annual_spend);
+      if (isNaN(min) || min < 0) {
+        throw new AppError(400, 'Minimum annual spend must be >= 0');
+      }
+    }
+
+    if (updates.max_annual_spend !== undefined && updates.max_annual_spend !== null) {
+      const max = parseFloat(updates.max_annual_spend);
+      if (isNaN(max) || max < 0) {
+        throw new AppError(400, 'Maximum annual spend must be >= 0');
+      }
+    }
+
+    // Attach admin user ID for audit trail logging
+    if (adminUserId) {
+      updates._adminUserId = adminUserId;
+    }
+
+    const updated = await tierRepository.updateTierConfig(tierName, updates);
+    log(`Tier "${tierName}" updated by admin${adminUserId ? ` (admin: ${adminUserId})` : ''}`);
+    return updated;
+  } catch (error) {
+    logError('Error in adminUpdateTier:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   getAllTiers,
   getUserTier,
   processBookingWithTier,
   getTierHistory,
-  adminAdjustUserTier
+  adminAdjustUserTier,
+  adminUpdateTier
 };
 

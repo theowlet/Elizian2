@@ -14,6 +14,7 @@ function authenticateToken(req, res, next) {
   }
 
   req.userId = decoded.userId;
+  req.user = { id: decoded.userId };
   req.userRole = decoded.role;
   if (decoded.partnerId) req.partnerId = decoded.partnerId;
   if (decoded.type) req.authType = decoded.type;

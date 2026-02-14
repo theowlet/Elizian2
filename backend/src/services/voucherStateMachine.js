@@ -9,17 +9,19 @@ const { log, logError } = require('../../utils/logger');
 
 const pool = getPool();
 
-// Valid state transitions
+// Valid state transitions (redemption overhaul: active -> pending_confirmation -> redeemed)
 const VALID_TRANSITIONS = {
   'created': ['booked'],
   'booked': ['active', 'cancelled'],
-  'active': ['redeemed', 'expired', 'cancelled'],
+  'active': ['pending_confirmation', 'redeemed', 'expired', 'cancelled'],
+  'pending_confirmation': ['redeemed', 'disputed', 'active'],
   'redeemed': ['settled', 'disputed'],
   'settled': ['closed'],
   'disputed': ['settled', 'closed'],
   'cancelled': ['closed'],
   'expired': ['closed'],
-  'closed': [] // Terminal state
+  'closed': [], // Terminal state
+  'auto_expired': ['active']
 };
 
 /**

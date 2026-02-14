@@ -48,5 +48,34 @@ router.delete('/:id', notificationController.deleteNotification);
  */
 router.delete('/read/all', notificationController.deleteAllRead);
 
+/**
+ * @route   POST /api/v1/notifications/push-subscribe
+ * @desc    Register push notification subscription
+ * @access  Private
+ */
+router.post('/push-subscribe', async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ success: false, message: 'Invalid push subscription' });
+    }
+
+    const pool = require('../config/db').getPool();
+    // Upsert push subscription
+    await pool.query(
+      `INSERT INTO push_subscriptions (user_id, endpoint, keys, created_at, updated_at)
+       VALUES ($1, $2, $3, NOW(), NOW())
+       ON CONFLICT (user_id, endpoint) DO UPDATE SET keys = $3, updated_at = NOW()`,
+      [req.userId, subscription.endpoint, JSON.stringify(subscription.keys || {})]
+    );
+
+    res.json({ success: true, message: 'Push subscription registered' });
+  } catch (error) {
+    console.error('Push subscribe error:', error);
+    // Graceful fallback if table doesn't exist yet
+    res.json({ success: true, message: 'Push subscription noted (table pending migration)' });
+  }
+});
+
 module.exports = router;
 

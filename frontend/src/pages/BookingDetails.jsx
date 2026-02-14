@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import '../styles/auth.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 const BookingDetails = () => {
   const navigate = useNavigate();
@@ -12,12 +12,122 @@ const BookingDetails = () => {
   const [loading, setLoading] = useState(!booking);
   const [error, setError] = useState('');
   const [qrCodeLoading, setQrCodeLoading] = useState(false);
+  const [checkInStatus, setCheckInStatus] = useState(null); // null | 'locating' | 'success' | 'too_far' | 'error'
+  const [checkInMessage, setCheckInMessage] = useState('');
+  const [pendingRedemption, setPendingRedemption] = useState(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [confirmResult, setConfirmResult] = useState(null); // null | 'confirmed' | 'disputed' | 'error'
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [timeLeft, setTimeLeft] = useState(null);
 
   useEffect(() => {
     if (!booking && id) {
       loadBookingDetails();
     }
   }, [id, booking]);
+
+  // Load pending redemption for this booking
+  useEffect(() => {
+    if (booking?.id) {
+      loadPendingRedemption();
+    }
+  }, [booking?.id]);
+
+  // Countdown timer for pending confirmation
+  useEffect(() => {
+    if (!pendingRedemption?.confirmation_expires_at) {
+      setTimeLeft(null);
+      return;
+    }
+    const update = () => {
+      const diff = new Date(pendingRedemption.confirmation_expires_at) - Date.now();
+      setTimeLeft(diff > 0 ? diff : 0);
+    };
+    update();
+    const iv = setInterval(update, 1000);
+    return () => clearInterval(iv);
+  }, [pendingRedemption?.confirmation_expires_at]);
+
+  const loadPendingRedemption = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const r = await fetch(`${API_BASE}/api/v1/redemptions/pending`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const j = await r.json();
+      if (j.success && j.data?.pending) {
+        const match = j.data.pending.find(p => p.booking_id === booking.id);
+        if (match) setPendingRedemption(match);
+      }
+    } catch (err) {
+      console.error('Load pending redemption error:', err);
+    }
+  };
+
+  const handleConfirmRedemption = async () => {
+    if (!pendingRedemption) return;
+    setConfirmLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(`${API_BASE}/api/v1/redemptions/${pendingRedemption.redemption_id}/confirm`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+      const j = await r.json();
+      if (j.success) {
+        setConfirmResult('confirmed');
+        setConfirmMessage('Redemption confirmed! Tokens have been settled.');
+        setPendingRedemption(null);
+        loadBookingDetails();
+      } else {
+        setConfirmResult('error');
+        setConfirmMessage(j.message || 'Failed to confirm');
+      }
+    } catch (err) {
+      setConfirmResult('error');
+      setConfirmMessage('Network error');
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
+
+  const handleDisputeRedemption = async () => {
+    if (!pendingRedemption) return;
+    const reason = window.prompt('Why are you disputing this redemption?');
+    if (reason === null) return; // cancelled
+    setConfirmLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const r = await fetch(`${API_BASE}/api/v1/redemptions/${pendingRedemption.redemption_id}/dispute`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason || 'Disputed by customer' })
+      });
+      const j = await r.json();
+      if (j.success) {
+        setConfirmResult('disputed');
+        setConfirmMessage('Redemption disputed. No tokens were deducted.');
+        setPendingRedemption(null);
+        loadBookingDetails();
+      } else {
+        setConfirmResult('error');
+        setConfirmMessage(j.message || 'Failed to dispute');
+      }
+    } catch (err) {
+      setConfirmResult('error');
+      setConfirmMessage('Network error');
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
+
+  const formatTimeLeft = (ms) => {
+    if (ms == null || ms <= 0) return 'Expired';
+    const mins = Math.floor(ms / 60000);
+    const secs = Math.floor((ms % 60000) / 1000);
+    return `${mins}m ${secs}s`;
+  };
 
   // Auto-retry QR code generation if missing
   useEffect(() => {
@@ -174,8 +284,10 @@ const BookingDetails = () => {
     const statusMap = {
       'confirmed': { label: 'Confirmed', class: 'status-confirmed' },
       'pending': { label: 'Pending', class: 'status-pending' },
+      'pending_confirmation': { label: 'Awaiting Your Confirmation', class: 'status-pending' },
       'cancelled': { label: 'Cancelled', class: 'status-cancelled' },
       'redeemed': { label: 'Redeemed', class: 'status-redeemed' },
+      'disputed': { label: 'Disputed', class: 'status-cancelled' },
       'completed': { label: 'Completed', class: 'status-completed' }
     };
     const statusInfo = statusMap[status] || { label: status, class: 'status-default' };
@@ -183,6 +295,59 @@ const BookingDetails = () => {
       <span className={`status-badge ${statusInfo.class}`}>
         {statusInfo.label}
       </span>
+    );
+  };
+
+  const handleCheckIn = async () => {
+    if (!navigator.geolocation) {
+      setCheckInStatus('error');
+      setCheckInMessage('Geolocation is not supported by your browser');
+      return;
+    }
+    setCheckInStatus('locating');
+    setCheckInMessage('');
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`${API_BASE}/api/v1/bookings/${booking.id}/check-in`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude
+            })
+          });
+          const result = await response.json();
+          if (result.success) {
+            setCheckInStatus('success');
+            setCheckInMessage(result.data?.message || 'You are checked in at the venue');
+          } else if (response.status === 422 || result.error?.includes('far') || result.message?.includes('far')) {
+            setCheckInStatus('too_far');
+            setCheckInMessage(result.message || result.error || 'You appear to be too far from the venue. Please try again when you arrive.');
+          } else {
+            setCheckInStatus('error');
+            setCheckInMessage(result.message || result.error || 'Check-in failed');
+          }
+        } catch (err) {
+          setCheckInStatus('error');
+          setCheckInMessage('Network error. Please try again.');
+        }
+      },
+      (err) => {
+        setCheckInStatus('error');
+        if (err.code === 1) {
+          setCheckInMessage('Location permission denied. Please enable location access in your browser settings.');
+        } else if (err.code === 2) {
+          setCheckInMessage('Could not determine your location. Please try again.');
+        } else {
+          setCheckInMessage('Location request timed out. Please try again.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -566,6 +731,176 @@ const BookingDetails = () => {
             </ol>
           </div>
         </div>
+
+        {/* Check-in Section */}
+        {booking.status === 'confirmed' && (
+          <div style={{
+            background: '#1f2937',
+            borderRadius: '12px',
+            padding: '1.5rem',
+            marginBottom: '1.5rem',
+            border: '1px solid #374151'
+          }}>
+            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.25rem' }}>Venue Check-in</h3>
+            <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginBottom: '1rem' }}>
+              Tap below when you arrive at the venue to confirm your presence. Your location will be verified against the venue address.
+            </p>
+            {checkInStatus === 'success' ? (
+              <div style={{ padding: '1rem', background: 'rgba(16,185,129,0.15)', border: '1px solid #10b981', borderRadius: '8px', color: '#10b981', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>✅</div>
+                <div style={{ fontWeight: 600 }}>Checked in!</div>
+                <div style={{ fontSize: '0.85rem', marginTop: '0.25rem', color: '#6ee7b7' }}>{checkInMessage}</div>
+              </div>
+            ) : checkInStatus === 'too_far' ? (
+              <div style={{ padding: '1rem', background: 'rgba(245,158,11,0.15)', border: '1px solid #f59e0b', borderRadius: '8px', color: '#f59e0b', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📍</div>
+                <div style={{ fontWeight: 600 }}>Too far from venue</div>
+                <div style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>{checkInMessage}</div>
+                <button onClick={handleCheckIn} style={{ marginTop: '0.75rem', padding: '0.5rem 1.5rem', background: '#f59e0b', color: '#000', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+                  Retry
+                </button>
+              </div>
+            ) : checkInStatus === 'error' ? (
+              <div style={{ padding: '1rem', background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', borderRadius: '8px', color: '#ef4444', textAlign: 'center' }}>
+                <div style={{ fontWeight: 600 }}>{checkInMessage || 'Check-in failed'}</div>
+                <button onClick={handleCheckIn} style={{ marginTop: '0.75rem', padding: '0.5rem 1.5rem', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleCheckIn}
+                disabled={checkInStatus === 'locating'}
+                style={{
+                  width: '100%',
+                  padding: '1rem',
+                  background: checkInStatus === 'locating' ? '#374151' : 'linear-gradient(135deg, #5E17EB, #24105F)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: checkInStatus === 'locating' ? 'wait' : 'pointer',
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  letterSpacing: '0.3px'
+                }}
+              >
+                {checkInStatus === 'locating' ? '📍 Getting your location...' : '📍 Check in at venue'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Pending Redemption Confirmation */}
+        {pendingRedemption && !confirmResult && (
+          <div style={{
+            background: 'linear-gradient(135deg, #1e1b4b, #312e81)',
+            borderRadius: '12px',
+            padding: '1.5rem',
+            marginBottom: '1.5rem',
+            border: '2px solid #6366f1'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#e0e7ff' }}>🔔 Confirm Your Redemption</h3>
+              {timeLeft != null && (
+                <div style={{
+                  padding: '0.35rem 0.75rem',
+                  background: timeLeft > 5 * 60000 ? 'rgba(99,102,241,0.3)' : 'rgba(239,68,68,0.3)',
+                  borderRadius: '20px',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  color: timeLeft > 5 * 60000 ? '#a5b4fc' : '#fca5a5'
+                }}>
+                  ⏱ {formatTimeLeft(timeLeft)}
+                </div>
+              )}
+            </div>
+            <p style={{ color: '#c7d2fe', fontSize: '0.9rem', marginBottom: '1rem' }}>
+              The partner has initiated a redemption for your visit. Please review the details and confirm.
+            </p>
+            <div style={{
+              background: 'rgba(255,255,255,0.08)',
+              borderRadius: '8px',
+              padding: '1rem',
+              marginBottom: '1rem',
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '0.75rem'
+            }}>
+              <div>
+                <div style={{ color: '#a5b4fc', fontSize: '0.8rem' }}>Total Bill</div>
+                <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>₹{parseFloat(pendingRedemption.total_bill_amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
+              </div>
+              <div>
+                <div style={{ color: '#a5b4fc', fontSize: '0.8rem' }}>Discount ({pendingRedemption.offer_discount_percentage || 0}%)</div>
+                <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#34d399' }}>-₹{parseFloat(pendingRedemption.discount_amount || pendingRedemption.ezt_co_pay_amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
+              </div>
+              <div>
+                <div style={{ color: '#a5b4fc', fontSize: '0.8rem' }}>EZT Co-Pay</div>
+                <div style={{ fontWeight: 700 }}>{parseFloat(pendingRedemption.ezt_tokens_required || (pendingRedemption.ezt_co_pay_amount / 100) || 0).toFixed(2)} EZT</div>
+              </div>
+              <div>
+                <div style={{ color: '#a5b4fc', fontSize: '0.8rem' }}>You Paid (Cash/Card)</div>
+                <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>₹{parseFloat(pendingRedemption.net_amount_from_user || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                onClick={handleConfirmRedemption}
+                disabled={confirmLoading || (timeLeft != null && timeLeft <= 0)}
+                style={{
+                  flex: 1,
+                  padding: '0.85rem',
+                  background: confirmLoading ? '#374151' : '#10b981',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: confirmLoading ? 'wait' : 'pointer',
+                  fontSize: '1rem',
+                  fontWeight: 700
+                }}
+              >
+                {confirmLoading ? 'Processing...' : '✅ Confirm'}
+              </button>
+              <button
+                onClick={handleDisputeRedemption}
+                disabled={confirmLoading}
+                style={{
+                  flex: 1,
+                  padding: '0.85rem',
+                  background: 'transparent',
+                  color: '#ef4444',
+                  border: '2px solid #ef4444',
+                  borderRadius: '10px',
+                  cursor: confirmLoading ? 'wait' : 'pointer',
+                  fontSize: '1rem',
+                  fontWeight: 700
+                }}
+              >
+                ❌ Dispute
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Confirmation Result */}
+        {confirmResult && (
+          <div style={{
+            background: confirmResult === 'confirmed' ? 'rgba(16,185,129,0.15)' : confirmResult === 'disputed' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)',
+            border: `1px solid ${confirmResult === 'confirmed' ? '#10b981' : confirmResult === 'disputed' ? '#f59e0b' : '#ef4444'}`,
+            borderRadius: '12px',
+            padding: '1.5rem',
+            marginBottom: '1.5rem',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+              {confirmResult === 'confirmed' ? '✅' : confirmResult === 'disputed' ? '⚠️' : '❌'}
+            </div>
+            <div style={{ fontWeight: 600, fontSize: '1.1rem', color: confirmResult === 'confirmed' ? '#10b981' : confirmResult === 'disputed' ? '#f59e0b' : '#ef4444' }}>
+              {confirmResult === 'confirmed' ? 'Redemption Confirmed' : confirmResult === 'disputed' ? 'Redemption Disputed' : 'Error'}
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#9ca3af', marginTop: '0.5rem' }}>{confirmMessage}</div>
+          </div>
+        )}
 
         {/* Actions */}
         {booking.status === 'confirmed' && (

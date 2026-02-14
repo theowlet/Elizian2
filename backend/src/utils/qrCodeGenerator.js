@@ -63,22 +63,32 @@ async function generateAndUploadQRCode(voucherCode, metadata = {}) {
       }
     };
 
-    // Build human-readable QR code content
+    // Format currency for display
+    const formatAmount = (amt) => {
+      if (!amt && amt !== 0) return null;
+      return `₹${parseFloat(amt).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
+    // Build human-readable QR code content with full voucher details
     const humanReadableContent = [
       '════════════════════════',
       '   ELIZIAN VOUCHER',
       '════════════════════════',
       '',
-      `Booking: ${metadata.booking_reference || 'N/A'}`,
+      `Ref: ${metadata.booking_reference || 'N/A'}`,
       `Guest: ${metadata.guest_name || 'N/A'}`,
+      metadata.user_tier ? `Tier: ${metadata.user_tier}` : '',
       `Deal: ${metadata.deal_title || 'N/A'}`,
-      metadata.partner_name ? `Partner: ${metadata.partner_name}` : '',
+      metadata.partner_name ? `Venue: ${metadata.partner_name}` : '',
       metadata.num_guests ? `Guests: ${metadata.num_guests}` : '',
       metadata.booking_date ? `Date: ${formatDate(metadata.booking_date)}` : '',
       metadata.booking_time ? `Time: ${formatTime(metadata.booking_time)}` : '',
       '',
-      `Voucher Code:`,
-      voucherCode,
+      metadata.total_amount != null ? `Amount: ${formatAmount(metadata.total_amount)}` : '',
+      metadata.ezt_redeemed ? `EZT Used: ${metadata.ezt_redeemed}` : '',
+      metadata.expires_at ? `Valid Until: ${formatDate(metadata.expires_at)}` : '',
+      '',
+      `Voucher: ${voucherCode}`,
       '',
       '════════════════════════',
       'Scan at venue for redemption',
@@ -91,7 +101,16 @@ async function generateAndUploadQRCode(voucherCode, metadata = {}) {
       booking_reference: metadata.booking_reference,
       booking_id: metadata.booking_id,
       partner_id: metadata.partner_id,
-      type: 'voucher'
+      user_id: metadata.user_id,
+      user_tier: metadata.user_tier || null,
+      total_amount: metadata.total_amount || 0,
+      original_amount: metadata.original_amount || 0,
+      ezt_redeemed: metadata.ezt_redeemed || 0,
+      booking_type: metadata.booking_type || null,
+      voucher_state: metadata.voucher_state || 'active',
+      expires_at: metadata.expires_at || null,
+      type: 'voucher',
+      version: 2
     };
 
     // Combine human-readable and technical data

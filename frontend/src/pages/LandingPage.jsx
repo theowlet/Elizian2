@@ -11,6 +11,23 @@ const LandingPage = () => {
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
+  // Persistent login: if user is already logged in, skip landing and go straight to home
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.exp * 1000 > Date.now()) {
+          navigate('/home', { replace: true });
+          return;
+        }
+      } catch (_) {
+        // Token is malformed, remove it
+        localStorage.removeItem('token');
+      }
+    }
+  }, [navigate]);
+
   useEffect(() => {
     loadTrendingExperiences(selectedCategory);
   }, [selectedCategory]);

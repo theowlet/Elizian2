@@ -1,5 +1,9 @@
 const redemptionService = require('../services/redemptionService');
 const enhancedRedemptionService = require('../services/enhancedRedemptionService');
+const redemptionCalculationService = require('../services/redemptionCalculationService');
+const redemptionConfirmationService = require('../services/redemptionConfirmationService');
+const bookingRepository = require('../repositories/bookingRepository');
+const { getPool } = require('../config/db');
 const { successResponse, errorResponse } = require('../../utils/response');
 const { logError } = require('../../utils/logger');
 
@@ -66,13 +70,46 @@ async function redeemVoucher(req, res) {
     successResponse(res, 200, 'Voucher redeemed successfully', redemption);
   } catch (error) {
     logError('❌ Redeem voucher error:', error);
-    
-    // Safe error response (no sensitive data)
-    const errorMessage = error.statusCode === 500 
-      ? 'An error occurred while processing the redemption. Please try again or contact support.'
-      : error.message;
-    
-    errorResponse(res, error.statusCode || 500, errorMessage);
+    const code = error.statusCode || 500;
+    const message = error.message || 'An error occurred while processing the redemption.';
+    errorResponse(res, code, message);
+  }
+}
+
+/**
+ * Calculate redemption preview (partner only)
+ * GET /api/v1/redemptions/calculate?voucher_code=X&total_bill_amount=Y
+ */
+async function calculateRedemptionPreview(req, res) {
+  try {
+    const partnerId = req.partnerId;
+    if (!partnerId) {
+      return errorResponse(res, 403, 'Partner authentication required');
+    }
+    const voucherCode = req.query.voucher_code;
+    const totalBillAmount = req.query.total_bill_amount;
+    if (!voucherCode || totalBillAmount === undefined || totalBillAmount === null) {
+      return errorResponse(res, 400, 'voucher_code and total_bill_amount are required');
+    }
+    const booking = await bookingRepository.getBookingByVoucherCode(String(voucherCode).trim());
+    if (!booking) {
+      return errorResponse(res, 404, 'Voucher not found');
+    }
+    if (booking.partner_id !== partnerId) {
+      return errorResponse(res, 403, 'Voucher is not for your venue');
+    }
+    const breakdown = await redemptionCalculationService.calculateRedemptionBreakdown(
+      booking.deal_id,
+      parseFloat(totalBillAmount) || 0,
+      booking.user_id
+    );
+    successResponse(res, 200, 'Calculation preview', {
+      total_bill_amount: parseFloat(totalBillAmount) || 0,
+      ...breakdown,
+    });
+  } catch (error) {
+    logError('❌ Calculate preview error:', error);
+    errorResponse(res, error.statusCode || 500, error.message || 'Failed to calculate');
   }
 }
 
@@ -149,9 +186,107 @@ async function getRedemptionAuditTrail(req, res) {
   }
 }
 
+/**
+ * Confirm a pending redemption (consumer only)
+ * POST /api/v1/redemptions/:redemptionId/confirm
+ */
+async function confirmRedemption(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return errorResponse(res, 401, 'Authentication required');
+    }
+    const { redemptionId } = req.params;
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const redemption = await redemptionConfirmationService.confirmRedemption(redemptionId, userId, client);
+      await client.query('COMMIT');
+      successResponse(res, 200, 'Redemption confirmed successfully', redemption);
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logError('❌ Confirm redemption error:', error);
+    errorResponse(res, error.statusCode || 500, error.message || 'Failed to confirm redemption');
+  }
+}
+
+/**
+ * Dispute a pending redemption (consumer only)
+ * POST /api/v1/redemptions/:redemptionId/dispute
+ */
+async function disputeRedemption(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return errorResponse(res, 401, 'Authentication required');
+    }
+    const { redemptionId } = req.params;
+    const reason = (req.body && req.body.reason) ? String(req.body.reason).trim() : '';
+    const pool = getPool();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const redemption = await redemptionConfirmationService.disputeRedemption(redemptionId, userId, reason || 'Disputed by customer', client);
+      await client.query('COMMIT');
+      successResponse(res, 200, 'Redemption disputed', redemption);
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logError('❌ Dispute redemption error:', error);
+    errorResponse(res, error.statusCode || 500, error.message || 'Failed to dispute redemption');
+  }
+}
+
+/**
+ * Get pending confirmations for the current user (consumer)
+ * GET /api/v1/redemptions/pending
+ */
+async function getPendingConfirmations(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return errorResponse(res, 401, 'Authentication required');
+    }
+    const pool = getPool();
+    const result = await pool.query(
+      `SELECT ra.id AS redemption_id, ra.booking_id, ra.voucher_code, ra.total_bill_amount,
+              ra.ezt_co_pay_amount, ra.net_amount_from_user, ra.offer_discount_percentage,
+              ra.discount_amount, ra.ezt_tokens_required, ra.customer_confirmation_status,
+              ra.confirmation_expires_at, ra.redeemed_at,
+              b.booking_reference, b.deal_id
+       FROM redemption_audit ra
+       JOIN bookings b ON b.id = ra.booking_id
+       WHERE b.user_id = $1
+         AND ra.redemption_status = 'pending_confirmation'
+         AND (ra.customer_confirmation_status IS NULL OR ra.customer_confirmation_status = 'pending')
+         AND (ra.confirmation_expires_at IS NULL OR ra.confirmation_expires_at > NOW())
+       ORDER BY ra.confirmation_expires_at ASC`,
+      [userId]
+    );
+    successResponse(res, 200, 'Pending confirmations', { pending: result.rows });
+  } catch (error) {
+    logError('❌ Get pending confirmations error:', error);
+    errorResponse(res, error.statusCode || 500, error.message || 'Failed to get pending confirmations');
+  }
+}
+
 module.exports = {
   redeemVoucher,
+  calculateRedemptionPreview,
   getRedemptionByVoucherCode,
-  getRedemptionAuditTrail
+  getRedemptionAuditTrail,
+  confirmRedemption,
+  disputeRedemption,
+  getPendingConfirmations,
 };
 

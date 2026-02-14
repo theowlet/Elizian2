@@ -47,11 +47,17 @@ async function geocodeAddress(address) {
       logError('[Geocoding] Missing lat/lng in result', { address: trimmed });
       return null;
     }
+    const latNum = Number(lat);
+    const lngNum = Number(lng);
+    if (latNum === 0 && lngNum === 0) {
+      logError('[Geocoding] Rejecting 0,0 (Null Island) as invalid', { address: trimmed });
+      return null;
+    }
 
     return {
       formatted_address: first.formatted_address || trimmed,
-      latitude: Number(lat),
-      longitude: Number(lng),
+      latitude: latNum,
+      longitude: lngNum,
       place_id: first.place_id || null,
     };
   } catch (err) {

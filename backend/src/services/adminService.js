@@ -502,6 +502,8 @@ async function listBookings({ status, search, startDate, endDate, page, limit })
         CONCAT(u.first_name, ' ', u.last_name) as user_name,
         u.email as user_email,
         u.phone_number as user_phone,
+        u.current_tier_name as customer_tier,
+        b.user_tier_at_booking,
         p.name as partner_name,
         po.title as deal_title,
         po.service_type as deal_type
@@ -583,7 +585,8 @@ async function getBookingDetails(bookingId) {
         CONCAT(u.first_name, ' ', u.last_name) as user_name,
         u.email as user_email,
         u.phone_number as user_phone,
-        u.current_tier_id as user_tier,
+        u.current_tier_name as customer_tier,
+        b.user_tier_at_booking,
         p.name as partner_name,
         p.email as partner_email,
         p.phone_number as partner_phone,
@@ -593,14 +596,14 @@ async function getBookingDetails(bookingId) {
         po.service_type as deal_type,
         po.price as deal_price,
         po.discount_percentage as deal_discount,
-        tl.transaction_type as payment_method,
+        tl.ledger_type as payment_method,
         tl.amount as payment_amount,
         tl.created_at as payment_date
       FROM bookings b
       LEFT JOIN users u ON b.user_id = u.id
       LEFT JOIN partners p ON b.partner_id = p.id
       LEFT JOIN partner_offers po ON b.deal_id = po.id
-      LEFT JOIN token_ledger tl ON b.id = tl.booking_id AND tl.transaction_type = 'redeemed'
+      LEFT JOIN token_ledger tl ON b.id = tl.booking_id AND tl.ledger_type = 'redeemed'
       WHERE b.id = $1
     `;
     
@@ -812,8 +815,8 @@ async function processRefund(bookingId, amount, reason, refundType, actorId, act
       
       // Log token credit
       await client.query(
-        `INSERT INTO token_ledger 
-         (user_id, booking_id, amount, transaction_type, description, created_at)
+        `INSERT INTO token_ledger
+         (user_id, booking_id, amount, ledger_type, description, created_at)
          VALUES ($1, $2, $3, 'refund_credit', $4, CURRENT_TIMESTAMP)`,
         [booking.user_id, bookingId, booking.ezt_redeemed, 'EZT refund for cancelled booking']
       );

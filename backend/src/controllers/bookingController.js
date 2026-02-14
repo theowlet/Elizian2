@@ -179,10 +179,93 @@ async function confirmPayment(req, res) {
   }
 }
 
+const visitSessionService = require('../services/visitSessionService');
+const { getPool } = require('../config/db');
+
+// Consumer check-in at venue (visit session + 100m geofence)
+async function checkInAtVenue(req, res) {
+  try {
+    const { latitude, longitude } = req.body;
+    const bookingId = req.params.id;
+    const userId = req.userId;
+
+    if (latitude == null || longitude == null) {
+      return errorResponse(res, 400, 'Location (latitude, longitude) is required');
+    }
+
+    const session = await visitSessionService.checkInAndCreateSession({
+      bookingId,
+      userId,
+      latitude,
+      longitude,
+      qrScanVerified: false,
+    });
+
+    return successResponse(res, {
+      message: 'Checked in successfully',
+      visit_session_id: session.id,
+      geo_verified: session.geo_verified,
+      distance_meters: session.check_in_distance_meters,
+      expires_at: session.expires_at,
+    });
+  } catch (err) {
+    logError('Check-in error:', err);
+    return errorResponse(res, err.statusCode || 500, err.message || 'Check-in failed');
+  }
+}
+
+// QR-based check-in at venue (voucher_code in qr_payload)
+async function qrCheckIn(req, res) {
+  try {
+    const { qr_payload, latitude, longitude } = req.body || {};
+    const bookingId = req.params.id;
+    const userId = req.userId;
+
+    const pool = getPool();
+    const code = qr_payload || req.body?.voucher_code;
+    if (!code) {
+      return errorResponse(res, 400, 'qr_payload or voucher_code is required');
+    }
+
+    const bookingResult = await pool.query(
+      `SELECT id, user_id, partner_id FROM bookings WHERE id = $1 AND voucher_code::text = $2`,
+      [bookingId, String(code).trim()]
+    );
+    if (bookingResult.rows.length === 0) {
+      return errorResponse(res, 404, 'Booking not found or voucher code does not match');
+    }
+    const booking = bookingResult.rows[0];
+    if (booking.user_id !== userId) {
+      return errorResponse(res, 403, 'Not your booking');
+    }
+
+    const session = await visitSessionService.checkInAndCreateSession({
+      bookingId: booking.id,
+      userId: booking.user_id,
+      latitude: latitude ?? null,
+      longitude: longitude ?? null,
+      qrScanVerified: true,
+    });
+
+    return successResponse(res, {
+      message: 'Checked in via QR successfully',
+      visit_session_id: session.id,
+      geo_verified: session.geo_verified,
+      distance_meters: session.check_in_distance_meters,
+      expires_at: session.expires_at,
+    });
+  } catch (err) {
+    logError('QR check-in error:', err);
+    return errorResponse(res, err.statusCode || 500, err.message || 'QR check-in failed');
+  }
+}
+
 module.exports = {
   createBooking,
   listBookings,
   updateBooking,
   getBooking,
   confirmPayment,
+  checkInAtVenue,
+  qrCheckIn,
 };

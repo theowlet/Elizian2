@@ -4,9 +4,9 @@
 
 .profile-page {
   min-height: 100vh;
-  background: var(--bg-light, #f9fafb);
-  color: var(--text-color, #1f2937);
-  padding: 1rem 1rem 2rem;
+  background: #f9fafb;
+  color: #1f2937;
+  padding: 1rem 1rem 5rem;
   max-width: 640px;
   margin: 0 auto;
 }

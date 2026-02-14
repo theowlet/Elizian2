@@ -438,24 +438,8 @@ const HomePage = () => {
         (position) => {
           const { latitude, longitude } = position.coords;
           setUserCoordinates({ latitude, longitude });
-
-          fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
-          )
-            .then((response) => response.json())
-            .then((data) => {
-              const city =
-                data.address.city ||
-                data.address.town ||
-                data.address.village ||
-                "Unknown City";
-              const country = data.address.country || "Unknown Country";
-              setCurrentLocation(`${city}, ${country}`);
-              localStorage.setItem("userLocation", `${city}, ${country}`);
-            })
-            .catch(() => {
-              setCurrentLocation("Mumbai, India");
-            });
+          setCurrentLocation("Your location");
+          localStorage.setItem("userLocation", "Your location");
         },
         () => {
           const savedLocation = localStorage.getItem("userLocation");
@@ -577,7 +561,10 @@ const HomePage = () => {
   const handleLogout = () => {
     localStorage.removeItem("user");
     localStorage.removeItem("token");
-    navigate("/login");
+    localStorage.removeItem("userInfo");
+    localStorage.removeItem("userToken");
+    window.dispatchEvent(new Event('elizian-logout'));
+    navigate("/login", { replace: true });
   };
 
   const handleNavigation = (section) => {
@@ -1453,7 +1440,7 @@ const HomePage = () => {
       </footer>
 
       <style>{`
-        :root {
+        .elizian-container {
           --primary-color: #004f4a;
           --secondary-color: #059669;
           --accent-color: #f59e0b;
@@ -1466,25 +1453,23 @@ const HomePage = () => {
           --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
           --radius: 12px;
           --radius-sm: 8px;
+          min-height: 100vh;
+          padding-bottom: 80px;
+          background: var(--bg-light);
         }
 
-        * {
-          margin: 0;
-          padding: 0;
+        .elizian-container * {
           box-sizing: border-box;
         }
 
-        body {
-          font-family:
-            -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          color: var(--text-color);
-          line-height: 1.5;
-        }
-
-        .container {
+        .elizian-container .container {
           max-width: auto;
           margin: 0 auto;
-          padding: 0 0px;
+          padding: 0 16px;
+        }
+
+        .elizian-container .main-content {
+          padding-bottom: 80px;
         }
 
         .skip-link {
@@ -1898,8 +1883,20 @@ const HomePage = () => {
         .loading-state,
         .empty-state {
           text-align: center;
-          padding: 40px;
+          padding: 48px 24px;
+          min-height: 200px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
           color: var(--text-light);
+        }
+
+        .loading-state p,
+        .empty-state p {
+          margin: 0;
+          font-size: 1rem;
+          color: var(--text-color);
         }
 
         .trending-grid,

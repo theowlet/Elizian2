@@ -8,26 +8,29 @@ const { logError } = require('../../utils/logger');
  */
 async function getRewardsSummary(req, res) {
   try {
-    const userId = req.user.id;
+    const userId = req.userId || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
     const summary = await rewardsService.getUserRewardsSummary(userId);
-    
-    res.json({
-      success: true,
-      data: summary
-    });
+    res.json({ success: true, data: summary });
   } catch (error) {
     logError('Error getting rewards summary:', error);
     if (error instanceof AppError) {
-      res.status(error.statusCode).json({
-        success: false,
-        error: error.message
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: 'Failed to retrieve rewards summary'
+      return res.status(error.statusCode).json({ success: false, error: error.message });
+    }
+    if (error.code === '42P01' || error.code === '42703') {
+      return res.json({
+        success: true,
+        data: {
+          ezClub: { member: false, networkCheckIns: 0, qualifiedAt: null },
+          ezt: { balance: 0, totalEarned: 0, totalSpent: 0, recentTransactions: [] },
+          loyaltyPoints: { balance: 0, totalEarned: 0, totalRedeemed: 0, recentTransactions: [] },
+          tier: { current: 'Ather', level: 1, earnRate: 1, progress: null, spending: null, history: [] }
+        }
       });
     }
+    res.status(500).json({ success: false, error: 'Failed to retrieve rewards summary' });
   }
 }
 
@@ -37,31 +40,28 @@ async function getRewardsSummary(req, res) {
  */
 async function getEZTTransactions(req, res) {
   try {
-    const userId = req.user.id;
+    const userId = req.userId || req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: 'Authentication required' });
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
-    
     const result = await rewardsService.getEZTTransactions(userId, { limit, offset });
-    
     res.json({
       success: true,
       data: {
         transactions: result.transactions,
-        pagination: {
-          page,
-          limit,
-          total: result.total,
-          pages: Math.ceil(result.total / limit)
-        }
+        pagination: { page, limit, total: result.total, pages: Math.ceil(result.total / limit) }
       }
     });
   } catch (error) {
     logError('Error getting EZT transactions:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve EZT transactions'
-    });
+    if (error.code === '42P01' || error.code === '42703') {
+      return res.json({
+        success: true,
+        data: { transactions: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } }
+      });
+    }
+    res.status(500).json({ success: false, error: 'Failed to retrieve EZT transactions' });
   }
 }
 
@@ -71,31 +71,28 @@ async function getEZTTransactions(req, res) {
  */
 async function getLoyaltyTransactions(req, res) {
   try {
-    const userId = req.user.id;
+    const userId = req.userId || req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: 'Authentication required' });
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
-    
     const result = await rewardsService.getLoyaltyTransactions(userId, { limit, offset });
-    
     res.json({
       success: true,
       data: {
         transactions: result.transactions,
-        pagination: {
-          page,
-          limit,
-          total: result.total,
-          pages: Math.ceil(result.total / limit)
-        }
+        pagination: { page, limit, total: result.total, pages: Math.ceil(result.total / limit) }
       }
     });
   } catch (error) {
     logError('Error getting loyalty transactions:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to retrieve loyalty transactions'
-    });
+    if (error.code === '42P01' || error.code === '42703') {
+      return res.json({
+        success: true,
+        data: { transactions: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } }
+      });
+    }
+    res.status(500).json({ success: false, error: 'Failed to retrieve loyalty transactions' });
   }
 }
 
@@ -105,7 +102,8 @@ async function getLoyaltyTransactions(req, res) {
  */
 async function getTierHistory(req, res) {
   try {
-    const userId = req.user.id;
+    const userId = req.userId || req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: 'Authentication required' });
     const history = await rewardsService.getTierHistory(userId);
     
     res.json({

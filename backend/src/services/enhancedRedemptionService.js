@@ -10,8 +10,12 @@ const voucherAuditService = require('./voucherAuditService');
 const tierService = require('./tierService');
 const loyaltyEngine = require('../../services/loyaltyEngineService');
 const tokenService = require('./tokenService');
+const redemptionCalculationService = require('./redemptionCalculationService');
+const visitSessionRepository = require('../repositories/visitSessionRepository');
 const { AppError } = require('../../utils/response');
 const { log, logError } = require('../../utils/logger');
+
+const DUAL_CONFIRMATION_ENABLED = process.env.DUAL_CONFIRMATION_ENABLED === 'true' || process.env.DUAL_CONFIRMATION_ENABLED === '1';
 
 const pool = getPool();
 
@@ -133,7 +137,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
        FROM bookings b
        LEFT JOIN partner_offers po ON b.deal_id = po.id
        WHERE b.voucher_code = $1
-       FOR UPDATE`,
+       FOR UPDATE OF b`,
       [voucher_code]
     );
 
@@ -152,23 +156,30 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     }
 
     const booking = bookingResult.rows[0];
-    
-    // Get transaction ID associated with this booking
-    // Transaction is created at booking time, so find it by user_id, partner_id, and timestamp
-    const transactionResult = await client.query(
-      `SELECT id, tokens_redeemed 
-       FROM transactions 
-       WHERE user_id = $1 
-         AND partner_id = $2 
-         AND created_at >= $3 - INTERVAL '2 minutes'
-         AND created_at <= $3 + INTERVAL '2 minutes'
-       ORDER BY created_at DESC 
-       LIMIT 1`,
-      [booking.user_id, booking.partner_id, booking.created_at]
-    );
-    const transaction = transactionResult.rows[0] || null;
-    booking.transaction_id = transaction?.id || null;
-    booking.tokens_redeemed = parseFloat(transaction?.tokens_redeemed || 0);
+    booking.transaction_id = null;
+    booking.tokens_redeemed = 0;
+    // Get transaction ID associated with this booking (optional; non-fatal if missing or query fails)
+    try {
+      const createdAt = booking.created_at instanceof Date ? booking.created_at : new Date(booking.created_at);
+      const transactionResult = await client.query(
+        `SELECT id, tokens_redeemed 
+         FROM transactions 
+         WHERE user_id = $1 
+           AND partner_id = $2 
+           AND created_at >= $3::timestamptz - INTERVAL '2 minutes'
+           AND created_at <= $3::timestamptz + INTERVAL '2 minutes'
+         ORDER BY created_at DESC 
+         LIMIT 1`,
+        [booking.user_id, booking.partner_id, createdAt]
+      );
+      const transaction = transactionResult.rows[0] || null;
+      if (transaction) {
+        booking.transaction_id = transaction.id;
+        booking.tokens_redeemed = parseFloat(transaction.tokens_redeemed || 0);
+      }
+    } catch (txErr) {
+      logError('⚠️ Transaction lookup for redemption (non-fatal):', txErr.message);
+    }
 
     // Get current state
     const currentState = booking.voucher_state || await voucherStateMachine.getCurrentState(booking.id, client);
@@ -197,7 +208,8 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     }
 
     // Validate state transition (double-check)
-    if (!voucherStateMachine.isValidTransition(currentState, 'redeemed')) {
+    const targetState = DUAL_CONFIRMATION_ENABLED ? 'pending_confirmation' : 'redeemed';
+    if (!voucherStateMachine.isValidTransition(currentState, targetState)) {
       await client.query('ROLLBACK');
       await voucherAuditService.logAuditEvent({
         bookingId: booking.id,
@@ -205,17 +217,39 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
         action: 'redemption_failure',
         actorId: actorId,
         actorRole: actorRole,
-        errorData: { 
-          error: 'Invalid state transition',
-          current_state: currentState,
-          attempted_state: 'redeemed'
-        },
+        errorData: { error: 'Invalid state transition', current_state: currentState, attempted_state: targetState },
         ipAddress: ipAddress,
         userAgent: userAgent,
         executor: client
       });
-      throw new AppError(400, `Invalid state transition from '${currentState}' to 'redeemed'`);
+      throw new AppError(400, `Invalid state transition from '${currentState}' to '${targetState}'`);
     }
+
+    if (DUAL_CONFIRMATION_ENABLED) {
+      const visitSession = await visitSessionRepository.getSessionByBookingId(booking.id, client);
+      if (!visitSession) {
+        await client.query('ROLLBACK');
+        await voucherAuditService.logAuditEvent({
+          voucherCode: voucher_code,
+          action: 'redemption_failure',
+          actorId: actorId,
+          actorRole: actorRole,
+          errorData: { error: 'No active visit session. Customer must check in at venue first.' },
+          ipAddress: ipAddress,
+          userAgent: userAgent,
+          executor: client
+        });
+        throw new AppError(400, 'No active visit session. Customer must check in at venue first.');
+      }
+      booking.visit_session_id = visitSession.id;
+    }
+
+    const offerRow = await client.query(
+      'SELECT discount_percentage, discount_amount, offer_type FROM partner_offers WHERE id = $1',
+      [booking.deal_id]
+    ).then(r => r.rows[0] || null);
+    const calculated = redemptionCalculationService.calculateRedemptionAmounts(booking.deal_id, total_bill_amount, offerRow);
+    const validation = redemptionCalculationService.validateCalculation(total_bill_amount, ezt_co_pay_amount, net_amount_from_user, booking.deal_id, offerRow);
 
     // Check if already redeemed (idempotent check)
     // CRITICAL: Use FOR UPDATE to prevent race conditions in concurrent redemption attempts
@@ -342,34 +376,29 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       throw new AppError(400, 'Voucher has expired');
     }
 
-    // Transition state: active → redeemed
+    // Transition state: active → redeemed or pending_confirmation
     await voucherStateMachine.transitionState({
       bookingId: booking.id,
       voucherCode: voucher_code,
       fromState: currentState,
-      toState: 'redeemed',
+      toState: targetState,
       actorId: actorId,
       actorRole: actorRole,
-      reasonCode: 'redemption',
-      reasonText: 'Voucher redeemed by partner',
-      metadata: {
-        total_bill_amount,
-        ezt_co_pay_amount,
-        net_amount_from_user
-      },
+      reasonCode: DUAL_CONFIRMATION_ENABLED ? 'pending_confirmation' : 'redemption',
+      reasonText: DUAL_CONFIRMATION_ENABLED ? 'Awaiting customer confirmation' : 'Voucher redeemed by partner',
+      metadata: { total_bill_amount, ezt_co_pay_amount, net_amount_from_user },
       executor: client
     });
 
-    // Update booking status
-    await client.query(
-      `UPDATE bookings 
-       SET status = 'redeemed', updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      [booking.id]
-    );
+    if (!DUAL_CONFIRMATION_ENABLED) {
+      await client.query(
+        `UPDATE bookings SET status = 'redeemed', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [booking.id]
+      );
+    }
 
-    // Geo-verification: check if redemption location is within venue radius (e.g. 500m)
-    const GEO_RADIUS_KM = 0.5;
+    // Geo-verification: 100m radius (redemption overhaul)
+    const GEO_RADIUS_KM = 0.1;
     let geo_verified = false;
     if (redemption_latitude != null && redemption_longitude != null) {
       const partnerLoc = await client.query(
@@ -388,15 +417,17 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       }
     }
 
-    // Create redemption audit record with settlement_status = 'pending'
-    // CRITICAL: Financial fields must be properly typed (DECIMAL) and immutable after redemption
     const metadataJson = JSON.stringify({
       booking_reference: booking.booking_reference,
       original_total_price: booking.total_price,
       original_fiat_amount: booking.fiat_amount,
       redeemed_at: new Date().toISOString(),
-      validation_warnings: validationResult.warnings
+      validation_warnings: validationResult.warnings,
+      calculation_variance: validation.valid ? null : validation.variance,
+      calculated: validation.calculated
     });
+    const redemptionStatus = DUAL_CONFIRMATION_ENABLED ? 'pending_confirmation' : 'redeemed';
+    const confirmationExpiresAt = DUAL_CONFIRMATION_ENABLED ? new Date(Date.now() + 30 * 60 * 1000) : null;
     const baseParams = [
       booking.id,
       voucher_code,
@@ -406,6 +437,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       parseFloat(net_amount_from_user) || 0,
       redeemed_by_user_id,
       redemption_notes,
+      redemptionStatus,
       metadataJson
     ];
     let redemptionResult;
@@ -415,21 +447,44 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
           booking_id, voucher_code, redeemed_by_partner_id,
           total_bill_amount, ezt_co_pay_amount, net_amount_from_user,
           redeemed_by_user_id, redemption_notes, redemption_status, settlement_status, metadata,
-          redemption_latitude, redemption_longitude, geo_verified
-        ) VALUES ($1, $2, $3, $4::DECIMAL(12, 2), $5::DECIMAL(12, 2), $6::DECIMAL(12, 2), $7, $8, 'redeemed', 'pending', $9, $10, $11, $12)
+          redemption_latitude, redemption_longitude, geo_verified,
+          visit_session_id, offer_discount_percentage, discount_amount, ezt_tokens_required,
+          customer_confirmation_status, confirmation_expires_at
+        ) VALUES ($1, $2, $3, $4::DECIMAL(12, 2), $5::DECIMAL(12, 2), $6::DECIMAL(12, 2), $7, $8, $9, 'pending', $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         RETURNING *`,
-        [...baseParams, redemption_latitude, redemption_longitude, geo_verified]
+        [
+          ...baseParams,
+          redemption_latitude,
+          redemption_longitude,
+          geo_verified,
+          booking.visit_session_id || null,
+          calculated.discount_percentage,
+          calculated.discount_amount,
+          calculated.ezt_tokens_required,
+          DUAL_CONFIRMATION_ENABLED ? 'pending' : null,
+          confirmationExpiresAt,
+        ]
       );
     } catch (insertErr) {
-      if (insertErr.message && insertErr.message.includes('redemption_latitude')) {
+      const msg = insertErr.message || '';
+      const isColumnMissing = msg.includes('redemption_latitude') || msg.includes('visit_session_id') || msg.includes('offer_discount_percentage');
+      const isStatusConstraint = msg.includes('redemption_status') || (msg.includes('check') && msg.includes('constraint'));
+      if (isStatusConstraint && DUAL_CONFIRMATION_ENABLED) {
+        await client.query('ROLLBACK');
+        throw new AppError(503, 'Redemption database migration required. Please run backend/db/migrations/2026-02-redemption-overhaul.sql to support dual confirmation.');
+      }
+      if (isColumnMissing) {
+        const legacyParams = [...baseParams];
+        legacyParams[8] = 'redeemed';
         redemptionResult = await client.query(
           `INSERT INTO redemption_audit (
             booking_id, voucher_code, redeemed_by_partner_id,
             total_bill_amount, ezt_co_pay_amount, net_amount_from_user,
-            redeemed_by_user_id, redemption_notes, redemption_status, settlement_status, metadata
-          ) VALUES ($1, $2, $3, $4::DECIMAL(12, 2), $5::DECIMAL(12, 2), $6::DECIMAL(12, 2), $7, $8, 'redeemed', 'pending', $9)
+            redeemed_by_user_id, redemption_notes, redemption_status, settlement_status, metadata,
+            redemption_latitude, redemption_longitude, geo_verified
+          ) VALUES ($1, $2, $3, $4::DECIMAL(12, 2), $5::DECIMAL(12, 2), $6::DECIMAL(12, 2), $7, $8, $9, 'pending', $10, $11, $12, $13)
           RETURNING *`,
-          baseParams
+          [...legacyParams, redemption_latitude, redemption_longitude, geo_verified]
         );
       } else {
         throw insertErr;
@@ -462,7 +517,6 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       executor: client
     });
 
-    // Log financial capture
     await voucherAuditService.logAuditEvent({
       bookingId: booking.id,
       voucherCode: voucher_code,
@@ -470,13 +524,21 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       action: 'financial_capture',
       actorId: actorId,
       actorRole: actorRole,
-      requestData: {
-        total_bill_amount,
-        ezt_co_pay_amount,
-        net_amount_from_user
-      },
+      requestData: { total_bill_amount, ezt_co_pay_amount, net_amount_from_user },
       executor: client
     });
+
+    if (DUAL_CONFIRMATION_ENABLED) {
+      await client.query('COMMIT');
+      log(`✅ Redemption ${redemption.id} created — pending customer confirmation (expires ${confirmationExpiresAt})`);
+      return {
+        ...redemption,
+        booking: { id: booking.id, booking_reference: booking.booking_reference, user_id: booking.user_id, partner_id: booking.partner_id },
+        state_transition: { from: currentState, to: 'pending_confirmation' },
+        pending_confirmation: true,
+        confirmation_expires_at: confirmationExpiresAt,
+      };
+    }
 
     // ====================================================================
     // ARCHITECTURAL FIX: Tier & Loyalty Processing at Redemption Time
@@ -633,6 +695,14 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
 
     await client.query('COMMIT');
 
+    // Award venue membership card on first redemption (Phase 3 #17 – NFT-style membership cards)
+    try {
+      const membershipCardRepository = require('../repositories/membershipCardRepository');
+      await membershipCardRepository.addCard({ userId: booking.user_id, partnerId: booking.partner_id });
+    } catch (cardErr) {
+      logError('Membership card award (non-fatal):', cardErr);
+    }
+
     // Get partner and user details for notifications
     const [partnerResult, userResult, adminResult] = await Promise.all([
       pool.query(`SELECT id, name, email FROM partners WHERE id = $1`, [partner_id]),
@@ -744,21 +814,28 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       }
     };
   } catch (error) {
-    await client.query('ROLLBACK');
-    
-    // Log error
-    await voucherAuditService.logAuditEvent({
-      voucherCode: redemptionData.voucher_code,
-      action: 'redemption_failure',
-      actorId: context.actorId || redemptionData.partner_id,
-      actorRole: context.actorRole || 'partner',
-      errorData: {
-        error: error.message,
-        stack: error.stack
-      },
-      ipAddress: context.ipAddress,
-      userAgent: context.userAgent
-    });
+    try {
+      await client.query('ROLLBACK');
+    } catch (rollbackErr) {
+      logError('Rollback error:', rollbackErr.message);
+    }
+    try {
+      await voucherAuditService.logAuditEvent({
+        voucherCode: redemptionData.voucher_code,
+        action: 'redemption_failure',
+        actorId: context.actorId || redemptionData.partner_id,
+        actorRole: context.actorRole || 'partner',
+        errorData: {
+          error: error.message,
+          stack: error.stack
+        },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+        executor: client
+      });
+    } catch (auditErr) {
+      logError('Audit log error:', auditErr.message);
+    }
 
     if (error instanceof AppError) {
       throw error;

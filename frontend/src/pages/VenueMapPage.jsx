@@ -17,7 +17,11 @@ const DEFAULT_ZOOM = 4;
 
 function FitBounds({ venues }) {
   const map = useMap();
-  const withCoords = venues.filter((v) => v.latitude != null && v.longitude != null);
+  const withCoords = venues.filter((v) => {
+    const lat = v.latitude != null ? Number(v.latitude) : null;
+    const lon = v.longitude != null ? Number(v.longitude) : null;
+    return lat != null && lon != null && !(lat === 0 && lon === 0);
+  });
   if (withCoords.length === 0) return null;
   if (withCoords.length === 1) {
     map.setView([Number(withCoords[0].latitude), Number(withCoords[0].longitude)], 14);
@@ -31,7 +35,7 @@ function FitBounds({ venues }) {
 }
 
 const VenueMapPage = () => {
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
   const navigate = useNavigate();
   const [venues, setVenues] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,7 +96,11 @@ const VenueMapPage = () => {
     };
   }, [fetchVenues]);
 
-  const venuesWithCoords = venues.filter((v) => v.latitude != null && v.longitude != null);
+  const venuesWithCoords = venues.filter((v) => {
+    const lat = v.latitude != null ? Number(v.latitude) : null;
+    const lon = v.longitude != null ? Number(v.longitude) : null;
+    return lat != null && lon != null && !(lat === 0 && lon === 0);
+  });
 
   return (
     <div className="venue-map-page" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>

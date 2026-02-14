@@ -287,9 +287,22 @@ app.use('/api/v1/referrals', referralRoutes);
 const recommendationRoutes = require('./routes/recommendationRoutes');
 app.use('/api/v1/recommendations', recommendationRoutes);
 
+// Developer API: key management (user auth) + public API (API key auth)
+const developerRoutes = require('./routes/developerRoutes');
+app.use('/api/v1/developer', developerRoutes);
+app.use('/api/developer/v1', developerRoutes.publicRouter);
+
+// Community governance (proposals & voting)
+const governanceRoutes = require('./routes/governanceRoutes');
+app.use('/api/v1/governance', governanceRoutes);
+
 // Import and mount system settings routes (configuration management)
 const systemSettingsRoutes = require('./routes/systemSettingsRoutes');
 app.use('/api/v1/settings', systemSettingsRoutes);
+
+// NFC puck routes (tap-to-check-in, partner puck management)
+const nfcRoutes = require('./routes/nfcRoutes');
+app.use('/api/v1/nfc', nfcRoutes);
 
 // TODO: Add remaining routes as they are refactored:
 // - app.use('/api/v1/menu', menuRoutes);

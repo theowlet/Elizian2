@@ -128,6 +128,26 @@ async function updatePartner(req, res) {
   }
 }
 
+// Verify venue location (geocode current address and update lat/lon). Partner can only verify own venue.
+async function verifyLocation(req, res) {
+  try {
+    const { id } = req.params;
+    const partnerId = req.partnerId;
+    const isSuperAdmin = req.userRole === "super_admin";
+    if (!partnerId && !isSuperAdmin) {
+      return errorResponse(res, 401, "Partner authentication required");
+    }
+    if (partnerId && partnerId !== id && !isSuperAdmin) {
+      return errorResponse(res, 403, "You can only verify your own venue location");
+    }
+    const partner = await partnerService.verifyPartnerLocation(id);
+    successResponse(res, 200, "Location verified successfully", partner);
+  } catch (err) {
+    logError("❌ Verify location error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to verify location");
+  }
+}
+
 // Delete partner
 async function deletePartner(req, res) {
   try {
@@ -338,6 +358,7 @@ module.exports = {
   getVenueDetail,
   createPartner,
   updatePartner,
+  verifyLocation,
   deletePartner,
   login,
   register,

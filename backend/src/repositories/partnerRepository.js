@@ -57,7 +57,13 @@ async function getPartnerById(partnerId, requireApproval = true) {
   }
 
   const result = await pool.query(query, [partnerId]);
-  return result.rows[0];
+  const row = result.rows[0];
+  // Treat (0,0) as invalid so map never shows Null Island
+  if (row && Number(row.latitude) === 0 && Number(row.longitude) === 0) {
+    row.latitude = null;
+    row.longitude = null;
+  }
+  return row;
 }
 
 // Get partner's category_id
@@ -183,14 +189,20 @@ async function updatePartner(partnerId, updates) {
 
 /**
  * Update only geo fields (server-side only, after geocoding). Do not accept from client.
+ * Tries full update (lat, lon, place_id, geo_verified, formatted_address) first; if that
+ * fails (e.g. migration not run), falls back to latitude/longitude only so exact location is always stored.
  */
 async function updatePartnerGeo(partnerId, geo) {
   if (!geo || (geo.latitude == null && geo.longitude == null && geo.place_id == null && geo.geo_verified == null && geo.formatted_address == null)) {
     return null;
   }
+  // Never store (0,0) - treat as invalid
+  const lat = geo.latitude != null ? Number(geo.latitude) : null;
+  const lng = geo.longitude != null ? Number(geo.longitude) : null;
+  if (lat === 0 && lng === 0) return null;
   const updates = {};
-  if (geo.latitude != null) updates.latitude = geo.latitude;
-  if (geo.longitude != null) updates.longitude = geo.longitude;
+  if (lat != null) updates.latitude = lat;
+  if (lng != null) updates.longitude = lng;
   if (geo.place_id !== undefined) updates.place_id = geo.place_id;
   if (geo.geo_verified !== undefined) updates.geo_verified = Boolean(geo.geo_verified);
   if (geo.formatted_address !== undefined) updates.formatted_address = geo.formatted_address;
@@ -208,11 +220,29 @@ async function updatePartnerGeo(partnerId, geo) {
   i++;
   values.push(partnerId);
 
-  const result = await pool.query(
-    `UPDATE partners SET ${setClauses.join(", ")} WHERE id = $${i} RETURNING *`,
-    values
-  );
-  return result.rows[0];
+  try {
+    const result = await pool.query(
+      `UPDATE partners SET ${setClauses.join(", ")} WHERE id = $${i} RETURNING *`,
+      values
+    );
+    return result.rows[0];
+  } catch (err) {
+    // If optional geo columns (place_id, geo_verified, formatted_address) don't exist, update only lat/lon
+    if ((err.message && (err.message.includes('place_id') || err.message.includes('geo_verified') || err.message.includes('formatted_address'))) || err.code === '42703') {
+      const minimal = [
+        `latitude = $1`,
+        `longitude = $2`,
+        'updated_at = CURRENT_TIMESTAMP'
+      ];
+      const minimalValues = [updates.latitude, updates.longitude, partnerId];
+      const res = await pool.query(
+        `UPDATE partners SET ${minimal.join(", ")} WHERE id = $3 RETURNING *`,
+        minimalValues
+      );
+      return res.rows[0];
+    }
+    throw err;
+  }
 }
 
 // Delete partner
@@ -264,21 +294,40 @@ async function getPartnerDashboardStats(partnerId) {
     [partnerId]
   );
 
-  // Get recent orders (combine both orders and bookings)
+  // Get recent orders and bookings with voucher redemption details (total bill, fiat paid, co-pay, redeemed_at)
   const recentOrdersResult = await pool.query(
-    `SELECT 'order' as type, id, customer_name, total_amount as amount, status, created_at 
-     FROM orders 
-     WHERE partner_id = $1
-     UNION ALL
-     SELECT 'booking' as type, b.id, u.first_name || ' ' || u.last_name as customer_name, 
-            b.total_price as amount, b.status, b.created_at
-     FROM bookings b
-     INNER JOIN partner_offers po ON b.deal_id = po.id
-     LEFT JOIN users u ON b.user_id = u.id
-     WHERE po.partner_id = $1
-     ORDER BY created_at DESC LIMIT 5`,
+    `SELECT type, id, customer_name, amount, status, created_at,
+            total_bill_amount, net_amount_from_user, ezt_co_pay_amount, ezt_tokens_required, redeemed_at
+     FROM (
+       SELECT 'order' AS type, o.id, o.customer_name, o.total_amount AS amount, o.status, o.created_at,
+         NULL::DECIMAL(12,2) AS total_bill_amount, NULL::DECIMAL(12,2) AS net_amount_from_user,
+         NULL::DECIMAL(12,2) AS ezt_co_pay_amount, NULL::DECIMAL(15,5) AS ezt_tokens_required, NULL::TIMESTAMPTZ AS redeemed_at,
+         o.created_at AS sort_at
+       FROM orders o
+       WHERE o.partner_id = $1
+       UNION ALL
+       SELECT 'booking' AS type, b.id,
+         COALESCE(u.first_name || ' ' || COALESCE(u.last_name, ''), 'Guest') AS customer_name,
+         b.total_price AS amount, b.status, b.created_at,
+         ra.total_bill_amount, ra.net_amount_from_user, ra.ezt_co_pay_amount, (ra.ezt_co_pay_amount / 100) AS ezt_tokens_required, ra.redeemed_at,
+         COALESCE(ra.redeemed_at, b.created_at) AS sort_at
+       FROM bookings b
+       INNER JOIN partner_offers po ON b.deal_id = po.id
+       LEFT JOIN users u ON b.user_id = u.id
+       LEFT JOIN LATERAL (
+         SELECT total_bill_amount, net_amount_from_user, ezt_co_pay_amount, redeemed_at
+         FROM redemption_audit
+         WHERE redemption_audit.booking_id = b.id
+         ORDER BY redemption_audit.redeemed_at DESC NULLS LAST
+         LIMIT 1
+       ) ra ON true
+       WHERE po.partner_id = $1
+     ) combined
+     ORDER BY sort_at DESC NULLS LAST
+     LIMIT 10`,
     [partnerId]
   );
+  const recentOrders = (recentOrdersResult.rows || []).map(({ sort_at, ...rest }) => rest);
 
   const ordersData = ordersResult.rows[0];
   const bookingsData = bookingsResult.rows[0];
@@ -295,7 +344,7 @@ async function getPartnerDashboardStats(partnerId) {
     total_revenue:
       parseFloat(ordersData.total_revenue || 0) +
       parseFloat(bookingsData.bookings_revenue || 0),
-    recent_orders: recentOrdersResult.rows,
+    recent_orders: recentOrders,
   };
 }
 

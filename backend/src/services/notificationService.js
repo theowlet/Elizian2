@@ -1,6 +1,7 @@
 const { getPool } = require('../config/db');
 const { AppError } = require('../../utils/response');
 const { log, logError } = require('../../utils/logger');
+const pushService = require('./pushNotificationService');
 
 const pool = getPool();
 
@@ -44,6 +45,17 @@ class NotificationService {
       );
 
       log(`✅ Notification created for user ${userId}: ${type}`);
+
+      // Send push notification asynchronously (fire-and-forget)
+      if (pushService.isPushConfigured()) {
+        pushService.sendToUser(userId, {
+          title: title || 'Elizian',
+          body: message || '',
+          url: actionUrl || '/notifications',
+          tag: type || 'general',
+        }).catch(err => logError('Push send error (non-blocking):', err));
+      }
+
       return result.rows[0];
     } catch (error) {
       logError('Error creating notification:', error);

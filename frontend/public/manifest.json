@@ -1,0 +1,28 @@
+{
+  "name": "Elizian",
+  "short_name": "Elizian",
+  "description": "Discover curated dining, events, wellness & more with exclusive rewards",
+  "start_url": "/home",
+  "display": "standalone",
+  "background_color": "#004f4a",
+  "theme_color": "#004f4a",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/assets/z.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/z.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["food", "lifestyle", "shopping"],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

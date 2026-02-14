@@ -178,7 +178,7 @@ async function verifyOtp({ phoneNumber, otpCode }) {
           type: 'user'
         },
         process.env.JWT_SECRET,
-        { expiresIn: '7d' }
+        { expiresIn: '30d' }
       );
 
       return {
@@ -417,7 +417,7 @@ async function registerSuperAdmin({
       type: "user",
     },
     process.env.JWT_SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: "30d" }
   );
 
   return {
@@ -604,7 +604,7 @@ async function registerUser(payload) {
       type: "user",
     },
     process.env.JWT_SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: "30d" }
   );
 
   // --- Ethereum Integration Start ---
@@ -725,7 +725,7 @@ async function loginUser({ email, password }) {
       type: "user",
     },
     process.env.JWT_SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: "30d" }
   );
 
   return {
@@ -914,9 +914,17 @@ async function getUserProfile(userId) {
 
   const user = userResult.rows[0];
 
-  // Get tier name if tier_id exists
+  // Get tier name — prefer current_tier_name (new enterprise system) over old tiers table
   let tierName = null;
-  if (user.current_tier_id) {
+  try {
+    const tierResult = await pool.query(
+      "SELECT current_tier_name FROM users WHERE id = $1",
+      [userId]
+    );
+    tierName = tierResult.rows[0]?.current_tier_name || null;
+  } catch (_) {}
+  // Fallback to old tiers table if current_tier_name not available
+  if (!tierName && user.current_tier_id) {
     try {
       const tierResult = await pool.query(
         "SELECT name FROM tiers WHERE id = $1",
@@ -1119,7 +1127,7 @@ async function verifyMpin(phoneNumber, mpin) {
         type: 'user'
       },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '30d' }
     );
 
     return {

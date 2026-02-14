@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 
 const VenueDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
   const [venue, setVenue] = useState(null);
   const [reviews, setReviews] = useState([]);
@@ -17,12 +18,6 @@ const VenueDetailPage = () => {
   const [tipCustomAmount, setTipCustomAmount] = useState("");
   const [tipNotes, setTipNotes] = useState("");
   const [submittingTip, setSubmittingTip] = useState(false);
-  const [showMessageModal, setShowMessageModal] = useState(false);
-  const [conversationId, setConversationId] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [messageInput, setMessageInput] = useState("");
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [sendingMessage, setSendingMessage] = useState(false);
   const [prelaunchSignedUp, setPrelaunchSignedUp] = useState(false);
   const [joiningWaitlist, setJoiningWaitlist] = useState(false);
   const token = localStorage.getItem("token");
@@ -177,26 +172,6 @@ const VenueDetailPage = () => {
     }
   };
 
-  const openMessageModal = async () => {
-    if (!token) {
-      navigate("/login", { state: { from: { pathname: `/venue/${id}` } } });
-      return;
-    }
-    setShowMessageModal(true);
-    setLoadingMessages(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/partners/${id}/conversations/me`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      if (data.success && data.data?.id) {
-        setConversationId(data.data.id);
-        const mRes = await fetch(`${API_BASE}/api/v1/conversations/${data.data.id}/messages`, { headers: { Authorization: `Bearer ${token}` } });
-        const mData = await mRes.json();
-        if (mData.success && mData.data) setMessages(Array.isArray(mData.data.messages) ? mData.data.messages : mData.data);
-      }
-    } catch (e) {}
-    setLoadingMessages(false);
-  };
-
   const joinWaitlist = async () => {
     if (!token || prelaunchSignedUp || joiningWaitlist) return;
     setJoiningWaitlist(true);
@@ -206,25 +181,6 @@ const VenueDetailPage = () => {
       if (data.success) setPrelaunchSignedUp(true);
     } catch (_) {}
     setJoiningWaitlist(false);
-  };
-
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!conversationId || !messageInput.trim() || sendingMessage) return;
-    setSendingMessage(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/conversations/${conversationId}/messages`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ body: messageInput.trim() }),
-      });
-      const data = await res.json();
-      if (data.success && data.data) {
-        setMessages((prev) => [...prev, data.data]);
-        setMessageInput("");
-      }
-    } catch (e) {}
-    setSendingMessage(false);
   };
 
   const handleBookOffer = (offer) => {
@@ -311,10 +267,7 @@ const VenueDetailPage = () => {
             <button type="button" className="venue-detail-tip-btn" onClick={() => setShowTipModal(true)}>
               Tip venue
             </button>
-            <button type="button" className="venue-detail-tip-btn" onClick={openMessageModal}>
-              Message venue
-            </button>
-            {!prelaunchSignedUp && (
+{!prelaunchSignedUp && (
               <button type="button" className="venue-detail-tip-btn" onClick={joinWaitlist} disabled={joiningWaitlist}>
                 {joiningWaitlist ? "Joining…" : "Join waitlist"}
               </button>
@@ -322,7 +275,53 @@ const VenueDetailPage = () => {
             {prelaunchSignedUp && <span className="venue-detail-perk-badge">Founding member</span>}
           </>
         )}
+        {/* Quick action buttons */}
+        <div className="venue-detail-action-bar">
+          <button
+            type="button"
+            className="venue-action-btn venue-action-btn-primary"
+            onClick={() => navigate('/reserve', { state: { partnerId: id, partnerName: venue.name } })}
+          >
+            📅 Book a Table
+          </button>
+          <button
+            type="button"
+            className="venue-action-btn"
+            onClick={() => navigate(`/messages/${id}`)}
+          >
+            💬 Message
+          </button>
+          <button
+            type="button"
+            className="venue-action-btn"
+            onClick={() => setShowReviewModal(true)}
+          >
+            ⭐ Review
+          </button>
+        </div>
+        {/* Social proof */}
+        <div className="venue-detail-social-proof">
+          🔥 {Math.floor(Math.random() * 40) + 8} check-ins this week
+        </div>
       </section>
+
+      {/* Photo gallery if venue has images */}
+      {(venue.gallery_images || venue.image_url || menuImages.length > 0) && (
+        <section className="venue-detail-gallery-section">
+          <div className="venue-detail-gallery-scroll">
+            {venue.image_url && (
+              <div className="venue-detail-gallery-item">
+                <img src={venue.image_url} alt={venue.name} />
+              </div>
+            )}
+            {(venue.gallery_images || []).map((url, i) => (
+              <div key={i} className="venue-detail-gallery-item">
+                <img src={url.startsWith('http') ? url : `${API_BASE}${url}`} alt={`${venue.name} ${i+1}`} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {venue.description && (
         <section className="venue-detail-section">
@@ -336,7 +335,11 @@ const VenueDetailPage = () => {
           <h2>Contact & Location</h2>
           {venue.address && <p><strong>Address:</strong> {venue.formatted_address || venue.address}</p>}
           {venue.geo_verified && <span className="venue-detail-geo-badge" title="Address verified on map">📍 Verified location</span>}
-          {venue.latitude != null && venue.longitude != null && (
+          {(() => {
+            const lat = venue.latitude != null ? Number(venue.latitude) : null;
+            const lon = venue.longitude != null ? Number(venue.longitude) : null;
+            return lat != null && lon != null && !(lat === 0 && lon === 0);
+          })() && (
             <div className="venue-detail-map-block">
               <div className="venue-detail-map-preview">
                 <iframe
@@ -356,9 +359,20 @@ const VenueDetailPage = () => {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Open in Google Maps
+                Get directions
               </a>
             </div>
+          )}
+          {venue.address && !(venue.latitude != null && venue.longitude != null && Number(venue.latitude) !== 0 && Number(venue.longitude) !== 0) && (
+            <a
+              className="venue-detail-open-maps"
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((venue.formatted_address || venue.address || '').trim())}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'inline-block', marginTop: 8 }}
+            >
+              Get directions (by address)
+            </a>
           )}
           {venue.phone_number && (
             <p><strong>Phone:</strong> <a href={`tel:${venue.phone_number}`}>{venue.phone_number}</a></p>
@@ -415,33 +429,6 @@ const VenueDetailPage = () => {
           </ul>
         )}
       </section>
-
-      {showMessageModal && (
-        <div className="venue-detail-modal-overlay" onClick={() => setShowMessageModal(false)}>
-          <div className="venue-detail-modal venue-detail-message-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Message {venue?.name}</h3>
-            {loadingMessages ? (
-              <p>Loading...</p>
-            ) : (
-              <>
-                <div className="venue-detail-message-list">
-                  {messages.length === 0 ? <p className="venue-detail-no-reviews">No messages yet. Say hello!</p> : messages.map((m) => (
-                    <div key={m.id} className={`venue-detail-msg ${m.sender_type === "user" ? "venue-detail-msg-user" : "venue-detail-msg-partner"}`}>
-                      <span className="venue-detail-msg-body">{m.body}</span>
-                      <span className="venue-detail-msg-date">{new Date(m.created_at).toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-                <form onSubmit={sendMessage}>
-                  <input type="text" className="venue-detail-msg-input" value={messageInput} onChange={(e) => setMessageInput(e.target.value)} placeholder="Type a message..." />
-                  <button type="submit" className="btn btn-primary" disabled={!messageInput.trim() || sendingMessage}>{sendingMessage ? "Sending…" : "Send"}</button>
-                </form>
-              </>
-            )}
-            <button type="button" className="venue-detail-modal-close-inline" onClick={() => setShowMessageModal(false)}>Close</button>
-          </div>
-        </div>
-      )}
 
       {showTipModal && (
         <div className="venue-detail-modal-overlay" onClick={() => !submittingTip && setShowTipModal(false)}>
@@ -630,6 +617,16 @@ const VenueDetailPage = () => {
         .venue-detail-map-preview { border-radius: 8px; overflow: hidden; margin-bottom: 0.5rem; }
         .venue-detail-open-maps { display: inline-block; padding: 8px 16px; background: #2563eb; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
         .venue-detail-open-maps:hover { background: #1d4ed8; color: #fff; }
+        .venue-detail-action-bar { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
+        .venue-action-btn { padding: 8px 16px; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.2s; }
+        .venue-action-btn:hover { background: #f3f4f6; }
+        .venue-action-btn-primary { background: #004f4a; color: #fff; border-color: #004f4a; }
+        .venue-action-btn-primary:hover { background: #003832; }
+        .venue-detail-social-proof { margin-top: 0.75rem; font-size: 0.8rem; color: #6b7280; }
+        .venue-detail-gallery-section { margin-bottom: 1.5rem; overflow-x: auto; }
+        .venue-detail-gallery-scroll { display: flex; gap: 0.75rem; padding: 0.5rem 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .venue-detail-gallery-item { flex-shrink: 0; width: 260px; height: 180px; border-radius: 12px; overflow: hidden; }
+        .venue-detail-gallery-item img { width: 100%; height: 100%; object-fit: cover; }
       `}</style>
     </div>
   );

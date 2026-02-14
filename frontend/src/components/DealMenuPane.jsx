@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/auth.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 const DealMenuPane = ({ deal, isOpen, onClose }) => {
   const [menuImages, setMenuImages] = useState([]);

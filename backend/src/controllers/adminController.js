@@ -31,7 +31,12 @@ async function listPartners(req, res) {
 async function updatePartnerStatus(req, res) {
   try {
     const { id } = req.params;
-    const { action } = req.body || {};
+    const { action: bodyAction, status: bodyStatus } = req.body || {};
+    // Frontend sends { status: 'active' | 'suspended' }; backend expects action: 'approve' | 'suspend' | 'toggle'
+    const action = bodyAction || (bodyStatus === 'suspended' ? 'suspend' : bodyStatus === 'active' ? 'approve' : null);
+    if (!action) {
+      return errorResponse(res, 400, 'Missing action or status (e.g. { status: "active" } or { action: "approve" })');
+    }
     const actorRole = await getUserRoleById(req.userId);
     const partner = await adminService.updatePartnerStatus(id, action, req.userId, actorRole);
     successResponse(res, 200, "Partner status updated successfully", partner);
@@ -71,7 +76,13 @@ async function listDeals(req, res) {
 async function updateDealStatus(req, res) {
   try {
     const { id } = req.params;
-    const { action } = req.body || {};
+    const { action: bodyAction, status: bodyStatus } = req.body || {};
+    // Frontend sends { status: 'active'|'inactive'|'rejected' }; translate to action
+    const statusToAction = { active: 'approve', inactive: 'suspend', rejected: 'reject' };
+    const action = bodyAction || (bodyStatus ? statusToAction[bodyStatus] || bodyStatus : null);
+    if (!action) {
+      return errorResponse(res, 400, 'Missing action or status (e.g. { status: "active" } or { action: "approve" })');
+    }
     const actorRole = await getUserRoleById(req.userId);
     const deal = await adminService.updateDealStatus(id, action, req.userId, actorRole);
     successResponse(res, 200, "Deal status updated successfully", deal);

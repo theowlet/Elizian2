@@ -316,6 +316,18 @@ async function createBooking(bookingData) {
       throw new AppError(500, "Partner mapping failed for booking. Cannot create booking without partner_id.");
     }
 
+    // Fetch user's current tier at booking time (for tier tracking + QR code)
+    let userTierAtBooking = 'Ather';
+    try {
+      const tierResult = await client.query(
+        `SELECT current_tier_name FROM users WHERE id = $1`,
+        [user_id]
+      );
+      userTierAtBooking = tierResult.rows[0]?.current_tier_name || 'Ather';
+    } catch (tierErr) {
+      logError('⚠️ Could not fetch user tier for booking:', tierErr);
+    }
+
     // Create booking FIRST (before QR generation)
     // QR generation requires booking.id - must happen after booking is created
     bookingPayload.amount = finalAmount;
@@ -331,6 +343,7 @@ async function createBooking(bookingData) {
     bookingPayload.voucher_state = 'created';  // Initial state: CREATED
     bookingPayload.booking_date = bookingDate;  // Set booking date from reservation_data or current
     bookingPayload.booking_time = bookingTime;  // Set booking time from reservation_data or current
+    bookingPayload.user_tier_at_booking = userTierAtBooking;  // Store user's tier at booking time
 
     // STABILIZATION FIX: Set voucher expiration to prevent indefinite redemption window
     // Uses the earlier of: offer end_date or 30 days from now.
@@ -376,7 +389,14 @@ async function createBooking(bookingData) {
         booking_type: bookingType,
         partner_id: partner_id,
         user_id: user_id,
-        created_at: booking.created_at || new Date().toISOString()
+        created_at: booking.created_at || new Date().toISOString(),
+        // Enterprise fields for complete voucher details
+        user_tier: userTierAtBooking,
+        total_amount: finalAmount,
+        original_amount: amount,
+        ezt_redeemed: eztRedeemed,
+        voucher_state: booking.voucher_state || 'active',
+        expires_at: booking.expires_at || bookingPayload.expires_at || null
       };
       qrCodeUrl = await generateAndUploadQRCode(voucherCode, qrMetadata);
       log(`✅ QR code generated and uploaded for booking ${booking.id}: ${qrCodeUrl}`);

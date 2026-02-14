@@ -176,6 +176,9 @@ async function getDashboardStats(rangeDays = 30) {
     totalPartnersResult,
     pendingPartnersResult,
     dealsResult,
+    bookingsCountResult,
+    todayBookingsResult,
+    redemptionsResult,
   ] = await Promise.all([
     pool.query(`SELECT COUNT(*)::int AS count FROM users`),
 
@@ -206,6 +209,21 @@ async function getDashboardStats(rangeDays = 30) {
       COUNT(*) FILTER (WHERE is_trending = true)::int AS trending_deals
     FROM partner_offers
   `),
+
+    pool.query(`SELECT COUNT(*)::int AS count FROM bookings`),
+    pool.query(
+      `SELECT COUNT(*)::int AS count FROM bookings WHERE created_at >= to_timestamp($1 / 1000.0)`,
+      [todayStartMs]
+    ),
+    (async () => {
+      try {
+        const r = await pool.query(`SELECT COUNT(*)::int AS count FROM redemption_audit`);
+        return r;
+      } catch (e) {
+        if (e.code === "42P01") return { rows: [{ count: 0 }] };
+        throw e;
+      }
+    })(),
   ]);
   let activeSessions = 0;
   try {
@@ -293,19 +311,29 @@ async function getDashboardStats(rangeDays = 30) {
     }
   }
 
+  const partnersTotal = totalPartnersResult.rows[0]?.count || 0;
+  const partnersPending = pendingPartnersResult.rows[0]?.count || 0;
+  const usersTotal = totalUsersResult.rows[0]?.count || 0;
+  const usersNewToday = newUsersTodayResult.rows[0]?.count || 0;
+  const dealsTotal = dealsResult.rows[0]?.total_deals || 0;
+  const dealsActive = dealsResult.rows[0]?.active_deals || 0;
+  const totalBookings = bookingsCountResult.rows[0]?.count || 0;
+  const todayBookings = todayBookingsResult.rows[0]?.count || 0;
+  const totalRedemptions = redemptionsResult.rows[0]?.count || 0;
+
   return {
     users: {
-      total: totalUsersResult.rows[0]?.count || 0,
-      new_today: newUsersTodayResult.rows[0]?.count || 0,
+      total: usersTotal,
+      new_today: usersNewToday,
       active_sessions: activeSessions,
     },
     partners: {
-      total: totalPartnersResult.rows[0]?.count || 0,
-      pending: pendingPartnersResult.rows[0]?.count || 0,
+      total: partnersTotal,
+      pending: partnersPending,
     },
     deals: {
-      total: dealsResult.rows[0]?.total_deals || 0,
-      active: dealsResult.rows[0]?.active_deals || 0,
+      total: dealsTotal,
+      active: dealsActive,
       promoted: dealsResult.rows[0]?.trending_deals || 0,
     },
     revenue: {
@@ -313,6 +341,26 @@ async function getDashboardStats(rangeDays = 30) {
       chart: revenueChart,
     },
     recent_activity: recentActivity,
+    // Flat keys for admin UI (dashboard expects totalPartners, total_users, etc.)
+    total_partners: partnersTotal,
+    totalPartners: partnersTotal,
+    pending_partners: partnersPending,
+    pendingPartners: partnersPending,
+    total_users: usersTotal,
+    totalUsers: usersTotal,
+    new_today: usersNewToday,
+    total_revenue: totalRevenue,
+    totalRevenue: totalRevenue,
+    active_deals: dealsActive,
+    activeDeals: dealsActive,
+    total_deals: dealsTotal,
+    totalDeals: dealsTotal,
+    total_bookings: totalBookings,
+    totalBookings: totalBookings,
+    today_bookings: todayBookings,
+    todayBookings: todayBookings,
+    total_redemptions: totalRedemptions,
+    totalRedemptions: totalRedemptions,
   };
 }
 
@@ -324,13 +372,17 @@ async function listAdminPartners({ status = "all" } = {}) {
 
   switch (normalizedStatus) {
     case "approved":
+    case "active":
       conditions.push(
         "(p.is_active = true OR p.status IN ('active','approved'))"
       );
       break;
 
     case "pending":
-      conditions.push("(p.status IS NULL OR p.status = 'pending')");
+      // Show all not-yet-approved: pending, pending_approval, or inactive (not suspended/rejected)
+      conditions.push(
+        "(p.status IS NULL OR p.status IN ('pending', 'pending_approval') OR (p.is_active = false AND (p.status IS NULL OR p.status NOT IN ('suspended', 'rejected'))))"
+      );
       break;
 
     case "suspended":
@@ -351,6 +403,7 @@ async function listAdminPartners({ status = "all" } = {}) {
     ? `WHERE ${conditions.join(" AND ")}`
     : "";
 
+  // Use only columns that exist in base schema; formatted_address, geo_verified, place_id come from migration 2026-02-partners-geo-place-id-verified.sql
   const result = await pool.query(
     `
     SELECT
@@ -359,12 +412,11 @@ async function listAdminPartners({ status = "all" } = {}) {
       p.email,
       p.phone_number,
       p.address,
-      p.formatted_address,
       p.latitude,
       p.longitude,
-      p.geo_verified,
       p.is_active,
       p.status,
+      p.partner_category_type,
       p.approved_for_featured,
       p.created_at,
       COALESCE(offer_stats.active_deals, 0)::int AS active_deals,
@@ -415,11 +467,12 @@ async function listAdminPartners({ status = "all" } = {}) {
       email: row.email,
       phone_number: row.phone_number,
       address: row.address,
-      formatted_address: row.formatted_address,
+      formatted_address: row.formatted_address ?? null,
       latitude: row.latitude,
       longitude: row.longitude,
-      geo_verified: row.geo_verified,
+      geo_verified: row.geo_verified ?? false,
       status: computedStatus,
+      partner_category_type: row.partner_category_type || null,
       approved_for_featured: row.approved_for_featured,
       active_deals: row.active_deals,
       trending_deals: row.trending_deals || 0,
@@ -1189,12 +1242,9 @@ async function listAdminUsers(filters = {}) {
     paramCounter++;
   }
 
-  // Tier filter
+  // Tier filter (uses base schema "tiers" table via t.name)
   if (filters.tier && filters.tier !== "all") {
-    // Use COALESCE to handle NULL values (default to 'Ather')
-    conditions.push(
-      `COALESCE(u.current_tier_name, 'Ather') = $${paramCounter}`
-    );
+    conditions.push(`t.name = $${paramCounter}`);
     params.push(filters.tier);
     paramCounter++;
   }
@@ -1202,26 +1252,27 @@ async function listAdminUsers(filters = {}) {
   const finalWhereClause =
     conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  // Get total count (with same filters)
+  // Count query: join tiers so tier filter works (tiers = base schema table)
   const countQuery = `
     SELECT COUNT(*)::int as total
     FROM users u
     LEFT JOIN roles r ON u.role_id = r.id
+    LEFT JOIN tiers t ON u.current_tier_id = t.id
     ${finalWhereClause}
   `;
   const countParams = [...params]; // Copy params for count query
   const countResult = await pool.query(countQuery, countParams);
   const total = countResult.rows[0].total;
 
-  // Sort order
+  // Sort order (t = base "tiers" table with "level"; loyalty_tiers has "tier_level")
   let orderBy = "u.created_at DESC";
   if (filters.sortBy) {
     switch (filters.sortBy) {
       case "tier":
-        orderBy = "t.tier_level ASC, u.created_at DESC";
+        orderBy = "t.level ASC NULLS LAST, u.created_at DESC";
         break;
       case "tier_desc":
-        orderBy = "t.tier_level DESC, u.created_at DESC";
+        orderBy = "t.level DESC NULLS LAST, u.created_at DESC";
         break;
       case "spend":
         orderBy = "total_spent DESC";
@@ -1240,7 +1291,7 @@ async function listAdminUsers(filters = {}) {
     }
   }
 
-  // Get paginated results
+  // Get paginated results (use base schema: users + roles + tiers; avoid current_tier_name/annual_spend_current so query works without tier migration)
   const dataQuery = `
     SELECT 
       u.id,
@@ -1251,16 +1302,16 @@ async function listAdminUsers(filters = {}) {
       u.is_active,
       u.created_at,
       u.last_login,
-      u.current_tier_name,
-      u.annual_spend_current,
+      u.available_tokens,
       r.role_name,
-      t.tier_level,
-      t.ezt_reward_percentage,
+      t.name AS tier_name_from_tiers,
+      t.level AS tier_level_from_tiers,
+      t.token_earning_percentage,
       COALESCE(booking_stats.total_bookings, 0)::int AS total_bookings,
       COALESCE(booking_stats.total_spent, 0)::numeric AS total_spent
     FROM users u
     LEFT JOIN roles r ON u.role_id = r.id
-    LEFT JOIN loyalty_tiers t ON u.current_tier_name = t.tier_name
+    LEFT JOIN tiers t ON u.current_tier_id = t.id
     LEFT JOIN (
       SELECT 
         user_id,
@@ -1277,7 +1328,7 @@ async function listAdminUsers(filters = {}) {
 
   const result = await pool.query(dataQuery, params);
 
-  return {
+    return {
     items: result.rows.map((row) => ({
       id: row.id,
       first_name: row.first_name,
@@ -1290,12 +1341,15 @@ async function listAdminUsers(filters = {}) {
       is_active: row.is_active !== false,
       created_at: row.created_at,
       last_login: row.last_login,
-      tier: row.current_tier_name || "Ather",
-      tier_level: row.tier_level || 1,
-      tier_percentage: parseFloat(row.ezt_reward_percentage || 1),
-      annual_spend: parseFloat(row.annual_spend_current || 0),
+      tier: row.tier_name_from_tiers || "Ather",
+      tier_name: row.tier_name_from_tiers || "Ather",
+      tier_level: row.tier_level_from_tiers ?? 1,
+      tier_percentage: parseFloat(row.token_earning_percentage || 1),
+      annual_spend: parseFloat(row.total_spent || 0),
       total_bookings: row.total_bookings,
       total_spent: parseFloat(row.total_spent || 0),
+      available_tokens: parseFloat(row.available_tokens || 0),
+      ezt_balance: parseFloat(row.available_tokens || 0),
     })),
     total,
     limit,

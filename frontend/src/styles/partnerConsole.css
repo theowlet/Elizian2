@@ -207,6 +207,7 @@
 .pc-map-preview { margin-top: 8px; }
 .pc-map-hint { font-size: 0.9rem; color: var(--muted); margin: 0 0 10px 0; line-height: 1.4; }
 .pc-map-embed { border-radius: 8px; overflow: hidden; margin-bottom: 8px; }
+.pc-map-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
 .pc-open-maps-btn { display: inline-block; padding: 8px 16px; background: var(--brand1); color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
 .pc-open-maps-btn:hover { opacity: 0.9; color: #fff; }
 .pc-geo-badge { display: inline-block; margin-left: 8px; font-size: 0.75rem; color: var(--success); background: rgba(16, 185, 129, 0.15); padding: 4px 8px; border-radius: 6px; }
@@ -353,9 +354,163 @@
   background: rgba(239, 68, 68, 0.3);
 }
 
+/* ========== Messages section: contrast, alignment, input visibility ========== */
+.pc-messages-section .pc-messages-subtitle {
+  color: var(--text);
+  opacity: 0.9;
+  margin-bottom: 16px;
+  font-size: 0.9375rem;
+}
+
+.pc-messages-layout {
+  display: flex;
+  gap: 16px;
+  min-height: 400px;
+}
+
+.pc-messages-conv-list {
+  width: 280px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pc-messages-conv-item {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.pc-messages-conv-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.pc-messages-conv-item.selected {
+  background: rgba(94, 23, 235, 0.15);
+}
+
+.pc-messages-conv-item strong {
+  color: var(--text);
+}
+
+.pc-messages-conv-preview {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pc-messages-thread-panel {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+}
+
+.pc-messages-thread-panel .pc-messages-placeholder,
+.pc-messages-thread-panel .pc-messages-empty {
+  color: #64748b;
+  margin: 0;
+}
+
+.pc-messages-list {
+  flex: 1;
+  overflow: auto;
+  margin-bottom: 16px;
+  min-height: 200px;
+}
+
+.pc-msg-row {
+  margin-bottom: 10px;
+}
+
+.pc-msg-row.user {
+  text-align: left;
+}
+
+.pc-msg-row.partner {
+  text-align: right;
+}
+
+.pc-msg-row.partner .pc-msg-bubble {
+  margin-left: auto;
+  background: #dbeafe;
+  color: #1e3a5f;
+}
+
+.pc-msg-row.user .pc-msg-bubble {
+  margin-right: auto;
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.pc-msg-bubble {
+  display: inline-block;
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.pc-msg-body {
+  display: block;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+
+.pc-msg-time {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.pc-messages-form {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.pc-messages-input {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.9375rem;
+  font-family: inherit;
+}
+
+.pc-messages-input::placeholder {
+  color: #94a3b8;
+}
+
+.pc-messages-input:focus {
+  outline: none;
+  border-color: var(--brand1);
+  box-shadow: 0 0 0 2px rgba(94, 23, 235, 0.2);
+}
+
 @media (max-width: 768px) {
   .pc-dashboard-grid {
     grid-template-columns: 1fr;
+  }
+
+  .pc-messages-layout {
+    flex-direction: column;
+  }
+
+  .pc-messages-conv-list {
+    width: 100%;
+    max-height: 200px;
   }
 
   .pc-form-grid {

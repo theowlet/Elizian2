@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import QRCodeModal from '../components/QRCodeModal';
 import '../styles/auth.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 const BookingHistory = () => {
   const navigate = useNavigate();
@@ -95,11 +95,25 @@ const BookingHistory = () => {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
       }).format(new Date(dateString));
     } catch (e) {
       return dateString;
+    }
+  };
+
+  const formatTime = (timeString) => {
+    if (!timeString) return '';
+    try {
+      const time = timeString.includes('T')
+        ? new Date(timeString)
+        : new Date(`2000-01-01T${timeString}`);
+      return new Intl.DateTimeFormat('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      }).format(time);
+    } catch (e) {
+      return timeString;
     }
   };
 
@@ -298,6 +312,7 @@ const BookingHistory = () => {
                     <div style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Date & Time</div>
                     <div style={{ fontWeight: '600' }}>
                       {formatDate(booking.booking_date || booking.created_at)}
+                      {booking.booking_time ? ` at ${formatTime(booking.booking_time)}` : ''}
                     </div>
                   </div>
                   <div>

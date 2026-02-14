@@ -124,7 +124,7 @@ class AchievementService {
         bookings: parseInt(bookingsResult.rows[0].count),
         reviews: parseInt(reviewsResult.rows[0].count),
         referrals: parseInt(referralsResult.rows[0].count),
-        tier: tierResult.rows[0]?.tier || 'Aether',
+        tier: tierResult.rows[0]?.tier || 'Ather',
         totalSpend: parseFloat(spendingResult.rows[0]?.total_spend || 0)
       };
     } catch (error) {
@@ -133,7 +133,7 @@ class AchievementService {
         bookings: 0,
         reviews: 0,
         referrals: 0,
-        tier: 'Aether',
+        tier: 'Ather',
         totalSpend: 0
       };
     }

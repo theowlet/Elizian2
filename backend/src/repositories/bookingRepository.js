@@ -4,12 +4,22 @@ const pool = getPool();
 
 /**
  * Generate unique booking reference
- * Format: BK-{timestamp}-{random}
+ * Enterprise-standard short format: ELZ-YYMMDD-XXXX
+ * - ELZ: Elizian brand prefix (3 chars)
+ * - YYMMDD: Date stamp (6 chars)
+ * - XXXX: Alphanumeric sequence (4 chars, base-36 from timestamp + random)
+ * Total: 16 chars (with dashes), human-readable, sortable by date
+ * Example: ELZ-260214-K7M2
  */
 function generateBookingReference() {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `BK-${timestamp}-${random}`;
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  // 4-char unique suffix: last 2 chars from millisecond-precision timestamp (base36) + 2 random chars
+  const timePart = (now.getTime() % 1296).toString(36).toUpperCase().padStart(2, '0'); // 36^2 = 1296
+  const randPart = Math.random().toString(36).substring(2, 4).toUpperCase();
+  return `ELZ-${yy}${mm}${dd}-${timePart}${randPart}`;
 }
 
 /**
@@ -50,9 +60,11 @@ async function createBooking(bookingData, executor = pool) {
       reward_eligible,
       voucher_code,
       qr_code_url,
-      voucher_state
+      voucher_state,
+      expires_at,
+      user_tier_at_booking
     )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
      RETURNING *`,
     [
       bookingReference,
@@ -64,8 +76,8 @@ async function createBooking(bookingData, executor = pool) {
       bookingData.booking_date || new Date().toISOString().split('T')[0], // Use provided booking_date or current date
       // CRITICAL: Only use fallback if booking_time is null/undefined, not if it's empty string
       // Empty string is valid (means no specific time), null/undefined means use current time
-      (bookingData.booking_time !== null && bookingData.booking_time !== undefined) 
-        ? bookingData.booking_time 
+      (bookingData.booking_time !== null && bookingData.booking_time !== undefined)
+        ? bookingData.booking_time
         : new Date().toTimeString().slice(0, 5), // Use provided booking_time or current time
       bookingData.status || 'pending',
       bookingData.amount || bookingData.total_price || 0,  // total_price
@@ -78,7 +90,9 @@ async function createBooking(bookingData, executor = pool) {
       bookingData.reward_eligible !== undefined ? bookingData.reward_eligible : true,
       voucherCode, // Will use database default (gen_random_uuid()) if null
       bookingData.qr_code_url || null,
-      bookingData.voucher_state || (bookingData.status === 'confirmed' ? 'active' : 'booked') // Set initial voucher state
+      bookingData.voucher_state || (bookingData.status === 'confirmed' ? 'active' : 'booked'), // Set initial voucher state
+      bookingData.expires_at || null,
+      bookingData.user_tier_at_booking || null
     ]
   );
   return result.rows[0];
@@ -98,6 +112,20 @@ async function getBookingById(bookingId) {
   if (result.rows[0]) {
     result.rows[0].booking_time = result.rows[0].booking_time || null;
   }
+  return result.rows[0];
+}
+
+// Get booking by voucher code (for developer API / validation)
+async function getBookingByVoucherCode(voucherCode) {
+  const result = await pool.query(
+    `SELECT b.id, b.booking_reference, b.user_id, b.partner_id, b.deal_id, b.status, b.voucher_state,
+            b.booking_date, b.booking_time, b.expires_at, b.created_at,
+            p.name AS partner_name
+     FROM bookings b
+     LEFT JOIN partners p ON b.partner_id = p.id
+     WHERE b.voucher_code = $1`,
+    [voucherCode]
+  );
   return result.rows[0];
 }
 
@@ -218,7 +246,7 @@ async function updateBookingTierInfo(bookingId, tierInfo, executor = pool) {
   // Ensure proper type casting for PostgreSQL
   const eztEarned = tierInfo.ezt_earned != null ? parseFloat(tierInfo.ezt_earned) : 0;
   const rewardPercentage = tierInfo.ezt_reward_percentage != null ? parseFloat(tierInfo.ezt_reward_percentage) : 1.0;
-  const tierAtBooking = tierInfo.user_tier_at_booking || 'Aether';
+  const tierAtBooking = tierInfo.user_tier_at_booking || 'Ather';
   
   const result = await executor.query(
     `UPDATE bookings 
@@ -242,6 +270,7 @@ async function updateBookingTierInfo(bookingId, tierInfo, executor = pool) {
 module.exports = {
   createBooking,
   getBookingById,
+  getBookingByVoucherCode,
   getBookingByIdForUpdate,
   listBookings,
   updateBookingStatus,

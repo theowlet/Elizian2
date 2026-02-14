@@ -174,6 +174,42 @@ async function updatePartner(partnerId, updates) {
   return await partnerRepository.getPartnerById(partnerId);
 }
 
+/**
+ * Re-run geocoding for a partner's current address and update lat/lon. Used when partner
+ * wants to "Verify location" without re-saving the whole profile. Returns updated partner.
+ */
+async function verifyPartnerLocation(partnerId) {
+  const partner = await partnerRepository.getPartnerById(partnerId);
+  if (!partner) {
+    throw new AppError(404, "Partner not found");
+  }
+  const address = (partner.address || partner.formatted_address || "").trim();
+  if (!address) {
+    throw new AppError(400, "No address set. Please save your venue address first.");
+  }
+  try {
+    const geo = await geocodingService.geocodeAddress(address);
+    if (geo) {
+      await partnerRepository.updatePartnerGeo(partnerId, {
+        latitude: geo.latitude,
+        longitude: geo.longitude,
+        place_id: geo.place_id || null,
+        geo_verified: true,
+        formatted_address: geo.formatted_address || null,
+      });
+    } else {
+      await partnerRepository.updatePartnerGeo(partnerId, { geo_verified: false });
+      throw new AppError(400, "Could not verify address. Check that the address is complete and try again, or set GOOGLE_GEOCODING_API_KEY on the server.");
+    }
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    logError("[Verify location] Geocoding failed", { partnerId, error: err?.message });
+    try { await partnerRepository.updatePartnerGeo(partnerId, { geo_verified: false }); } catch (_) {}
+    throw new AppError(500, "Location verification failed. Please try again.");
+  }
+  return await partnerRepository.getPartnerById(partnerId);
+}
+
 // Delete partner
 async function deletePartner(partnerId) {
   const partner = await partnerRepository.getPartnerById(partnerId);
@@ -476,6 +512,7 @@ module.exports = {
   getVenueDetail,
   createPartner,
   updatePartner,
+  verifyPartnerLocation,
   deletePartner,
   loginPartner,
   registerPartner,

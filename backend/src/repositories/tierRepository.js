@@ -246,8 +246,8 @@ async function resetAnnualSpendForNewYear() {
        SET 
          annual_spend_current = 0,
          annual_spend_year = $1,
-         current_tier_name = 'Aether',
-         current_tier_id = (SELECT id FROM loyalty_tiers WHERE tier_name = 'Aether'),
+         current_tier_name = 'Ather',
+         current_tier_id = (SELECT id FROM loyalty_tiers WHERE tier_name = 'Ather'),
          updated_at = CURRENT_TIMESTAMP
        WHERE annual_spend_year < $1
        RETURNING id, email, current_tier_name`,
@@ -274,14 +274,14 @@ async function calculateEZTReward(userId, cashAmount) {
       return {
         eztAmount: 0,
         percentage: 1.0,
-        tierName: 'Aether'
+        tierName: 'Ather'
       };
     }
-    
+
     const percentage = parseFloat(tierInfo.ezt_reward_percentage) || 1.0;
     const eztValue = 100; // 1 EZT = ₹100
     const eztAmount = (amount * percentage / 100) / eztValue;
-    
+
     return {
       eztAmount: parseFloat(eztAmount.toFixed(4)),
       percentage,
@@ -294,8 +294,89 @@ async function calculateEZTReward(userId, cashAmount) {
     return {
       eztAmount: 0,
       percentage: 1.0,
-      tierName: 'Aether'
+      tierName: 'Ather'
     };
+  }
+}
+
+// Admin: Update tier configuration
+async function updateTierConfig(tierName, fields, client = pool) {
+  try {
+    const setClauses = [];
+    const values = [tierName];
+    let idx = 2;
+
+    if (fields.ezt_reward_percentage !== undefined) {
+      setClauses.push(`ezt_reward_percentage = $${idx++}`);
+      values.push(parseFloat(fields.ezt_reward_percentage));
+    }
+    if (fields.min_annual_spend !== undefined) {
+      setClauses.push(`min_annual_spend = $${idx++}`);
+      values.push(parseFloat(fields.min_annual_spend));
+    }
+    if (fields.max_annual_spend !== undefined) {
+      setClauses.push(`max_annual_spend = $${idx++}`);
+      values.push(fields.max_annual_spend === null ? null : parseFloat(fields.max_annual_spend));
+    }
+    if (fields.benefits !== undefined) {
+      setClauses.push(`benefits = $${idx++}`);
+      values.push(JSON.stringify(fields.benefits));
+    }
+    if (fields.badge_color !== undefined) {
+      setClauses.push(`badge_color = $${idx++}`);
+      values.push(fields.badge_color);
+    }
+    if (fields.badge_icon !== undefined) {
+      setClauses.push(`badge_icon = $${idx++}`);
+      values.push(fields.badge_icon);
+    }
+    if (fields.card_theme_config !== undefined) {
+      setClauses.push(`card_theme_config = $${idx++}`);
+      values.push(JSON.stringify(fields.card_theme_config));
+    }
+    if (fields.is_active !== undefined) {
+      setClauses.push(`is_active = $${idx++}`);
+      values.push(!!fields.is_active);
+    }
+
+    if (setClauses.length === 0) {
+      throw new Error('No fields to update');
+    }
+
+    setClauses.push(`updated_at = CURRENT_TIMESTAMP`);
+
+    const result = await client.query(
+      `UPDATE loyalty_tiers SET ${setClauses.join(', ')} WHERE tier_name = $1 RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error(`Tier "${tierName}" not found`);
+    }
+
+    // Log audit trail if adminUserId provided
+    if (fields._adminUserId && result.rows[0]) {
+      const tier = result.rows[0];
+      const auditFields = Object.keys(fields).filter(k => k !== '_adminUserId');
+      for (const fieldName of auditFields) {
+        try {
+          await client.query(
+            `INSERT INTO tier_config_audit (tier_id, tier_name, changed_by_user_id, field_name, old_value, new_value)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [tier.id, tierName, fields._adminUserId, fieldName, null, String(fields[fieldName] ?? '')]
+          );
+        } catch (auditErr) {
+          // Audit logging is non-blocking — don't fail the update
+          logError('Audit log insert failed (non-blocking):', auditErr.message);
+        }
+      }
+    }
+
+    log(`Tier "${tierName}" config updated`);
+    return result.rows[0];
+  } catch (error) {
+    logError('Error updating tier config:', error);
+    throw error;
   }
 }
 
@@ -308,6 +389,7 @@ module.exports = {
   addToAnnualSpend,
   getUserTierHistory,
   resetAnnualSpendForNewYear,
-  calculateEZTReward
+  calculateEZTReward,
+  updateTierConfig
 };
 

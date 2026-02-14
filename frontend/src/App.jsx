@@ -28,7 +28,21 @@ import EventsPage from "./pages/EventsPage";
 import EventDetailPage from "./pages/EventDetailPage";
 import MyPassesPage from "./pages/MyPassesPage";
 import MultiTierAdmin from "./pages/MultiTierAdmin";
-import PrivacyPolicyContent from "./pages/PrivacyPolicyContent"
+import PartnerConsole from "./pages/PartnerConsole";
+import AdminDashboard from "./pages/AdminDashboard";
+import GovernancePage from "./pages/GovernancePage";
+import DeveloperPage from "./pages/DeveloperPage";
+import PrivacyPolicyContent from "./pages/PrivacyPolicyContent";
+import NfcTapPage from "./pages/NfcTapPage";
+import OnboardingPage from "./pages/OnboardingPage";
+import WalletPage from "./pages/WalletPage";
+import MessagingPage from "./pages/MessagingPage";
+import ReservationPage from "./pages/ReservationPage";
+import ExclusivesPage from "./pages/ExclusivesPage";
+import NotificationsPage from "./pages/NotificationsPage";
+import PWAInstallPrompt from "./components/PWAInstallPrompt";
+import BottomNav from "./components/BottomNav";
+import DesktopTopNav from "./components/DesktopTopNav";
 import {
   AdminPage,
   PartnerPage,
@@ -61,31 +75,30 @@ function ProtectedRoute({
   });
 
   useEffect(() => {
-    // Listen for storage changes to update auth state reactively
-    const handleStorageChange = () => {
-      const token = localStorage.getItem("token");
-      setIsAuthenticated(!!token && !isTokenExpired(token));
+    // Listen for storage changes (e.g. logout in another tab)
+    const handleStorageChange = (e) => {
+      if (e.key === 'token') {
+        const token = e.newValue;
+        setIsAuthenticated(!!token && !isTokenExpired(token));
+      }
     };
 
-    // Check auth state periodically (every 5 seconds)
-    const interval = setInterval(() => {
-      const token = localStorage.getItem("token");
-      const isValid = !!token && !isTokenExpired(token);
-      if (isValid !== isAuthenticated) {
-        setIsAuthenticated(isValid);
-      }
-    }, 5000);
+    // Listen for custom logout events (dispatched by handleLogout)
+    const handleLogout = () => {
+      setIsAuthenticated(false);
+    };
 
     window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("elizian-logout", handleLogout);
     window.MY_GLOBAL_CONFIG = {
       apiUrl: import.meta.env.VITE_API_URL,
     };
 
     return () => {
-      clearInterval(interval);
       window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("elizian-logout", handleLogout);
     };
-  }, [isAuthenticated]);
+  }, []);
 
   if (requireAuth && !isAuthenticated) {
     // Redirect to login, preserving the intended destination
@@ -123,6 +136,8 @@ function AppRoutes() {
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/mpin-setup" element={<MPinSetupScreen />} />
       <Route path="/mpin-login" element={<MPinLoginScreen />} />
+      <Route path="/tap/:puckCode" element={<NfcTapPage />} />
+      <Route path="/onboarding" element={<OnboardingPage />} />
 
       {/* Protected User Routes */}
       <Route
@@ -154,6 +169,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/governance" element={<ProtectedRoute requireAuth={true}><GovernancePage /></ProtectedRoute>} />
+      <Route path="/developer" element={<ProtectedRoute requireAuth={true}><DeveloperPage /></ProtectedRoute>} />
+      <Route path="/wallet" element={<ProtectedRoute requireAuth={true}><WalletPage /></ProtectedRoute>} />
+      <Route path="/messages" element={<ProtectedRoute requireAuth={true}><MessagingPage /></ProtectedRoute>} />
+      <Route path="/messages/:partnerId" element={<ProtectedRoute requireAuth={true}><MessagingPage /></ProtectedRoute>} />
+      <Route path="/reserve" element={<ProtectedRoute requireAuth={true}><ReservationPage /></ProtectedRoute>} />
+      <Route path="/exclusives" element={<ProtectedRoute requireAuth={true}><ExclusivesPage /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute requireAuth={true}><NotificationsPage /></ProtectedRoute>} />
       <Route
         path="/privacy_policy"
         element={
@@ -205,24 +228,14 @@ function AppRoutes() {
 
       {/* Partner Routes */}
       <Route path="/partner/login" element={<PartnerPage />} />
-      {/* <Route path="/partner/console" element={<PartnerDashboardPage />} /> */}
       <Route
         path="/partner/console"
         element={
-          <ProtectedRoute requireAuth={false} requirePartner = {true}>
-            <PartnerDashboardPage />
-          </ProtectedRoute>
-        }
-      />
-      {/* old partner console code  */}
-      {/* <Route
-        path="/partner/console"
-        element={
-          <ProtectedRoute requirePartner={true}>
+          <ProtectedRoute requireAuth={false} requirePartner={true}>
             <PartnerConsole />
           </ProtectedRoute>
         }
-      /> */}
+      />
 
       {/* Admin Routes */}
       <Route path="/admin/login" element={<AdminPage />} />
@@ -230,9 +243,9 @@ function AppRoutes() {
         path="/admin"
         element={
           <ProtectedRoute requireAuth={false}>
-            <AdminDashboardPage />
+            <AdminDashboard />
           </ProtectedRoute>
-        } 
+        }
       />
       <Route
         path="/admin/multi-tier"
@@ -259,7 +272,7 @@ function AppRoutes() {
   );
 }
 
-function App() {
+function AppShell() {
   // Disable legacy global functions that may be injected by static HTML
   useEffect(() => {
     [
@@ -276,8 +289,21 @@ function App() {
   }, []);
 
   return (
+    <div className="app-shell">
+      <DesktopTopNav />
+      <main className="app-content">
+        <AppRoutes />
+      </main>
+      <BottomNav />
+      <PWAInstallPrompt />
+    </div>
+  );
+}
+
+function App() {
+  return (
     <Router>
-      <AppRoutes />
+      <AppShell />
     </Router>
   );
 }

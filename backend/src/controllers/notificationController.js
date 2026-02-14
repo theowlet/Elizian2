@@ -16,9 +16,12 @@ async function getNotifications(req, res) {
       type: type || null
     });
 
-    return successResponse(res, result, 'Notifications retrieved successfully');
+    return successResponse(res, 200, 'Notifications retrieved successfully', result);
   } catch (error) {
-    return errorResponse(res, error);
+    if (error.code === '42P01') {
+      return successResponse(res, 200, 'Notifications retrieved successfully', { notifications: [], unreadCount: 0, total: 0 });
+    }
+    return errorResponse(res, error.statusCode || 500, error.message || 'Failed to get notifications');
   }
 }
 
@@ -30,9 +33,12 @@ async function getUnreadCount(req, res) {
     const userId = req.userId;
     const count = await notificationService.getUnreadCount(userId);
 
-    return successResponse(res, { count }, 'Unread count retrieved');
+    return successResponse(res, 200, 'Unread count retrieved', { count });
   } catch (error) {
-    return errorResponse(res, error);
+    if (error.code === '42P01') {
+      return successResponse(res, 200, 'Unread count retrieved', { count: 0 });
+    }
+    return errorResponse(res, error.statusCode || 500, error.message || 'Failed to get unread count');
   }
 }
 
@@ -45,13 +51,13 @@ async function markAsRead(req, res) {
     const { notificationIds } = req.body;
 
     if (!notificationIds || !Array.isArray(notificationIds)) {
-      return errorResponse(res, new Error('notificationIds array is required'), 400);
+      return errorResponse(res, 400, 'notificationIds array is required');
     }
 
     const result = await notificationService.markAsRead(notificationIds, userId);
-    return successResponse(res, result, 'Notifications marked as read');
+    return successResponse(res, 200, 'Notifications marked as read', result);
   } catch (error) {
-    return errorResponse(res, error);
+    return errorResponse(res, error.statusCode || 500, error.message || 'Failed to mark as read');
   }
 }
 
@@ -62,10 +68,9 @@ async function markAllAsRead(req, res) {
   try {
     const userId = req.userId;
     const result = await notificationService.markAllAsRead(userId);
-
-    return successResponse(res, result, 'All notifications marked as read');
+    return successResponse(res, 200, 'All notifications marked as read', result);
   } catch (error) {
-    return errorResponse(res, error);
+    return errorResponse(res, error.statusCode || 500, error.message || 'Failed to mark all as read');
   }
 }
 
@@ -78,9 +83,9 @@ async function deleteNotification(req, res) {
     const { id } = req.params;
 
     const result = await notificationService.deleteNotification(id, userId);
-    return successResponse(res, result, 'Notification deleted');
+    return successResponse(res, 200, 'Notification deleted', result);
   } catch (error) {
-    return errorResponse(res, error);
+    return errorResponse(res, error.statusCode || 500, error.message || 'Failed to delete notification');
   }
 }
 
@@ -91,10 +96,9 @@ async function deleteAllRead(req, res) {
   try {
     const userId = req.userId;
     const result = await notificationService.deleteAllRead(userId);
-
-    return successResponse(res, result, 'Read notifications deleted');
+    return successResponse(res, 200, 'Read notifications deleted', result);
   } catch (error) {
-    return errorResponse(res, error);
+    return errorResponse(res, error.statusCode || 500, error.message || 'Failed to delete read notifications');
   }
 }
 

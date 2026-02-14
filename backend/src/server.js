@@ -9,6 +9,7 @@ const { log, logError } = require('../utils/logger');
 const cache = require('../utils/cache');
 const { startBookingAutoCancelJob } = require('./jobs/bookingAutoCancelJob');
 const { startEventCleanupJob } = require('./jobs/eventCleanupJob');
+const { startRedemptionExpirationJob } = require('./jobs/redemptionExpirationJob');
 
 // Validate environment before proceeding
 validateEnvironment();
@@ -49,6 +50,7 @@ initializeAllTables().catch((err) => {
 // Start cron jobs
 startBookingAutoCancelJob();
 startEventCleanupJob();
+startRedemptionExpirationJob();
 
 // Import app after all initialization
 const app = require('./app');

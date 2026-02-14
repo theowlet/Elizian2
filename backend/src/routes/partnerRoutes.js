@@ -72,10 +72,14 @@ router.post('/:id/tiers', authenticateToken, venueTierController.create);
 router.put('/:id/tiers/:tierId', authenticateToken, venueTierController.update);
 router.delete('/:id/tiers/:tierId', authenticateToken, venueTierController.remove);
 
-// In-app messaging: user get-or-create conversation with venue; partner list conversations
+// In-app messaging: user get-or-create conversation; partner list + get/send messages (partner-scoped)
 const messagingController = require('../controllers/messagingController');
 router.get('/:id/conversations/me', authenticateToken, messagingController.getOrCreateWithPartner);
+router.get('/:id/conversations/unread', authenticateToken, messagingController.getUnreadCountPartner);
 router.get('/:id/conversations', authenticateToken, messagingController.listPartnerConversations);
+router.get('/:id/conversations/:conversationId/messages', authenticateToken, messagingController.getMessagesForPartner);
+router.post('/:id/conversations/:conversationId/messages', authenticateToken, messagingController.sendMessageForPartner);
+router.post('/:id/conversations/:conversationId/read', authenticateToken, messagingController.markReadForPartner);
 
 router.post('/:id/passes/redeem', authenticateToken, require('../controllers/subscriptionPassController').redeemAtPartner);
 
@@ -93,6 +97,9 @@ router.get('/:id/staff/check-ins', authenticateToken, staffController.listCheckI
 
 // Current partner profile (must be before /:id so "me" is not captured as id)
 router.get('/me', authenticateToken, partnerController.getPartnerMe);
+
+// Verify venue location (geocode address → update lat/lon; partner auth)
+router.post('/:id/verify-location', authenticateToken, partnerController.verifyLocation);
 
 router.get('/:id', partnerController.getPartner);
 

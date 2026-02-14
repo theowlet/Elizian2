@@ -28,10 +28,11 @@ function isStatusActive(status) {
 // Set requireApproval=false for admin/internal use
 async function getOfferById(offerId, requireApproval = true) {
   let query = `
-    SELECT po.*, p.id as partner_id, p.name AS partner_name, p.is_active as partner_is_active, 
-           p.status as partner_status, p.latitude AS partner_latitude, p.longitude AS partner_longitude
-    FROM partner_offers po 
-    JOIN partners p ON po.partner_id = p.id 
+    SELECT po.*, p.id as partner_id, p.name AS partner_name, p.is_active as partner_is_active,
+           p.status as partner_status, p.latitude AS partner_latitude, p.longitude AS partner_longitude,
+           p.address AS partner_address, p.phone_number AS partner_phone, p.email AS partner_email
+    FROM partner_offers po
+    JOIN partners p ON po.partner_id = p.id
     WHERE po.id = $1 
       AND po.status = $2
       AND (po.start_date IS NULL OR po.start_date <= CURRENT_TIMESTAMP)

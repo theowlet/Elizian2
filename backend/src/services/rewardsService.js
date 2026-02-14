@@ -43,16 +43,27 @@ async function getUserRewardsSummary(userId) {
     );
     const loyaltyBalance = parseFloat(loyaltyResult.rows[0]?.balance_after || 0);
     
-    // Get total loyalty points earned/redeemed
-    const loyaltyStatsResult = await pool.query(
-      `SELECT 
-        COALESCE(SUM(points_earned), 0) as total_earned,
-        COALESCE(SUM(CASE WHEN transaction_type = 'redeemed' THEN points_earned ELSE 0 END), 0) as total_redeemed
-       FROM loyalty_points
-       WHERE user_id = $1`,
-      [userId]
-    );
-    const loyaltyStats = loyaltyStatsResult.rows[0];
+    // Get total loyalty points earned/redeemed (transaction_type may not exist in all schemas)
+    let loyaltyStats = { total_earned: 0, total_redeemed: 0 };
+    try {
+      const loyaltyStatsResult = await pool.query(
+        `SELECT 
+          COALESCE(SUM(points_earned), 0) as total_earned,
+          COALESCE(SUM(CASE WHEN transaction_type = 'redeemed' THEN points_earned ELSE 0 END), 0) as total_redeemed
+         FROM loyalty_points
+         WHERE user_id = $1`,
+        [userId]
+      );
+      if (loyaltyStatsResult.rows[0]) loyaltyStats = loyaltyStatsResult.rows[0];
+    } catch (_) {
+      try {
+        const simple = await pool.query(
+          `SELECT COALESCE(SUM(points_earned), 0) as total_earned FROM loyalty_points WHERE user_id = $1`,
+          [userId]
+        );
+        if (simple.rows[0]) loyaltyStats.total_earned = parseFloat(simple.rows[0].total_earned || 0);
+      } catch (__) {}
+    }
     
     // Get recent EZT transactions (last 10)
     const eztTransactions = await pool.query(
@@ -72,14 +83,13 @@ async function getUserRewardsSummary(userId) {
       [userId]
     );
     
-    // Get recent loyalty transactions (last 10)
+    // Get recent loyalty transactions (last 10); transaction_type may not exist in loyalty_activity
     const loyaltyTransactions = await pool.query(
       `SELECT 
         id,
         points_earned,
         points_spent,
         balance_after,
-        transaction_type,
         description,
         created_at
        FROM loyalty_activity
@@ -89,21 +99,25 @@ async function getUserRewardsSummary(userId) {
       [userId]
     );
     
-    // Get tier history
-    const tierHistory = await pool.query(
-      `SELECT 
-        id,
-        from_tier_name,
-        to_tier_name,
-        tier_level_change,
-        annual_spend_at_change,
-        reason,
-        upgraded_at
-       FROM user_tier_history
-       WHERE user_id = $1
-       ORDER BY upgraded_at DESC`,
-      [userId]
-    );
+    // Get tier history (column may be upgraded_at or changed_at depending on migration)
+    let tierHistory = { rows: [] };
+    try {
+      tierHistory = await pool.query(
+        `SELECT id, from_tier_name, to_tier_name, tier_level_change, annual_spend_at_change, reason,
+                COALESCE(upgraded_at, changed_at) AS upgraded_at
+         FROM user_tier_history WHERE user_id = $1 ORDER BY COALESCE(upgraded_at, changed_at) DESC`,
+        [userId]
+      );
+    } catch (e) {
+      if (e.code === '42703') {
+        tierHistory = await pool.query(
+          `SELECT id, from_tier_name, to_tier_name, tier_level_change, annual_spend_at_change, reason,
+                  changed_at AS upgraded_at
+           FROM user_tier_history WHERE user_id = $1 ORDER BY changed_at DESC`,
+          [userId]
+        );
+      } else throw e;
+    }
     
     // Get tier progress info
     const tierInfo = await tierService.getUserTier(userId);
@@ -149,7 +163,7 @@ async function getUserRewardsSummary(userId) {
         totalRedeemed: parseFloat(loyaltyStats.total_redeemed || 0),
         recentTransactions: loyaltyTransactions.rows.map(tx => ({
           id: tx.id,
-          type: tx.transaction_type || (tx.points_earned > 0 ? 'earned' : 'redeemed'),
+          type: (tx.points_earned > 0 ? 'earned' : 'redeemed'),
           pointsEarned: parseInt(tx.points_earned || 0),
           pointsSpent: parseInt(tx.points_spent || 0),
           balanceAfter: parseInt(tx.balance_after || 0),
@@ -236,7 +250,6 @@ async function getLoyaltyTransactions(userId, { limit = 20, offset = 0 } = {}) {
         points_earned,
         points_spent,
         balance_after,
-        transaction_type,
         description,
         created_at
        FROM loyalty_activity
@@ -254,7 +267,7 @@ async function getLoyaltyTransactions(userId, { limit = 20, offset = 0 } = {}) {
     return {
       transactions: transactionsResult.rows.map(tx => ({
         id: tx.id,
-        type: tx.transaction_type || (tx.points_earned > 0 ? 'earned' : 'redeemed'),
+        type: (tx.points_earned > 0 ? 'earned' : 'redeemed'),
         pointsEarned: parseInt(tx.points_earned || 0),
         pointsSpent: parseInt(tx.points_spent || 0),
         balanceAfter: parseInt(tx.balance_after || 0),
@@ -282,10 +295,10 @@ async function getTierHistory(userId) {
         tier_level_change,
         annual_spend_at_change,
         reason,
-        upgraded_at
+        COALESCE(upgraded_at, changed_at) AS upgraded_at
        FROM user_tier_history
        WHERE user_id = $1
-       ORDER BY upgraded_at DESC`,
+       ORDER BY COALESCE(upgraded_at, changed_at) DESC`,
       [userId]
     );
     

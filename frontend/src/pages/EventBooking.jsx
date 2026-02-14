@@ -154,7 +154,16 @@ const EventBooking = () => {
         special_requests: specialRequests || null,
       };
 
-      // Add date/time for dining reservations
+      // ALWAYS send booking_date and booking_time for all service types
+      // This prevents the backend from defaulting to server time (which can show 12:00 AM)
+      if (bookingDate) {
+        bookingData.booking_date = bookingDate;
+      }
+      if (bookingTime) {
+        bookingData.booking_time = bookingTime;
+      }
+
+      // Add dining-specific reservation data
       if (deal.service_type === "dining" && bookingDate) {
         bookingData.reservation_data = {
           date: bookingDate,
@@ -162,18 +171,6 @@ const EventBooking = () => {
           partySize: numTickets,
           specialRequests: specialRequests,
         };
-      }
-
-      // Add date/time for event bookings
-      if (deal.service_type === "events" && bookingDate) {
-        bookingData.booking_date = bookingDate;
-        // CRITICAL: Only use fallback if bookingTime is truly empty, not if it's a valid time string
-        bookingData.booking_time = bookingTime || "19:00";
-        console.log("📅 Event booking time:", {
-          bookingTime,
-          final: bookingData.booking_time,
-          bookingDate: bookingData.booking_date,
-        });
       }
 
       console.log("📋 Submitting booking:", bookingData);
@@ -306,114 +303,252 @@ const EventBooking = () => {
       <div className="elizian-auth-overlay">
         <div className="elizian-auth-modal-container">
           <div className="elizian-auth-modal" style={{ maxWidth: "600px" }}>
-            <div style={{ textAlign: "center", padding: "2rem" }}>
-              <div style={{ fontSize: "4rem", marginBottom: "1rem" }}>✅</div>
-              <h2 className="elizian-auth-modal-title">Booking Confirmed!</h2>
+            <div style={{ padding: "1.5rem" }}>
+              {/* Header */}
+              <div style={{ textAlign: "center", marginBottom: "1.25rem" }}>
+                <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>✅</div>
+                <h2 className="elizian-auth-modal-title" style={{ margin: "0 0 0.25rem 0" }}>Booking Confirmed!</h2>
+                <p style={{ color: "#6b7280", fontSize: "0.875rem", margin: 0 }}>
+                  Your voucher has been generated successfully
+                </p>
+              </div>
 
-              <div
-                style={{
-                  background: "#f0f9ff",
-                  padding: "1.5rem",
-                  borderRadius: "12px",
-                  margin: "1.5rem 0",
-                  textAlign: "left",
-                }}
-              >
-                <div style={{ marginBottom: "1rem" }}>
-                  <div
-                    style={{
-                      color: "#666",
-                      fontSize: "0.9rem",
-                      marginBottom: "0.25rem",
-                    }}
-                  >
-                    Booking Reference
+              {/* Voucher Card */}
+              <div style={{
+                background: "#fff",
+                border: "1.5px solid #e5e7eb",
+                borderRadius: "14px",
+                overflow: "hidden",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+                marginBottom: "1.25rem",
+              }}>
+                {/* Voucher Header - Reference */}
+                <div style={{
+                  background: "linear-gradient(135deg, #004f4a, #059669)",
+                  padding: "1rem 1.25rem",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}>
+                  <div>
+                    <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "2px" }}>
+                      Booking Reference
+                    </div>
+                    <div style={{ color: "#fff", fontWeight: "700", fontSize: "1.1rem", fontFamily: "monospace", letterSpacing: "0.04em" }}>
+                      {bookingResult.booking_reference || bookingResult.id}
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      fontWeight: "bold",
-                      fontSize: "1.1rem",
-                      color: "#059669",
-                    }}
-                  >
-                    {bookingResult.booking_reference || bookingResult.id}
+                  <div style={{
+                    background: "rgba(255,255,255,0.2)",
+                    borderRadius: "6px",
+                    padding: "4px 10px",
+                    color: "#fff",
+                    fontSize: "0.7rem",
+                    fontWeight: "600",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}>
+                    {bookingResult.voucher_state || bookingResult.status || "Active"}
                   </div>
                 </div>
 
-                <div style={{ marginBottom: "1rem" }}>
-                  <div
-                    style={{
-                      color: "#666",
-                      fontSize: "0.9rem",
-                      marginBottom: "0.25rem",
-                    }}
-                  >
-                    Deal
-                  </div>
-                  <div style={{ fontWeight: "600" }}>
-                    {deal?.title || "N/A"}
-                  </div>
-                </div>
-
-                {bookingDate && (
+                {/* Deal & Partner Info */}
+                <div style={{ padding: "1.25rem" }}>
+                  {/* Deal Title */}
                   <div style={{ marginBottom: "1rem" }}>
-                    <div
-                      style={{
-                        color: "#666",
-                        fontSize: "0.9rem",
-                        marginBottom: "0.25rem",
-                      }}
-                    >
-                      Date & Time
+                    <div style={{ fontWeight: "700", fontSize: "1.1rem", color: "#1f2937", marginBottom: "2px" }}>
+                      {deal?.title || bookingResult.deal_title || "N/A"}
                     </div>
-                    <div style={{ fontWeight: "600" }}>
-                      {formatDate(bookingDate)} at {formatTime(bookingTime)}
+                    {deal?.service_type && (
+                      <span style={{
+                        display: "inline-block",
+                        background: "#f0fdf4",
+                        color: "#059669",
+                        fontSize: "0.7rem",
+                        fontWeight: "600",
+                        padding: "2px 8px",
+                        borderRadius: "4px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.03em",
+                      }}>
+                        {deal.service_type}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Partner / Venue Details */}
+                  <div style={{
+                    background: "#f9fafb",
+                    borderRadius: "10px",
+                    padding: "0.875rem",
+                    marginBottom: "1rem",
+                    border: "1px solid #f3f4f6",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                      <div style={{ fontSize: "1.25rem", marginTop: "1px" }}>🏢</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: "600", fontSize: "0.95rem", color: "#1f2937", marginBottom: "2px" }}>
+                          {deal?.partner_name || deal?.location || "Partner Venue"}
+                        </div>
+                        {deal?.partner_address && (
+                          <div style={{ color: "#6b7280", fontSize: "0.8rem", lineHeight: "1.4", marginBottom: "4px" }}>
+                            📍 {deal.partner_address}
+                          </div>
+                        )}
+                        {deal?.partner_phone && (
+                          <div style={{ color: "#6b7280", fontSize: "0.8rem" }}>
+                            📞 {deal.partner_phone}
+                          </div>
+                        )}
+                        {deal?.partner_email && (
+                          <div style={{ color: "#6b7280", fontSize: "0.8rem" }}>
+                            ✉️ {deal.partner_email}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                )}
 
-                <div style={{ marginBottom: "1rem" }}> 
-                  <div
-                    style={{
-                      color: "#666",
-                      fontSize: "0.9rem",
-                      marginBottom: "0.25rem",
-                    }}
-                  >
-                    Guests/Tickets
+                  {/* Dashed Divider */}
+                  <div style={{
+                    borderTop: "1.5px dashed #d1d5db",
+                    margin: "0 -1.25rem 1rem -1.25rem",
+                    position: "relative",
+                  }}>
+                    <div style={{
+                      position: "absolute", top: "-10px", left: "-10px",
+                      width: "20px", height: "20px", borderRadius: "50%",
+                      background: "#fff", border: "1.5px solid #e5e7eb", borderLeft: "none", borderBottom: "none",
+                    }} />
+                    <div style={{
+                      position: "absolute", top: "-10px", right: "-10px",
+                      width: "20px", height: "20px", borderRadius: "50%",
+                      background: "#fff", border: "1.5px solid #e5e7eb", borderRight: "none", borderBottom: "none",
+                    }} />
                   </div>
-                  <div style={{ fontWeight: "600" }}>{numTickets}</div>
-                </div>
 
-                <div
-                  style={{
-                    padding: "1rem",
-                    background: "#fff",
+                  {/* Booking Details Grid */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "0.875rem",
+                    marginBottom: "1rem",
+                  }}>
+                    {/* Date */}
+                    {bookingDate && (
+                      <div>
+                        <div style={{ color: "#9ca3af", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
+                          Date
+                        </div>
+                        <div style={{ fontWeight: "600", fontSize: "0.9rem", color: "#1f2937" }}>
+                          {formatDate(bookingDate)}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Time */}
+                    {bookingTime && (
+                      <div>
+                        <div style={{ color: "#9ca3af", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
+                          Time
+                        </div>
+                        <div style={{ fontWeight: "600", fontSize: "0.9rem", color: "#1f2937" }}>
+                          {formatTime(bookingTime)}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Guests */}
+                    <div>
+                      <div style={{ color: "#9ca3af", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
+                        {deal?.service_type === "dining" ? "Guests" : "Tickets"}
+                      </div>
+                      <div style={{ fontWeight: "600", fontSize: "0.9rem", color: "#1f2937" }}>
+                        {numTickets}
+                      </div>
+                    </div>
+
+                    {/* Booked By */}
+                    <div>
+                      <div style={{ color: "#9ca3af", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
+                        Booked By
+                      </div>
+                      <div style={{ fontWeight: "600", fontSize: "0.9rem", color: "#1f2937" }}>
+                        {user?.name || user?.full_name || "You"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Special Requests */}
+                  {specialRequests && (
+                    <div style={{ marginBottom: "1rem" }}>
+                      <div style={{ color: "#9ca3af", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: "2px" }}>
+                        Special Requests
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "#4b5563", fontStyle: "italic" }}>
+                        {specialRequests}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Price Summary */}
+                  <div style={{
+                    background: "#f0fdf4",
                     borderRadius: "8px",
-                    border: "2px solid #059669",
-                    marginTop: "1rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: "bold",
-                      color: "#059669",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    💳 Payment Instructions
+                    padding: "0.75rem",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "1rem",
+                  }}>
+                    <div style={{ fontSize: "0.85rem", color: "#374151" }}>Total Amount</div>
+                    <div style={{ fontWeight: "700", fontSize: "1.15rem", color: "#059669" }}>
+                      {formatPrice(calculateTotal())}
+                    </div>
                   </div>
-                  <div style={{ fontSize: "0.9rem", color: "#666" }}>
-                    Please pay directly at the partner venue when you arrive.
-                    Show your booking reference to redeem.
+
+                  {/* Validity / Expiry */}
+                  {bookingResult.expires_at && (
+                    <div style={{
+                      background: "#fffbeb",
+                      borderRadius: "8px",
+                      padding: "0.625rem 0.75rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      marginBottom: "1rem",
+                      border: "1px solid #fde68a",
+                    }}>
+                      <span style={{ fontSize: "1rem" }}>⏰</span>
+                      <div style={{ fontSize: "0.8rem", color: "#92400e" }}>
+                        <strong>Valid until:</strong> {formatDate(bookingResult.expires_at)}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment Instructions */}
+                  <div style={{
+                    background: "#f0f9ff",
+                    borderRadius: "8px",
+                    padding: "0.75rem",
+                    border: "1px solid #bae6fd",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                      <span style={{ fontSize: "1rem" }}>💳</span>
+                      <span style={{ fontWeight: "600", fontSize: "0.85rem", color: "#0369a1" }}>How to Redeem</span>
+                    </div>
+                    <div style={{ fontSize: "0.8rem", color: "#64748b", lineHeight: "1.5" }}>
+                      Visit the partner venue and show your booking reference or QR code. Pay the bill amount directly at the venue to redeem your deal.
+                    </div>
                   </div>
                 </div>
               </div>
 
+              {/* Action Buttons */}
               <div
                 style={{
                   display: "flex",
-                  gap: "1rem",
+                  gap: "0.75rem",
                   justifyContent: "center",
                   flexWrap: "wrap",
                 }}
@@ -430,7 +565,7 @@ const EventBooking = () => {
                     padding: "14px 28px",
                     fontSize: "16px",
                     fontWeight: 600,
-                    minWidth: "180px",
+                    minWidth: "160px",
                     cursor: "pointer",
                     boxShadow: "0 6px 18px rgba(5, 150, 105, 0.35)",
                     transition: "all 0.25s ease",
@@ -445,12 +580,6 @@ const EventBooking = () => {
                     e.currentTarget.style.boxShadow =
                       "0 6px 18px rgba(5, 150, 105, 0.35)";
                   }}
-                  onMouseDown={(e) =>
-                    (e.currentTarget.style.transform = "scale(0.97)")
-                  }
-                  onMouseUp={(e) =>
-                    (e.currentTarget.style.transform = "translateY(0)")
-                  }
                 >
                   View My Bookings
                 </button>
@@ -467,7 +596,7 @@ const EventBooking = () => {
                     padding: "14px 28px",
                     fontSize: "16px",
                     fontWeight: 600,
-                    minWidth: "180px",
+                    minWidth: "160px",
                     cursor: "pointer",
                     boxShadow: "0 4px 12px rgba(0, 0, 0, 0.06)",
                     transition: "all 0.25s ease",
@@ -476,24 +605,12 @@ const EventBooking = () => {
                     e.currentTarget.style.background = "#f9fafb";
                     e.currentTarget.style.borderColor = "#059669";
                     e.currentTarget.style.color = "#059669";
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                    e.currentTarget.style.boxShadow =
-                      "0 8px 20px rgba(5, 150, 105, 0.25)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = "#fff";
                     e.currentTarget.style.borderColor = "#d1d5db";
                     e.currentTarget.style.color = "#374151";
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow =
-                      "0 4px 12px rgba(0, 0, 0, 0.06)";
                   }}
-                  onMouseDown={(e) =>
-                    (e.currentTarget.style.transform = "scale(0.97)")
-                  }
-                  onMouseUp={(e) =>
-                    (e.currentTarget.style.transform = "translateY(0)")
-                  }
                 >
                   Browse More Deals
                 </button>
@@ -541,15 +658,15 @@ const EventBooking = () => {
                 <h3 style={{ margin: "0 0 0.5rem 0", color: "#333" }}>
                   {deal.title}
                 </h3>
-                <p
-                  style={{
-                    margin: "0 0 0.5rem 0",
-                    color: "#666",
-                    fontSize: "0.9rem",
-                  }}
-                >
-                  {deal.partner_name || deal.location}
-                </p>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", margin: "0 0 0.25rem 0", color: "#4b5563", fontSize: "0.9rem" }}>
+                  <span>🏢</span>
+                  <span style={{ fontWeight: "500" }}>{deal.partner_name || deal.location}</span>
+                </div>
+                {deal.partner_address && (
+                  <div style={{ color: "#6b7280", fontSize: "0.8rem", margin: "0 0 0.5rem 0", paddingLeft: "1.5rem" }}>
+                    📍 {deal.partner_address}
+                  </div>
+                )}
                 <div
                   style={{
                     fontSize: "1.2rem",
@@ -869,19 +986,89 @@ const EventBooking = () => {
                   ? "Number of Guests"
                   : "Number of Tickets"}
               </label>
-              <input
-                id="numTickets"
-                type="number"
-                className="elizian-auth-input"
-                min="1"
-                max={deal?.max_redemptions || 10}
-                value={numTickets}
-                onChange={(e) =>
-                  setNumTickets(Math.max(1, parseInt(e.target.value) || 1))
-                }
-                required
-                aria-required="true"
-              />
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0",
+                border: "1.5px solid #d1d5db",
+                borderRadius: "10px",
+                overflow: "hidden",
+                background: "#fff",
+                width: "fit-content",
+              }}>
+                <button
+                  type="button"
+                  aria-label="Decrease"
+                  disabled={numTickets <= 1}
+                  onClick={() => setNumTickets(Math.max(1, numTickets - 1))}
+                  style={{
+                    width: "48px",
+                    height: "48px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "transparent",
+                    border: "none",
+                    borderRight: "1.5px solid #d1d5db",
+                    fontSize: "1.35rem",
+                    fontWeight: "300",
+                    color: numTickets <= 1 ? "#d1d5db" : "#004f4a",
+                    cursor: numTickets <= 1 ? "not-allowed" : "pointer",
+                    transition: "background 0.15s",
+                    userSelect: "none",
+                  }}
+                  onMouseEnter={(e) => { if (numTickets > 1) e.currentTarget.style.background = "#f3f4f6"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                </button>
+                <div
+                  id="numTickets"
+                  role="spinbutton"
+                  aria-valuenow={numTickets}
+                  aria-valuemin={1}
+                  aria-valuemax={deal?.max_redemptions || 10}
+                  aria-label={deal?.service_type === "dining" ? "Number of guests" : "Number of tickets"}
+                  style={{
+                    minWidth: "56px",
+                    textAlign: "center",
+                    fontSize: "1.125rem",
+                    fontWeight: "600",
+                    color: "#1f2937",
+                    padding: "0 8px",
+                    lineHeight: "48px",
+                    userSelect: "none",
+                  }}
+                >
+                  {numTickets}
+                </div>
+                <button
+                  type="button"
+                  aria-label="Increase"
+                  disabled={numTickets >= (deal?.max_redemptions || 10)}
+                  onClick={() => setNumTickets(Math.min(deal?.max_redemptions || 10, numTickets + 1))}
+                  style={{
+                    width: "48px",
+                    height: "48px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "transparent",
+                    border: "none",
+                    borderLeft: "1.5px solid #d1d5db",
+                    fontSize: "1.35rem",
+                    fontWeight: "300",
+                    color: numTickets >= (deal?.max_redemptions || 10) ? "#d1d5db" : "#004f4a",
+                    cursor: numTickets >= (deal?.max_redemptions || 10) ? "not-allowed" : "pointer",
+                    transition: "background 0.15s",
+                    userSelect: "none",
+                  }}
+                  onMouseEnter={(e) => { if (numTickets < (deal?.max_redemptions || 10)) e.currentTarget.style.background = "#f3f4f6"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                </button>
+              </div>
             </div>
             {(deal?.service_type === "dining" ||
               deal?.service_type === "events") && (

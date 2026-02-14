@@ -2604,7 +2604,7 @@ async function loadBookings() {
   const table = $('#bookingsTable');
   if (!table) return;
   
-  table.innerHTML = '<tr><td colspan="10" class="muted">Loading bookings…</td></tr>';
+  table.innerHTML = '<tr><td colspan="11" class="muted">Loading bookings…</td></tr>';
   
   try {
     const params = new URLSearchParams({
@@ -2620,7 +2620,7 @@ async function loadBookings() {
     const { data } = await fetchJSON(`${API_BASE}/api/v1/admin/bookings?${params}`);
     
     if (!data || !data.bookings || data.bookings.length === 0) {
-      table.innerHTML = '<tr><td colspan="10" class="muted">No bookings found.</td></tr>';
+      table.innerHTML = '<tr><td colspan="11" class="muted">No bookings found.</td></tr>';
       return;
     }
     
@@ -2630,6 +2630,15 @@ async function loadBookings() {
         <td>
           <div>${escapeHtml(booking.user_name || '—')}</div>
           <small class="muted">${escapeHtml(booking.user_email || '—')}</small>
+        </td>
+        <td>
+          <span style="padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:600;color:${(booking.customer_tier || booking.user_tier_at_booking) === 'Echelon' ? '#1a1a1f' : '#fff'};background:${
+            (booking.customer_tier || booking.user_tier_at_booking) === 'Echelon' ? 'linear-gradient(135deg,#E0B56F,#F5D18C)' :
+            (booking.customer_tier || booking.user_tier_at_booking) === 'Valiant' ? 'linear-gradient(135deg,#f59e0b,#fbbf24)' :
+            (booking.customer_tier || booking.user_tier_at_booking) === 'Luminar' ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' :
+            (booking.customer_tier || booking.user_tier_at_booking) === 'Nova' ? 'linear-gradient(135deg,#3b82f6,#60a5fa)' :
+            'linear-gradient(135deg,#6b7280,#9ca3af)'
+          }">${escapeHtml(booking.customer_tier || booking.user_tier_at_booking || 'Ather')}</span>
         </td>
         <td>${escapeHtml(booking.partner_name || '—')}</td>
         <td>${escapeHtml(booking.deal_title || '—')}</td>
@@ -2658,7 +2667,7 @@ async function loadBookings() {
     
   } catch (error) {
     console.error('Error loading bookings:', error);
-    table.innerHTML = '<tr><td colspan="10" class="error">Failed to load bookings.</td></tr>';
+    table.innerHTML = '<tr><td colspan="11" class="error">Failed to load bookings.</td></tr>';
     showNotification(`Failed to load bookings: ${error.message}`, 'error');
   }
 }
@@ -2698,7 +2707,7 @@ async function showBookingDetails(bookingId) {
     $('#modalUserName').textContent = data.user_name || '—';
     $('#modalUserEmail').textContent = data.user_email || '—';
     $('#modalUserPhone').textContent = data.user_phone || '—';
-    $('#modalUserTier').textContent = data.user_tier || 'Aether';
+    $('#modalUserTier').textContent = data.customer_tier || data.user_tier_at_booking || data.user_tier || 'Ather';
     $('#modalPartnerName').textContent = data.partner_name || '—';
     $('#modalPartnerEmail').textContent = data.partner_email || '—';
     $('#modalPartnerPhone').textContent = data.partner_phone || '—';

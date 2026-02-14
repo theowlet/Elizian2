@@ -3,7 +3,7 @@ const config = require('../config/env');
 
 const JWT_SECRET = config.security.jwtSecret;
 
-function createToken(payload, options = { expiresIn: '7d' }) {
+function createToken(payload, options = { expiresIn: '30d' }) {
   return jwt.sign(payload, JWT_SECRET, options);
 }
 

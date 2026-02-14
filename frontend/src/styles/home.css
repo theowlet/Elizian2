@@ -1,38 +1,40 @@
 /* ============================================
    ELIZIAN HOME PAGE STYLES
+   Mobile-first: base = mobile, enhanced for tablet & desktop
    ============================================ */
 
+/* BASE: Mobile (default) */
 .elizian-home-page {
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
-  padding: 2rem;
+  padding: 1rem;
 }
 
 .elizian-content-wrapper {
-  max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
   background: var(--glass-bg);
   backdrop-filter: blur(10px);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  padding: 2rem;
+  padding: 1rem;
   box-shadow: var(--shadow-card);
 }
 
 .elizian-home-title {
   font-family: 'Playfair Display', serif;
-  font-size: 2.5rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: var(--text);
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   letter-spacing: -0.02em;
 }
 
 .elizian-home-subtitle {
-  font-size: 1.125rem;
+  font-size: 0.95rem;
   color: var(--muted);
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
   line-height: 1.6;
 }
 
@@ -59,27 +61,43 @@
   transform: translateY(0);
 }
 
-/* ============================================
-   RESPONSIVE - MOBILE (max-width: 768px)
-   ============================================ */
-
-@media (max-width: 768px) {
+/* TABLET: 769px+ */
+@media (min-width: 769px) {
   .elizian-home-page {
-    padding: 1rem;
+    padding: 1.5rem 2rem;
   }
 
   .elizian-content-wrapper {
+    max-width: 960px;
+    margin: 0 auto;
     padding: 1.5rem;
   }
 
   .elizian-home-title {
-    font-size: 2rem;
+    font-size: 2.25rem;
   }
 
   .elizian-home-subtitle {
-    font-size: 1rem;
+    font-size: 1.05rem;
   }
 }
 
+/* DESKTOP: 1024px+ */
+@media (min-width: 1024px) {
+  .elizian-home-page {
+    padding: 2rem 3rem;
+  }
 
+  .elizian-content-wrapper {
+    max-width: 1200px;
+    padding: 2rem;
+  }
 
+  .elizian-home-title {
+    font-size: 2.5rem;
+  }
+
+  .elizian-home-subtitle {
+    font-size: 1.125rem;
+  }
+}
