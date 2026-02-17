@@ -16,14 +16,15 @@ const pool = getPool();
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 
-/** Geocode via Nominatim (no API key). Fair use: 1 req/sec. */
+/** Geocode via Nominatim (no API key). Fair use: 1 req/sec. Qualifies with ", India" to avoid wrong city (e.g. Urbana → Mumbai). */
 async function geocodeWithNominatim(address) {
   if (!address || typeof address !== 'string') return null;
   const trimmed = address.trim();
   if (!trimmed) return null;
+  const qualified = geocodingService.qualifyAddressForIndia(trimmed);
   try {
     const url = new URL(NOMINATIM_URL);
-    url.searchParams.set('q', trimmed);
+    url.searchParams.set('q', qualified);
     url.searchParams.set('format', 'json');
     url.searchParams.set('limit', '1');
     const res = await fetch(url.toString(), {
@@ -39,7 +40,7 @@ async function geocodeWithNominatim(address) {
       latitude: lat,
       longitude: lng,
       place_id: data[0].place_id || null,
-      formatted_address: data[0].display_name || trimmed,
+      formatted_address: data[0].display_name || qualified,
     };
   } catch (err) {
     return null;

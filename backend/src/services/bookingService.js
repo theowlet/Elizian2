@@ -171,11 +171,9 @@ async function createBooking(bookingData) {
       bookingPayload.deal_id = offer_id;  // Use deal_id to match table schema
       bookingPayload.offer_id = offer_id;  // Keep for backwards compatibility
       bookingPayload.status = 'confirmed';
-      // Snapshot deal co-pay at booking time so redemption uses terms that applied when user booked
-      const coPayPct = offer.co_pay_percentage != null ? parseFloat(offer.co_pay_percentage) : null;
-      if (coPayPct != null && !isNaN(coPayPct)) {
-        bookingPayload.co_pay_percentage_at_booking = coPayPct;
-      }
+      // Snapshot deal co-pay at booking time so redemption uses terms that applied when user booked (default 0 if not set)
+      const coPayPct = offer.co_pay_percentage != null ? parseFloat(offer.co_pay_percentage) : 0;
+      bookingPayload.co_pay_percentage_at_booking = Number.isNaN(coPayPct) ? 0 : Math.min(100, Math.max(0, coPayPct));
     } else if (show_id) {
       // Show/Theatre booking
       if (!seat_template_ids || !Array.isArray(seat_template_ids) || seat_template_ids.length === 0) {
@@ -951,6 +949,11 @@ async function confirmPayment(bookingId, userId) {
     if (!booking) {
       await client.query('ROLLBACK');
       throw new AppError(404, 'Booking not found');
+    }
+
+    if (String(booking.user_id) !== String(userId)) {
+      await client.query('ROLLBACK');
+      throw new AppError(403, 'Not authorized to confirm payment for this booking');
     }
 
     if (!booking.reward_eligible) {

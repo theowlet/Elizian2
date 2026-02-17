@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../styles/auth.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
 const DealMenuPane = ({ deal, isOpen, onClose }) => {
+  const navigate = useNavigate();
   const [menuImages, setMenuImages] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -114,6 +116,12 @@ const DealMenuPane = ({ deal, isOpen, onClose }) => {
     return `₹${parseFloat(price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  const formatDate = (d) => {
+    if (!d) return null;
+    const date = new Date(d);
+    return isNaN(date.getTime()) ? null : date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -143,7 +151,44 @@ const DealMenuPane = ({ deal, isOpen, onClose }) => {
           </button>
         </div>
 
-        <div className="deal-menu-pane-content">
+        {/* Deal details */}
+        <div className="deal-menu-pane-details" style={{ padding: '0 1.25rem 1rem', borderBottom: '1px solid #eee' }}>
+          {deal?.description && (
+            <p className="deal-menu-pane-description" style={{ margin: '0 0 0.75rem', fontSize: '0.95rem', color: '#374151', lineHeight: 1.5 }}>
+              {deal.description}
+            </p>
+          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem', fontSize: '0.9rem' }}>
+            <span><strong>Price:</strong> {formatPrice(deal?.price)}</span>
+            {(deal?.perk_type || deal?.perk_description) && (
+              <span><strong>Perk:</strong> {deal.perk_description || (deal.perk_type === 'discount' ? 'Co-pay discount' : deal.perk_type || '—')}</span>
+            )}
+            {(deal?.start_date || deal?.end_date) && (
+              <span><strong>Validity:</strong> {formatDate(deal.start_date) || '—'} to {formatDate(deal.end_date) || '—'}</span>
+            )}
+          </div>
+          {/* Venue details */}
+          <div className="deal-menu-pane-venue" style={{ background: '#f9fafb', padding: '0.75rem', borderRadius: 8, marginTop: '0.5rem' }}>
+            <div style={{ fontWeight: 600, marginBottom: '0.35rem', fontSize: '0.9rem' }}>Venue</div>
+            {deal?.partner_name && <div style={{ fontSize: '0.9rem', color: '#111' }}>{deal.partner_name}</div>}
+            {deal?.partner_address && <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.25rem' }}>{deal.partner_address}</div>}
+            {deal?.partner_id && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="card-link-btn"
+                  style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
+                  onClick={() => { onClose(); navigate(`/venue/${deal.partner_id}`); }}
+                >
+                  View venue &amp; get directions
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="deal-menu-pane-content" style={{ paddingTop: '1rem' }}>
+          {(menuImages.length > 0 || menuItems.length > 0) && <h3 style={{ margin: '0 0 0.75rem', fontSize: '1rem', fontWeight: 600 }}>Menu</h3>}
           {loading ? (
             <div className="deal-menu-loading">
               <p>Loading menu...</p>

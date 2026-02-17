@@ -200,6 +200,13 @@ const redeemTokens = async (userId, eztAmount, transactionId = null, description
   }
 };
 
+/** Get user EZT balance (available_tokens). For redemption cap and preview. */
+const getBalance = async (userId, executor = null) => {
+  const db = executor || pool;
+  const r = await db.query('SELECT available_tokens FROM users WHERE id = $1', [userId]);
+  return r.rows[0] ? parseFloat(r.rows[0].available_tokens || 0) : 0;
+};
+
 // Credit a fixed EZT amount (e.g. staff check-in reward) without tier calculation
 const creditFixed = async (userId, amount, description = '') => {
   if (!userId || amount == null || amount <= 0) return 0;
@@ -228,6 +235,7 @@ module.exports = {
   awardTokens,
   updateTierProgress,
   redeemTokens,
+  getBalance,
   creditFixed
 };
 

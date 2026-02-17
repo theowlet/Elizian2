@@ -145,6 +145,8 @@ async function updatePartner(partnerId, updates) {
     "cuisine_types",
     "dietary_preferences",
     "avg_cost_for_two",
+    "latitude",
+    "longitude",
   ];
 
   const updateFields = [];
@@ -159,7 +161,7 @@ async function updatePartner(partnerId, updates) {
         const arrVal = Array.isArray(value) ? value : value ? [value] : [];
         updateFields.push(`${key} = $${paramCount}::text[]`);
         values.push(arrVal);
-      } else if (key === "avg_cost_for_two") {
+      } else if (key === "avg_cost_for_two" || key === "latitude" || key === "longitude") {
         updateFields.push(`${key} = $${paramCount}::numeric`);
         values.push(value);
       } else {

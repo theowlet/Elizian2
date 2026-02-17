@@ -104,9 +104,16 @@ async function calculateRedemptionPreview(req, res) {
       booking.user_id,
       { booking }
     );
+    const customerEzt = breakdown.user_ezt_balance != null ? parseFloat(breakdown.user_ezt_balance) : null;
+    const standardCoPayInr = breakdown.standard_co_pay_amount != null ? parseFloat(breakdown.standard_co_pay_amount) : (breakdown.ezt_co_pay_amount != null ? parseFloat(breakdown.ezt_co_pay_amount) : 0);
+    const maxAllowedCoPay = breakdown.max_allowed_co_pay != null ? parseFloat(breakdown.max_allowed_co_pay) : standardCoPayInr;
     successResponse(res, 200, 'Calculation preview', {
       total_bill_amount: parseFloat(totalBillAmount) || 0,
       ...breakdown,
+      standard_co_pay: standardCoPayInr,
+      customer_available_ezt: customerEzt,
+      effective_max_ezt_co_pay_inr: maxAllowedCoPay,
+      max_allowed_co_pay: maxAllowedCoPay,
     });
   } catch (error) {
     logError('❌ Calculate preview error:', error);
@@ -266,6 +273,12 @@ async function getPendingConfirmations(req, res) {
                 ra.ezt_co_pay_amount, ra.net_amount_from_user, ra.offer_discount_percentage,
                 ra.discount_amount, ra.ezt_tokens_required, ra.customer_confirmation_status,
                 ra.confirmation_expires_at, ra.redeemed_at,
+                ra.metadata,
+                (ra.metadata->>'co_pay_override')::boolean AS co_pay_override,
+                (ra.metadata->>'standard_co_pay')::numeric AS standard_co_pay_inr,
+                (ra.metadata->>'customer_wallet_at_redemption')::numeric AS customer_wallet_ezt_at_redemption,
+                (ra.metadata->>'customer_wallet_inr_at_redemption')::numeric AS customer_wallet_inr_at_redemption,
+                ra.metadata->>'override_reason' AS override_reason,
                 b.booking_reference, b.deal_id
          FROM redemption_audit ra
          JOIN bookings b ON b.id = ra.booking_id
@@ -280,7 +293,10 @@ async function getPendingConfirmations(req, res) {
       if (queryErr.code === '42703' || /column .* does not exist/i.test(queryErr.message || '')) {
         result = await pool.query(
           `SELECT ra.id AS redemption_id, ra.booking_id, ra.voucher_code, ra.total_bill_amount,
-                  ra.ezt_co_pay_amount, ra.net_amount_from_user, ra.redeemed_at,
+                  ra.ezt_co_pay_amount, ra.net_amount_from_user, ra.redeemed_at, ra.metadata,
+                  (ra.metadata->>'co_pay_override')::boolean AS co_pay_override,
+                  (ra.metadata->>'standard_co_pay')::numeric AS standard_co_pay_inr,
+                  ra.metadata->>'override_reason' AS override_reason,
                   b.booking_reference, b.deal_id
            FROM redemption_audit ra
            JOIN bookings b ON b.id = ra.booking_id

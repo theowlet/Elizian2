@@ -147,9 +147,18 @@ async function updatePartner(partnerId, updates) {
 
   await partnerRepository.updatePartner(partnerId, updates);
 
-  // Geo-enable: when address is changed, geocode and update geo fields (do not block save on failure)
+  // When client sends latitude/longitude (e.g. from pasted Google Maps link), set geo_verified
+  const lat = updates.latitude != null ? Number(updates.latitude) : null;
+  const lng = updates.longitude != null ? Number(updates.longitude) : null;
+  if (lat != null && lng != null && !(lat === 0 && lng === 0)) {
+    await partnerRepository.updatePartnerGeo(partnerId, { latitude: lat, longitude: lng, geo_verified: true });
+  }
+
+  // Geo-enable: when address is changed, geocode and update geo fields (do not block save on failure).
+  // Skip if client sent lat/lng (e.g. from pasted Google Maps link) so those coords are not overwritten.
   const newAddress = updates.address;
-  if (newAddress !== undefined && typeof newAddress === 'string' && newAddress.trim()) {
+  const clientSentCoords = updates.latitude != null && updates.longitude != null;
+  if (newAddress !== undefined && typeof newAddress === 'string' && newAddress.trim() && !clientSentCoords) {
     const sameAddress = partner.address && String(partner.address).trim() === newAddress.trim();
     if (!sameAddress) {
       try {

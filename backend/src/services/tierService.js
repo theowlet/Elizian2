@@ -55,27 +55,19 @@ async function getUserTier(userId) {
   }
 }
 
-// Process booking with tier logic
-async function processBookingWithTier(userId, bookingAmount) {
-  const client = await pool.connect();
-  
+// Process booking with tier logic. Pass executor (client) when called inside an existing transaction to avoid nested transactions.
+async function processBookingWithTier(userId, bookingAmount, executor = null) {
+  const client = executor || await pool.connect();
+  const shouldRelease = !executor;
   try {
-    await client.query('BEGIN');
-    
-    // CRITICAL: Ensure bookingAmount is a proper number (DECIMAL) to avoid PostgreSQL type inference errors
+    if (!executor) await client.query('BEGIN');
     const amount = parseFloat(bookingAmount) || 0;
     if (amount <= 0) {
       throw new Error(`Invalid booking amount: ${bookingAmount}`);
     }
-    
-    // Calculate EZT reward
     const reward = await tierRepository.calculateEZTReward(userId, amount);
-    
-    // Add to annual spend and check for upgrade
     const spendResult = await tierRepository.addToAnnualSpend(userId, amount, client);
-    
-    await client.query('COMMIT');
-    
+    if (!executor) await client.query('COMMIT');
     return {
       eztEarned: reward.eztAmount,
       rewardPercentage: reward.percentage,
@@ -88,11 +80,11 @@ async function processBookingWithTier(userId, bookingAmount) {
       newAnnualSpend: spendResult.annualSpend
     };
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (!executor) await client.query('ROLLBACK');
     logError('Error in processBookingWithTier:', error);
     throw error;
   } finally {
-    client.release();
+    if (shouldRelease) client.release();
   }
 }
 

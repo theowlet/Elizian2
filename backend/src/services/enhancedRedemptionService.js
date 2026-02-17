@@ -11,12 +11,13 @@ const tierService = require('./tierService');
 const loyaltyEngine = require('../../services/loyaltyEngineService');
 const tokenService = require('./tokenService');
 const redemptionCalculationService = require('./redemptionCalculationService');
-const { applyBookingTimeCoPay } = redemptionCalculationService;
+const { applyBookingTimeCoPay, EZT_TO_INR } = redemptionCalculationService;
 const visitSessionRepository = require('../repositories/visitSessionRepository');
 const { AppError } = require('../../utils/response');
 const { log, logError } = require('../../utils/logger');
 
 const DUAL_CONFIRMATION_ENABLED = process.env.DUAL_CONFIRMATION_ENABLED === 'true' || process.env.DUAL_CONFIRMATION_ENABLED === '1';
+const REQUIRE_VISIT_SESSION_FOR_REDEMPTION = process.env.REQUIRE_VISIT_SESSION_FOR_REDEMPTION !== 'false';
 
 const pool = getPool();
 
@@ -42,8 +43,8 @@ function haversineKm(lat1, lon1, lat2, lon2) {
  */
 async function redeemVoucherEnhanced(redemptionData, context = {}) {
   const client = await pool.connect();
-  
   try {
+    await client.query('BEGIN');
     const {
       voucher_code,
       partner_id,
@@ -125,8 +126,6 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     if (Math.abs(net_amount_from_user - calculatedNet) > 0.01) {
       throw new AppError(400, `Net amount from user (${net_amount_from_user}) must equal total bill (${total_bill_amount}) minus EZT co-pay (${ezt_co_pay_amount})`);
     }
-
-    await client.query('BEGIN');
 
     // Get booking with lock (include co_pay_percentage_at_booking for redemption by booking-time terms)
     let bookingResult;
@@ -248,7 +247,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       throw new AppError(400, `Invalid state transition from '${currentState}' to '${targetState}'`);
     }
 
-    if (DUAL_CONFIRMATION_ENABLED) {
+    if (DUAL_CONFIRMATION_ENABLED && REQUIRE_VISIT_SESSION_FOR_REDEMPTION) {
       const visitSession = await visitSessionRepository.getSessionByBookingId(booking.id, client);
       if (!visitSession) {
         await client.query('ROLLBACK');
@@ -273,7 +272,28 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     ).then(r => r.rows[0] || null);
     offerRow = applyBookingTimeCoPay(offerRow, booking);
     const calculated = redemptionCalculationService.calculateRedemptionAmounts(booking.deal_id, total_bill_amount, offerRow);
-    const validation = redemptionCalculationService.validateCalculation(total_bill_amount, ezt_co_pay_amount, net_amount_from_user, booking.deal_id, offerRow);
+    const customerWalletEzt = await tokenService.getBalance(booking.user_id, client);
+    const walletAffordableInr = Math.round(customerWalletEzt * EZT_TO_INR * 100) / 100;
+    const standardCoPayInr = parseFloat(calculated.ezt_co_pay_amount || 0);
+    const maxAllowedCoPay = Math.min(standardCoPayInr, walletAffordableInr);
+    const parsedCoPayInr = parseFloat(ezt_co_pay_amount) || 0;
+    const validation = redemptionCalculationService.validateCalculation(
+      total_bill_amount,
+      ezt_co_pay_amount,
+      net_amount_from_user,
+      booking.deal_id,
+      offerRow,
+      { maxAllowedCoPayInr: maxAllowedCoPay }
+    );
+    if (parsedCoPayInr > maxAllowedCoPay + 0.01) {
+      await client.query('ROLLBACK');
+      throw new AppError(400, `EZT co-pay cannot exceed customer balance. Max applicable: ₹${maxAllowedCoPay.toFixed(2)} (${customerWalletEzt.toFixed(4)} EZT available).`);
+    }
+    const isOverride = (maxAllowedCoPay - parsedCoPayInr) > 0.01;
+    if (isOverride && !(redemption_notes && String(redemption_notes).trim())) {
+      await client.query('ROLLBACK');
+      throw new AppError(400, 'A reason is required in redemption_notes when co-pay is reduced below the customer\'s available EZT amount.');
+    }
 
     // Check if already redeemed (idempotent check)
     // CRITICAL: Use FOR UPDATE to prevent race conditions in concurrent redemption attempts
@@ -448,7 +468,14 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       redeemed_at: new Date().toISOString(),
       validation_warnings: validationResult.warnings,
       calculation_variance: validation.valid ? null : validation.variance,
-      calculated: validation.calculated
+      calculated: validation.calculated,
+      co_pay_override: isOverride,
+      standard_co_pay: standardCoPayInr,
+      standard_co_pay_inr: standardCoPayInr,
+      customer_wallet_at_redemption: customerWalletEzt,
+      customer_wallet_ezt_at_redemption: customerWalletEzt,
+      customer_wallet_inr_at_redemption: walletAffordableInr,
+      override_reason: isOverride ? (redemption_notes ? String(redemption_notes).trim() : null) : null
     });
     const redemptionStatus = DUAL_CONFIRMATION_ENABLED ? 'pending_confirmation' : 'redeemed';
     const confirmationExpiresAt = DUAL_CONFIRMATION_ENABLED ? new Date(Date.now() + 30 * 60 * 1000) : null;
@@ -490,7 +517,12 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
         ]
       );
     } catch (insertErr) {
+      const code = insertErr.code;
       const msg = insertErr.message || '';
+      if (code === '23505' || /unique constraint|duplicate key/i.test(msg)) {
+        await client.query('ROLLBACK');
+        throw new AppError(409, `Voucher already redeemed. A redemption record already exists for this booking.`);
+      }
       const isColumnMissing = msg.includes('redemption_latitude') || msg.includes('visit_session_id') || msg.includes('offer_discount_percentage');
       const isStatusConstraint = msg.includes('redemption_status') || (msg.includes('check') && msg.includes('constraint'));
       if (isStatusConstraint && DUAL_CONFIRMATION_ENABLED) {
@@ -518,21 +550,21 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     const redemption = redemptionResult.rows[0];
 
     // Deduct EZT tokens for co-pay when single-step redemption (no dual confirmation)
-    // When DUAL_CONFIRMATION is enabled, tokens are deducted in redemptionConfirmationService on consumer confirm
+    // Use validated partner-entered amount (INR → EZT: /100), not calculated, so override is reflected
     if (!DUAL_CONFIRMATION_ENABLED) {
-      const eztRequired = parseFloat(calculated.ezt_tokens_required || 0);
-      if (eztRequired > 0) {
+      const eztToDeduct = parsedCoPayInr / EZT_TO_INR;
+      if (eztToDeduct > 0) {
         try {
           await tokenService.redeemTokens(
             booking.user_id,
-            eztRequired,
+            eztToDeduct,
             null,
             `Voucher redemption (Booking ${booking.booking_reference})`,
             client
           );
         } catch (tokenErr) {
           await client.query('ROLLBACK');
-          throw new AppError(400, `Insufficient EZT balance. Required: ${eztRequired.toFixed(5)} EZT for this redemption. ${tokenErr.message}`);
+          throw new AppError(400, `EZT deduction failed. ${tokenErr.message}`);
         }
       }
     }
@@ -598,11 +630,11 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     // CRITICAL: This must be idempotent - check if already processed
     // to prevent duplicate tier credits on retries or admin overrides.
     
-    // Check if tier processing already done (idempotency check)
+    // Idempotency: skip tier if already processed (ezt_earned IS NOT NULL; do not use > 0 so ₹0 bills are idempotent)
     const existingTierProcessing = await client.query(
       `SELECT ezt_earned, user_tier_at_booking 
        FROM bookings 
-       WHERE id = $1 AND ezt_earned IS NOT NULL AND ezt_earned > 0`,
+       WHERE id = $1 AND ezt_earned IS NOT NULL`,
       [booking.id]
     );
     
@@ -617,7 +649,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       if (tierAmount > 0) {
         try {
           // Process tier rewards and check for tier upgrade
-          tierResult = await tierService.processBookingWithTier(booking.user_id, tierAmount);
+          tierResult = await tierService.processBookingWithTier(booking.user_id, tierAmount, client);
           eztEarned = tierResult.eztEarned;
           
           // Update booking with tier information (within transaction)
@@ -768,12 +800,21 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     try {
       const notificationService = require('./notificationService');
 
-      // Notify user
+      // Notify user: include EZT applied vs available so they can self-audit
+      const eztAppliedInr = parsedCoPayInr;
+      const shortfallInr = Math.round((maxApplicableInr - eztAppliedInr) * 100) / 100;
+      let userMessage = `Your voucher ${booking.booking_reference} has been redeemed at ${partner?.name || 'partner'}.`;
+      if (eztAppliedInr > 0) {
+        userMessage += ` ₹${eztAppliedInr.toFixed(2)} EZT was applied to your bill.`;
+        if (shortfallInr > 0.01) {
+          userMessage += ` (₹${shortfallInr.toFixed(2)} of your available balance was not used — contact the venue if this seems wrong.)`;
+        }
+      }
       await notificationService.create({
         userId: booking.user_id,
         type: 'voucher_redeemed',
         title: 'Voucher Redeemed',
-        message: `Your voucher ${booking.booking_reference} has been redeemed at ${partner?.name || 'partner'}.`,
+        message: userMessage,
         actionUrl: `/bookings/${booking.id}`,
         actionLabel: 'View Booking',
         priority: 'normal',
@@ -786,7 +827,9 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
           total_bill_amount: total_bill_amount,
           ezt_co_pay_amount: ezt_co_pay_amount,
           net_amount_from_user: net_amount_from_user,
-          settlement_status: 'pending'
+          settlement_status: 'pending',
+          customer_wallet_ezt_at_redemption: customerWalletEzt,
+          ezt_applied_inr: eztAppliedInr
         }
       });
 

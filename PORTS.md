@@ -8,7 +8,7 @@ Use this as the single source of truth for local development.
 
 | Service              | Port | Where it's set / used |
 |----------------------|------|------------------------|
-| **Backend API**      | **3000** | `backend/.env`: `PORT=3000`. Code default in `backend/src/config/env.js` is 4000 if `PORT` is unset. |
+| **Backend API**      | **3000** | `backend/.env`: `PORT=3000`. Code default in `backend/src/config/env.js` is **3000** if `PORT` is unset. |
 | **Frontend (Vite)**  | **8080** | `frontend/vite.config.js`: `server.port: 8080` |
 | **PostgreSQL**       | **5432** | `backend/.env`: `DB_PORT=5432` (or in `DATABASE_URL`) |
 
@@ -57,3 +57,16 @@ Override with: `CORS_ALLOWED_ORIGINS=http://localhost:8080,https://yourapp.com`
 | Backend API | 3000 |
 | Frontend dev server | 8080 |
 | PostgreSQL | 5432 |
+
+---
+
+## Troubleshooting
+
+**`net::ERR_CONNECTION_REFUSED` to `:4000` (or similar)**  
+- The frontend is calling the API on a port where nothing is listening.
+- Backend default port is **3000**. Ensure `frontend/.env` has `VITE_API_BASE_URL=http://localhost:3000` (or the port where the backend actually runs).
+- If you run the backend with `PORT=4000`, then use `VITE_API_BASE_URL=http://localhost:4000`. Ports must match.
+
+**`400 Bad Request` on `/api/v1/redemptions/redeem`**  
+- The server is reachable; the 400 body explains the failure (e.g. co-pay above customer wallet, or reason required when reducing co-pay).
+- The Partner Console now shows the API’s error message in the notification. Fix the payload (e.g. lower EZT co-pay, add redemption notes) and retry.

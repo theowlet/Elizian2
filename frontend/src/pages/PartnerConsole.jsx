@@ -8,6 +8,16 @@ import OperatingHoursManager from '../components/OperatingHoursManager';
 import '../styles/partnerConsole.css';
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
+/** Extract lat/lng from Google Maps URL. Handles @lat,lng and ?q=lat,lng. Short links (goo.gl) need to be opened to get the full URL. */
+function extractCoordsFromMapsUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (atMatch) return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+  const qMatch = url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (qMatch) return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+  return null;
+}
+
 /* ------------------ Small presentational components ------------------ */
 function Header({ partnerName, onLogout }) {
   return (
@@ -137,6 +147,7 @@ export default function PartnerConsole() {
   const [calculationPreview, setCalculationPreview] = useState(null);
   const [calculationLoading, setCalculationLoading] = useState(false);
   const [overrideCalculation, setOverrideCalculation] = useState(false);
+  const [walletInfo, setWalletInfo] = useState({ max_allowed_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
   const [offerEditId, setOfferEditId] = useState(null);
   const [menuEditId, setMenuEditId] = useState(null);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
@@ -146,6 +157,8 @@ export default function PartnerConsole() {
 
   const [serviceTypes, setServiceTypes] = useState([]);
   const [serviceCategories, setServiceCategories] = useState([]);
+  const [coordsFromPastedLink, setCoordsFromPastedLink] = useState(null);
+  const [mapsLinkInput, setMapsLinkInput] = useState('');
 
   // Basic auth header helper
   const headers = () => ({ 'Content-Type': 'application/json', Authorization: token ? `Bearer ${token}` : '' });
@@ -225,9 +238,9 @@ export default function PartnerConsole() {
         showNotification('Location verified. Map updated.');
       } else {
         const msg = json.message || json.error || 'Verify failed';
-        const isApiKeyMsg = /GOOGLE_GEOCODING_API_KEY|server/.test(msg);
+        const isApiKeyMsg = /GOOGLE_GEOCODING_API_KEY|server|API key/.test(msg);
         showNotification(isApiKeyMsg
-          ? 'Exact pin unavailable (server needs Google Maps API key). Use "Open in Google Maps" below to get directions by address.'
+          ? 'Exact pin unavailable: add GOOGLE_GEOCODING_API_KEY to backend/.env. Use "Open in Google Maps" below for directions by address.'
           : msg);
       }
     } catch (err) {
@@ -843,6 +856,22 @@ export default function PartnerConsole() {
   }
 
   function ProfileSection() {
+    const displayCoords = coordsFromPastedLink ?? (
+      partner?.latitude != null && partner?.longitude != null && !(Number(partner.latitude) === 0 && Number(partner.longitude) === 0)
+        ? { lat: Number(partner.latitude), lng: Number(partner.longitude) }
+        : null
+    );
+
+    function applyMapsLink() {
+      const coords = extractCoordsFromMapsUrl(mapsLinkInput.trim());
+      if (coords) {
+        setCoordsFromPastedLink(coords);
+        showNotification(`Location set to ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}. Click Save Changes to store.`);
+      } else {
+        showNotification('Could not find coordinates in that link. Use a full Google Maps link (e.g. Share → Copy link with the pin dropped).', 'error');
+      }
+    }
+
     async function saveProfile() {
       if (!partner) return;
       const payload = {
@@ -854,12 +883,26 @@ export default function PartnerConsole() {
         partner_category_type: document.getElementById('venueType')?.value,
         description: document.getElementById('venueDescription')?.value
       };
+      if (displayCoords) {
+        payload.latitude = displayCoords.lat;
+        payload.longitude = displayCoords.lng;
+      }
       try {
         const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}`, { method: 'PUT', headers: headers(), body: JSON.stringify(payload) });
         const j = await r.json();
-        if (j.success) { setPartner(j.data); localStorage.setItem('partnerInfo', JSON.stringify(j.data)); alert('Saved'); }
-        else alert('Save failed: ' + (j.message ?? j.error ?? 'unknown'));
-      } catch (e) { console.error(e); }
+        if (j.success) {
+          setPartner(j.data);
+          localStorage.setItem('partnerInfo', JSON.stringify(j.data));
+          setCoordsFromPastedLink(null);
+          setMapsLinkInput('');
+          showNotification('Saved');
+        } else {
+          showNotification('Save failed: ' + (j.message ?? j.error ?? 'unknown'), 'error');
+        }
+      } catch (e) {
+        console.error(e);
+        showNotification('Save failed', 'error');
+      }
     }
 
     return (
@@ -875,33 +918,57 @@ export default function PartnerConsole() {
           <div className="pc-form-group"><label>Address</label><textarea id="venueAddress" className="pc-form-input" placeholder="Enter complete venue address (street, city, state, pincode)" defaultValue={partner?.address || ''} /></div>
           <div className="pc-form-group pc-map-preview">
             <label>Location &amp; map</label>
-            {(() => {
-              const lat = partner?.latitude != null ? Number(partner.latitude) : null;
-              const lon = partner?.longitude != null ? Number(partner.longitude) : null;
-              const hasValidCoords = lat != null && lon != null && !(lat === 0 && lon === 0);
-              return hasValidCoords;
-            })() ? (
+            <div className="pc-map-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+              <input
+                type="url"
+                className="pc-form-input"
+                placeholder="Paste Google Maps link (e.g. from Share → Copy link)"
+                value={mapsLinkInput}
+                onChange={(e) => setMapsLinkInput(e.target.value)}
+                style={{ flex: '1', minWidth: 200 }}
+              />
+              <button type="button" className="btn btn-secondary" onClick={applyMapsLink}>Apply</button>
+            </div>
+            {displayCoords ? (
               <>
                 <div className="pc-map-embed">
-                  <iframe title="Venue location" src={`https://www.google.com/maps?q=${partner.latitude},${partner.longitude}&z=15&output=embed`} width="100%" height="180" style={{ border: 0, borderRadius: 8 }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
+                  <iframe
+                    title="Venue location"
+                    width="100%"
+                    height="200"
+                    style={{ border: 0, borderRadius: 8 }}
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${displayCoords.lng - 0.01},${displayCoords.lat - 0.01},${displayCoords.lng + 0.01},${displayCoords.lat + 0.01}&layer=mapnik&marker=${displayCoords.lat},${displayCoords.lng}`}
+                  />
                 </div>
-                <a className="pc-open-maps-btn" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(partner.latitude + ',' + partner.longitude)}`} target="_blank" rel="noopener noreferrer">Open in Google Maps</a>
-                {partner?.geo_verified && <span className="pc-geo-badge" title="Address verified">📍 Verified</span>}
+                <div className="pc-map-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                  <button type="button" className="btn btn-primary" disabled={verifyingLocation} onClick={verifyLocation}>{verifyingLocation ? 'Verifying…' : 'Verify location'}</button>
+                  <a className="pc-open-maps-btn" href={`https://www.google.com/maps/search/?api=1&query=${displayCoords.lat},${displayCoords.lng}`} target="_blank" rel="noopener noreferrer">Open in Google Maps</a>
+                  {partner?.geo_verified && !coordsFromPastedLink && <span className="pc-geo-badge" title="Address verified">📍 Verified</span>}
+                </div>
+                <p className="pc-map-hint" style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#6b7280' }}>
+                  {coordsFromPastedLink ? <>Coords from pasted link. Click <strong>Save Changes</strong> to store.</> : <>Wrong pin? Paste a Google Maps link above or click <strong>Verify location</strong> to re-geocode from address.</>}
+                </p>
               </>
             ) : (partner?.address || partner?.formatted_address) ? (
-              <>
-                <div className="pc-map-embed">
-                  <iframe title="Venue location (address)" src={`https://www.google.com/maps?q=${encodeURIComponent((partner?.formatted_address || partner?.address || '').trim())}&z=15&output=embed`} width="100%" height="180" style={{ border: 0, borderRadius: 8 }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
-                </div>
-                <p className="pc-map-hint">Map shows approximate location from address. Click <strong>Verify location</strong> to geocode and pin the exact spot.</p>
-                <div className="pc-map-actions">
-                  <button type="button" className="btn btn-primary" disabled={verifyingLocation} onClick={verifyLocation}>{verifyingLocation ? 'Verifying…' : 'Verify location'}</button>
-                  <a className="pc-open-maps-btn" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((partner?.formatted_address || partner?.address || '').trim())}`} target="_blank" rel="noopener noreferrer">Open in Google Maps</a>
-                </div>
-              </>
+              (() => {
+                const rawAddr = (partner?.formatted_address || partner?.address || '').trim();
+                const mapQuery = rawAddr ? (/\bIndia\b/i.test(rawAddr) ? rawAddr : `${rawAddr}, India`) : rawAddr;
+                return (
+                  <>
+                    <div className="pc-map-embed">
+                      <iframe title="Venue location (address)" src={`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&z=15&output=embed`} width="100%" height="180" style={{ border: 0, borderRadius: 8 }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
+                    </div>
+                    <p className="pc-map-hint">Map shows approximate location from address. Paste a <strong>Google Maps link</strong> above, or click <strong>Verify location</strong> to geocode.</p>
+                    <div className="pc-map-actions">
+                      <button type="button" className="btn btn-primary" disabled={verifyingLocation} onClick={verifyLocation}>{verifyingLocation ? 'Verifying…' : 'Verify location'}</button>
+                      <a className="pc-open-maps-btn" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`} target="_blank" rel="noopener noreferrer">Open in Google Maps</a>
+                    </div>
+                  </>
+                );
+              })()
             ) : (
               <>
-                <p className="pc-map-hint">Enter your venue address above and click <strong>Save Changes</strong>, then use <strong>Verify location</strong> to see the exact pin on the map.</p>
+                <p className="pc-map-hint">Enter your venue address above and click <strong>Save Changes</strong>, or paste a <strong>Google Maps link</strong> above to set the pin directly.</p>
               </>
             )}
           </div>
@@ -1738,9 +1805,29 @@ export default function PartnerConsole() {
         return;
       }
 
-      // If not redeemed, try to find booking by voucher code
-      // We'll search in bookings list or make a direct query
-      const booking = bookings.find(b => b.voucher_code === voucherCode);
+      // If not redeemed, try local list then server-side lookup (covers vouchers not in first 50 bookings)
+      let booking = bookings.find(b => b.voucher_code === voucherCode);
+      if (!booking && partner?.id) {
+        const lookupRes = await fetch(
+          `${API_BASE}/api/v1/partners/${partner.id}/vouchers/lookup?code=${encodeURIComponent(voucherCode.trim())}`,
+          { headers: headers() }
+        );
+        const lookupJson = await lookupRes.json();
+        if (lookupJson.success && lookupJson.data?.valid) {
+          booking = {
+            id: lookupJson.data.id,
+            voucher_code: lookupJson.data.voucher_code,
+            booking_reference: lookupJson.data.booking_reference,
+            customer_name: lookupJson.data.customer_name,
+            deal_title: lookupJson.data.deal_title,
+            total_price: lookupJson.data.total_price,
+            fiat_amount: lookupJson.data.fiat_amount,
+            status: lookupJson.data.status,
+            user_id: lookupJson.data.user_id,
+            deal_id: lookupJson.data.deal_id
+          };
+        }
+      }
       if (booking) {
         setScannerResult({ 
           success: true, 
@@ -1755,10 +1842,7 @@ export default function PartnerConsole() {
           }
         });
       } else {
-        // Try to fetch booking details from API
-        // Note: We'd need an endpoint to get booking by voucher_code
-        // For now, show error
-        setScannerResult({ success: false, error: 'Voucher not found in your bookings' });
+        setScannerResult({ success: false, error: 'Voucher not found or not for your venue' });
       }
     } catch (e) { 
       console.error('Validate voucher error:', e);
@@ -1806,17 +1890,28 @@ export default function PartnerConsole() {
       const j = await r.json();
       if (j.success && j.data) {
         setCalculationPreview(j.data);
+        const maxAllowed = j.data.max_allowed_co_pay != null ? parseFloat(j.data.max_allowed_co_pay) : (j.data.effective_max_ezt_co_pay_inr != null ? parseFloat(j.data.effective_max_ezt_co_pay_inr) : (j.data.ezt_co_pay_amount != null ? parseFloat(j.data.ezt_co_pay_amount) : 0));
+        setWalletInfo({
+          max_allowed_co_pay: maxAllowed,
+          wallet_shortfall: j.data.wallet_shortfall != null ? parseFloat(j.data.wallet_shortfall) : null,
+          customer_fully_funded: j.data.customer_fully_funded !== false
+        });
+        const total = parseFloat(totalBillAmount) || 0;
+        const eztToUse = Math.min(maxAllowed, total);
+        const net = Math.max(0, total - eztToUse);
         setRedemptionForm((prev) => ({
           ...prev,
-          ezt_co_pay_amount: String(j.data.ezt_co_pay_amount ?? ''),
-          net_amount_from_user: String(j.data.net_amount_from_user ?? ''),
+          ezt_co_pay_amount: String(eztToUse),
+          net_amount_from_user: String(net.toFixed(2)),
         }));
       } else {
         setCalculationPreview(null);
+        setWalletInfo({ max_allowed_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
       }
     } catch (err) {
       console.error('Calculate preview error:', err);
       setCalculationPreview(null);
+      setWalletInfo({ max_allowed_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
     } finally {
       setCalculationLoading(false);
     }
@@ -1847,6 +1942,11 @@ export default function PartnerConsole() {
       showNotification('Net amount must equal Total Bill - EZT Co-Pay', 'error');
       return;
     }
+    const maxAllowed = walletInfo.max_allowed_co_pay ?? calculationPreview?.max_allowed_co_pay ?? calculationPreview?.effective_max_ezt_co_pay_inr;
+    if (maxAllowed != null && eztCoPay < maxAllowed - 0.01 && !(redemptionForm.redemption_notes && String(redemptionForm.redemption_notes).trim())) {
+      showNotification('A reason is required in Redemption Notes when reducing EZT co-pay below the max applicable.', 'error');
+      return;
+    }
 
     try {
       const response = await fetch(`${API_BASE}/api/v1/redemptions/redeem`, {
@@ -1861,9 +1961,14 @@ export default function PartnerConsole() {
         })
       });
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (_) {
+        result = { success: false, message: response.statusText || 'Invalid response' };
+      }
 
-      if (result.success) {
+      if (result?.success) {
         const isPending = result.data?.pending_confirmation;
         showNotification(
           isPending
@@ -1881,15 +1986,20 @@ export default function PartnerConsole() {
         });
         setCalculationPreview(null);
         setOverrideCalculation(false);
-        // Reload bookings to show updated status
+        setWalletInfo({ max_allowed_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
         loadBookings();
         loadDashboard();
       } else {
-        showNotification(result.message ?? result.error ?? 'Redemption failed', 'error');
+        const msg = result?.message ?? result?.error ?? (response.ok ? 'Redemption failed' : `Request failed (${response.status})`);
+        showNotification(msg, 'error');
       }
     } catch (error) {
       console.error('Redemption error:', error);
-      showNotification('Network error. Please try again.', 'error');
+      const isRefused = error?.message?.includes('Failed to fetch') || error?.name === 'TypeError';
+      showNotification(
+        isRefused ? 'Cannot reach server. Is the backend running? Check API URL (e.g. http://localhost:3000).' : 'Network error. Please try again.',
+        'error'
+      );
     }
   }
 
@@ -1928,7 +2038,19 @@ export default function PartnerConsole() {
       {/* Offer modal */}
       <Modal id="offerModal" title={offerEditId ? 'Edit Deal' : 'Create New Deal'} show={showOfferModal} onClose={() => setShowOfferModal(false)} width={700}>
         <form onSubmit={saveOffer}>
-          <div className="pc-form-group"><label>Deal Title *</label><input className="pc-form-input" required value={offerForm.title||''} onChange={e=>setOfferForm({...offerForm, title: e.target.value})} /></div>
+          <div className="pc-form-group">
+            <label>Deal Title *</label>
+            <input
+              className="pc-form-input"
+              required
+              value={offerForm.title||''}
+              onChange={e=>setOfferForm({...offerForm, title: e.target.value})}
+              spellCheck={true}
+              autoComplete="off"
+              placeholder="e.g. Valentine's Dinner, Weekend Brunch"
+            />
+            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#6b7280' }}>Check spelling (e.g. Hygiene, Camp). This appears on the app.</p>
+          </div>
           <div className="pc-form-group"><label>Service Type</label><select className="pc-form-input" value={offerForm.service_type||''} onChange={e=>setOfferForm({...offerForm, service_type: e.target.value})}><option value="">Select</option><option value="dining">Dining</option><option value="events">Events</option><option value="spa-and-salon">Spa & Salon</option><option value="wellness">Wellness</option><option value="travel">Travel</option><option value="healthcare">Healthcare</option><option value="others">Others</option></select></div>
           <div className="pc-form-grid"><div className="pc-form-group"><label>Start Date</label><input type="datetime-local" className="pc-form-input" value={offerForm.start_date||''} onChange={e=>setOfferForm({...offerForm, start_date: e.target.value})} /></div><div className="pc-form-group"><label>End Date</label><input type="datetime-local" className="pc-form-input" value={offerForm.end_date||''} onChange={e=>setOfferForm({...offerForm, end_date: e.target.value})} /></div></div>
           <div className="pc-form-group"><label>Perk type</label><select className="pc-form-input" value={offerForm.perk_type||'discount'} onChange={e=>{
@@ -2092,6 +2214,7 @@ export default function PartnerConsole() {
           setCalculationPreview(null);
           setCalculationLoading(false);
           setOverrideCalculation(false);
+          setWalletInfo({ max_allowed_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
         }} 
         width={600}
       >
@@ -2181,13 +2304,23 @@ export default function PartnerConsole() {
                 }}>
                   <div style={{marginBottom:'0.25rem'}}><strong>Deal:</strong> {calculationPreview.co_pay_percentage ?? 0}% Co-Pay Discount</div>
                   <div style={{marginBottom:'0.25rem'}}><strong>Discount:</strong> ₹{calculationPreview.discount_amount ?? 0}</div>
-                  <div style={{marginBottom:'0.25rem'}}><strong>EZT tokens required:</strong> {calculationPreview.ezt_tokens_required ?? 0} EZT</div>
+                  <div style={{marginBottom:'0.25rem'}}><strong>EZT tokens required (full co-pay):</strong> {calculationPreview.ezt_tokens_required ?? 0} EZT</div>
                   {calculationPreview.user_ezt_balance != null && (
-                    <div>
+                    <div style={{marginBottom:'0.25rem'}}>
                       <strong>Customer EZT balance:</strong> {calculationPreview.user_ezt_balance} EZT
                       {(calculationPreview.ezt_tokens_required ?? 0) > (calculationPreview.user_ezt_balance ?? 0) && (
                         <span style={{color:'#b91c1c', marginLeft:'0.5rem'}}>⚠️ Insufficient balance</span>
                       )}
+                    </div>
+                  )}
+                  {(walletInfo.max_allowed_co_pay ?? calculationPreview?.max_allowed_co_pay ?? calculationPreview?.effective_max_ezt_co_pay_inr) != null && (
+                    <div style={{marginTop:'0.25rem', fontSize:'0.85rem', opacity:0.95}}>
+                      Max applicable (capped by balance): ₹{(walletInfo.max_allowed_co_pay ?? calculationPreview?.max_allowed_co_pay ?? calculationPreview?.effective_max_ezt_co_pay_inr)}
+                    </div>
+                  )}
+                  {walletInfo.wallet_shortfall != null && walletInfo.wallet_shortfall > 0 && (
+                    <div style={{marginTop:'0.25rem', fontSize:'0.85rem', color:'#b91c1c'}}>
+                      Customer shortfall: ₹{walletInfo.wallet_shortfall.toFixed(2)} of standard co-pay
                     </div>
                   )}
                 </div>
@@ -2236,13 +2369,13 @@ export default function PartnerConsole() {
               </div>
 
               <div className="pc-form-group">
-                <label>Redemption Notes (Optional)</label>
+                <label>Redemption Notes {calculationPreview?.effective_max_ezt_co_pay_inr != null ? '(Required if reducing EZT below max applicable)' : '(Optional)'}</label>
                 <textarea 
                   className="pc-form-input" 
                   rows={3}
                   value={redemptionForm.redemption_notes} 
                   onChange={(e) => setRedemptionForm({...redemptionForm, redemption_notes: e.target.value})}
-                  placeholder="Any additional notes about this redemption"
+                  placeholder={calculationPreview?.effective_max_ezt_co_pay_inr != null ? "e.g. Customer requested partial EZT use; required when co-pay is below customer's available balance" : "Any additional notes about this redemption"}
                 />
               </div>
             </div>
@@ -2270,6 +2403,7 @@ export default function PartnerConsole() {
                   });
                   setCalculationPreview(null);
                   setOverrideCalculation(false);
+                  setWalletInfo({ max_allowed_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
                 }}
               >
                 Cancel

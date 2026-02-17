@@ -2,6 +2,7 @@ const { getPool } = require('../config/db');
 const { successResponse, errorResponse } = require('../../utils/response');
 const { logError } = require('../../utils/logger');
 const { normalizeTierName } = require('../utils/tierNames');
+const bookingRepository = require('../repositories/bookingRepository');
 
 const pool = getPool();
 
@@ -295,10 +296,44 @@ async function getBookingStats(req, res) {
   }
 }
 
+/**
+ * Server-side voucher lookup for partner scanner (avoids client-side search over only loaded bookings).
+ * GET /api/v1/partners/:id/vouchers/lookup?code=XXX
+ */
+async function lookupVoucher(req, res) {
+  try {
+    const { id: partnerId } = req.params;
+    const code = (req.query.code || req.query.voucher_code || '').toString().trim();
+    if (!code) {
+      return errorResponse(res, 400, 'Query parameter "code" or "voucher_code" is required');
+    }
+    const booking = await bookingRepository.getBookingByVoucherCode(code);
+    if (!booking) {
+      return errorResponse(res, 404, 'Voucher not found');
+    }
+    if (String(booking.partner_id) !== String(partnerId)) {
+      return errorResponse(res, 403, 'Voucher is not for your venue');
+    }
+    return successResponse(res, 200, 'Voucher found', {
+      valid: true,
+      booking_reference: booking.booking_reference,
+      deal_id: booking.deal_id,
+      status: booking.status,
+      voucher_code: booking.voucher_code || code,
+      id: booking.id,
+      user_id: booking.user_id
+    });
+  } catch (err) {
+    logError('❌ Voucher lookup error:', err);
+    return errorResponse(res, err.statusCode || 500, err.message || 'Voucher lookup failed');
+  }
+}
+
 module.exports = {
   listPartnerBookings,
   getPartnerBooking,
   updateBookingStatus,
-  getBookingStats
+  getBookingStats,
+  lookupVoucher
 };
 

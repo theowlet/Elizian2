@@ -1,4 +1,5 @@
 const { getPool } = require('../config/db');
+const tokenService = require('./tokenService');
 const pool = getPool();
 
 /** 1 EZT = 100 INR for co-pay calculation */
@@ -76,40 +77,63 @@ function calculateRedemptionAmounts(offerId, totalBillAmount, offerRow = null) {
 }
 
 /**
- * Full calculation: fetch offer then compute. Returns breakdown + user EZT balance if userId provided.
+ * Full calculation: fetch offer then compute. Returns breakdown + wallet-based caps when userId provided.
+ * Requires userId for partner preview so max_allowed_co_pay is capped by customer wallet (prevents partner claiming more EZT than customer has).
  * Redemption uses co-pay at booking time when booking.co_pay_percentage_at_booking is set (single source of truth).
  * @param {string} offerId - Deal/offer id
  * @param {number} totalBillAmount - Total bill amount
- * @param {string|null} userId - User id for EZT balance
- * @param {{ booking?: { co_pay_percentage_at_booking?: number|string|null } }} options - Pass booking to use booking-time co-pay when present
+ * @param {string|null} userId - User id for wallet balance (required for preview to return max_allowed_co_pay)
+ * @param {{ booking?: { co_pay_percentage_at_booking?: number|string|null }, executor?: object }} options - Pass booking to use booking-time co-pay; executor for transaction
  */
 async function calculateRedemptionBreakdown(offerId, totalBillAmount, userId = null, options = {}) {
   let offerRow = await getOfferDiscount(offerId);
   offerRow = applyBookingTimeCoPay(offerRow, options.booking || null);
   const amounts = calculateRedemptionAmounts(offerId, totalBillAmount, offerRow);
+  const standardCoPayInr = parseFloat(amounts.ezt_co_pay_amount || 0);
   let userEztBalance = null;
+  let walletAffordableInr = null;
+  let maxAllowedCoPay = standardCoPayInr;
+  let walletShortfall = 0;
+  let customerFullyFunded = true;
   if (userId) {
-    const u = await pool.query(
-      'SELECT available_tokens FROM users WHERE id = $1',
-      [userId]
-    );
-    userEztBalance = u.rows[0] ? parseFloat(u.rows[0].available_tokens || 0) : null;
+    userEztBalance = await tokenService.getBalance(userId, options.executor || null);
+    walletAffordableInr = Math.round(userEztBalance * EZT_TO_INR * 100) / 100;
+    maxAllowedCoPay = Math.min(standardCoPayInr, walletAffordableInr);
+    walletShortfall = Math.max(0, Math.round((standardCoPayInr - walletAffordableInr) * 100) / 100);
+    customerFullyFunded = walletAffordableInr >= standardCoPayInr - 0.01;
   }
   return {
     ...amounts,
     user_ezt_balance: userEztBalance,
+    max_allowed_co_pay: maxAllowedCoPay,
+    standard_co_pay_amount: standardCoPayInr,
+    wallet_affordable_inr: walletAffordableInr,
+    wallet_shortfall: walletShortfall,
+    customer_fully_funded: customerFullyFunded,
   };
 }
 
 /**
  * Validate partner-submitted values against calculated. Allow tolerance 0.01 INR.
+ * When walletBalanceEzt (or maxAllowedCoPayInr) is provided, validates eztCoPay <= max allowed (wallet cap), not just arithmetic match.
+ * @param {number} totalBillAmount
+ * @param {number} eztCoPay
+ * @param {number} netAmount
+ * @param {string} offerId
+ * @param {Object} offerRow
+ * @param {{ walletBalanceEzt?: number, maxAllowedCoPayInr?: number }} options - If set, eztCoPay must be <= maxAllowedCoPayInr (or walletBalanceEzt * EZT_TO_INR)
  */
-function validateCalculation(totalBillAmount, eztCoPay, netAmount, offerId, offerRow) {
+function validateCalculation(totalBillAmount, eztCoPay, netAmount, offerId, offerRow, options = {}) {
   const calc = calculateRedemptionAmounts(offerId, totalBillAmount, offerRow);
   const tolerance = 0.01;
+  const maxAllowedInr = options.maxAllowedCoPayInr != null
+    ? options.maxAllowedCoPayInr
+    : (options.walletBalanceEzt != null ? Math.round(options.walletBalanceEzt * EZT_TO_INR * 100) / 100 : null);
   const billOk = Math.abs((parseFloat(totalBillAmount) || 0) - (parseFloat(calc.net_amount_from_user) + parseFloat(calc.ezt_co_pay_amount))) <= tolerance;
-  const netOk = Math.abs((parseFloat(netAmount) || 0) - calc.net_amount_from_user) <= tolerance;
-  const eztOk = Math.abs((parseFloat(eztCoPay) || 0) - calc.ezt_co_pay_amount) <= tolerance;
+  const netOk = Math.abs((parseFloat(netAmount) || 0) - ((parseFloat(totalBillAmount) || 0) - (parseFloat(eztCoPay) || 0))) <= tolerance;
+  const eztOk = maxAllowedInr != null
+    ? (parseFloat(eztCoPay) || 0) <= maxAllowedInr + tolerance
+    : Math.abs((parseFloat(eztCoPay) || 0) - calc.ezt_co_pay_amount) <= tolerance;
   return {
     valid: billOk && netOk && eztOk,
     variance: {

@@ -242,7 +242,7 @@ function AppRoutes() {
       <Route
         path="/admin"
         element={
-          <ProtectedRoute requireAuth={false}>
+          <ProtectedRoute requireAuth={true} requireAdmin={true}>
             <AdminDashboard />
           </ProtectedRoute>
         }

@@ -411,15 +411,21 @@ const VenueDetailPage = () => {
             </div>
           )}
           {venue.address && !(venue.latitude != null && venue.longitude != null && Number(venue.latitude) !== 0 && Number(venue.longitude) !== 0) && (
-            <a
-              className="venue-detail-open-maps"
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((venue.formatted_address || venue.address || '').trim())}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ display: 'inline-block', marginTop: 8 }}
-            >
-              Get directions (by address)
-            </a>
+            (() => {
+              const rawAddr = (venue.formatted_address || venue.address || '').trim();
+              const mapQuery = rawAddr ? (/\bIndia\b/i.test(rawAddr) ? rawAddr : `${rawAddr}, India`) : rawAddr;
+              return (
+                <a
+                  className="venue-detail-open-maps"
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: 'inline-block', marginTop: 8 }}
+                >
+                  Get directions (by address)
+                </a>
+              );
+            })()
           )}
           {venue.phone_number && (
             <p><strong>Phone:</strong> <a href={`tel:${venue.phone_number}`}>{venue.phone_number}</a></p>

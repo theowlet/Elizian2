@@ -165,6 +165,7 @@ router.put('/:id/orders/:orderId', orderController.updateOrderStatus);
 
 // Partner bookings routes (events/deals)
 const partnerBookingController = require('../controllers/partnerBookingController');
+router.get('/:id/vouchers/lookup', partnerBookingController.lookupVoucher);
 router.get('/:id/bookings', partnerBookingController.listPartnerBookings);
 router.get('/:id/bookings/stats', partnerBookingController.getBookingStats);
 router.get('/:id/bookings/:bookingId', partnerBookingController.getPartnerBooking);

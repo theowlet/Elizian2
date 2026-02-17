@@ -15,6 +15,9 @@ const BookingDetails = () => {
   const [checkInStatus, setCheckInStatus] = useState(null); // null | 'locating' | 'success' | 'too_far' | 'error'
   const [checkInMessage, setCheckInMessage] = useState('');
   const [pendingRedemption, setPendingRedemption] = useState(null);
+  const [customerEztBalance, setCustomerEztBalance] = useState(null);
+  const [disputeReason, setDisputeReason] = useState('');
+  const [showDisputeInput, setShowDisputeInput] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [confirmResult, setConfirmResult] = useState(null); // null | 'confirmed' | 'disputed' | 'error'
   const [confirmMessage, setConfirmMessage] = useState('');
@@ -60,16 +63,25 @@ const BookingDetails = () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) return;
-      const r = await fetch(`${API_BASE}/api/v1/redemptions/pending`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const j = await r.json();
-      if (j.success && j.data?.pending) {
-        const match = j.data.pending.find(p => p.booking_id === booking.id);
+      const [pendingRes, summaryRes] = await Promise.all([
+        fetch(`${API_BASE}/api/v1/redemptions/pending`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE}/api/v1/rewards/summary`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      const pendingJson = await pendingRes.json();
+      if (pendingJson.success && pendingJson.data?.pending) {
+        const match = pendingJson.data.pending.find(p => p.booking_id === booking.id);
         if (match) setPendingRedemption(match);
+        else setPendingRedemption(null);
+      } else setPendingRedemption(null);
+      const summaryJson = await summaryRes.json();
+      if (summaryJson.success && summaryJson.data?.ezt?.balance != null) {
+        setCustomerEztBalance(parseFloat(summaryJson.data.ezt.balance));
+      } else {
+        setCustomerEztBalance(null);
       }
     } catch (err) {
       console.error('Load pending redemption error:', err);
+      setPendingRedemption(null);
     }
   };
 
@@ -102,21 +114,26 @@ const BookingDetails = () => {
 
   const handleDisputeRedemption = async () => {
     if (!pendingRedemption) return;
-    const reason = window.prompt('Why are you disputing this redemption?');
-    if (reason === null) return; // cancelled
+    if (!showDisputeInput) {
+      setShowDisputeInput(true);
+      return;
+    }
+    const reason = (disputeReason && String(disputeReason).trim()) || 'Disputed by customer';
     setConfirmLoading(true);
     try {
       const token = localStorage.getItem('token');
       const r = await fetch(`${API_BASE}/api/v1/redemptions/${pendingRedemption.redemption_id}/dispute`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: reason || 'Disputed by customer' })
+        body: JSON.stringify({ reason })
       });
       const j = await r.json();
       if (j.success) {
         setConfirmResult('disputed');
         setConfirmMessage('Redemption disputed. No tokens were deducted.');
         setPendingRedemption(null);
+        setShowDisputeInput(false);
+        setDisputeReason('');
         loadBookingDetails();
       } else {
         setConfirmResult('error');
@@ -830,6 +847,29 @@ const BookingDetails = () => {
             <p style={{ color: '#c7d2fe', fontSize: '0.9rem', marginBottom: '1rem' }}>
               The partner has initiated a redemption for your visit. Please review the details and confirm.
             </p>
+            {customerEztBalance != null && (
+              <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'rgba(255,255,255,0.06)', borderRadius: '8px', fontSize: '0.9rem' }}>
+                <div style={{ color: '#a5b4fc' }}>Current EZT balance</div>
+                <div style={{ fontWeight: 700 }}>{Number(customerEztBalance).toFixed(2)} EZT</div>
+                <div style={{ color: '#a5b4fc', marginTop: '0.5rem' }}>After this redemption</div>
+                <div style={{ fontWeight: 700, color: '#34d399' }}>
+                  {Math.max(0, customerEztBalance - parseFloat(pendingRedemption.ezt_tokens_required || (pendingRedemption.ezt_co_pay_amount / 100) || 0)).toFixed(2)} EZT
+                </div>
+              </div>
+            )}
+            {(pendingRedemption.co_pay_override === true || pendingRedemption.co_pay_override === 'true') && (
+              <div style={{
+                marginBottom: '1rem',
+                padding: '0.75rem 1rem',
+                background: 'rgba(245,158,11,0.2)',
+                border: '1px solid #f59e0b',
+                borderRadius: '8px',
+                color: '#fcd34d',
+                fontSize: '0.9rem'
+              }}>
+                ⚠️ The partner applied less EZT than your deal entitles. Reason on record: {pendingRedemption.override_reason || '—'}
+              </div>
+            )}
             <div style={{
               background: 'rgba(255,255,255,0.08)',
               borderRadius: '8px',
@@ -848,7 +888,7 @@ const BookingDetails = () => {
                 <div style={{ fontWeight: 700, fontSize: '1.2rem', color: '#34d399' }}>-₹{parseFloat(pendingRedemption.discount_amount || pendingRedemption.ezt_co_pay_amount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
               </div>
               <div>
-                <div style={{ color: '#a5b4fc', fontSize: '0.8rem' }}>EZT Co-Pay</div>
+                <div style={{ color: '#a5b4fc', fontSize: '0.8rem' }}>EZT to deduct</div>
                 <div style={{ fontWeight: 700 }}>{parseFloat(pendingRedemption.ezt_tokens_required || (pendingRedemption.ezt_co_pay_amount / 100) || 0).toFixed(2)} EZT</div>
               </div>
               <div>
@@ -856,6 +896,27 @@ const BookingDetails = () => {
                 <div style={{ fontWeight: 700, fontSize: '1.2rem' }}>₹{parseFloat(pendingRedemption.net_amount_from_user || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</div>
               </div>
             </div>
+            {showDisputeInput && (
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', color: '#c7d2fe', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Reason for disputing (required)</label>
+                <textarea
+                  value={disputeReason}
+                  onChange={(e) => setDisputeReason(e.target.value)}
+                  placeholder="e.g. I did not authorise this amount"
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #6366f1',
+                    background: 'rgba(0,0,0,0.2)',
+                    color: '#e0e7ff',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button
                 onClick={handleConfirmRedemption}
@@ -876,11 +937,11 @@ const BookingDetails = () => {
               </button>
               <button
                 onClick={handleDisputeRedemption}
-                disabled={confirmLoading}
+                disabled={confirmLoading || (showDisputeInput && !(disputeReason && String(disputeReason).trim()))}
                 style={{
                   flex: 1,
                   padding: '0.85rem',
-                  background: 'transparent',
+                  background: showDisputeInput ? '#dc2626' : 'transparent',
                   color: '#ef4444',
                   border: '2px solid #ef4444',
                   borderRadius: '10px',
@@ -889,7 +950,7 @@ const BookingDetails = () => {
                   fontWeight: 700
                 }}
               >
-                ❌ Dispute
+                {showDisputeInput ? 'Submit dispute' : '❌ Dispute'}
               </button>
             </div>
           </div>

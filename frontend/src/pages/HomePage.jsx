@@ -360,10 +360,58 @@ const HomePage = () => {
     [trendingDeals, activeFilter],
   );
 
+  // Deduplication: deal IDs already shown in campaign sections above — exclude from Trending so same deal never appears twice
+  const campaignShownDealIds = useMemo(() => {
+    const set = new Set();
+    activeCampaigns.forEach((c) => (c.offers || []).forEach((o) => set.add(o.id)));
+    return set;
+  }, [activeCampaigns]);
+
+  const trendingDealsDeduped = useMemo(
+    () => sortedTrendingDeals.filter((d) => !campaignShownDealIds.has(d.id)),
+    [sortedTrendingDeals, campaignShownDealIds],
+  );
+
+  // Trending badge only for top 20% by booking velocity (current_redemptions)
+  const top20TrendingIds = useMemo(() => {
+    const sorted = [...trendingDealsDeduped].sort(
+      (a, b) => (b.current_redemptions || 0) - (a.current_redemptions || 0),
+    );
+    const n = Math.max(1, Math.ceil(sorted.length * 0.2));
+    return new Set(sorted.slice(0, n).map((d) => d.id));
+  }, [trendingDealsDeduped]);
+
+  // Search: filter by venue name, title, cuisine/category, area (description)
+  const searchFilteredTrending = useMemo(() => {
+    const q = (searchKeyword || "").trim().toLowerCase();
+    if (!q) return trendingDealsDeduped;
+    return trendingDealsDeduped.filter(
+      (d) =>
+        (d.title && d.title.toLowerCase().includes(q)) ||
+        (d.partner_name && d.partner_name.toLowerCase().includes(q)) ||
+        (d.description && d.description.toLowerCase().includes(q)) ||
+        (d.category_name && d.category_name.toLowerCase().includes(q)) ||
+        (d.partner_cuisine_types && String(d.partner_cuisine_types).toLowerCase().includes(q)),
+    );
+  }, [trendingDealsDeduped, searchKeyword]);
+
   const sortedAllPartnerDeals = useMemo(
     () => sortDealsBy(allPartnerDeals, activeFilter),
     [allPartnerDeals, activeFilter],
   );
+
+  const searchFilteredPartnerDeals = useMemo(() => {
+    const q = (searchKeyword || "").trim().toLowerCase();
+    if (!q) return sortedAllPartnerDeals;
+    return sortedAllPartnerDeals.filter(
+      (d) =>
+        (d.title && d.title.toLowerCase().includes(q)) ||
+        (d.partner_name && d.partner_name.toLowerCase().includes(q)) ||
+        (d.description && d.description.toLowerCase().includes(q)) ||
+        (d.category_name && d.category_name.toLowerCase().includes(q)) ||
+        (d.partner_cuisine_types && String(d.partner_cuisine_types).toLowerCase().includes(q)),
+    );
+  }, [sortedAllPartnerDeals, searchKeyword]);
 
   // ============================================
   // DATA FETCHING
@@ -448,6 +496,8 @@ const HomePage = () => {
           partner_avg_cost_for_two: item.partner_avg_cost_for_two != null ? Number(item.partner_avg_cost_for_two) : null,
           experience_metadata: item.experience_metadata || undefined,
           partner_address: item.partner_address || null,
+          co_pay_percentage: item.co_pay_percentage != null ? Number(item.co_pay_percentage) : null,
+          current_redemptions: item.current_redemptions != null ? Number(item.current_redemptions) : 0,
         }));
 
         setAllDeals(formattedDeals);
@@ -495,6 +545,8 @@ const HomePage = () => {
     partner_cuisine_types: item.partner_cuisine_types || null,
     partner_avg_cost_for_two: item.partner_avg_cost_for_two != null ? Number(item.partner_avg_cost_for_two) : null,
     experience_metadata: item.experience_metadata || undefined,
+    co_pay_percentage: item.co_pay_percentage != null ? Number(item.co_pay_percentage) : null,
+    current_redemptions: item.current_redemptions != null ? Number(item.current_redemptions) : 0,
   });
 
   const getUserLocation = () => {
@@ -660,6 +712,28 @@ const HomePage = () => {
   const formatPrice = (price) => {
     if (!price) return "₹0";
     return `₹${parseFloat(price).toLocaleString("en-IN")}`;
+  };
+
+  // Value proposition for EZT co-pay: avoid misleading "₹0" — show actual value exchange
+  const formatPriceLabel = (deal) => {
+    const price = deal?.price != null ? Number(deal.price) : 0;
+    const original = deal?.originalPrice != null ? Number(deal.originalPrice) : 0;
+    const coPay = deal?.co_pay_percentage != null ? Number(deal.co_pay_percentage) : null;
+    if (price > 0 && original > price) {
+      return (
+        <span>
+          <span className="original-price" style={{ textDecoration: "line-through", marginRight: "0.35rem" }}>{formatPrice(original)}</span>
+          <span>{formatPrice(price)} with EZT</span>
+        </span>
+      );
+    }
+    if (price === 0 && (coPay != null && coPay > 0)) {
+      return <span>Pay with EZT • {coPay}% co-pay</span>;
+    }
+    if (price === 0) {
+      return <span>Pay with EZT</span>;
+    }
+    return formatPrice(price);
   };
 
   return (
@@ -1034,7 +1108,15 @@ const HomePage = () => {
           {activeCampaigns.length > 0 &&
             activeCampaigns.map((campaign) => {
               const offers = campaign.offers || [];
-              const filtered = activeCategory === "all" ? offers : offers.filter((o) => (o.service_type || "others") === (categoryToServiceType[activeCategory] || activeCategory));
+              const byCategory = activeCategory === "all" ? offers : offers.filter((o) => (o.service_type || "others") === (categoryToServiceType[activeCategory] || activeCategory));
+              const q = (searchKeyword || "").trim().toLowerCase();
+              const filtered = !q ? byCategory : byCategory.filter(
+                (o) =>
+                  (o.title && o.title.toLowerCase().includes(q)) ||
+                  (o.partner_name && (o.partner_name || "").toLowerCase().includes(q)) ||
+                  (o.description && o.description.toLowerCase().includes(q)) ||
+                  (o.category_name && o.category_name.toLowerCase().includes(q)),
+              );
               if (filtered.length === 0) return null;
               return (
                 <section key={campaign.id} className="trending-section" style={{ marginBottom: "2rem" }}>
@@ -1066,7 +1148,7 @@ const HomePage = () => {
                           <h3 className="card-title">{item.title}</h3>
                           <p className="card-description">{item.description}</p>
                           <div className="card-footer">
-                            <div className="card-price">{formatPrice(item.discounted_price || item.original_price || item.price)}</div>
+                            <div className="card-price">{formatPriceLabel(formatDealFromApi(item))}</div>
                             <div className="card-actions">
                               {item.partner_id && (
                                 <button className="card-action-btn" onClick={() => handleBookDeal(formatDealFromApi(item))} aria-label={`Book ${item.title}`}>
@@ -1135,27 +1217,34 @@ const HomePage = () => {
               <div className="loading-state">
                 <p>Loading experiences...</p>
               </div>
-            ) : sortedTrendingDeals.length === 0 ? (
+            ) : searchFilteredTrending.length === 0 ? (
               <div className="empty-state">
                 <p>
-                  No trending experiences found
-                  {activeCategory !== "all"
-                    ? ` in ${categories.find((c) => c.id === activeCategory)?.name}`
-                    : ""}
-                  .
+                  {searchKeyword?.trim()
+                    ? `No experiences match "${searchKeyword.trim()}".`
+                    : `No trending experiences found${activeCategory !== "all" ? " in " + (categories.find((c) => c.id === activeCategory)?.name ?? "") : ""}.`}
                 </p>
               </div>
             ) : (
               <div className="trending-grid">
-                {sortedTrendingDeals.map((item) => (
-                  <div key={item.id} className="trending-card">
+                {searchFilteredTrending.map((item) => (
+                  <div
+                    key={item.id}
+                    className="trending-card"
+                    onClick={(e) => handleDealCardClick(item, e)}
+                    style={{ cursor: "pointer" }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleDealCardClick(item, e); } }}
+                    aria-label={`View details for ${item.title}`}
+                  >
                     <div
                       className="card-image"
                       style={{ backgroundImage: `url(${item.image})` }}
                       role="img"
                       aria-label={item.title}
                     >
-                      <div className="card-badge trending">🔥 Trending</div>
+                      {top20TrendingIds.has(item.id) && <div className="card-badge trending">🔥 Trending</div>}
                       {item.min_tier_name && (
                         <div className="card-badge" style={{ background: "rgba(167, 139, 250, 0.9)", color: "#fff" }} title={`Unlock at ${item.min_tier_name} tier`}>Unlock at {item.min_tier_name}</div>
                       )}
@@ -1176,13 +1265,7 @@ const HomePage = () => {
                       <p className="card-description">{item.description}</p>
                       <div className="card-footer">
                         <div className="card-price">
-                          {formatPrice(item.price)}
-                          {item.originalPrice &&
-                            item.originalPrice > item.price && (
-                              <span className="original-price">
-                                {formatPrice(item.originalPrice)}
-                              </span>
-                            )}
+                          {formatPriceLabel(item)}
                         </div>
                         <div className="card-actions">
                           {item.partner_id && (
@@ -1198,8 +1281,9 @@ const HomePage = () => {
                             </button>
                           )}
                           <button
+                            type="button"
                             className="card-action-btn"
-                            onClick={() => handleBookDeal(item)}
+                            onClick={(e) => { e.stopPropagation(); handleBookDeal(item); }}
                           >
                             Book Now
                           </button>
@@ -1455,24 +1539,23 @@ const HomePage = () => {
               <div className="loading-state">
                 <p>Loading deals...</p>
               </div>
-            ) : sortedAllPartnerDeals.length === 0 ? (
+            ) : searchFilteredPartnerDeals.length === 0 ? (
               <div className="empty-state">
                 <p>
-                  No deals available
-                  {activeCategory !== "all"
-                    ? ` in ${categories.find((c) => c.id === activeCategory)?.name}`
-                    : ""}
-                  .
+                  {searchKeyword?.trim()
+                    ? `No deals match "${searchKeyword.trim()}".`
+                    : `No deals available${activeCategory !== "all" ? " in " + (categories.find((c) => c.id === activeCategory)?.name ?? "") : ""}.`}
                 </p>
               </div>
             ) : (
               <div className="trending-grid experience-card-grid">
-                {sortedAllPartnerDeals.map((deal) => (
+                {searchFilteredPartnerDeals.map((deal) => (
                   <ExperienceCard
                     key={deal.id}
                     deal={deal}
                     onBook={handleBookDeal}
                     formatPrice={formatPrice}
+                    formatPriceLabel={formatPriceLabel}
                     formatDistance={formatDistance}
                   />
                 ))}

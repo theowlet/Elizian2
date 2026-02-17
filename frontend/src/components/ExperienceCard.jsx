@@ -13,6 +13,7 @@ export default function ExperienceCard({
   deal,
   onBook,
   formatPrice = (n) => (n != null ? `₹${Number(n).toLocaleString()}` : "—"),
+  formatPriceLabel, // optional: (deal) => string e.g. "Pay with EZT • 50% co-pay" or "₹800 → ₹400 with EZT"
   formatDistance = (km) => (km != null ? (km < 1 ? `${(km * 1000).toFixed(0)} m` : `${km.toFixed(1)} km`) : null),
 }) {
   const navigate = useNavigate();
@@ -115,7 +116,9 @@ export default function ExperienceCard({
           {distanceStr ? ` • ${distanceStr}` : ""}
         </p>
         <p className="exp-card__price-band">
-          {partner_avg_cost_for_two != null && (service_type === "dining" || service_type === "others")
+          {formatPriceLabel
+            ? formatPriceLabel(deal)
+            : partner_avg_cost_for_two != null && (service_type === "dining" || service_type === "others")
             ? `${formatPrice(partner_avg_cost_for_two)} for two`
             : price != null
             ? `${formatPrice(price)}${service_type === "travel" ? " per night" : service_type === "events" ? " per ticket" : " per session"}`
