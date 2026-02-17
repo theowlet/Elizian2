@@ -16,7 +16,7 @@ export function computeDiscountSummary(offer = {}) {
   const explicitDiscounted = offer.discounted_price !== undefined && offer.discounted_price !== null
     ? parseFloat(offer.discounted_price)
     : null;
-  const percent = parseFloat(offer.discount_percentage) || 0;
+  const percent = parseFloat(offer.co_pay_percentage || offer.discount_percentage) || 0;
   const amount = parseFloat(offer.discount_amount) || 0;
 
   // Calculate discounted price if not explicitly provided

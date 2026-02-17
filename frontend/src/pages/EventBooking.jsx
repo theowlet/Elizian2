@@ -201,7 +201,11 @@ const EventBooking = () => {
           partnerId: deal?.partner_id,
         });
 
-        if (
+        // Prefer server message when it gives an actionable fix (e.g. "Admin must approve the partner")
+        const isActionable = typeof errorMsg === 'string' && (errorMsg.includes('Admin must approve') || errorMsg.includes('Partners section'));
+        if (isActionable) {
+          setError(errorMsg);
+        } else if (
           errorMsg.includes("not found") ||
           errorMsg.includes("expired") ||
           errorMsg.includes("not approved")

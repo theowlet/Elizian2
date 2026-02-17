@@ -146,12 +146,12 @@ export default function DeveloperPage() {
       </section>
 
       <section style={{ marginTop: 32, padding: 16, background: "#1a1a2e", borderRadius: 12, border: "1px solid #2d2d44" }}>
-        <h2 style={{ fontSize: "1.1rem", marginBottom: 8 }}>Public API</h2>
-        <p style={{ color: "#94a3b8", fontSize: "0.9rem", marginBottom: 12 }}>
-          Base URL: <code style={{ background: "#0f0f1a", padding: "2px 6px", borderRadius: 4 }}>{API_BASE}/api/developer/v1</code>
-        </p>
+        <h2 style={{ fontSize: "1.1rem", marginBottom: 8 }}>API base</h2>
         <p style={{ color: "#94a3b8", fontSize: "0.9rem", marginBottom: 8 }}>
-          <strong>Validate voucher</strong> (GET or POST): <code style={{ background: "#0f0f1a", padding: "2px 6px", borderRadius: 4 }}>/vouchers/validate?code=YOUR_VOUCHER_CODE</code>
+          Main API: <code style={{ background: "#0f0f1a", padding: "2px 6px", borderRadius: 4 }}>{API_BASE}/api/v1</code>
+        </p>
+        <p style={{ color: "#94a3b8", fontSize: "0.9rem", marginBottom: 12 }}>
+          Public voucher validation: <code style={{ background: "#0f0f1a", padding: "2px 6px", borderRadius: 4 }}>{API_BASE}/api/developer/v1/vouchers/validate?code=YOUR_VOUCHER_CODE</code>
         </p>
         <p style={{ color: "#94a3b8", fontSize: "0.85rem" }}>
           Include header <code>X-API-Key: your_key</code>. Response: <code>{"{ valid, data: { booking_id, partner_id, ... } }"}</code>

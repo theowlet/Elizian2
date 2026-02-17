@@ -11,9 +11,10 @@ const LandingPage = () => {
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
-  // Persistent login: if user is already logged in, skip landing and go straight to home
+  // First-time onboarding: send new users to walkthrough; logged-in users to home
   useEffect(() => {
     const token = localStorage.getItem('token');
+    const onboardingDone = localStorage.getItem('onboarding_done');
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
@@ -22,9 +23,12 @@ const LandingPage = () => {
           return;
         }
       } catch (_) {
-        // Token is malformed, remove it
         localStorage.removeItem('token');
       }
+    }
+    // First-time visitor: show onboarding before landing
+    if (!onboardingDone) {
+      navigate('/onboarding', { replace: true });
     }
   }, [navigate]);
 

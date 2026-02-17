@@ -101,7 +101,8 @@ async function calculateRedemptionPreview(req, res) {
     const breakdown = await redemptionCalculationService.calculateRedemptionBreakdown(
       booking.deal_id,
       parseFloat(totalBillAmount) || 0,
-      booking.user_id
+      booking.user_id,
+      { booking }
     );
     successResponse(res, 200, 'Calculation preview', {
       total_bill_amount: parseFloat(totalBillAmount) || 0,
@@ -258,21 +259,39 @@ async function getPendingConfirmations(req, res) {
       return errorResponse(res, 401, 'Authentication required');
     }
     const pool = getPool();
-    const result = await pool.query(
-      `SELECT ra.id AS redemption_id, ra.booking_id, ra.voucher_code, ra.total_bill_amount,
-              ra.ezt_co_pay_amount, ra.net_amount_from_user, ra.offer_discount_percentage,
-              ra.discount_amount, ra.ezt_tokens_required, ra.customer_confirmation_status,
-              ra.confirmation_expires_at, ra.redeemed_at,
-              b.booking_reference, b.deal_id
-       FROM redemption_audit ra
-       JOIN bookings b ON b.id = ra.booking_id
-       WHERE b.user_id = $1
-         AND ra.redemption_status = 'pending_confirmation'
-         AND (ra.customer_confirmation_status IS NULL OR ra.customer_confirmation_status = 'pending')
-         AND (ra.confirmation_expires_at IS NULL OR ra.confirmation_expires_at > NOW())
-       ORDER BY ra.confirmation_expires_at ASC`,
-      [userId]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `SELECT ra.id AS redemption_id, ra.booking_id, ra.voucher_code, ra.total_bill_amount,
+                ra.ezt_co_pay_amount, ra.net_amount_from_user, ra.offer_discount_percentage,
+                ra.discount_amount, ra.ezt_tokens_required, ra.customer_confirmation_status,
+                ra.confirmation_expires_at, ra.redeemed_at,
+                b.booking_reference, b.deal_id
+         FROM redemption_audit ra
+         JOIN bookings b ON b.id = ra.booking_id
+         WHERE b.user_id = $1
+           AND ra.redemption_status = 'pending_confirmation'
+           AND (ra.customer_confirmation_status IS NULL OR ra.customer_confirmation_status = 'pending')
+           AND (ra.confirmation_expires_at IS NULL OR ra.confirmation_expires_at > NOW())
+         ORDER BY ra.confirmation_expires_at ASC`,
+        [userId]
+      );
+    } catch (queryErr) {
+      if (queryErr.code === '42703' || /column .* does not exist/i.test(queryErr.message || '')) {
+        result = await pool.query(
+          `SELECT ra.id AS redemption_id, ra.booking_id, ra.voucher_code, ra.total_bill_amount,
+                  ra.ezt_co_pay_amount, ra.net_amount_from_user, ra.redeemed_at,
+                  b.booking_reference, b.deal_id
+           FROM redemption_audit ra
+           JOIN bookings b ON b.id = ra.booking_id
+           WHERE b.user_id = $1 AND ra.redemption_status = 'pending_confirmation'
+           ORDER BY ra.redeemed_at ASC`,
+          [userId]
+        );
+      } else {
+        throw queryErr;
+      }
+    }
     successResponse(res, 200, 'Pending confirmations', { pending: result.rows });
   } catch (error) {
     logError('❌ Get pending confirmations error:', error);

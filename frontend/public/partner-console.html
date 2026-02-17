@@ -696,7 +696,7 @@
                         <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"></path>
                         <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z"></path>
                     </svg>
-                    Offers & Discounts
+                    Deals
                 </div>
                 <div class="nav-item" onclick="showSection('scanner')">
                     <svg class="nav-icon" fill="currentColor" viewBox="0 0 20 20">
@@ -1173,15 +1173,15 @@
                     </div>
                 </div>
 
-                <!-- Offers Section -->
+                <!-- Deals Section -->
                 <div id="offers" class="section">
                     <div class="content-header">
-                        <h1 class="content-title">Offers & Discounts Management</h1>
+                        <h1 class="content-title">Deals</h1>
                         <button class="btn btn-primary" onclick="showAddOfferModal()">
                             <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/>
                             </svg>
-                            Create New Offer
+                            Create New Deal
                         </button>
                     </div>
 
@@ -1189,7 +1189,7 @@
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th>Offer Details</th>
+                                    <th>Deal Details</th>
                                     <th>Type & Discount</th>
                                     <th>Validity Period</th>
                                     <th>Redemptions</th>
@@ -1201,7 +1201,7 @@
                                 <tr>
                                     <td colspan="6" class="loading">
                                         <div class="spinner"></div>
-                                        Loading offers...
+                                        Loading deals...
                                     </td>
                                 </tr>
                             </tbody>
@@ -1212,16 +1212,16 @@
         </div>
     </div>
 
-    <!-- Add/Edit Offer Modal -->
+    <!-- Add/Edit Deal Modal -->
     <div id="offerModal" class="modal">
         <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
-                <h2 class="modal-title" id="offerModalTitle">Create New Offer</h2>
+                <h2 class="modal-title" id="offerModalTitle">Create New Deal</h2>
                 <button class="modal-close" onclick="closeModal('offerModal')">&times;</button>
             </div>
             <form id="offerForm">
                 <div class="form-group">
-                    <label class="form-label" for="offerTitle">Offer Title *</label>
+                    <label class="form-label" for="offerTitle">Deal Title *</label>
                     <input type="text" id="offerTitle" class="form-input" required 
                            placeholder="e.g., Summer Special - 50% Off All Services">
                 </div>
@@ -1235,7 +1235,7 @@
                 <div class="form-group">
                     <label class="form-label" for="offerDiscountAppliesTo">Discount Applies To *</label>
                     <select id="offerDiscountAppliesTo" class="form-input" required onchange="updateOfferDiscountType()">
-                        <option value="standalone">Standalone Offer (General Promotion)</option>
+                        <option value="standalone">Standalone Deal (General Promotion)</option>
                         <option value="menu_item">Specific Menu Item</option>
                         <option value="service_type">All Items in Service Type</option>
                     </select>
@@ -1267,7 +1267,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label" for="offerType">Offer Type *</label>
+                        <label class="form-label" for="offerType">Deal Type *</label>
                         <select id="offerType" name="offerType" class="form-input" required onchange="updateOfferFields()">
                             <option value="percentage">Percentage Discount</option>
                             <option value="fixed_amount">Fixed Amount Off</option>
@@ -1308,7 +1308,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" for="offerImage">Offer Image</label>
+                    <label class="form-label" for="offerImage">Deal Image</label>
                     <input type="file" id="offerImage" class="form-input" accept="image/*">
                     <small style="color: var(--text-muted);">PNG/JPG/WebP. Max 5MB</small>
                     <img id="offerImagePreview" alt="Preview" style="width: 200px; height: 120px; object-fit: cover; border-radius: 8px; margin-top: 8px; display: none;">
@@ -1373,7 +1373,7 @@
                         </label>
                     </div>
                     <small style="color: var(--text-muted); display: block; margin-top: 8px;">
-                        Select which days of the week this offer is valid. Customers will only see offers applicable on the current day.
+                        Select which days of the week this deal is valid. Customers will only see deals applicable on the current day.
                     </small>
                     <div style="margin-top: 8px; display: flex; gap: 8px;">
                         <button type="button" onclick="selectWeekdays()" style="padding: 6px 12px; background: var(--bg-secondary, #f5f5f5); border: 1px solid var(--border, #ddd); border-radius: 4px; cursor: pointer; font-size: 12px;">Weekdays</button>
@@ -1398,16 +1398,16 @@
                 <div class="form-group">
                     <label class="form-label">
                         <input type="checkbox" id="isTrending" style="margin-right: 8px;">
-                        <strong>Trending Offer</strong> (Shown in trending section)
+                        <strong>Trending Deal</strong> (Shown in trending section)
                     </label>
                     <small style="color: var(--text-muted); display: block; margin-left: 24px;">
-                        Trending offers get premium visibility in the customer app
+                        Trending deals get premium visibility in the customer app
                     </small>
                 </div>
 
                 <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 2rem;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('offerModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Offer</button>
+                    <button type="submit" class="btn btn-primary">Save Deal</button>
                 </div>
             </form>
         </div>
@@ -3659,11 +3659,11 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
                     
                     updateOffersTable();
                 } else {
-                    showNotification('Failed to load offers: ' + result.error, 'error');
+                    showNotification('Failed to load deals: ' + result.error, 'error');
                 }
             } catch (error) {
-                console.error('Error loading offers:', error);
-                showNotification('Error loading offers', 'error');
+                console.error('Error loading deals:', error);
+                showNotification('Error loading deals', 'error');
             }
         }
 
@@ -3673,7 +3673,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
             if (!tableBody) return;
             
             if (currentOffers.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">No offers created yet. Click "Create New Offer" to get started.</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">No deals created yet. Click "Create New Deal" to get started.</td></tr>';
                 return;
             }
             
@@ -3783,7 +3783,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
 
         // Show add offer modal
         function showAddOfferModal() {
-            document.getElementById('offerModalTitle').textContent = 'Create New Offer';
+            document.getElementById('offerModalTitle').textContent = 'Create New Deal';
             document.getElementById('offerForm').reset();
             document.getElementById('offerImagePreview').style.display = 'none';
             delete document.getElementById('offerForm').dataset.editingId;
@@ -4078,7 +4078,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
         }
 
         function formatDiscountLabel(offer = {}) {
-            const percent = parseFloat(offer.discount_percentage);
+            const percent = parseFloat(offer.co_pay_percentage);
             if (!Number.isNaN(percent) && percent > 0) {
                 return `${percent.toFixed(2)}% OFF`;
             }
@@ -4219,7 +4219,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
                         isSavingOffer = false;
                         if (submitBtn) {
                             submitBtn.disabled = false;
-                            submitBtn.textContent = originalBtnText || 'Save Offer';
+                            submitBtn.textContent = originalBtnText || 'Save Deal';
                         }
                         return;
                     }
@@ -4291,7 +4291,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
                         description: document.getElementById('offerDescription').value,
                         service_type: document.getElementById('offerServiceType').value || null,
                         offer_type: offerTypeValue,
-                        discount_percentage: discountPercentageToSend,
+                        co_pay_percentage: discountPercentageToSend,
                         discount_amount: discountAmountToSend,
                         original_price: formattedOriginal,
                         discounted_price: formattedDiscounted,
@@ -4353,7 +4353,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
                                 updateOffersTable();
                                 notifyOfferUpdate(savedOffer.id);
 
-                                showNotification(editingId ? 'Offer updated successfully' : 'Offer created successfully', 'success');
+                                showNotification(editingId ? 'Deal updated successfully' : 'Deal created successfully', 'success');
                                 closeModal('offerModal');
                             } else if (editingId && existingOfferBeforeSubmit) {
                                 console.warn('Offer saved but response did not include payload. Applying optimistic update for editing ID:', editingId);
@@ -4366,7 +4366,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
                                     savings: formattedSavings,
                                     discounted_price: formattedDiscounted,
                                     original_price: formattedOriginal,
-                                    discount_percentage: discountPercentageToSend,
+                                    co_pay_percentage: discountPercentageToSend,
                                     discount_amount: discountAmountToSend,
                                     ezt_equivalent: formattedEzt,
                                     is_trending: document.getElementById('isTrending').checked,
@@ -4381,11 +4381,11 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
                                 updateOffersTable();
                                 notifyOfferUpdate(editingId);
 
-                                showNotification('Offer updated successfully', 'success');
+                                showNotification('Deal updated successfully', 'success');
                                 closeModal('offerModal');
                             } else {
                                 console.warn('Offer saved but response did not include payload, refreshing list.');
-                                showNotification('Offer saved successfully', 'success');
+                                showNotification('Deal saved successfully', 'success');
                                 closeModal('offerModal');
                                 await loadOffers();
                             }
@@ -4399,7 +4399,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
                     } finally {
                         if (submitBtn) {
                             submitBtn.disabled = false;
-                            submitBtn.textContent = originalBtnText || 'Save Offer';
+                            submitBtn.textContent = originalBtnText || 'Save Deal';
                         }
                         isSavingOffer = false;
                     }
@@ -4413,7 +4413,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
             if (!offer) return;
             
             attachOfferPricingListeners();
-            document.getElementById('offerModalTitle').textContent = 'Edit Offer';
+            document.getElementById('offerModalTitle').textContent = 'Edit Deal';
             document.getElementById('offerForm').dataset.editingId = offerId;
             document.getElementById('offerTitle').value = offer.title;
             document.getElementById('offerDescription').value = offer.description || '';
@@ -4430,7 +4430,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
 
             let derivedOfferType = offer.offer_type;
             if (!derivedOfferType) {
-                if (offer.discount_percentage && parseFloat(offer.discount_percentage) > 0) {
+                if (offer.co_pay_percentage && parseFloat(offer.co_pay_percentage) > 0) {
                     derivedOfferType = 'percentage';
                 } else if (offer.discount_amount && parseFloat(offer.discount_amount) > 0) {
                     derivedOfferType = 'fixed_amount';
@@ -4456,8 +4456,8 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
             }
             
             if (discountPercentInput) {
-                if (offer.discount_percentage && parseFloat(offer.discount_percentage) > 0) {
-                    discountPercentInput.value = parseFloat(offer.discount_percentage).toFixed(2).replace(/\.00$/, '');
+                if (offer.co_pay_percentage && parseFloat(offer.co_pay_percentage) > 0) {
+                    discountPercentInput.value = parseFloat(offer.co_pay_percentage).toFixed(2).replace(/\.00$/, '');
                 } else {
                     discountPercentInput.value = '';
                 }
@@ -4501,7 +4501,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
             document.getElementById('isTrending').checked = offer.is_trending;
             const savingsInfo = document.getElementById('offerSavingsInfo');
             if (savingsInfo) savingsInfo.innerHTML = '';
-            if (offer.original_price && (offer.discount_percentage || offer.discount_amount)) {
+            if (offer.original_price && (offer.co_pay_percentage || offer.discount_amount)) {
                 recalculateDiscountedPrice();
             } else {
                 recalculateDiscountedPrice();
@@ -4648,7 +4648,7 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
                 const result = await response.json();
                 
                 if (result.success) {
-                    showNotification('Offer deleted successfully', 'success');
+                    showNotification('Deal deleted successfully', 'success');
                     await loadOffers();
                     notifyOfferUpdate(offerId);
                 } else {

@@ -3,6 +3,21 @@ import { useNavigate, useLocation } from 'react-router-dom';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
+const getUserDisplayName = () => {
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return null;
+    const user = JSON.parse(raw);
+    const first = (user.first_name || '').trim();
+    const last = (user.last_name || '').trim();
+    if (first || last) return [first, last].filter(Boolean).join(' ');
+    if (user.name) return String(user.name).trim();
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Mobile Bottom Navigation Bar
  * Shows on authenticated user pages only
@@ -12,6 +27,7 @@ const BottomNav = () => {
   const location = useLocation();
   const token = localStorage.getItem('token');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [profileLabel, setProfileLabel] = useState(() => getUserDisplayName() || 'Profile');
 
   // Pages where bottom nav should NOT appear
   const hiddenPaths = [
@@ -31,6 +47,10 @@ const BottomNav = () => {
     return () => clearInterval(interval);
   }, [token]);
 
+  useEffect(() => {
+    setProfileLabel(getUserDisplayName() || 'Profile');
+  }, [location.pathname]);
+
   const fetchUnread = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/v1/notifications/unread-count`, {
@@ -47,8 +67,8 @@ const BottomNav = () => {
     { path: '/home', icon: '🏠', label: 'Home' },
     { path: '/exclusives', icon: '✨', label: 'Exclusives' },
     { path: '/wallet', icon: '💰', label: 'Wallet' },
-    { path: '/notifications', icon: '🔔', label: 'Alerts', badge: unreadCount },
-    { path: '/profile', icon: '👤', label: 'Profile' },
+    { path: '/notifications', icon: '🔔', label: 'Notifications', badge: unreadCount },
+    { path: '/profile', icon: '👤', label: profileLabel },
   ];
 
   const isActive = (path) => {

@@ -106,7 +106,12 @@ async function regenerateQRCode(bookingId) {
 
     log(`✅ QR code regenerated for booking ${bookingId}`);
 
-    return updateResult.rows[0];
+    // Return updated booking with voucher display fields (never drop deal/venue)
+    return {
+      ...updateResult.rows[0],
+      partner_name: booking.partner_name,
+      deal_title: booking.deal_title
+    };
   } catch (error) {
     await client.query('ROLLBACK');
     if (error instanceof AppError) {

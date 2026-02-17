@@ -9,7 +9,8 @@ const { errorResponse } = require('../../utils/response');
 const TIER_ORDER = ['Ather', 'Nova', 'Luminar', 'Valiant', 'Echelon'];
 
 function getTierLevel(tierName) {
-  const idx = TIER_ORDER.indexOf(tierName);
+  const normalized = (tierName && String(tierName).trim()) || '';
+  const idx = TIER_ORDER.findIndex(t => t.toLowerCase() === normalized.toLowerCase());
   return idx >= 0 ? idx : 0;
 }
 
@@ -28,14 +29,14 @@ function requireMinTier(minTier) {
 
       const pool = getPool();
       const result = await pool.query(
-        `SELECT t.name as tier_name
+        `SELECT u.current_tier_name, t.name as legacy_tier_name
          FROM users u
          LEFT JOIN tiers t ON u.current_tier_id = t.id
          WHERE u.id = $1`,
         [req.userId]
       );
-
-      const userTier = result.rows[0]?.tier_name || 'Ather';
+      const row = result.rows[0];
+      const userTier = (row?.current_tier_name && row.current_tier_name.trim() !== '') ? row.current_tier_name : (row?.legacy_tier_name || 'Ather');
       const userLevel = getTierLevel(userTier);
       const requiredLevel = getTierLevel(minTier);
 
@@ -58,7 +59,7 @@ function requireMinTier(minTier) {
  */
 async function checkOfferTierAccess(req, res, next) {
   try {
-    const offerId = req.params.offerId || req.params.id || req.body.offerId;
+    const offerId = req.params.offerId || req.params.id || req.body.offerId || req.body.offer_id;
     if (!offerId || !req.userId) {
       req.tierAccessGranted = true;
       return next();
@@ -77,15 +78,16 @@ async function checkOfferTierAccess(req, res, next) {
 
     const minTier = offerResult.rows[0].min_tier_name;
 
+    // Prefer enterprise current_tier_name; fallback to legacy tiers table
     const userResult = await pool.query(
-      `SELECT t.name as tier_name
+      `SELECT u.current_tier_name, t.name as legacy_tier_name
        FROM users u
        LEFT JOIN tiers t ON u.current_tier_id = t.id
        WHERE u.id = $1`,
       [req.userId]
     );
-
-    const userTier = userResult.rows[0]?.tier_name || 'Ather';
+    const row = userResult.rows[0];
+    const userTier = (row?.current_tier_name && row.current_tier_name.trim() !== '') ? row.current_tier_name : (row?.legacy_tier_name || 'Ather');
     req.tierAccessGranted = getTierLevel(userTier) >= getTierLevel(minTier);
     req.offerMinTier = minTier;
     req.userTier = userTier;

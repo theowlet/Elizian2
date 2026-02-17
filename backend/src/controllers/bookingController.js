@@ -6,6 +6,10 @@ const { getS3FileUrl } = require("../../utils/s3Bucket");
 // Create a new booking
 async function createBooking(req, res) {
   try {
+    if (req.tierAccessGranted === false && req.offerMinTier) {
+      return errorResponse(res, 403, `This experience requires ${req.offerMinTier} tier or higher. Your current tier: ${req.userTier || 'Ather'}`);
+    }
+
     // Log incoming request for debugging
     console.log("📥 Booking request received:", {
       user_id: req.userId,
@@ -134,12 +138,14 @@ async function getBooking(req, res) {
     if (!booking.qr_code_url && booking.voucher_code) {
       try {
         const qrCodeRegenerationService = require("../services/qrCodeRegenerationService");
-        booking = await qrCodeRegenerationService.regenerateQRCode(id);
+        const regenerated = await qrCodeRegenerationService.regenerateQRCode(id);
+        // Preserve voucher display fields (never overwrite deal/venue from voucher)
         booking = {
-          ...booking,
-          qr_code_url: getS3FileUrl(booking.qr_code_url),
+          ...regenerated,
+          partner_name: booking.partner_name ?? regenerated.partner_name,
+          deal_title: booking.deal_title ?? regenerated.deal_title,
+          qr_code_url: getS3FileUrl(regenerated.qr_code_url),
         };
-        log(`✅ QR code regenerated for booking ${booking}`);
         log(`✅ QR code regenerated for booking ${id}`);
       } catch (regenerateError) {
         // Log but don't fail - booking can still be returned without QR code
@@ -201,8 +207,7 @@ async function checkInAtVenue(req, res) {
       qrScanVerified: false,
     });
 
-    return successResponse(res, {
-      message: 'Checked in successfully',
+    return successResponse(res, 200, 'Checked in successfully', {
       visit_session_id: session.id,
       geo_verified: session.geo_verified,
       distance_meters: session.check_in_distance_meters,
@@ -247,8 +252,7 @@ async function qrCheckIn(req, res) {
       qrScanVerified: true,
     });
 
-    return successResponse(res, {
-      message: 'Checked in via QR successfully',
+    return successResponse(res, 200, 'Checked in via QR successfully', {
       visit_session_id: session.id,
       geo_verified: session.geo_verified,
       distance_meters: session.check_in_distance_meters,

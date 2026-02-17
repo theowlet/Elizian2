@@ -1,6 +1,10 @@
 const { getPool } = require('../config/db');
+const { logError } = require('../utils/logger');
 
 const pool = getPool();
+
+const BOOKING_MIGRATION_HINT =
+  'Run: node run-bookings-migrations.js (or migrations: 2025-01-21-fix-all-bookings-columns, 2025-01-22-voucher-redemption-system, 2025-01-22-enterprise-voucher-system, 2025-01-23-bookings-expires-at, 20251108_ezt_token_updates, deal_slots, 2026-02-enterprise-booking-engine)';
 
 /**
  * Generate unique booking reference
@@ -39,94 +43,122 @@ async function createBooking(bookingData, executor = pool) {
   // This ensures voucher_code is never missing
   
   // Map the service data to actual table columns
-  const result = await executor.query(
-    `INSERT INTO bookings (
-      booking_reference,
-      user_id, 
-      event_id, 
-      deal_id, 
-      partner_id,
-      show_id,
-      booking_date, 
-      booking_time,
-      status, 
-      total_price, 
-      fiat_amount,
-      ezt_redeemed,
-      num_tickets, 
-      num_guests,
-      special_requests,
-      booking_type,
-      reward_eligible,
-      voucher_code,
-      qr_code_url,
-      voucher_state,
-      expires_at,
-      user_tier_at_booking
+  const baseValues = [
+    bookingReference,
+    bookingData.user_id,
+    bookingData.event_id || null,
+    bookingData.deal_id || bookingData.offer_id || null,  // Support both deal_id and offer_id for backwards compatibility
+    bookingData.partner_id || null,
+    bookingData.show_id || null,
+    bookingData.booking_date || new Date().toISOString().split('T')[0], // Use provided booking_date or current date
+    // CRITICAL: Only use fallback if booking_time is null/undefined, not if it's empty string
+    // Empty string is valid (means no specific time), null/undefined means use current time
+    (bookingData.booking_time !== null && bookingData.booking_time !== undefined)
+      ? bookingData.booking_time
+      : new Date().toTimeString().slice(0, 5), // Use provided booking_time or current time
+    bookingData.status || 'pending',
+    bookingData.amount || bookingData.total_price || 0,  // total_price
+    bookingData.fiat_amount || bookingData.amount || 0,   // fiat_amount (before EZT discount)
+    bookingData.ezt_redeemed || 0,
+    bookingData.num_tickets || 1,
+    bookingData.num_guests || bookingData.num_tickets || 1,
+    bookingData.special_requests || null,
+    bookingData.booking_type || (bookingData.event_id ? 'event' : 'restaurant'),
+    bookingData.reward_eligible !== undefined ? bookingData.reward_eligible : true,
+    voucherCode, // Will use database default (gen_random_uuid()) if null
+    bookingData.qr_code_url || null,
+    bookingData.voucher_state || (bookingData.status === 'confirmed' ? 'active' : 'booked'), // Set initial voucher state
+    bookingData.expires_at || null,
+    bookingData.user_tier_at_booking || null,
+    Boolean(bookingData.is_priority_override)
+  ];
+  const insertWithCoPay = `
+    INSERT INTO bookings (
+      booking_reference, user_id, event_id, deal_id, partner_id, show_id,
+      booking_date, booking_time, status, total_price, fiat_amount, ezt_redeemed,
+      num_tickets, num_guests, special_requests, booking_type, reward_eligible,
+      voucher_code, qr_code_url, voucher_state, expires_at, user_tier_at_booking,
+      is_priority_override, co_pay_percentage_at_booking
     )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
-     RETURNING *`,
-    [
-      bookingReference,
-      bookingData.user_id,
-      bookingData.event_id || null,
-      bookingData.deal_id || bookingData.offer_id || null,  // Support both deal_id and offer_id for backwards compatibility
-      bookingData.partner_id || null,
-      bookingData.show_id || null,
-      bookingData.booking_date || new Date().toISOString().split('T')[0], // Use provided booking_date or current date
-      // CRITICAL: Only use fallback if booking_time is null/undefined, not if it's empty string
-      // Empty string is valid (means no specific time), null/undefined means use current time
-      (bookingData.booking_time !== null && bookingData.booking_time !== undefined)
-        ? bookingData.booking_time
-        : new Date().toTimeString().slice(0, 5), // Use provided booking_time or current time
-      bookingData.status || 'pending',
-      bookingData.amount || bookingData.total_price || 0,  // total_price
-      bookingData.fiat_amount || bookingData.amount || 0,   // fiat_amount (before EZT discount)
-      bookingData.ezt_redeemed || 0,
-      bookingData.num_tickets || 1,
-      bookingData.num_guests || bookingData.num_tickets || 1,
-      bookingData.special_requests || null,
-      bookingData.booking_type || (bookingData.event_id ? 'event' : 'restaurant'),
-      bookingData.reward_eligible !== undefined ? bookingData.reward_eligible : true,
-      voucherCode, // Will use database default (gen_random_uuid()) if null
-      bookingData.qr_code_url || null,
-      bookingData.voucher_state || (bookingData.status === 'confirmed' ? 'active' : 'booked'), // Set initial voucher state
-      bookingData.expires_at || null,
-      bookingData.user_tier_at_booking || null
-    ]
-  );
-  return result.rows[0];
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+    RETURNING *`;
+  const insertWithoutCoPay = `
+    INSERT INTO bookings (
+      booking_reference, user_id, event_id, deal_id, partner_id, show_id,
+      booking_date, booking_time, status, total_price, fiat_amount, ezt_redeemed,
+      num_tickets, num_guests, special_requests, booking_type, reward_eligible,
+      voucher_code, qr_code_url, voucher_state, expires_at, user_tier_at_booking,
+      is_priority_override
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+    RETURNING *`;
+  try {
+    const paramsWithCoPay = [...baseValues, bookingData.co_pay_percentage_at_booking != null ? Number(bookingData.co_pay_percentage_at_booking) : null];
+    const result = await executor.query(insertWithCoPay, paramsWithCoPay);
+    return result.rows[0];
+  } catch (err) {
+    const msg = err.message || '';
+    const code = err.code || '';
+    if (code === '42703' || /column .* does not exist/i.test(msg)) {
+      const result = await executor.query(insertWithoutCoPay, baseValues);
+      return result.rows[0];
+    }
+    throw err;
+  }
 }
 
-// Get booking by ID
+// Get booking by ID (with venue and deal for voucher display)
 async function getBookingById(bookingId) {
   const result = await pool.query(
     `SELECT 
-      *,
-      booking_date::text as booking_date,
-      COALESCE(booking_time::text, '') as booking_time
-     FROM bookings WHERE id = $1`,
+      b.*,
+      b.booking_date::text AS booking_date,
+      COALESCE(b.booking_time::text, '') AS booking_time,
+      p.name AS partner_name,
+      po.title AS deal_title
+     FROM bookings b
+     LEFT JOIN partners p ON b.partner_id = p.id
+     LEFT JOIN partner_offers po ON b.deal_id = po.id
+     WHERE b.id = $1`,
     [bookingId]
   );
-  // Ensure booking_time is a string (not null) for consistent frontend handling
   if (result.rows[0]) {
     result.rows[0].booking_time = result.rows[0].booking_time || null;
   }
   return result.rows[0];
 }
 
-// Get booking by voucher code (for developer API / validation)
+// Get booking by voucher code (for developer API / validation, calculate preview, redemption)
+// Resilient to missing columns (voucher_state, booking_date, etc.) for minimal schema
 async function getBookingByVoucherCode(voucherCode) {
-  const result = await pool.query(
-    `SELECT b.id, b.booking_reference, b.user_id, b.partner_id, b.deal_id, b.status, b.voucher_state,
-            b.booking_date, b.booking_time, b.expires_at, b.created_at,
-            p.name AS partner_name
-     FROM bookings b
-     LEFT JOIN partners p ON b.partner_id = p.id
-     WHERE b.voucher_code = $1`,
-    [voucherCode]
-  );
-  return result.rows[0];
+  try {
+    const result = await pool.query(
+      `SELECT b.id, b.booking_reference, b.user_id, b.partner_id, b.deal_id, b.status, b.voucher_state,
+              b.booking_date, b.booking_time, b.expires_at, b.created_at,
+              b.co_pay_percentage_at_booking,
+              p.name AS partner_name
+       FROM bookings b
+       LEFT JOIN partners p ON b.partner_id = p.id
+       WHERE b.voucher_code = $1`,
+      [voucherCode]
+    );
+    return result.rows[0];
+  } catch (err) {
+    if (err.code === '42703' || /column .* does not exist/i.test(err.message || '')) {
+      const minimal = await pool.query(
+        `SELECT b.id, b.booking_reference, b.user_id, b.partner_id, b.deal_id, b.status,
+                p.name AS partner_name
+         FROM bookings b
+         LEFT JOIN partners p ON b.partner_id = p.id
+         WHERE b.voucher_code = $1`,
+        [voucherCode]
+      );
+      const row = minimal.rows[0] || null;
+      if (row) row.co_pay_percentage_at_booking = null;
+      return row;
+    }
+    throw err;
+  }
 }
 
 // Get booking by ID with lock (FOR UPDATE)
@@ -141,32 +173,41 @@ async function getBookingByIdForUpdate(bookingId) {
   return result.rows[0];
 }
 
-// List bookings with filters
+// List bookings with filters (includes venue and deal for display)
 async function listBookings({ userId = null, partnerId = null, status = null, limit = 50, offset = 0 } = {}) {
-  let query = 'SELECT * FROM bookings WHERE 1=1';
   const params = [];
   let paramCount = 0;
 
+  let query = `
+    SELECT b.*,
+      p.name AS partner_name,
+      po.title AS deal_title
+    FROM bookings b
+    LEFT JOIN partners p ON b.partner_id = p.id
+    LEFT JOIN partner_offers po ON b.deal_id = po.id
+    WHERE 1=1
+  `;
+
   if (userId) {
     paramCount++;
-    query += ` AND user_id = $${paramCount}`;
+    query += ` AND b.user_id = $${paramCount}`;
     params.push(userId);
   }
 
   if (partnerId) {
     paramCount++;
-    query += ` AND partner_id = $${paramCount}`;
+    query += ` AND b.partner_id = $${paramCount}`;
     params.push(partnerId);
   }
 
   if (status) {
     paramCount++;
-    query += ` AND status = $${paramCount}`;
+    query += ` AND b.status = $${paramCount}`;
     params.push(status);
   }
 
   paramCount++;
-  query += ` ORDER BY booking_date DESC LIMIT $${paramCount}`;
+  query += ` ORDER BY b.booking_date DESC LIMIT $${paramCount}`;
   params.push(limit);
 
   paramCount++;

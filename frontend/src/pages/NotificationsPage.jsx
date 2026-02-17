@@ -9,6 +9,7 @@ const NotificationsPage = () => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [detailNotification, setDetailNotification] = useState(null);
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
@@ -27,7 +28,8 @@ const NotificationsPage = () => {
       const [notifData, countData] = await Promise.all([notifRes.json(), countRes.json()]);
 
       if (notifData.success) {
-        setNotifications(Array.isArray(notifData.data) ? notifData.data : []);
+        const list = notifData.data?.notifications ?? (Array.isArray(notifData.data) ? notifData.data : []);
+        setNotifications(Array.isArray(list) ? list : []);
       }
       if (countData.success) {
         setUnreadCount(countData.data?.count || countData.data?.unreadCount || 0);
@@ -59,6 +61,23 @@ const NotificationsPage = () => {
     } catch (_) {}
   };
 
+  const markOneAsRead = async (id) => {
+    try {
+      await fetch(`${API_BASE}/api/v1/notifications/mark-read`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ notificationIds: [id] }),
+      });
+      setNotifications(prev => prev.map(n => (n.id === id ? { ...n, is_read: true } : n)));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (_) {}
+  };
+
+  const handleNotificationClick = (n) => {
+    if (!n.is_read) markOneAsRead(n.id);
+    setDetailNotification(n);
+  };
+
   const getNotifIcon = (type) => {
     const icons = {
       booking_confirmation: '📅',
@@ -87,6 +106,11 @@ const NotificationsPage = () => {
     const diffDays = Math.floor(diffHrs / 24);
     if (diffDays < 7) return `${diffDays}d ago`;
     return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  };
+
+  const formatTimeExact = (dateStr) => {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
   };
 
   return (
@@ -127,18 +151,67 @@ const NotificationsPage = () => {
         ) : (
           <div style={s.list}>
             {notifications.map((n) => (
-              <div key={n.id} style={{ ...s.notifRow, background: n.is_read ? '#fff' : '#f0fdf4' }}>
+              <div
+                key={n.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => handleNotificationClick(n)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNotificationClick(n); } }}
+                style={{ ...s.notifRow, background: n.is_read ? '#fff' : '#f0fdf4', cursor: 'pointer' }}
+              >
                 <div style={s.notifIcon}>{getNotifIcon(n.notification_type || n.type)}</div>
                 <div style={s.notifContent}>
                   <div style={s.notifTitle}>{n.title || n.message || 'Notification'}</div>
-                  {n.body && <div style={s.notifBody}>{n.body}</div>}
-                  <div style={s.notifTime}>{formatTime(n.created_at)}</div>
+                  {(n.body || (n.message && n.message !== (n.title || 'Notification'))) && (
+                  <div style={s.notifBody}>{n.body || n.message}</div>
+                )}
+                  <div style={s.notifTime} title={n.created_at ? formatTimeExact(n.created_at) : ''}>{formatTime(n.created_at)}</div>
                 </div>
-                <button onClick={() => deleteNotification(n.id)} style={s.deleteBtn} aria-label="Delete">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); }}
+                  style={s.deleteBtn}
+                  aria-label="Delete"
+                >
                   &times;
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Notification detail modal */}
+        {detailNotification && (
+          <div style={s.modalOverlay} onClick={() => setDetailNotification(null)}>
+            <div style={s.modalBox} onClick={(e) => e.stopPropagation()}>
+              <div style={s.modalHeader}>
+                <span style={s.modalIcon}>{getNotifIcon(detailNotification.notification_type || detailNotification.type)}</span>
+                <h2 style={s.modalTitle}>{detailNotification.title || detailNotification.message || 'Notification'}</h2>
+                <button type="button" style={s.modalClose} onClick={() => setDetailNotification(null)} aria-label="Close">&times;</button>
+              </div>
+              <div style={s.modalBody}>
+                {(detailNotification.message || detailNotification.body) && (
+                  <div style={s.modalMessage}>{detailNotification.message || detailNotification.body}</div>
+                )}
+                {(() => {
+                  const meta = typeof detailNotification.metadata === 'string' ? (() => { try { return JSON.parse(detailNotification.metadata); } catch { return null; } })() : detailNotification.metadata;
+                  return meta && meta.description ? <div style={s.modalMessage}>{meta.description}</div> : null;
+                })()}
+                {!(detailNotification.message || detailNotification.body) && !(detailNotification.metadata?.description) && (
+                  <p style={s.modalPlaceholder}>No additional details for this notification.</p>
+                )}
+                <div style={s.modalTime}>
+                  <span>{formatTime(detailNotification.created_at)}</span>
+                  {detailNotification.created_at && <span style={{ color: '#9ca3af', fontSize: '0.8rem' }}> · {formatTimeExact(detailNotification.created_at)}</span>}
+                </div>
+              </div>
+              <div style={s.modalFooter}>
+                <button type="button" style={s.modalBtnSecondary} onClick={() => setDetailNotification(null)}>Close</button>
+                {(detailNotification.action_url || detailNotification.actionUrl) && (detailNotification.action_url || detailNotification.actionUrl) !== '/notifications' && (
+                  <button type="button" style={s.modalBtnPrimary} onClick={() => { setDetailNotification(null); navigate(detailNotification.action_url || detailNotification.actionUrl); }}>Open</button>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -198,6 +271,20 @@ const s = {
   pushTitle: { fontWeight: 600, fontSize: '0.85rem', color: '#1f2937' },
   pushSub: { fontSize: '0.7rem', color: '#6b7280', marginTop: '2px' },
   enableBtn: { padding: '6px 16px', background: '#004f4a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', flexShrink: 0 },
+
+  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' },
+  modalBox: { background: '#fff', borderRadius: '16px', maxWidth: '420px', width: '100%', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.15)' },
+  modalHeader: { display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '1.25rem 1.25rem 0', flexShrink: 0 },
+  modalIcon: { fontSize: '1.5rem', flexShrink: 0 },
+  modalTitle: { flex: 1, margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1f2937', lineHeight: 1.3 },
+  modalClose: { background: 'none', border: 'none', fontSize: '1.5rem', color: '#9ca3af', cursor: 'pointer', padding: 0, lineHeight: 1 },
+  modalBody: { padding: '1rem 1.25rem', overflow: 'auto', flex: 1 },
+  modalMessage: { fontSize: '0.95rem', color: '#374151', lineHeight: 1.5, whiteSpace: 'pre-wrap', marginBottom: '1rem' },
+  modalPlaceholder: { fontSize: '0.9rem', color: '#9ca3af', margin: '0 0 1rem', fontStyle: 'italic' },
+  modalTime: { fontSize: '0.8rem', color: '#6b7280', marginTop: '0.5rem' },
+  modalFooter: { display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', padding: '1rem 1.25rem 1.25rem', borderTop: '1px solid #f3f4f6', flexShrink: 0 },
+  modalBtnSecondary: { padding: '8px 16px', background: '#f3f4f6', color: '#374151', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' },
+  modalBtnPrimary: { padding: '8px 16px', background: '#004f4a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer' },
 };
 
 export default NotificationsPage;

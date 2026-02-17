@@ -91,7 +91,7 @@ function ProtectedRoute({
     window.addEventListener("storage", handleStorageChange);
     window.addEventListener("elizian-logout", handleLogout);
     window.MY_GLOBAL_CONFIG = {
-      apiUrl: import.meta.env.VITE_API_URL,
+      apiUrl: import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL,
     };
 
     return () => {
@@ -125,7 +125,7 @@ function ProtectedRoute({
 
 function AppRoutes() {
   window.MY_GLOBAL_CONFIG = {
-    apiUrl: import.meta.env.VITE_API_BASE_URL 
+    apiUrl: import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL,
   };
   return (
     <Routes>

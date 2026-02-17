@@ -1,9 +1,13 @@
 const { getPool } = require("../config/db");
 const { normalizeApplicableDays } = require("../utils/dealRules");
+const { buildDynamicFilters, needsMetadataJoin } = require("../utils/dynamicFilterBuilder");
 const { log, logError } = require("../../utils/logger");
-const {getS3FileUrl} = require("../../utils/s3Bucket")
+const { getS3FileUrl } = require("../../utils/s3Bucket");
 
 const pool = getPool();
+
+/** S3 key for default offer image when offer has no image_url (same storage pattern as other deals). */
+const DEFAULT_OFFER_IMAGE_S3_KEY = "uploads/default-offer.jpg";
 
 const STATUS = {
   DRAFT: "draft",
@@ -24,30 +28,42 @@ function isStatusActive(status) {
 }
 
 // Get offer by ID
-// CRITICAL: For public access, only return offers from approved partners
-// Set requireApproval=false for admin/internal use
+// requireApproval=true: only return if partner is approved (for strict public listing).
+// requireApproval=false: return if deal is active and within dates; partner filter not applied (caller checks suspended/rejected).
 async function getOfferById(offerId, requireApproval = true) {
+  const params = [offerId];
+  // Case-insensitive status; use date-only comparison to avoid timezone issues
   let query = `
     SELECT po.*, p.id as partner_id, p.name AS partner_name, p.is_active as partner_is_active,
            p.status as partner_status, p.latitude AS partner_latitude, p.longitude AS partner_longitude,
            p.address AS partner_address, p.phone_number AS partner_phone, p.email AS partner_email
     FROM partner_offers po
     JOIN partners p ON po.partner_id = p.id
-    WHERE po.id = $1 
-      AND po.status = $2
-      AND (po.start_date IS NULL OR po.start_date <= CURRENT_TIMESTAMP)
-      AND (po.end_date IS NULL OR po.end_date >= CURRENT_TIMESTAMP)
+    WHERE po.id = $1
+      AND (LOWER(TRIM(COALESCE(po.status::text, ''))) = 'active' OR po.is_active = true)
+      AND (po.start_date IS NULL OR po.start_date::date <= CURRENT_DATE)
+      AND (po.end_date IS NULL OR po.end_date::date >= CURRENT_DATE)
   `;
 
-  const params = [offerId, STATUS.ACTIVE];
-
-  // CRITICAL: Only show deals from approved partners to public users
   if (requireApproval) {
-    query += ` AND p.is_active = true 
-               AND (p.status IS NULL OR p.status IN ('active', 'approved'))`;
+    query += ` AND p.is_active = true
+               AND (p.status IS NULL OR LOWER(TRIM(p.status::text)) IN ('active', 'approved'))`;
   }
 
   const result = await pool.query(query, params);
+  return result.rows[0];
+}
+
+// Fetch offer by ID only (no status/date filter). For booking flow to return a specific error when offer exists but is not bookable.
+async function getOfferByIdRaw(offerId) {
+  const result = await pool.query(
+    `SELECT po.*, p.id as partner_id, p.name AS partner_name, p.is_active as partner_is_active,
+            p.status as partner_status
+     FROM partner_offers po
+     JOIN partners p ON po.partner_id = p.id
+     WHERE po.id = $1`,
+    [offerId]
+  );
   return result.rows[0];
 }
 
@@ -68,8 +84,8 @@ async function createOffer(partnerId, offerData) {
     title,
     description,
     service_type,
-    discount_percentage,
     discount_amount,
+    co_pay_percentage,
     original_price,
     discounted_price,
     offer_type = "percentage",
@@ -106,52 +122,77 @@ async function createOffer(partnerId, offerData) {
   const finalStatus = sanitizeStatus(status);
   const finalIsActive = isStatusActive(finalStatus);
 
+  await ensureStatusMetadata();
+  await ensureOfferPerkColumns();
+
+  const insertCols = [
+    "partner_id", "title", "description", "service_type", "co_pay_percentage", "discount_amount",
+    "original_price", "discounted_price", "offer_type", "terms_conditions",
+    "image_url", "start_date", "end_date", "is_trending", "max_redemptions",
+    "applicable_days", "applicable_categories", "min_purchase_amount", "promo_code",
+    "menu_item_id", "applicable_menu_items", "discount_applies_to",
+    "is_active",
+  ];
+  const insertVals = [
+    partnerId,
+    title,
+    description,
+    service_type,
+    co_pay_percentage != null ? co_pay_percentage : null,
+    discount_amount,
+    original_price,
+    discounted_price,
+    offer_type,
+    terms_conditions,
+    finalImageUrl,
+    start_date,
+    end_date,
+    is_trending,
+    max_redemptions,
+    processedApplicableDays,
+    applicableCategoriesJson,
+    min_purchase_amount,
+    promo_code,
+    menu_item_id || null,
+    applicableMenuItemsArray,
+    discount_applies_to,
+    finalIsActive,
+  ];
+  if (offerSavingsColumnExists) {
+    insertCols.push("savings");
+    insertVals.push(savings != null ? savings : null);
+  }
+  if (offerEztEquivalentColumnExists) {
+    insertCols.push("ezt_equivalent");
+    insertVals.push(ezt_equivalent != null ? ezt_equivalent : null);
+  }
+  if (offerFeaturedRequestPendingColumnExists) {
+    insertCols.push("featured_request_pending");
+    insertVals.push(featured_request_pending);
+  }
+  if (offerForcedByAdminColumnExists) {
+    insertCols.push("forced_by_admin");
+    insertVals.push(forced_by_admin);
+  }
+  if (offerStatusColumnExists) {
+    insertCols.push("status");
+    insertVals.push(finalStatus);
+  }
+  if (offerPerkTypeColumnExists) {
+    insertCols.push("perk_type");
+    insertVals.push(perk_type || "discount");
+  }
+  if (offerPerkDescriptionColumnExists) {
+    insertCols.push("perk_description");
+    insertVals.push(perk_description || null);
+  }
+
+  const placeholders = insertVals.map((_, i) => `$${i + 1}`).join(", ");
   const result = await pool.query(
-    `
-    INSERT INTO partner_offers (
-      partner_id, title, description, service_type, discount_percentage, discount_amount,
-      original_price, discounted_price, offer_type, terms_conditions,
-      image_url, start_date, end_date, is_trending, max_redemptions,
-      applicable_days, applicable_categories, min_purchase_amount, promo_code,
-      menu_item_id, applicable_menu_items, discount_applies_to,
-      savings, ezt_equivalent, is_active, featured_request_pending,
-      forced_by_admin, status, perk_type, perk_description
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
-    RETURNING *
-  `,
-    [
-      partnerId,
-      title,
-      description,
-      service_type,
-      discount_percentage,
-      discount_amount,
-      original_price,
-      discounted_price,
-      offer_type,
-      terms_conditions,
-      finalImageUrl,
-      start_date,
-      end_date,
-      is_trending,
-      max_redemptions,
-      processedApplicableDays,
-      applicableCategoriesJson,
-      min_purchase_amount,
-      promo_code,
-      menu_item_id || null,
-      applicableMenuItemsArray,
-      discount_applies_to,
-      savings,
-      ezt_equivalent,
-      finalIsActive,
-      featured_request_pending,
-      forced_by_admin,
-      finalStatus,
-      perk_type || "discount",
-      perk_description || null,
-    ]
+    `INSERT INTO partner_offers (${insertCols.join(", ")})
+     VALUES (${placeholders})
+     RETURNING *`,
+    insertVals
   );
 
   return result.rows[0];
@@ -159,11 +200,14 @@ async function createOffer(partnerId, offerData) {
 
 // Update offer
 async function updateOffer(partnerId, offerId, updates) {
+  await ensureStatusMetadata();
+  await ensureOfferPerkColumns();
+
   const allowedFields = [
     "title",
     "description",
     "service_type",
-    "discount_percentage",
+    "co_pay_percentage",
     "discount_amount",
     "original_price",
     "discounted_price",
@@ -181,14 +225,20 @@ async function updateOffer(partnerId, offerId, updates) {
     "menu_item_id",
     "applicable_menu_items",
     "discount_applies_to",
-    "savings",
-    "ezt_equivalent",
-    "featured_request_pending",
-    "forced_by_admin",
-    "status",
-    "perk_type",
-    "perk_description",
+    ...(offerSavingsColumnExists ? ["savings"] : []),
+    ...(offerEztEquivalentColumnExists ? ["ezt_equivalent"] : []),
+    ...(offerFeaturedRequestPendingColumnExists ? ["featured_request_pending"] : []),
+    ...(offerForcedByAdminColumnExists ? ["forced_by_admin"] : []),
+    ...(offerStatusColumnExists ? ["status"] : []),
+    ...(offerPerkTypeColumnExists ? ["perk_type"] : []),
+    ...(offerPerkDescriptionColumnExists ? ["perk_description"] : []),
   ];
+
+  const numericFields = new Set([
+    "co_pay_percentage", "discount_amount",
+    "original_price", "discounted_price", "min_purchase_amount",
+    "savings", "ezt_equivalent", "max_redemptions"
+  ]);
 
   const updateFields = [];
   const values = [];
@@ -212,6 +262,10 @@ async function updateOffer(partnerId, offerId, updates) {
         nextStatusValue = normalizedStatus;
         updateFields.push(`${key} = $${paramCount}`);
         values.push(normalizedStatus);
+      } else if (numericFields.has(key)) {
+        const num = value === "" || value === null ? null : Number(value);
+        updateFields.push(`${key} = $${paramCount}`);
+        values.push(num === undefined || Number.isNaN(num) ? null : num);
       } else {
         updateFields.push(`${key} = $${paramCount}`);
         values.push(value);
@@ -257,6 +311,15 @@ async function deleteOffer(partnerId, offerId) {
   return result.rows[0];
 }
 
+// Get single offer by partner and offer ID (for partner console edit)
+async function getOfferByPartnerAndId(partnerId, offerId) {
+  const result = await pool.query(
+    "SELECT * FROM partner_offers WHERE id = $1 AND partner_id = $2",
+    [offerId, partnerId]
+  );
+  return result.rows[0];
+}
+
 // Get offer for update (with lock)
 async function getOfferForUpdate(partnerId, offerId) {
   const result = await pool.query(
@@ -281,6 +344,17 @@ const MAX_LIMIT = 1000;
 
 let offerStatusColumnExists = null;
 let partnerStatusColumnExists = null;
+let partnerRatingColumnExists = null;
+let partnerCuisineTypesColumnExists = null;
+let partnerAvgCostForTwoColumnExists = null;
+let partnerApprovedForFeaturedColumnExists = null;
+let offerPerkTypeColumnExists = null;
+let offerPerkDescriptionColumnExists = null;
+let offerCoPayPercentageColumnExists = null;
+let offerFeaturedRequestPendingColumnExists = null;
+let offerForcedByAdminColumnExists = null;
+let offerSavingsColumnExists = null;
+let offerEztEquivalentColumnExists = null;
 
 async function checkColumnExists(tableName, columnName) {
   try {
@@ -323,9 +397,50 @@ async function ensureStatusMetadata() {
   }
 }
 
+async function ensurePartnerOptionalColumns() {
+  if (partnerRatingColumnExists === null) {
+    partnerRatingColumnExists = await checkColumnExists("partners", "rating");
+  }
+  if (partnerCuisineTypesColumnExists === null) {
+    partnerCuisineTypesColumnExists = await checkColumnExists("partners", "cuisine_types");
+  }
+  if (partnerAvgCostForTwoColumnExists === null) {
+    partnerAvgCostForTwoColumnExists = await checkColumnExists("partners", "avg_cost_for_two");
+  }
+  if (partnerApprovedForFeaturedColumnExists === null) {
+    partnerApprovedForFeaturedColumnExists = await checkColumnExists("partners", "approved_for_featured");
+  }
+}
+
+async function ensureOfferPerkColumns() {
+  if (offerPerkTypeColumnExists === null) {
+    offerPerkTypeColumnExists = await checkColumnExists("partner_offers", "perk_type");
+  }
+  if (offerPerkDescriptionColumnExists === null) {
+    offerPerkDescriptionColumnExists = await checkColumnExists("partner_offers", "perk_description");
+  }
+  if (offerCoPayPercentageColumnExists === null) {
+    offerCoPayPercentageColumnExists = await checkColumnExists("partner_offers", "co_pay_percentage");
+  }
+  if (offerFeaturedRequestPendingColumnExists === null) {
+    offerFeaturedRequestPendingColumnExists = await checkColumnExists("partner_offers", "featured_request_pending");
+  }
+  if (offerForcedByAdminColumnExists === null) {
+    offerForcedByAdminColumnExists = await checkColumnExists("partner_offers", "forced_by_admin");
+  }
+  if (offerSavingsColumnExists === null) {
+    offerSavingsColumnExists = await checkColumnExists("partner_offers", "savings");
+  }
+  if (offerEztEquivalentColumnExists === null) {
+    offerEztEquivalentColumnExists = await checkColumnExists("partner_offers", "ezt_equivalent");
+  }
+}
+
 // List public offers with filters
 async function listPublicOffers(filters = {}) {
   await ensureStatusMetadata();
+  await ensurePartnerOptionalColumns();
+  await ensureOfferPerkColumns();
 
   const {
     status = null,
@@ -335,14 +450,24 @@ async function listPublicOffers(filters = {}) {
     trending = null,
     limit = DEFAULT_LIMIT,
     admin = false,
-    cuisine_types = null, // Array of cuisine types
+    cuisine_types = null,
     price_min = null,
     price_max = null,
     min_rating = null,
-    user_latitude = null, // For distance filtering
+    user_latitude = null,
     user_longitude = null,
     max_distance_km = null,
-    partner_ids = null, // For recommendations: restrict to these partners
+    partner_ids = null,
+    // Dynamic (experience_metadata) filters — optional, backward compatible
+    meal_type = null,
+    therapy_type = null,
+    duration_min = null,
+    duration_max = null,
+    event_type = null,
+    event_date = null,
+    star_rating = null,
+    refundable = null,
+    specialization = null,
   } = filters;
 
   const sanitizedLimit = Math.min(
@@ -354,13 +479,13 @@ async function listPublicOffers(filters = {}) {
   const conditions = [];
   let paramIndex = 1;
 
-  // Partner must be active
-  conditions.push("p.is_active = true");
+  // Partner must not be suspended or rejected (allow pending/active/approved so listing matches booking eligibility)
   if (partnerStatusColumnExists) {
-    // Use ::text and LOWER so it works for enum/varchar and any casing
     conditions.push(
-      "(p.status IS NULL OR LOWER(TRIM(p.status::text)) IN ('active', 'approved'))"
+      "(p.status IS NULL OR LOWER(TRIM(p.status::text)) NOT IN ('suspended', 'rejected'))"
     );
+  } else {
+    conditions.push("p.is_active = true");
   }
 
   const shouldEnforceActive = !admin && offerStatusColumnExists;
@@ -409,8 +534,9 @@ async function listPublicOffers(filters = {}) {
     paramIndex += 1;
   }
 
-  // Filter by cuisine types (if partner has matching cuisines)
+  // Filter by cuisine types (if partner has matching cuisines; only when column exists)
   if (
+    partnerCuisineTypesColumnExists &&
     cuisine_types &&
     Array.isArray(cuisine_types) &&
     cuisine_types.length > 0
@@ -436,11 +562,60 @@ async function listPublicOffers(filters = {}) {
     paramIndex += 1;
   }
 
-  // Filter by minimum rating
-  if (min_rating !== null && min_rating !== undefined) {
+  // Filter by minimum rating (only when column exists)
+  if (
+    partnerRatingColumnExists &&
+    min_rating !== null &&
+    min_rating !== undefined
+  ) {
     conditions.push(`p.rating >= $${paramIndex}`);
     params.push(min_rating);
     paramIndex += 1;
+  }
+
+  // Dynamic category-specific filters (experience_metadata); LEFT JOIN added below when needed
+  const useMetadataJoin = needsMetadataJoin({
+    service_type,
+    cuisine: cuisine_types,
+    mealType: meal_type,
+    therapyType: therapy_type,
+    durationMin: duration_min,
+    durationMax: duration_max,
+    eventType: event_type,
+    eventDate: event_date,
+    starRating: star_rating,
+    refundable,
+    specialization,
+  });
+  let metadataJoin = "";
+  let metadataSelect = "";
+  if (useMetadataJoin) {
+    const dyn = buildDynamicFilters(
+      {
+        service_type,
+        cuisine: cuisine_types,
+        mealType: meal_type,
+        therapyType: therapy_type,
+        durationMin: duration_min,
+        durationMax: duration_max,
+        eventType: event_type,
+        eventDate: event_date,
+        starRating: star_rating,
+        refundable,
+        specialization,
+      },
+      paramIndex
+    );
+    dyn.conditions.forEach((c) => conditions.push(c));
+    dyn.values.forEach((v) => params.push(v));
+    paramIndex = dyn.paramOffset;
+    metadataJoin = " LEFT JOIN experience_metadata em ON em.offer_id = po.id ";
+    metadataSelect = `,
+      em.cuisine AS em_cuisine, em.meal_type AS em_meal_type, em.therapy_type AS em_therapy_type,
+      em.duration_minutes AS em_duration_minutes, em.event_type AS em_event_type, em.event_date AS em_event_date,
+      em.seats_left AS em_seats_left, em.star_rating AS em_star_rating, em.refundable AS em_refundable,
+      em.breakfast_included AS em_breakfast_included, em.specialization AS em_specialization,
+      em.consultation_fee AS em_consultation_fee, em.verified AS em_verified, em.tags AS em_tags`;
   }
 
   const hasUserLocation =
@@ -481,6 +656,24 @@ async function listPublicOffers(filters = {}) {
     ? `ORDER BY distance_km ASC NULLS LAST, CASE WHEN po.is_trending = true THEN 1 ELSE 0 END DESC, po.created_at DESC`
     : `ORDER BY CASE WHEN po.is_trending = true THEN 1 ELSE 0 END DESC, po.created_at DESC`;
 
+  const partnerSelectParts = [
+    "p.name AS partner_name",
+    "p.email AS partner_email",
+    "p.phone_number AS partner_phone",
+    "p.address AS partner_address",
+  ];
+  if (partnerCuisineTypesColumnExists) partnerSelectParts.push("p.cuisine_types AS partner_cuisine_types");
+  if (partnerRatingColumnExists) partnerSelectParts.push("p.rating AS partner_rating");
+  partnerSelectParts.push("p.latitude AS partner_latitude", "p.longitude AS partner_longitude");
+  if (partnerAvgCostForTwoColumnExists) partnerSelectParts.push("p.avg_cost_for_two AS partner_avg_cost_for_two");
+  if (partnerApprovedForFeaturedColumnExists) partnerSelectParts.push("p.approved_for_featured AS partner_approved_for_featured");
+  const partnerSelect = partnerSelectParts.join(",\n      ");
+
+  const poStatusSelect = offerStatusColumnExists ? "po.status," : "";
+  const poPerkSelect = [
+    offerPerkTypeColumnExists && "po.perk_type",
+    offerPerkDescriptionColumnExists && "po.perk_description",
+  ].filter(Boolean).join(",\n      ");
   const query = `
     SELECT 
       po.id,
@@ -489,11 +682,11 @@ async function listPublicOffers(filters = {}) {
       po.description,
       po.original_price,
       po.discounted_price,
-      po.discount_percentage,
+      po.co_pay_percentage,
       po.discount_amount,
       po.start_date,
       po.end_date,
-      po.status,
+      ${poStatusSelect}
       po.is_active,
       po.is_trending,
       po.max_redemptions,
@@ -501,22 +694,14 @@ async function listPublicOffers(filters = {}) {
       po.service_type,
       po.image_url,
       po.terms_conditions,
-      po.perk_type,
-      po.perk_description,
+      ${poPerkSelect ? poPerkSelect + "," : ""}
       po.created_at,
-      p.name AS partner_name,
-      p.email AS partner_email,
-      p.phone_number AS partner_phone,
-      p.address AS partner_address,
-      p.cuisine_types AS partner_cuisine_types,
-      p.rating AS partner_rating,
-      p.latitude AS partner_latitude,
-      p.longitude AS partner_longitude,
-      p.avg_cost_for_two AS partner_avg_cost_for_two,
-      p.approved_for_featured AS partner_approved_for_featured
+      ${partnerSelect}
       ${distanceSelect}
+      ${metadataSelect}
     FROM partner_offers po
     JOIN partners p ON po.partner_id = p.id
+    ${metadataJoin}
     ${whereClause}
     ${orderByClause}
     LIMIT $${paramIndex}
@@ -554,52 +739,140 @@ async function listPublicOffers(filters = {}) {
         row.original_price !== null ? Number(row.original_price) : null,
       discounted_price:
         row.discounted_price !== null ? Number(row.discounted_price) : null,
-      discount_percentage:
-        row.discount_percentage !== null
-          ? Number(row.discount_percentage)
+      co_pay_percentage:
+        row.co_pay_percentage !== null
+          ? Number(row.co_pay_percentage)
           : null,
       discount_amount:
         row.discount_amount !== null ? Number(row.discount_amount) : null,
       start_date: row.start_date,
       end_date: row.end_date,
-      status: row.status,
+      status: row.status != null ? row.status : (row.is_active ? STATUS.ACTIVE : STATUS.DRAFT),
       is_active: row.is_active,
       is_trending: row.is_trending,
       max_redemptions: row.max_redemptions,
       current_redemptions: row.current_redemptions,
       service_type: row.service_type,
-      image_url: getS3FileUrl(row.image_url),
+      image_url: row.image_url ? getS3FileUrl(row.image_url) : getS3FileUrl(DEFAULT_OFFER_IMAGE_S3_KEY),
       terms_conditions: row.terms_conditions,
       perk_type: row.perk_type || 'discount',
       perk_description: row.perk_description || null,
+      min_tier_name: row.min_tier_name ?? null,
       created_at: row.created_at,
       partner_cuisine_types: row.partner_cuisine_types || [],
       partner_rating:
-        row.partner_rating !== null ? Number(row.partner_rating) : null,
+        row.partner_rating != null && !Number.isNaN(Number(row.partner_rating)) ? Number(row.partner_rating) : null,
       partner_latitude:
-        row.partner_latitude !== null ? Number(row.partner_latitude) : null,
+        row.partner_latitude != null ? Number(row.partner_latitude) : null,
       partner_longitude:
-        row.partner_longitude !== null ? Number(row.partner_longitude) : null,
+        row.partner_longitude != null ? Number(row.partner_longitude) : null,
       partner_avg_cost_for_two:
-        row.partner_avg_cost_for_two !== null
+        row.partner_avg_cost_for_two != null && !Number.isNaN(Number(row.partner_avg_cost_for_two))
           ? Number(row.partner_avg_cost_for_two)
           : null,
       distance_km:
         row.distance_km != null && !Number.isNaN(Number(row.distance_km))
           ? Math.round(Number(row.distance_km) * 10) / 10
           : null,
-      partner_approved_for_featured: Boolean(row.partner_approved_for_featured),
+      partner_approved_for_featured: row.partner_approved_for_featured == null ? false : Boolean(row.partner_approved_for_featured),
+      // Experience metadata (optional; null when no row in experience_metadata)
+      experience_metadata: useMetadataJoin ? {
+        cuisine: row.em_cuisine || null,
+        meal_type: row.em_meal_type || null,
+        therapy_type: row.em_therapy_type || null,
+        duration_minutes: row.em_duration_minutes != null ? Number(row.em_duration_minutes) : null,
+        event_type: row.em_event_type || null,
+        event_date: row.em_event_date || null,
+        seats_left: row.em_seats_left != null ? Number(row.em_seats_left) : null,
+        star_rating: row.em_star_rating != null ? Number(row.em_star_rating) : null,
+        refundable: row.em_refundable != null ? Boolean(row.em_refundable) : null,
+        breakfast_included: row.em_breakfast_included != null ? Boolean(row.em_breakfast_included) : null,
+        specialization: row.em_specialization || null,
+        consultation_fee: row.em_consultation_fee != null ? Number(row.em_consultation_fee) : null,
+        verified: row.em_verified != null ? Boolean(row.em_verified) : null,
+        tags: row.em_tags || null,
+      } : undefined,
     }));
   } catch (error) {
-    logError("[offerRepository] listPublicOffers query failed", {
-      error: error.message,
-    });
+    if (useMetadataJoin && (error.message || "").includes("experience_metadata")) {
+      log("[offerRepository] experience_metadata table missing; retrying without dynamic filters");
+      const fallbackFilters = { ...filters, meal_type: null, therapy_type: null, duration_min: null, duration_max: null, event_type: null, event_date: null, star_rating: null, refundable: null, specialization: null };
+      return listPublicOffers(fallbackFilters);
+    }
+    logError("[offerRepository] listPublicOffers query failed", { error: error.message });
     throw error;
   }
 }
 
+/**
+ * Get public offers by exact IDs (for curated collections). Returns same shape as listPublicOffers.
+ */
+async function getPublicOffersByIds(offerIds) {
+  if (!Array.isArray(offerIds) || offerIds.length === 0) return [];
+  const validIds = offerIds.filter((id) => typeof id === "string" && id.length > 0);
+  if (validIds.length === 0) return [];
+
+  await ensureOfferPerkColumns();
+  const poPerkCols = [
+    offerPerkTypeColumnExists && "po.perk_type",
+    offerPerkDescriptionColumnExists && "po.perk_description",
+  ].filter(Boolean).join(", ");
+
+  const query = `
+    SELECT 
+      po.id, po.partner_id, po.title, po.description, po.original_price, po.discounted_price,
+      po.co_pay_percentage, po.discount_amount, po.start_date, po.end_date, po.status, po.is_active,
+      po.is_trending, po.max_redemptions, po.current_redemptions, po.service_type, po.image_url,
+      po.terms_conditions${poPerkCols ? ", " + poPerkCols : ""}, po.created_at,
+      p.name AS partner_name, p.email AS partner_email, p.phone_number AS partner_phone,
+      p.address AS partner_address, p.cuisine_types AS partner_cuisine_types, p.rating AS partner_rating,
+      p.latitude AS partner_latitude, p.longitude AS partner_longitude, p.avg_cost_for_two AS partner_avg_cost_for_two,
+      p.approved_for_featured AS partner_approved_for_featured
+    FROM partner_offers po
+    JOIN partners p ON po.partner_id = p.id
+    WHERE po.id = ANY($1::uuid[])
+      AND po.status = $2
+      AND (p.status IS NULL OR p.status IN ('active', 'approved'))
+      AND (po.start_date IS NULL OR po.start_date <= CURRENT_TIMESTAMP)
+      AND (po.end_date IS NULL OR po.end_date >= CURRENT_TIMESTAMP)
+    ORDER BY po.created_at DESC
+  `;
+  const result = await pool.query(query, [validIds, STATUS.ACTIVE]);
+  return result.rows.map((row) => ({
+    id: row.id,
+    partner_id: row.partner_id,
+    partner_name: row.partner_name,
+    title: row.title,
+    description: row.description,
+    original_price: row.original_price != null ? Number(row.original_price) : null,
+    discounted_price: row.discounted_price != null ? Number(row.discounted_price) : null,
+    co_pay_percentage: row.co_pay_percentage != null ? Number(row.co_pay_percentage) : null,
+    discount_amount: row.discount_amount != null ? Number(row.discount_amount) : null,
+    start_date: row.start_date,
+    end_date: row.end_date,
+    status: row.status,
+    is_active: row.is_active,
+    is_trending: row.is_trending,
+    service_type: row.service_type,
+    image_url: row.image_url ? getS3FileUrl(row.image_url) : getS3FileUrl(DEFAULT_OFFER_IMAGE_S3_KEY),
+    terms_conditions: row.terms_conditions,
+    perk_type: row.perk_type || "discount",
+    perk_description: row.perk_description || null,
+    min_tier_name: row.min_tier_name ?? null,
+    created_at: row.created_at,
+    partner_cuisine_types: row.partner_cuisine_types || [],
+    partner_rating: row.partner_rating != null ? Number(row.partner_rating) : null,
+    partner_latitude: row.partner_latitude != null ? Number(row.partner_latitude) : null,
+    partner_longitude: row.partner_longitude != null ? Number(row.partner_longitude) : null,
+    partner_avg_cost_for_two: row.partner_avg_cost_for_two != null ? Number(row.partner_avg_cost_for_two) : null,
+    partner_approved_for_featured: Boolean(row.partner_approved_for_featured),
+  }));
+}
+
 module.exports = {
   getOfferById,
+  getOfferByIdRaw,
+  getOfferByPartnerAndId,
   listOffersByPartner,
   createOffer,
   updateOffer,
@@ -607,4 +880,5 @@ module.exports = {
   getOfferForUpdate,
   incrementOfferRedemptions,
   listPublicOffers,
+  getPublicOffersByIds,
 };

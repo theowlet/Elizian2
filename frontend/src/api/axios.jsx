@@ -2,8 +2,9 @@ import axios from 'axios';
 
 // Base URL for your backend
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
-
-console.log('API Base URL:', BASE_URL);
+if (import.meta.env.DEV) {
+  console.log('API Base URL:', BASE_URL);
+}
 
 // Create a reusable Axios instance
 const api = axios.create({

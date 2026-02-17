@@ -96,6 +96,7 @@ const NfcTapPage = () => {
   const [tierInfo, setTierInfo] = useState(null);
   const [venueVisitCount, setVenueVisitCount] = useState(null);
   const [socialProof, setSocialProof] = useState(null);
+  const [checkInsToday, setCheckInsToday] = useState(null);
 
   useEffect(() => {
     if (puckCode) handleTap();
@@ -136,6 +137,11 @@ const NfcTapPage = () => {
         if (token) {
           fetchUserVenueContext(token, result.data.partner_id);
         }
+        // Real check-ins today for social proof
+        fetch(`${API_BASE}/api/v1/partners/${result.data.partner_id}/check-ins-today`)
+          .then((r) => r.json())
+          .then((d) => { if (d.success && d.data?.count != null) setCheckInsToday(d.data.count); })
+          .catch(() => {});
 
         // Vibrate on success (mobile)
         if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
@@ -281,10 +287,10 @@ const NfcTapPage = () => {
           </div>
         )}
 
-        {/* Social Proof */}
+        {/* Social Proof (real count from API) */}
         <div style={styles.socialProof}>
           <span style={{ fontSize: '0.85rem', color: '#9ca3af' }}>
-            🔥 {Math.floor(Math.random() * 30) + 5} people checked in here today
+            🔥 {checkInsToday != null ? `${checkInsToday} check-in${checkInsToday !== 1 ? 's' : ''} here today` : 'Recent check-ins at this venue'}
           </span>
         </div>
 

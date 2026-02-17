@@ -31,10 +31,10 @@ function normalizeApplicableDays(input) {
   return cleaned.length ? cleaned : [...VALID_WEEK_DAYS];
 }
 
-function deriveDiscountValues({ original_price, discount_percentage, discount_amount, discounted_price }) {
+function deriveDiscountValues({ original_price, co_pay_percentage, discount_amount, discounted_price }) {
   const metrics = calculateDiscountMetrics({
     original: original_price,
-    percent: discount_percentage,
+    percent: co_pay_percentage,
     amount: discount_amount,
     discounted: discounted_price
   });
@@ -49,7 +49,7 @@ function deriveDiscountValues({ original_price, discount_percentage, discount_am
   return {
     original_price: original,
     discounted_price: discounted,
-    discount_percentage: Number(discount_percentage) || null,
+    co_pay_percentage: Number(co_pay_percentage) || null,
     discount_amount: Number(discount_amount) || null,
     savings: metrics.finalSavings,
     ezt_equivalent: metrics.finalEztEquivalent

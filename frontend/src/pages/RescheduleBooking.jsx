@@ -16,14 +16,18 @@ const RescheduleBooking = () => {
 
   const bookingTimeRef = useRef(null);
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
   useEffect(() => {
     if (!booking && id) {
       loadBooking();
     } else if (booking) {
-      // Pre-fill with existing date/time if available
+      // Pre-fill with existing date/time; for past bookings use today so user picks a valid date
       if (booking.booking_date) {
         const date = new Date(booking.booking_date);
-        setNewDate(date.toISOString().split("T")[0]);
+        const dateStr = date.toISOString().split("T")[0];
+        const isPast = dateStr < todayStr;
+        setNewDate(isPast ? todayStr : dateStr);
       }
       if (booking.booking_time) {
         setNewTime(booking.booking_time);
@@ -45,11 +49,12 @@ const RescheduleBooking = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
-          console.log("this is api data");
           setBooking(result.data);
           if (result.data.booking_date) {
             const date = new Date(result.data.booking_date);
-            setNewDate(date.toISOString().split("T")[0]);
+            const dateStr = date.toISOString().split("T")[0];
+            const today = new Date().toISOString().split("T")[0];
+            setNewDate(dateStr < today ? today : dateStr);
           }
           if (result.data.booking_time) {
             setNewTime(result.data.booking_time);
@@ -205,7 +210,6 @@ const RescheduleBooking = () => {
               {booking.booking_time && <div>Time: {booking.booking_time}</div>}
             </div>
           </div>
-          x
           <form className="elizian-auth-form" onSubmit={handleSubmit}>
             {error && (
               <div className="elizian-auth-error" role="alert">
@@ -217,16 +221,20 @@ const RescheduleBooking = () => {
                 New Booking Date
               </label>
               <input
-                id="bookingTime"
-                name="bookingTime"
+                id="newDate"
+                name="newDate"
                 type="date"
                 ref={bookingTimeRef}
                 className="elizian-auth-input elizian-time-input"
                 value={newDate}
                 onChange={(e) => setNewDate(e.target.value)}
                 onClick={() => bookingTimeRef.current?.showPicker?.()}
+                min={todayStr}
                 required
               />
+              <small style={{ color: "#6b7280", fontSize: "0.85rem", marginTop: "0.25rem", display: "block" }}>
+                Pick today or a future date. Past bookings can be rescheduled to a new date.
+              </small>
             </div>
             <div className="elizian-auth-form-group">
               <label
@@ -297,8 +305,8 @@ const RescheduleBooking = () => {
             >
               <div style={{ fontSize: "0.9rem", color: "#856404" }}>
                 <strong>Note:</strong> Rescheduling may be subject to
-                availability and partner policies. The original booking will be
-                cancelled and a new booking will be created.
+                availability and partner policies. Your booking date and time
+                will be updated; the same voucher remains valid.
               </div>
             </div>
 

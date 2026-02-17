@@ -14,8 +14,7 @@ function createPool() {
   const connectionOptions = config.database.url
     ? {
         connectionString: config.database.url,
-        ssl: false,
-        // ssl: config.database.ssl
+        ssl: config.database.ssl ?? false,
       }
     : {
         user: process.env.DB_USER,
@@ -23,7 +22,7 @@ function createPool() {
         database: process.env.DB_NAME,
         password: process.env.DB_PASSWORD,
         port: parseInt(process.env.DB_PORT || "5432", 10),
-        ssl: false,
+        ssl: config.database.ssl ?? false,
       };
 
   pool = new Pool({
@@ -84,7 +83,7 @@ async function initOffersTable() {
         title VARCHAR(255) NOT NULL,
         description TEXT,
         service_type VARCHAR(50),
-        discount_percentage DECIMAL(5, 2),
+        co_pay_percentage NUMERIC(5, 2),
         discount_amount DECIMAL(10, 2),
         original_price DECIMAL(10, 2),
         discounted_price DECIMAL(10, 2),
@@ -212,28 +211,6 @@ async function initMenuItemsTable() {
     log("✅ Menu items table initialized");
   } catch (err) {
     logError("Failed to initialize menu items table:", err);
-    throw err;
-  }
-}
-
-// Initialize accounts table
-async function initAccountsTable() {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS accounts (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        public_key VARCHAR(255) NOT NULL,
-        private_key VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-      
-      CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts(user_id);
-    `);
-    log("✅ Accounts table initialized");
-  } catch (err) {
-    logError("Failed to initialize accounts table:", err);
     throw err;
   }
 }
@@ -377,7 +354,6 @@ async function initializeAllTables() {
     await initMissingTables();
     await initOffersTable();
     await initMenuItemsTable();
-    await initAccountsTable();
     await patchPartnersTable();
     await initAccountsTable();
     await initOrdersTable();
@@ -395,7 +371,6 @@ module.exports = {
   initMissingTables,
   initOffersTable,
   initMenuItemsTable,
-  initAccountsTable,
   patchPartnersTable,
   initAccountsTable,
   initOrdersTable,

@@ -59,6 +59,11 @@ class NotificationService {
       return result.rows[0];
     } catch (error) {
       logError('Error creating notification:', error);
+      const code = error.code || '';
+      const msg = error.message || '';
+      if (code === '42P01' || /relation .* does not exist/i.test(msg)) {
+        throw new AppError(500, 'Notifications table not found. Run backend/migrations/2025-11-24-comprehensive-feature-tables.sql');
+      }
       throw new AppError(500, 'Failed to create notification');
     }
   }
@@ -103,6 +108,11 @@ class NotificationService {
     } catch (error) {
       await client.query('ROLLBACK');
       logError('Error creating bulk notifications:', error);
+      const code = error.code || '';
+      const msg = error.message || '';
+      if (code === '42P01' || /relation .* does not exist/i.test(msg)) {
+        throw new AppError(500, 'Notifications table not found. Run backend/migrations/2025-11-24-comprehensive-feature-tables.sql');
+      }
       throw new AppError(500, 'Failed to create bulk notifications');
     } finally {
       client.release();
@@ -142,6 +152,56 @@ class NotificationService {
       params.push(limit, offset);
 
       const result = await pool.query(query, params);
+      let notifications = result.rows || [];
+
+      // Enrich campaign notifications with description from campaigns table when message is empty
+      const campaignNotifIds = [];
+      const campaignNotifTitles = [];
+      notifications.forEach((n, i) => {
+        if ((n.notification_type || n.type) === 'campaign') {
+          const meta = typeof n.metadata === 'object' ? n.metadata : (typeof n.metadata === 'string' ? (() => { try { return JSON.parse(n.metadata); } catch { return {}; } })() : {});
+          if (meta.campaignId) campaignNotifIds.push({ index: i, campaignId: meta.campaignId });
+          else if (!(n.message && n.message.trim())) campaignNotifTitles.push({ index: i, title: (n.title || '').trim() });
+        }
+      });
+
+      if (campaignNotifIds.length > 0 || campaignNotifTitles.length > 0) {
+        const descriptionsById = {};
+        const descriptionsByTitle = {};
+        try {
+          if (campaignNotifIds.length > 0) {
+            const ids = [...new Set(campaignNotifIds.map(x => x.campaignId))];
+            const campResult = await pool.query(
+              'SELECT id, name, description FROM campaigns WHERE id = ANY($1::uuid[])',
+              [ids]
+            );
+            campResult.rows.forEach(r => { descriptionsById[r.id] = r.description || ''; });
+          }
+          if (campaignNotifTitles.length > 0) {
+            const titles = [...new Set(campaignNotifTitles.map(x => x.title).filter(Boolean))];
+            if (titles.length > 0) {
+              const lowerTitles = titles.map(t => t.toLowerCase().trim());
+              const tr = await pool.query(
+                'SELECT TRIM(name) AS name, description FROM campaigns WHERE LOWER(TRIM(name)) = ANY($1::text[])',
+                [lowerTitles]
+              );
+              tr.rows.forEach(r => { descriptionsByTitle[r.name.toLowerCase().trim()] = r.description || ''; });
+            }
+          }
+          notifications = notifications.map((n, i) => {
+            if ((n.notification_type || n.type) !== 'campaign') return n;
+            const meta = typeof n.metadata === 'object' ? n.metadata : (typeof n.metadata === 'string' ? (() => { try { return JSON.parse(n.metadata); } catch { return {}; } })() : {});
+            let desc = (n.message && n.message.trim()) ? n.message : null;
+            if (!desc && meta.campaignId && descriptionsById[meta.campaignId] !== undefined) desc = descriptionsById[meta.campaignId];
+            if (!desc && (n.title || '').trim()) desc = descriptionsByTitle[(n.title || '').toLowerCase().trim()] || null;
+            if (desc === '') desc = null;
+            if (desc !== null) return { ...n, message: desc };
+            return n;
+          });
+        } catch (err) {
+          logError('Error enriching campaign notifications:', err);
+        }
+      }
 
       // Get unread count
       const countResult = await pool.query(
@@ -150,11 +210,16 @@ class NotificationService {
       );
 
       return {
-        notifications: result.rows,
+        notifications,
         unreadCount: parseInt(countResult.rows[0].unread_count),
         total: result.rowCount
       };
     } catch (error) {
+      const code = error.code || '';
+      const msg = error.message || '';
+      if (code === '42P01' || /relation .* does not exist/i.test(msg)) {
+        return { notifications: [], unreadCount: 0, total: 0 };
+      }
       logError('Error fetching notifications:', error);
       throw new AppError(500, 'Failed to fetch notifications');
     }

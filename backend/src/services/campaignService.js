@@ -1,4 +1,7 @@
 const campaignRepository = require('../repositories/campaignRepository');
+const pushNotificationService = require('./pushNotificationService');
+const { getPool } = require('../config/db');
+const { log, logError } = require('../../utils/logger');
 const { AppError } = require('../../utils/response');
 
 async function list(partnerId, limit, offset) {
@@ -59,6 +62,37 @@ async function send(partnerId, campaignId) {
   if (!updated) {
     throw new AppError(400, 'Campaign could not be sent (invalid state)');
   }
+
+  // Send Web Push to target users (fire-and-forget; do not block response)
+  (async () => {
+    try {
+      if (!pushNotificationService.isPushConfigured()) return;
+      const pool = getPool();
+      const result = await pool.query(
+        `SELECT DISTINCT b.user_id FROM bookings b
+         WHERE b.partner_id = $1 AND b.user_id IS NOT NULL AND b.status IN ('confirmed', 'redeemed')`,
+        [partnerId]
+      );
+      const userIds = result.rows.map((r) => r.user_id).filter(Boolean);
+      if (userIds.length === 0) return;
+      let sent = 0;
+      let failed = 0;
+      for (const uid of userIds) {
+        const out = await pushNotificationService.sendToUser(uid, {
+          title: campaign.title || 'Update from venue',
+          body: campaign.body || '',
+          url: '/home',
+          tag: 'campaign',
+        });
+        sent += out.sent || 0;
+        failed += out.failed || 0;
+      }
+      log(`[Campaign] Push sent to ${userIds.length} users (delivered: ${sent}, failed: ${failed})`);
+    } catch (err) {
+      logError('[Campaign] Push send error:', err);
+    }
+  })();
+
   return updated;
 }
 

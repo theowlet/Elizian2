@@ -43,7 +43,7 @@ const awardTokens = async (userId, amountSpent, transactionId = null, descriptio
     // ENTERPRISE: Always read from DB — never fallback to hardcoded values
     let tokenPercentage = parseFloat(user.ezt_reward_percentage) || 1.0;
 
-    // If user has no tier assigned, set default Aether
+    // If user has no tier assigned, set default Ather
     if (!user.current_tier_name) {
       await pool.query(
         `UPDATE users SET current_tier_name = 'Ather' WHERE id = $1 AND current_tier_name IS NULL`,

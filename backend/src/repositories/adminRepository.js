@@ -40,6 +40,7 @@ async function checkDealEligibility(dealId, executor = pool, options = {}) {
     checkFeaturedEligibility = false,
     requireValidDates = false,
   } = options;
+  // Include partner_tier for tier-based trending flow (Gold/Silver/Bronze)
   const result = await executor.query(
     `SELECT 
         o.id,
@@ -52,13 +53,13 @@ async function checkDealEligibility(dealId, executor = pool, options = {}) {
         o.featured_request_pending,
         o.is_active AS deal_is_active,
         o.is_trending,
-        o.is_trending,
         o.forced_by_admin,
         p.status AS partner_status,
         p.id AS partner_id,
         p.name AS partner_name,
         p.is_active,
-        p.approved_for_featured
+        p.approved_for_featured,
+        COALESCE(LOWER(TRIM(p.partner_tier)), 'bronze') AS partner_tier
      FROM partner_offers o
      JOIN partners p ON p.id = o.partner_id
      WHERE o.id = $1
@@ -82,14 +83,24 @@ async function checkDealEligibility(dealId, executor = pool, options = {}) {
     reasons.push("Partner is inactive");
   }
 
-  // Only check featured eligibility if explicitly requested (for trending/featured operations)
+  // Tier-based trending eligibility (Gold/Silver/Bronze)
+  // Gold: all deals auto-trending — always eligible
+  // Silver: can request per-deal — eligible to request
+  // Bronze: cannot request; admin can override only
   if (checkFeaturedEligibility) {
-    const isTrendingDeal = row.is_trending || row.featured_request_pending;
-    // Check eligibility: partner must be approved OR admin has forced it
-    if (isTrendingDeal && !row.approved_for_featured && !row.forced_by_admin) {
-      reasons.push(
-        "Partner is not approved for featured/trending content. Partner must be approved for featured content or admin must force the promotion."
-      );
+    const tier = (row.partner_tier || "bronze").toLowerCase();
+    if (tier === "gold") {
+      // Gold: no restrictions
+    } else if (tier === "silver") {
+      // Silver: can request; no block on eligibility (admin approves)
+    } else {
+      // Bronze: cannot request trending
+      const isTrendingDeal = row.is_trending || row.featured_request_pending;
+      if (!row.forced_by_admin) {
+        reasons.push(
+          "Bronze partners cannot request Trending. Admin can override to mark a deal as Trending."
+        );
+      }
     }
   }
 
@@ -127,6 +138,7 @@ async function checkDealEligibility(dealId, executor = pool, options = {}) {
       status: row.partner_status || (row.is_active ? "active" : "pending"),
       is_active: row.is_active,
       approved_for_featured: row.approved_for_featured,
+      partner_tier: (row.partner_tier || "bronze").toLowerCase(),
     },
     deal: {
       id: row.id,
@@ -134,7 +146,6 @@ async function checkDealEligibility(dealId, executor = pool, options = {}) {
       status: row.status,
       start_date: row.start_date,
       end_date: row.end_date,
-      is_trending: row.is_trending,
       is_trending: row.is_trending || false,
       original_price: row.original_price,
       discounted_price: row.discounted_price,
@@ -403,7 +414,17 @@ async function listAdminPartners({ status = "all" } = {}) {
     ? `WHERE ${conditions.join(" AND ")}`
     : "";
 
-  // Use only columns that exist in base schema; formatted_address, geo_verified, place_id come from migration 2026-02-partners-geo-place-id-verified.sql
+  // Partner tier (subscription: bronze/silver/gold) is on partners table; separate from user loyalty tiers (Ather/Nova/etc).
+  // Include partner_tier only if column exists (migration 2026-02-partner-subscription-tier.sql).
+  let hasPartnerTierColumn = false;
+  try {
+    const colCheck = await pool.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'partners' AND column_name = 'partner_tier'`
+    );
+    hasPartnerTierColumn = colCheck.rowCount > 0;
+  } catch (_) {}
+
+  const partnerTierSelect = hasPartnerTierColumn ? "p.partner_tier," : "";
   const result = await pool.query(
     `
     SELECT
@@ -418,6 +439,7 @@ async function listAdminPartners({ status = "all" } = {}) {
       p.status,
       p.partner_category_type,
       p.approved_for_featured,
+      ${partnerTierSelect}
       p.created_at,
       COALESCE(offer_stats.active_deals, 0)::int AS active_deals,
       COALESCE(offer_stats.trending_deals, 0)::int AS trending_deals,
@@ -474,6 +496,7 @@ async function listAdminPartners({ status = "all" } = {}) {
       status: computedStatus,
       partner_category_type: row.partner_category_type || null,
       approved_for_featured: row.approved_for_featured,
+      partner_tier: hasPartnerTierColumn ? (row.partner_tier || 'bronze') : 'bronze',
       active_deals: row.active_deals,
       trending_deals: row.trending_deals || 0,
       promoted_deals: row.trending_deals || 0, // Backward compatibility alias
@@ -635,6 +658,53 @@ async function updatePartnerFeaturedEligibility(
   };
 }
 
+// Update partner subscription tier (Elizian ↔ Partner: bronze, silver, gold). Not to be confused with user loyalty tiers (Ather, Nova, etc.).
+// Gold: all active deals auto-trending. On upgrade to Gold → set is_trending on all active offers. On downgrade → clear.
+async function updatePartnerTier(partnerId, partnerTier) {
+  const colCheck = await pool.query(
+    `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'partners' AND column_name = 'partner_tier'`
+  );
+  if (colCheck.rowCount === 0) {
+    throw new Error('Partner tier is not available. Run migration 2026-02-partner-subscription-tier.sql to add the partner_tier column.');
+  }
+  const valid = ['bronze', 'silver', 'gold'];
+  const tier = (partnerTier || 'bronze').toLowerCase();
+  if (!valid.includes(tier)) {
+    throw new Error('Invalid partner_tier; must be bronze, silver, or gold');
+  }
+
+  const before = await pool.query(
+    "SELECT partner_tier FROM partners WHERE id = $1",
+    [partnerId]
+  );
+  if (before.rowCount === 0) return null;
+  const prevTier = (before.rows[0]?.partner_tier || "bronze").toLowerCase();
+
+  const result = await pool.query(
+    'UPDATE partners SET partner_tier = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, partner_tier',
+    [tier, partnerId]
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+
+  // Gold: all active deals become trending. Downgrade from Gold: clear trending.
+  if (tier === "gold") {
+    await pool.query(
+      `UPDATE partner_offers SET is_trending = true, featured_request_pending = false, updated_at = NOW()
+       WHERE partner_id = $1 AND status = 'active' AND (end_date IS NULL OR end_date >= NOW())`,
+      [partnerId]
+    );
+  } else if (prevTier === "gold") {
+    await pool.query(
+      `UPDATE partner_offers SET is_trending = false, updated_at = NOW()
+       WHERE partner_id = $1 AND forced_by_admin = false`,
+      [partnerId]
+    );
+  }
+
+  return row;
+}
+
 // List admin deals
 async function listAdminDeals({
   search = "",
@@ -659,6 +729,8 @@ async function listAdminDeals({
 
   if (normalizedStatus === "active") {
     filters.push(`po.status = 'active'`);
+  } else if (normalizedStatus === "pending_approval") {
+    filters.push(`po.status = 'pending_approval'`);
   } else if (normalizedStatus === "pending") {
     filters.push(`po.status IN ('draft', 'pending_approval', 'paused')`);
   } else if (normalizedStatus === "expired") {
@@ -686,7 +758,7 @@ async function listAdminDeals({
       po.description,
       po.original_price,
       po.discounted_price,
-      po.discount_percentage,
+      po.co_pay_percentage,
       po.discount_amount,
       po.start_date,
       po.end_date,
@@ -730,7 +802,7 @@ async function listAdminDeals({
       description: deal.description,
       original_price: parseFloat(deal.original_price || 0),
       discounted_price: parseFloat(deal.discounted_price || 0),
-      discount_percentage: parseFloat(deal.discount_percentage || 0),
+      co_pay_percentage: parseFloat(deal.co_pay_percentage || 0),
       discount_amount: parseFloat(deal.discount_amount || 0),
       start_date: deal.start_date,
       end_date: deal.end_date,
@@ -1004,7 +1076,8 @@ async function updateTrendingStatus(
   dealId,
   action,
   actorUserId = null,
-  actorRole = null
+  actorRole = null,
+  reason = null
 ) {
   if (!TRENDING_ACTIONS.has(action)) {
     return { success: false, error: "Invalid trending action" };
@@ -1026,12 +1099,9 @@ async function updateTrendingStatus(
       return { success: false, error: "Deal not found" };
     }
 
-    // For partner requests:
-    // Option 1: Allow request but log warning (current - better UX, admin decides)
-    // Option 2: Block request upfront (stricter, prevents invalid requests)
-    //
-    // Current implementation: Allow request, admin sees eligibility issue when approving
-    // To block upfront, uncomment the block below and remove the warning-only logic
+    const current = eligibility.deal;
+    const partnerTier = (eligibility.partner?.partner_tier || "bronze").toLowerCase();
+
     if (action === "partner_request") {
       // Validate deal status - must be active or pending to request trending
       if (
@@ -1045,35 +1115,26 @@ async function updateTrendingStatus(
         };
       }
 
-      // Check eligibility and log warning (but allow request)
-      // This allows partners to submit requests even if not eligible
-      // Admin will see the eligibility issue when reviewing the request
-      if (!eligibility.eligible) {
-        const ineligibleReason = eligibility.reasons.find((r) =>
-          r.includes("not approved for featured")
-        );
-        if (ineligibleReason) {
-          logError(
-            "⚠️ Partner requested trending but is not eligible for featured content:",
-            {
-              dealId,
-              partnerId: eligibility.partner.id,
-              partnerName: eligibility.partner.name,
-              reasons: eligibility.reasons,
-            }
-          );
-          // Note: Request is still allowed - admin will see this when reviewing
-          // To block upfront, uncomment the following:
-          // await client.query('ROLLBACK');
-          // return {
-          //   success: false,
-          //   error: 'Partner is not approved for featured/trending content. Please contact admin to enable featured content for your partner account.',
-          //   context: { dealId, action, partnerId: eligibility.partner.id }
-          // };
-        }
+      // Tier-based: Bronze cannot request, Gold doesn't need to (all deals auto-trending), Silver can request
+      if (partnerTier === "bronze") {
+        await client.query("ROLLBACK");
+        return {
+          success: false,
+          error: "Bronze partners cannot request Trending. Admin can override to mark a deal as Trending.",
+          context: { dealId, partnerId: eligibility.partner?.id },
+        };
       }
+      if (partnerTier === "gold") {
+        await client.query("ROLLBACK");
+        return {
+          success: false,
+          error: "Gold partners: all your deals are already Trending. No need to request.",
+          context: { dealId, partnerId: eligibility.partner?.id },
+        };
+      }
+      // Silver: allow request
     } else if (!eligibility.eligible) {
-      // Admin actions require full eligibility (unless forced)
+      // Admin actions require eligibility (e.g. approving a Silver partner's request)
       await client.query("ROLLBACK");
       return {
         success: false,
@@ -1081,8 +1142,6 @@ async function updateTrendingStatus(
         context: { dealId, action },
       };
     }
-
-    const current = eligibility.deal;
     let nextIsTrending = current.is_trending;
     let nextFeaturedPending = current.featured_request_pending;
 
@@ -1105,14 +1164,25 @@ async function updateTrendingStatus(
         return { success: false, error: "Unsupported trending action" };
     }
 
+    // For admin_approve (Silver request): set trending_approval_reason. For admin_reject: clear it.
+    const approvalReason =
+      action === "admin_approve" ? (reason || null) : action === "admin_reject" ? null : undefined;
+    const colCheck = await client.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'partner_offers' AND column_name = 'trending_approval_reason'`
+    );
+    const hasReasonCol = colCheck.rowCount > 0;
+    const setReasonClause =
+      hasReasonCol && approvalReason !== undefined ? ", trending_approval_reason = $4" : "";
+    const updateParams =
+      hasReasonCol && approvalReason !== undefined
+        ? [nextIsTrending, nextFeaturedPending, dealId, approvalReason]
+        : [nextIsTrending, nextFeaturedPending, dealId];
     const updateResult = await client.query(
       `UPDATE partner_offers
-       SET is_trending = $1,
-           featured_request_pending = $2,
-           updated_at = NOW()
+       SET is_trending = $1, featured_request_pending = $2${setReasonClause}, updated_at = NOW()
        WHERE id = $3
        RETURNING id, is_trending, featured_request_pending`,
-      [nextIsTrending, nextFeaturedPending, dealId]
+      updateParams
     );
 
     const trendingActionLabels = {
@@ -1252,6 +1322,15 @@ async function listAdminUsers(filters = {}) {
   const finalWhereClause =
     conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
+  // Optional column: users.last_login may not exist on minimal local DB
+  let hasLastLogin = false;
+  try {
+    const col = await pool.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'last_login' LIMIT 1`
+    );
+    hasLastLogin = col.rowCount > 0;
+  } catch (_) {}
+
   // Count query: join tiers so tier filter works (tiers = base schema table)
   const countQuery = `
     SELECT COUNT(*)::int as total
@@ -1292,6 +1371,7 @@ async function listAdminUsers(filters = {}) {
   }
 
   // Get paginated results (use base schema: users + roles + tiers; avoid current_tier_name/annual_spend_current so query works without tier migration)
+  const lastLoginSelect = hasLastLogin ? "u.last_login," : "";
   const dataQuery = `
     SELECT 
       u.id,
@@ -1301,7 +1381,7 @@ async function listAdminUsers(filters = {}) {
       u.phone_number,
       u.is_active,
       u.created_at,
-      u.last_login,
+      ${lastLoginSelect}
       u.available_tokens,
       r.role_name,
       t.name AS tier_name_from_tiers,
@@ -1340,7 +1420,7 @@ async function listAdminUsers(filters = {}) {
       role: row.role_name || "user",
       is_active: row.is_active !== false,
       created_at: row.created_at,
-      last_login: row.last_login,
+      last_login: row.last_login != null ? row.last_login : null,
       tier: row.tier_name_from_tiers || "Ather",
       tier_name: row.tier_name_from_tiers || "Ather",
       tier_level: row.tier_level_from_tiers ?? 1,
@@ -1499,7 +1579,8 @@ async function updateOfferFeaturedStatus(
     const offerResult = await client.query(
       `SELECT po.is_trending, po.featured_request_pending, po.forced_by_admin, po.partner_id,
               po.status, po.end_date,
-              p.approved_for_featured, p.name as partner_name
+              p.approved_for_featured, p.name as partner_name,
+              COALESCE(LOWER(TRIM(p.partner_tier)), 'bronze') AS partner_tier
        FROM partner_offers po
        JOIN partners p ON po.partner_id = p.id
        WHERE po.id = $1
@@ -1513,7 +1594,9 @@ async function updateOfferFeaturedStatus(
 
     const offer = offerResult.rows[0];
     const setTrending = !!is_trending;
-    const partnerEligible = !!offer.approved_for_featured;
+    const tier = (offer.partner_tier || "bronze").toLowerCase();
+    // Gold/Silver: eligible. Bronze: need forced_by_admin.
+    const partnerEligible = tier === "gold" || tier === "silver" || !!offer.approved_for_featured;
     const now = new Date();
 
     if (setTrending) {
@@ -1975,6 +2058,7 @@ module.exports = {
   listAdminPartners,
   updatePartnerStatus,
   updatePartnerFeaturedEligibility,
+  updatePartnerTier,
   listAdminDeals,
   updateDealStatus,
   updateTrendingStatus,

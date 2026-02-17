@@ -77,6 +77,7 @@ async function getAvailableTimeSlots(partnerId, date, partySize = 2) {
 }
 
 // Create table reservation
+// When skipCapacityUpdate is true (e.g. venue_time_slots used), only insert table_reservations; do not touch restaurant_availability
 async function createReservation(reservationData, client = pool) {
   try {
     const {
@@ -88,16 +89,17 @@ async function createReservation(reservationData, client = pool) {
       party_size,
       occasion,
       special_requests,
-      seating_preference
+      seating_preference,
+      skipCapacityUpdate = false
     } = reservationData;
 
-    // Check availability
-    const availability = await checkAvailability(partner_id, reservation_date, reservation_time);
-    if (!availability.available || availability.availableCapacity < party_size) {
-      throw new Error(`Not enough capacity. Available: ${availability.availableCapacity}, Required: ${party_size}`);
+    if (!skipCapacityUpdate) {
+      const availability = await checkAvailability(partner_id, reservation_date, reservation_time);
+      if (!availability.available || availability.availableCapacity < party_size) {
+        throw new Error(`Not enough capacity. Available: ${availability.availableCapacity}, Required: ${party_size}`);
+      }
     }
 
-    // Create reservation
     const result = await client.query(
       `INSERT INTO table_reservations 
        (booking_id, partner_id, user_id, reservation_date, reservation_time, 
@@ -117,17 +119,18 @@ async function createReservation(reservationData, client = pool) {
       ]
     );
 
-    // Update availability
-    await client.query(
-      `INSERT INTO restaurant_availability 
-       (partner_id, date, time_slot, max_capacity, booked_capacity, is_available)
-       VALUES ($1, $2, $3, $4, $5, true)
-       ON CONFLICT (partner_id, date, time_slot)
-       DO UPDATE SET 
-         booked_capacity = restaurant_availability.booked_capacity + $6,
-         updated_at = CURRENT_TIMESTAMP`,
-      [partner_id, reservation_date, reservation_time, 20, party_size, party_size]
-    );
+    if (!skipCapacityUpdate) {
+      await client.query(
+        `INSERT INTO restaurant_availability 
+         (partner_id, date, time_slot, max_capacity, booked_capacity, is_available)
+         VALUES ($1, $2, $3, $4, $5, true)
+         ON CONFLICT (partner_id, date, time_slot)
+         DO UPDATE SET 
+           booked_capacity = restaurant_availability.booked_capacity + $6,
+           updated_at = CURRENT_TIMESTAMP`,
+        [partner_id, reservation_date, reservation_time, 20, party_size, party_size]
+      );
+    }
 
     log(`Table reservation created: ${result.rows[0].id} for ${party_size} guests on ${reservation_date} at ${reservation_time}`);
     return result.rows[0];

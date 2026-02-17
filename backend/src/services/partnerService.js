@@ -9,6 +9,7 @@ const { getPool } = require('../config/db');
 const { writeAudit } = require('../utils/audit');
 const { uploadToS3, getS3FileUrl } = require('../../utils/s3Bucket');
 const { ethers } = require('ethers');
+const { normalizeTierName } = require('../utils/tierNames');
 
 const pool = getPool();
 
@@ -417,10 +418,10 @@ async function getPartnerRewardsAnalytics(partnerId) {
     const totalEztDistributed = bookings.reduce((sum, b) => sum + parseFloat(b.ezt_earned || 0), 0);
     const totalLoyaltyPoints = bookings.reduce((sum, b) => sum + parseFloat(b.points_earned || 0), 0);
 
-    // Get customer tiers distribution
+    // Get customer tiers distribution (use canonical tier names only)
     const customerTiers = {};
     bookings.forEach(booking => {
-      const tier = booking.customer_tier || booking.user_tier_at_booking || 'Ather';
+      const tier = normalizeTierName(booking.customer_tier || booking.user_tier_at_booking);
       customerTiers[tier] = (customerTiers[tier] || 0) + 1;
     });
 
@@ -441,7 +442,7 @@ async function getPartnerRewardsAnalytics(partnerId) {
       id: b.id,
       customer_name: b.customer_name || 'Guest',
       customer_phone: b.customer_phone || null,
-      customer_tier: b.customer_tier || b.user_tier_at_booking || 'Ather',
+      customer_tier: normalizeTierName(b.customer_tier || b.user_tier_at_booking),
       ezt_earned: parseFloat(b.ezt_earned || 0),
       loyalty_points_earned: parseFloat(b.points_earned || 0),
       created_at: b.created_at

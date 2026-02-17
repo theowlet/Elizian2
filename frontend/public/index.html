@@ -646,7 +646,7 @@
             <section id="dealsContainer" class="deals-section">
               <div class="section-header">
                 <h2 class="section-heading">🎁 All Partner Deals</h2>
-                <span class="section-subtitle">Discover amazing offers</span>
+                <span class="section-subtitle">Discover amazing deals</span>
               </div>
               <div id="allDealsGrid" class="deals-grid">
                 <!-- Will be populated by JS or show empty state -->
@@ -727,7 +727,7 @@
         
         <div class="header">
           <h1>Dining</h1>
-          <p>Premium restaurants & exclusive offers</p>
+          <p>Premium restaurants & exclusive deals</p>
         </div>
         
         <div style="padding:20px;">
@@ -1841,7 +1841,7 @@
                 <div class="title">${r.name}</div>
                 <div class="sub">${r.distance} • ${r.city || r.address || ''}</div>
               </div>
-              <div style="font-weight:700; color:#c7d2fe;">${r.discount_percentage>0? r.discount_percentage+'% OFF':''}</div>
+              <div style="font-weight:700; color:#c7d2fe;">${r.co_pay_percentage>0? r.co_pay_percentage+'% OFF':''}</div>
             </div>
           `;
           }).join('') + `</div>`;
@@ -2861,7 +2861,7 @@
       container.innerHTML = `
         <div class="no-promotions">
           <div class="empty-icon">💎</div>
-          <p class="empty-title">Premium Offers Coming Soon</p>
+          <p class="empty-title">Premium Deals Coming Soon</p>
           <p class="empty-text">Exclusive deals from our partners are on the way</p>
         </div>
       `;
@@ -3134,7 +3134,7 @@
       }
       
       if (!offer) {
-        alert('Offer not found');
+        alert('Deal not found');
         return;
       }
       
@@ -3822,7 +3822,7 @@
       const fallbackPrice = parseFloat(deal.price || deal.base_price || deal.menu_price || deal.item_price || 0);
       let originalPrice = parseFloat(deal.original_price || fallbackPrice || 0);
       let discountedPrice = parseFloat(deal.discounted_price || originalPrice || fallbackPrice || 0);
-      const discountPercentage = parseFloat(deal.discount_percentage || 0);
+      const discountPercentage = parseFloat(deal.co_pay_percentage || 0);
       
       let unitDiscountAmount = parseFloat(deal.discount_amount || 0);
       if (!unitDiscountAmount && discountPercentage > 0 && originalPrice > 0) {

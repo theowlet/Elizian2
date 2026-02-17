@@ -20,6 +20,9 @@ const VenueDetailPage = () => {
   const [submittingTip, setSubmittingTip] = useState(false);
   const [prelaunchSignedUp, setPrelaunchSignedUp] = useState(false);
   const [joiningWaitlist, setJoiningWaitlist] = useState(false);
+  const [checkInsToday, setCheckInsToday] = useState(null);
+  const [venueStats, setVenueStats] = useState(null);
+  const [userTier, setUserTier] = useState(null);
   const token = localStorage.getItem("token");
 
   const perkLabel = (type) => {
@@ -85,6 +88,33 @@ const VenueDetailPage = () => {
         if (!cancelled && data.success && data.data?.signed_up) setPrelaunchSignedUp(true);
       } catch (_) {}
     })();
+    return () => { cancelled = true; };
+  }, [id, token, API_BASE]);
+
+  // Check-ins today (social proof) – public
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    fetch(`${API_BASE}/api/v1/partners/${id}/check-ins-today`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled && d.success && d.data?.count != null) setCheckInsToday(d.data.count); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [id, API_BASE]);
+
+  // User's stats at this venue + tier (for "You & this venue" block)
+  useEffect(() => {
+    if (!id || !token) return;
+    let cancelled = false;
+    const headers = { Authorization: `Bearer ${token}` };
+    Promise.all([
+      fetch(`${API_BASE}/api/v1/user/venue-stats/${id}`, { headers }).then((r) => r.json()),
+      fetch(`${API_BASE}/api/v1/user/tier`, { headers }).then((r) => r.json())
+    ]).then(([statsRes, tierRes]) => {
+      if (cancelled) return;
+      if (statsRes.success && statsRes.data) setVenueStats(statsRes.data);
+      if (tierRes.success && tierRes.data) setUserTier(tierRes.data);
+    }).catch(() => {});
     return () => { cancelled = true; };
   }, [id, token, API_BASE]);
 
@@ -299,9 +329,26 @@ const VenueDetailPage = () => {
             ⭐ Review
           </button>
         </div>
-        {/* Social proof */}
+        {/* You & this venue (when logged in) */}
+        {token && (venueStats || userTier) && (
+          <div className="venue-detail-you-venue" style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: 12, border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: '0.95rem', color: '#d1d5db' }}>You & this venue</h3>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px 20px', fontSize: '0.9rem' }}>
+              {userTier?.current?.name && (
+                <span><strong>Your tier:</strong> {userTier.current.name}</span>
+              )}
+              {venueStats?.visit_count != null && (
+                <span><strong>Visits:</strong> {venueStats.visit_count}</span>
+              )}
+              {venueStats?.ezt_earned_at_venue != null && venueStats.ezt_earned_at_venue > 0 && (
+                <span><strong>EZT earned here:</strong> {Number(venueStats.ezt_earned_at_venue).toFixed(2)}</span>
+              )}
+            </div>
+          </div>
+        )}
+        {/* Social proof (real check-ins today) */}
         <div className="venue-detail-social-proof">
-          🔥 {Math.floor(Math.random() * 40) + 8} check-ins this week
+          🔥 {checkInsToday != null ? `${checkInsToday} check-in${checkInsToday !== 1 ? 's' : ''} today` : 'Recent check-ins at this venue'}
         </div>
       </section>
 
@@ -491,7 +538,7 @@ const VenueDetailPage = () => {
 
       {offers.length > 0 && (
         <section className="venue-detail-section venue-detail-offers">
-          <h2>Offers & Deals</h2>
+          <h2>Deals</h2>
           <div className="venue-detail-offers-grid">
             {offers.map((offer) => (
               <div key={offer.id} className="venue-detail-offer-card">

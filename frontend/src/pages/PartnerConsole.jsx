@@ -4,6 +4,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import OperatingHoursManager from '../components/OperatingHoursManager';
 import '../styles/partnerConsole.css';
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
 
@@ -29,13 +30,14 @@ function Sidebar({ active, onNavigate }) {
   const nav = [
     ['dashboard', 'Dashboard'],
     ['profile', 'Profile'],
+    ['hours', 'Operating Hours'],
     ['menu', 'Menu Items'],
     ['orders', 'Bookings'],
     ['analytics', 'Analytics'],
-    ['offers', 'Offers'],
+    ['offers', 'Deals'],
     ['campaigns', 'Campaigns'],
     ['guests', 'Guests'],
-    ['tiers', 'Venue Tiers'],
+    ['tiers', 'Partner Tier'],
     ['messages', 'Messages'],
     ['staff', 'Staff Rewards'],
     ['nfc', 'NFC Pucks'],
@@ -90,10 +92,6 @@ export default function PartnerConsole() {
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [guestNoteText, setGuestNoteText] = useState('');
   const [addingNote, setAddingNote] = useState(false);
-  const [venueTiers, setVenueTiers] = useState([]);
-  const [showTierModal, setShowTierModal] = useState(false);
-  const [tierForm, setTierForm] = useState({ tier_name: '', tier_level: 1, perks_description: '', display_order: 0, is_active: true, min_visits: '', min_spend: '' });
-  const [tierEditId, setTierEditId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [selectedConvId, setSelectedConvId] = useState(null);
   const [convMessages, setConvMessages] = useState([]);
@@ -194,6 +192,7 @@ export default function PartnerConsole() {
       loadMenuItems();
       loadOffers();
       loadOrders();
+      loadBookings();
       loadAnalytics();
     }
   }, [partner]);
@@ -369,59 +368,6 @@ export default function PartnerConsole() {
     finally { setAddingNote(false); }
   }
 
-  async function loadVenueTiers() {
-    if (!partner) return;
-    try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/tiers`, { headers: headers() });
-      const j = await r.json();
-      if (j.success) setVenueTiers(j.data || []);
-    } catch (e) { console.error(e); }
-  }
-
-  function openAddTier() {
-    setTierEditId(null);
-    setTierForm({ tier_name: '', tier_level: 1, perks_description: '', display_order: 0, is_active: true, min_visits: '', min_spend: '' });
-    setShowTierModal(true);
-  }
-
-  function openEditTier(t) {
-    setTierEditId(t.id);
-    const min = t.min_visits_or_spend || {};
-    setTierForm({
-      tier_name: t.tier_name || '',
-      tier_level: t.tier_level ?? 1,
-      perks_description: t.perks_description || '',
-      display_order: t.display_order ?? 0,
-      is_active: t.is_active !== false,
-      min_visits: min.min_visits != null ? min.min_visits : '',
-      min_spend: min.min_spend != null ? min.min_spend : '',
-    });
-    setShowTierModal(true);
-  }
-
-  async function saveTier(e) {
-    e.preventDefault();
-    if (!partner) return;
-    const min_visits_or_spend = {};
-    if (tierForm.min_visits !== '' && tierForm.min_visits != null) min_visits_or_spend.min_visits = Number(tierForm.min_visits);
-    if (tierForm.min_spend !== '' && tierForm.min_spend != null) min_visits_or_spend.min_spend = Number(tierForm.min_spend);
-    const payload = {
-      tier_name: tierForm.tier_name.trim(),
-      tier_level: Number(tierForm.tier_level) || 1,
-      perks_description: tierForm.perks_description.trim() || null,
-      display_order: Number(tierForm.display_order) || 0,
-      is_active: tierForm.is_active,
-      min_visits_or_spend: Object.keys(min_visits_or_spend).length ? min_visits_or_spend : null,
-    };
-    try {
-      const url = tierEditId ? `${API_BASE}/api/v1/partners/${partner.id}/tiers/${tierEditId}` : `${API_BASE}/api/v1/partners/${partner.id}/tiers`;
-      const r = await fetch(url, { method: tierEditId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(payload) });
-      const j = await r.json();
-      if (j.success) { setShowTierModal(false); loadVenueTiers(); showNotification(tierEditId ? 'Tier updated' : 'Tier created'); }
-      else showNotification(j.message || 'Failed', 'error');
-    } catch (err) { showNotification('Network error', 'error'); }
-  }
-
   async function loadStaff() {
     if (!partner) return;
     try {
@@ -532,16 +478,6 @@ export default function PartnerConsole() {
       });
       const j = await r.json();
       if (j.success) { loadNfcPucks(); showNotification(puck.is_active ? 'Puck deactivated' : 'Puck activated'); }
-    } catch (err) { showNotification('Network error', 'error'); }
-  }
-
-  async function deleteTier(id) {
-    if (!partner || !window.confirm('Delete this tier?')) return;
-    try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/tiers/${id}`, { method: 'DELETE', headers: headers() });
-      const j = await r.json();
-      if (j.success) { loadVenueTiers(); showNotification('Tier deleted'); }
-      else showNotification(j.message || 'Delete failed', 'error');
     } catch (err) { showNotification('Network error', 'error'); }
   }
 
@@ -682,7 +618,7 @@ export default function PartnerConsole() {
     if (section === 'offers') loadOffers();
     if (section === 'campaigns') loadCampaigns();
     if (section === 'guests') loadGuests();
-    if (section === 'tiers') loadVenueTiers();
+    if (section === 'tiers') { /* Partner tier comes from partner object */ }
     if (section === 'messages') loadConversations();
     if (section === 'staff') { loadStaff(); loadStaffCheckIns(); }
     if (section === 'nfc') { loadNfcPucks(); loadNfcAnalytics(); }
@@ -704,26 +640,95 @@ export default function PartnerConsole() {
   // Offer form state and handlers (kept simple; uses controlled inputs)
   const [offerForm, setOfferForm] = useState({});
 
+  const DEFAULT_CO_PAY_PERCENT = 25;
+
   function openAddOffer() {
     setOfferEditId(null);
-    setOfferForm({ applicable_days: ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] });
+    setOfferForm({
+      title: '',
+      description: '',
+      service_type: '',
+      start_date: '',
+      end_date: '',
+      perk_type: 'discount',
+      perk_description: '',
+      co_pay_percentage: String(DEFAULT_CO_PAY_PERCENT),
+      applicable_days: ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'],
+    });
     setShowOfferModal(true);
   }
 
-  function openEditOffer(id) {
-    const o = offers.find(x => x.id === id);
-    if (!o) return;
+  function parseCoPayFromText(text) {
+    if (!text || typeof text !== 'string') return null;
+    // Match "50%", "upto 50%", "co-pay 50%", "50 percent", etc.
+    const m = text.match(/(?:upto?|up to|co-?pay|discount).*?(\d{1,3})\s*%|(\d{1,3})\s*%/i);
+    const num = m ? parseFloat(m[1] || m[2]) : null;
+    return (num != null && num >= 0 && num <= 100) ? num : null;
+  }
+
+  async function openEditOffer(offerOrId) {
+    const id = typeof offerOrId === 'object' ? offerOrId?.id : offerOrId;
+    const o = typeof offerOrId === 'object' ? offerOrId : offers.find(x => x.id === id);
+    if (!o || !partner) return;
     setOfferEditId(id);
-    setOfferForm({ ...o });
+    const toDatetimeLocal = (v) => {
+      if (!v) return '';
+      if (typeof v === 'string' && v.length <= 16) return v;
+      try { return new Date(v).toISOString().slice(0, 16); } catch (_) { return ''; }
+    };
+    const populateForm = (o2) => {
+      const raw = o2?.co_pay_percentage;
+      const coPay = (raw != null && raw !== '' && !Number.isNaN(Number(raw))) ? String(Number(raw)) : (parseCoPayFromText(o2?.title) ?? parseCoPayFromText(o2?.description) ?? '');
+      return {
+        ...o2,
+        title: o2?.title ?? '',
+        description: o2?.description ?? '',
+        service_type: o2?.service_type ?? '',
+        perk_type: o2?.perk_type ?? 'discount',
+        perk_description: o2?.perk_description ?? '',
+        co_pay_percentage: coPay,
+        start_date: toDatetimeLocal(o2?.start_date),
+        end_date: toDatetimeLocal(o2?.end_date),
+        image_url: o2?.image_url ?? null,
+        image_base64: undefined,
+        is_trending: !!o2?.is_trending,
+        featured_request_pending: !!o2?.featured_request_pending,
+        request_trending: !!o2?.request_trending,
+        applicable_days: Array.isArray(o2?.applicable_days) ? o2?.applicable_days : ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'],
+      };
+    };
+    // Populate immediately from list data so co-pay shows right away
+    setOfferForm(populateForm(o));
     setShowOfferModal(true);
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/offers/${id}`, { headers: headers() });
+      const j = await r.json();
+      if (j.success && j.data) {
+        setOfferForm(populateForm(j.data));
+      }
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   async function saveOffer(e) {
     e.preventDefault();
     if (!partner) return;
+    if (offerForm.perk_type === 'discount') {
+      const v = offerForm.co_pay_percentage;
+      const n = v !== '' && v !== undefined && !Number.isNaN(Number(v)) ? Number(v) : NaN;
+      if (Number.isNaN(n) || n < 0 || n > 100) {
+        alert('Co-pay % is required when Perk type is Discount. Enter a value between 0 and 100.');
+        return;
+      }
+    }
     const url = offerEditId ? `${API_BASE}/api/v1/partners/${partner.id}/offers/${offerEditId}` : `${API_BASE}/api/v1/partners/${partner.id}/offers`;
+    const payload = { ...offerForm };
+    if (payload.request_trending) payload.request_trending = true;
+    const numericOptionals = ['co_pay_percentage', 'discount_amount', 'original_price', 'discounted_price', 'min_purchase_amount'];
+    numericOptionals.forEach((k) => { if (payload[k] === '' || payload[k] === undefined) payload[k] = null; });
     try {
-      const r = await fetch(url, { method: offerEditId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(offerForm) });
+      const r = await fetch(url, { method: offerEditId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(payload) });
       const j = await r.json();
       if (j.success) { setShowOfferModal(false); loadOffers(); }
       else alert('Failed: ' + (j.message ?? j.error ?? 'unknown'));
@@ -847,7 +852,6 @@ export default function PartnerConsole() {
         gst_number: document.getElementById('venueGST')?.value,
         address: document.getElementById('venueAddress')?.value,
         partner_category_type: document.getElementById('venueType')?.value,
-        partner_discount_percentage: parseFloat(document.getElementById('discountPercentage')?.value || 0),
         description: document.getElementById('venueDescription')?.value
       };
       try {
@@ -868,7 +872,7 @@ export default function PartnerConsole() {
           </div>
           <div className="pc-form-group"><label>Phone</label><input id="venuePhone" className="pc-form-input" defaultValue={partner?.phone_number || partner?.phone || ''} /></div>
           <div className="pc-form-group"><label>GST</label><input id="venueGST" className="pc-form-input" defaultValue={partner?.gst_number || ''} /></div>
-          <div className="pc-form-group"><label>Address</label><textarea id="venueAddress" className="pc-form-input" placeholder="Enter complete venue address (street, city, state, pincode)">{partner?.address || ''}</textarea></div>
+          <div className="pc-form-group"><label>Address</label><textarea id="venueAddress" className="pc-form-input" placeholder="Enter complete venue address (street, city, state, pincode)" defaultValue={partner?.address || ''} /></div>
           <div className="pc-form-group pc-map-preview">
             <label>Location &amp; map</label>
             {(() => {
@@ -901,11 +905,8 @@ export default function PartnerConsole() {
               </>
             )}
           </div>
-          <div className="pc-form-grid">
-            <div className="pc-form-group"><label>Venue Type</label><select id="venueType" className="pc-form-input" defaultValue={partner?.partner_category_type || ''}><option value="">Select</option><option value="dining">Dining</option><option value="events">Events</option><option value="spa-and-salon">Spa & Salon</option><option value="wellness">Wellness</option><option value="travel">Travel</option><option value="others">Others</option></select></div>
-            <div className="pc-form-group"><label>Partner Discount %</label><input id="discountPercentage" className="pc-form-input" defaultValue={partner?.partner_discount_percentage || 0} type="number"/></div>
-          </div>
-          <div className="pc-form-group"><label>Description</label><textarea id="venueDescription" className="pc-form-input">{partner?.description || ''}</textarea></div>
+          <div className="pc-form-group"><label>Venue Type</label><select id="venueType" className="pc-form-input" defaultValue={partner?.partner_category_type || ''}><option value="">Select</option><option value="dining">Dining</option><option value="events">Events</option><option value="healthcare">Healthcare</option><option value="spa-and-salon">Spa & Salon</option><option value="wellness">Wellness</option><option value="travel">Travel</option><option value="others">Others</option></select></div>
+          <div className="pc-form-group"><label>Description</label><textarea id="venueDescription" className="pc-form-input" defaultValue={partner?.description || ''} /></div>
         </form>
       </div>
     );
@@ -946,13 +947,13 @@ export default function PartnerConsole() {
   function OffersSection() {
     return (
       <div>
-        <div className="pc-content-header"><h1>Offers & Discounts Management</h1><div><button className="btn btn-primary" onClick={openAddOffer}>Create New Offer</button></div></div>
-        <div className="pc-table-container"><table className="pc-table"><thead><tr><th>Offer Details</th><th>Type</th><th>Validity</th><th>Redemptions</th><th>Status</th><th>Actions</th></tr></thead>
+        <div className="pc-content-header"><h1>Deals</h1><div><button className="btn btn-primary" onClick={openAddOffer}>Create New Deal</button></div></div>
+        <div className="pc-table-container"><table className="pc-table"><thead><tr><th>Deal Details</th><th>Type</th><th>Validity</th><th>Redemptions</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
           {offers.length === 0 ? (
-            <tr><td colSpan={6} style={{textAlign:'center', padding:24}}>No offers</td></tr>
+            <tr><td colSpan={6} style={{textAlign:'center', padding:24}}>No deals</td></tr>
           ) : offers.map(of => (
-            <tr key={of.id}><td>{of.title}</td><td>{(of.offer_type||'').toUpperCase()}</td><td>{new Date(of.start_date).toLocaleDateString()} - {new Date(of.end_date).toLocaleDateString()}</td><td>{of.max_redemptions||'Unlimited'}</td><td><span className={`pc-badge pc-badge-${(new Date(of.end_date) > new Date()) ? 'success':'error'}`}>{(new Date(of.end_date) > new Date()) ? 'ACTIVE':'INACTIVE'}</span></td><td><div className="pc-actions"><button className="btn btn-sm btn-secondary" onClick={() => openEditOffer(of.id)}>Edit</button><button className="btn btn-sm btn-danger" onClick={() => deleteOffer(of.id)}>Delete</button></div></td></tr>
+            <tr key={of.id}><td>{of.title}</td><td>{(of.offer_type||'').toUpperCase()}</td><td>{new Date(of.start_date).toLocaleDateString()} - {new Date(of.end_date).toLocaleDateString()}</td><td>{of.max_redemptions||'Unlimited'}</td><td><span className={`pc-badge pc-badge-${(new Date(of.end_date) > new Date()) ? 'success':'error'}`}>{(new Date(of.end_date) > new Date()) ? 'ACTIVE':'INACTIVE'}</span></td><td><div className="pc-actions"><button className="btn btn-sm btn-secondary" onClick={() => openEditOffer(of)}>Edit</button><button className="btn btn-sm btn-danger" onClick={() => deleteOffer(of.id)}>Delete</button></div></td></tr>
           ))}
         </tbody></table></div>
       </div>
@@ -960,7 +961,7 @@ export default function PartnerConsole() {
   }
 
   async function deleteOffer(id) {
-    if (!window.confirm('Delete offer?')) return;
+    if (!window.confirm('Delete deal?')) return;
     try {
       const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/offers/${id}`, { method: 'DELETE', headers: headers() });
       const j = await r.json();
@@ -1158,40 +1159,41 @@ export default function PartnerConsole() {
   }
 
   function TiersSection() {
+    const tierInfo = partner?.partner_tier_benefits || {};
+    const tierLabel = tierInfo.label || (partner?.partner_tier ? String(partner.partner_tier).charAt(0).toUpperCase() + String(partner.partner_tier).slice(1) + ' Partner' : 'Bronze Partner');
+    const benefits = tierInfo.benefits || [];
+    const description = tierInfo.description || 'Your subscription tier with Elizian defines the benefits and support you receive from the platform.';
     return (
       <div>
         <div className="pc-content-header">
-          <h1>Venue Tiers</h1>
-          <div>
-            <button className="btn btn-primary" onClick={loadVenueTiers}>Refresh</button>
-            <button className="btn btn-primary" onClick={openAddTier} style={{ marginLeft: 8 }}>Add tier</button>
-          </div>
+          <h1>Partner Tier</h1>
+          <button className="btn btn-primary" onClick={loadPartnerData}>Refresh</button>
         </div>
-        <p style={{ color: '#666', marginBottom: 16 }}>Define custom loyalty tiers for your venue (e.g. Silver, Gold). Set min visits or spend and perks.</p>
-        <div className="pc-table-container">
-          <table className="pc-table">
-            <thead>
-              <tr><th>Tier name</th><th>Level</th><th>Min visits / spend</th><th>Perks</th><th>Order</th><th>Active</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-              {venueTiers.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24 }}>No tiers yet. Add tiers to recognize your regular guests.</td></tr>
-              ) : venueTiers.map(t => (
-                <tr key={t.id}>
-                  <td>{t.tier_name}</td>
-                  <td>{t.tier_level}</td>
-                  <td>{t.min_visits_or_spend ? JSON.stringify(t.min_visits_or_spend) : '—'}</td>
-                  <td style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.perks_description || '—'}</td>
-                  <td>{t.display_order}</td>
-                  <td><span className={`pc-badge pc-badge-${t.is_active ? 'success' : 'error'}`}>{t.is_active ? 'Yes' : 'No'}</span></td>
-                  <td>
-                    <button className="btn btn-sm btn-secondary" onClick={() => openEditTier(t)}>Edit</button>
-                    <button className="btn btn-sm btn-danger" onClick={() => deleteTier(t.id)} style={{ marginLeft: 4 }}>Delete</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <p style={{ color: '#666', marginBottom: 16 }}>
+          Your relationship tier with Elizian. This subscription level determines the benefits you receive from the platform (e.g. support, visibility, features). Set by Elizian.
+        </p>
+        <div style={{ maxWidth: 560, background: '#f8fafc', borderRadius: 12, padding: 24, border: '1px solid #e2e8f0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <span style={{
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: partner?.partner_tier === 'gold' ? '#b45309' : partner?.partner_tier === 'silver' ? '#64748b' : '#78716c',
+            }}>
+              {partner?.partner_tier === 'gold' ? '🥇' : partner?.partner_tier === 'silver' ? '🥈' : '🥉'}
+            </span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '1.25rem', color: '#1e293b' }}>{tierLabel}</div>
+              {description && <div style={{ fontSize: '0.9rem', color: '#64748b', marginTop: 4 }}>{description}</div>}
+            </div>
+          </div>
+          {benefits.length > 0 && (
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 8, color: '#334155' }}>Your benefits</div>
+              <ul style={{ margin: 0, paddingLeft: 20, color: '#475569', lineHeight: 1.7 }}>
+                {benefits.map((b, i) => <li key={i}>{b}</li>)}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1535,6 +1537,19 @@ export default function PartnerConsole() {
                         }}
                         title="Click to redeem"
                       />
+                    ) : b.voucher_code ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline"
+                        style={{ fontSize: '0.8rem' }}
+                        onClick={() => {
+                          setSelectedBooking(b);
+                          setShowRedemptionModal(true);
+                        }}
+                        title="Redeem voucher"
+                      >
+                        Voucher
+                      </button>
                     ) : (
                       <span style={{color:'#999', fontSize:'0.85rem'}}>No QR</span>
                     )}
@@ -1542,6 +1557,9 @@ export default function PartnerConsole() {
                   <td><span className={`pc-badge pc-badge-${getStatusClass(b.status)}`}>{b.status}</span></td>
                   <td>
                     <div className="pc-actions">
+                      {b.status === 'redeemed' && (
+                        <span style={{ fontSize: '0.8rem', color: '#059669', marginRight: 8 }} title="Voucher was redeemed">✓ Redeemed</span>
+                      )}
                       {b.status === 'confirmed' && b.voucher_code && (
                         <button 
                           className="btn btn-sm btn-primary" 
@@ -1549,6 +1567,7 @@ export default function PartnerConsole() {
                             setSelectedBooking(b);
                             setShowRedemptionModal(true);
                           }}
+                          title="Redeem voucher at POS"
                         >
                           Redeem
                         </button>
@@ -1888,6 +1907,9 @@ export default function PartnerConsole() {
           <main className="pc-main-content">
             {activeSection === 'dashboard' && <DashboardSection />}
             {activeSection === 'profile' && <ProfileSection />}
+            {activeSection === 'hours' && partner && (
+              <OperatingHoursManager partnerId={partner.id} token={token} />
+            )}
             {activeSection === 'menu' && <MenuSection />}
             {activeSection === 'orders' && <OrdersSection />}
             {activeSection === 'analytics' && <AnalyticsSection />}
@@ -1904,14 +1926,79 @@ export default function PartnerConsole() {
       </div>
 
       {/* Offer modal */}
-      <Modal id="offerModal" title={offerEditId ? 'Edit Offer' : 'Create New Offer'} show={showOfferModal} onClose={() => setShowOfferModal(false)} width={700}>
+      <Modal id="offerModal" title={offerEditId ? 'Edit Deal' : 'Create New Deal'} show={showOfferModal} onClose={() => setShowOfferModal(false)} width={700}>
         <form onSubmit={saveOffer}>
-          <div className="pc-form-group"><label>Offer Title *</label><input className="pc-form-input" required value={offerForm.title||''} onChange={e=>setOfferForm({...offerForm, title: e.target.value})} /></div>
+          <div className="pc-form-group"><label>Deal Title *</label><input className="pc-form-input" required value={offerForm.title||''} onChange={e=>setOfferForm({...offerForm, title: e.target.value})} /></div>
           <div className="pc-form-group"><label>Service Type</label><select className="pc-form-input" value={offerForm.service_type||''} onChange={e=>setOfferForm({...offerForm, service_type: e.target.value})}><option value="">Select</option><option value="dining">Dining</option><option value="events">Events</option><option value="spa-and-salon">Spa & Salon</option><option value="wellness">Wellness</option><option value="travel">Travel</option><option value="healthcare">Healthcare</option><option value="others">Others</option></select></div>
           <div className="pc-form-grid"><div className="pc-form-group"><label>Start Date</label><input type="datetime-local" className="pc-form-input" value={offerForm.start_date||''} onChange={e=>setOfferForm({...offerForm, start_date: e.target.value})} /></div><div className="pc-form-group"><label>End Date</label><input type="datetime-local" className="pc-form-input" value={offerForm.end_date||''} onChange={e=>setOfferForm({...offerForm, end_date: e.target.value})} /></div></div>
-          <div className="pc-form-group"><label>Perk type</label><select className="pc-form-input" value={offerForm.perk_type||'discount'} onChange={e=>setOfferForm({...offerForm, perk_type: e.target.value})}><option value="discount">Discount</option><option value="free_item">Free item</option><option value="secret_menu">Secret menu</option><option value="priority_access">Priority access</option><option value="other">Other</option></select></div>
+          <div className="pc-form-group"><label>Perk type</label><select className="pc-form-input" value={offerForm.perk_type||'discount'} onChange={e=>{
+            const newPerk = e.target.value;
+            const isDiscount = newPerk === 'discount';
+            const coPayEmpty = offerForm.co_pay_percentage === '' || offerForm.co_pay_percentage == null;
+            setOfferForm({...offerForm, perk_type: newPerk, co_pay_percentage: (isDiscount && coPayEmpty) ? String(DEFAULT_CO_PAY_PERCENT) : offerForm.co_pay_percentage});
+          }}><option value="discount">Discount</option><option value="fixed_price_deal">Fixed Price deal</option><option value="free_item">Free item</option><option value="secret_menu">Secret menu</option><option value="priority_access">Priority access</option><option value="other">Other</option></select></div>
           <div className="pc-form-group"><label>Perk description (optional)</label><textarea className="pc-form-input" rows={2} value={offerForm.perk_description||''} onChange={e=>setOfferForm({...offerForm, perk_description: e.target.value})} placeholder="e.g. Complimentary dessert with main" /></div>
-          <div style={{display:'flex', gap:8, justifyContent:'flex-end', marginTop:16}}><button type="button" className="btn btn-secondary" onClick={()=>setShowOfferModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">Save Offer</button></div>
+          <div className="pc-form-group">
+            <label>Co-pay % (EZT) {offerForm.perk_type === 'discount' ? '*' : '(optional)'}</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={0.01}
+              className="pc-form-input"
+              value={offerForm.co_pay_percentage ?? ''}
+              onChange={e=>setOfferForm({...offerForm, co_pay_percentage: e.target.value === '' ? '' : parseFloat(e.target.value)})}
+              placeholder={offerForm.perk_type === 'discount' ? 'e.g. 30 (required for Discount)' : 'e.g. 30'}
+            />
+          </div>
+          <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: '#666' }}>Co-pay % is used at redemption: EZT amount = Total bill × (Co-pay % / 100). Net = Bill − EZT. Required when Perk type is Discount.</p>
+          <div className="pc-form-group" style={{ padding: '10px 0', borderTop: '1px solid #eee' }}>
+            <label style={{ fontWeight: 600 }}>Deal card image</label>
+            <p style={{ margin: '4px 0 8px', fontSize: '0.9rem', color: '#666' }}>Image shown on the deal card. Recommended: 16:9, max 2MB.</p>
+            {(offerForm.image_url || offerForm.image_base64) && (
+              <div style={{ marginBottom: 10 }}>
+                <img
+                  src={offerForm.image_base64 || offerForm.image_url}
+                  alt="Deal"
+                  style={{ maxWidth: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 8, border: '1px solid #ddd' }}
+                />
+                <button type="button" className="btn btn-sm btn-secondary" style={{ marginTop: 6 }} onClick={() => setOfferForm({ ...offerForm, image_url: null, image_base64: undefined, image_filename: undefined })}>Remove image</button>
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              className="pc-form-input"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                if (file.size > 2 * 1024 * 1024) { alert('Image should be under 2MB'); return; }
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setOfferForm({ ...offerForm, image_base64: reader.result, image_filename: file.name || 'offer.jpg' });
+                };
+                reader.readAsDataURL(file);
+                e.target.value = '';
+              }}
+            />
+          </div>
+          {offerEditId && (
+            <>
+              <div className="pc-form-group" style={{ padding: '10px 0', borderTop: '1px solid #eee' }}>
+                <label style={{ fontWeight: 600 }}>Trending</label>
+                <p style={{ margin: '4px 0 8px', fontSize: '0.9rem', color: '#666' }}>
+                  {offerForm.is_trending ? '🔥 This deal is marked as Trending (shown in Trending Experiences).' : offerForm.featured_request_pending ? '⏳ Trending request pending admin approval.' : partner?.partner_tier === 'gold' ? '🥇 Gold partners: all your deals are already Trending.' : partner?.partner_tier === 'bronze' ? '🥉 Bronze partners cannot request Trending. Admin can override to mark a deal as Trending.' : '— Not set. Request below to be considered for Trending.'}
+                </p>
+                {partner?.partner_tier === 'silver' && !offerForm.is_trending && !offerForm.featured_request_pending && (
+                  <label className="pc-form-group" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={!!offerForm.request_trending} onChange={e=>setOfferForm({...offerForm, request_trending: e.target.checked})} />
+                    <span>Request Trending (admin approves with reason)</span>
+                  </label>
+                )}
+              </div>
+            </>
+          )}
+          <div style={{display:'flex', gap:8, justifyContent:'flex-end', marginTop:16}}><button type="button" className="btn btn-secondary" onClick={()=>setShowOfferModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">Save Deal</button></div>
         </form>
       </Modal>
 
@@ -1939,7 +2026,7 @@ export default function PartnerConsole() {
             </div>
             <h4 style={{ marginBottom: 8 }}>Visit history</h4>
             <div className="pc-table-container" style={{ maxHeight: 200, overflow: 'auto', marginBottom: 16 }}>
-              <table className="pc-table"><thead><tr><th>Ref</th><th>Date</th><th>Offer</th><th>Amount</th><th>Status</th></tr></thead>
+              <table className="pc-table"><thead><tr><th>Ref</th><th>Date</th><th>Deal</th><th>Amount</th><th>Status</th></tr></thead>
               <tbody>
                 {(guestProfile.visit_history || []).length === 0 ? <tr><td colSpan={5}>No visits</td></tr> : (guestProfile.visit_history || []).map(v => (
                   <tr key={v.booking_id}><td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{v.booking_reference || v.booking_id?.slice(0,8)}</td><td>{v.booking_date ? new Date(v.booking_date).toLocaleDateString() : '—'}</td><td>{v.offer_title || '—'}</td><td>₹{Number(v.total_price || 0).toFixed(2)}</td><td>{v.status}</td></tr>
@@ -1966,25 +2053,6 @@ export default function PartnerConsole() {
         )}
       </Modal>
 
-      {/* Venue tier modal */}
-      <Modal id="tierModal" title={tierEditId ? 'Edit tier' : 'Add tier'} show={showTierModal} onClose={() => setShowTierModal(false)} width={480}>
-        <form onSubmit={saveTier}>
-          <div className="pc-form-group"><label>Tier name *</label><input className="pc-form-input" required value={tierForm.tier_name} onChange={e => setTierForm({ ...tierForm, tier_name: e.target.value })} placeholder="e.g. Gold" /></div>
-          <div className="pc-form-group"><label>Tier level</label><input type="number" min={1} className="pc-form-input" value={tierForm.tier_level} onChange={e => setTierForm({ ...tierForm, tier_level: e.target.value })} /></div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div className="pc-form-group" style={{ flex: 1 }}><label>Min visits</label><input type="number" min={0} className="pc-form-input" value={tierForm.min_visits} onChange={e => setTierForm({ ...tierForm, min_visits: e.target.value })} placeholder="Optional" /></div>
-            <div className="pc-form-group" style={{ flex: 1 }}><label>Min spend (₹)</label><input type="number" min={0} className="pc-form-input" value={tierForm.min_spend} onChange={e => setTierForm({ ...tierForm, min_spend: e.target.value })} placeholder="Optional" /></div>
-          </div>
-          <div className="pc-form-group"><label>Perks description</label><textarea className="pc-form-input" rows={2} value={tierForm.perks_description} onChange={e => setTierForm({ ...tierForm, perks_description: e.target.value })} placeholder="e.g. 10% off, free dessert" /></div>
-          <div className="pc-form-group"><label>Display order</label><input type="number" className="pc-form-input" value={tierForm.display_order} onChange={e => setTierForm({ ...tierForm, display_order: e.target.value })} /></div>
-          <div className="pc-form-group"><label><input type="checkbox" checked={tierForm.is_active} onChange={e => setTierForm({ ...tierForm, is_active: e.target.checked })} /> Active</label></div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowTierModal(false)}>Cancel</button>
-            <button type="submit" className="btn btn-primary">{tierEditId ? 'Update' : 'Create'}</button>
-          </div>
-        </form>
-      </Modal>
-
       {/* NFC puck modal */}
       <Modal id="nfcModal" title={nfcEditId ? 'Edit NFC Puck' : 'Register NFC Puck'} show={showNfcModal} onClose={() => setShowNfcModal(false)} width={480}>
         <form onSubmit={saveNfcPuck}>
@@ -2000,7 +2068,7 @@ export default function PartnerConsole() {
       {/* Menu modal */}
       <Modal id="menuItemModal" title={menuEditId ? 'Edit Service' : 'Add Service'} show={showMenuModal} onClose={() => setShowMenuModal(false)}>
         <form onSubmit={saveMenuItem}>
-          <div className="pc-form-group"><label>Service Type</label><select className="pc-form-input" value={menuForm.service_type||''} onChange={e=>setMenuForm({...menuForm, service_type: e.target.value})}><option value="">Select</option><option value="dining">Dining</option><option value="events">Events</option><option value="spa-and-salon">Spa & Salon</option><option value="wellness">Wellness</option><option value="travel">Travel</option><option value="others">Others</option></select></div>
+          <div className="pc-form-group"><label>Service Type</label><select className="pc-form-input" value={menuForm.service_type||''} onChange={e=>setMenuForm({...menuForm, service_type: e.target.value})}><option value="">Select</option><option value="dining">Dining</option><option value="events">Events</option><option value="healthcare">Healthcare</option><option value="spa-and-salon">Spa & Salon</option><option value="wellness">Wellness</option><option value="travel">Travel</option><option value="others">Others</option></select></div>
           <div className="pc-form-group"><label>Service Name</label><input className="pc-form-input" required value={menuForm.name||''} onChange={e=>setMenuForm({...menuForm, name: e.target.value})} /></div>
           <div className="pc-form-group"><label>Price (₹)</label><input type="number" className="pc-form-input" value={menuForm.price||0} onChange={e=>setMenuForm({...menuForm, price: parseFloat(e.target.value||0)})} /></div>
           <div style={{display:'flex', gap:8, justifyContent:'flex-end', marginTop:16}}><button type="button" className="btn btn-secondary" onClick={()=>setShowMenuModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">Save</button></div>
@@ -2098,7 +2166,7 @@ export default function PartnerConsole() {
               </div>
 
               {calculationLoading && (
-                <div style={{fontSize:'0.9rem', color:'#6b7280', marginBottom:'0.5rem'}}>Calculating from deal offer…</div>
+                <div style={{fontSize:'0.9rem', color:'#6b7280', marginBottom:'0.5rem'}}>Calculating from deal…</div>
               )}
 
               {calculationPreview && !overrideCalculation && (
@@ -2111,7 +2179,7 @@ export default function PartnerConsole() {
                   marginBottom: '1rem',
                   fontSize: '0.9rem'
                 }}>
-                  <div style={{marginBottom:'0.25rem'}}><strong>Offer:</strong> {calculationPreview.discount_percentage ?? 0}% Co-Pay Discount</div>
+                  <div style={{marginBottom:'0.25rem'}}><strong>Deal:</strong> {calculationPreview.co_pay_percentage ?? 0}% Co-Pay Discount</div>
                   <div style={{marginBottom:'0.25rem'}}><strong>Discount:</strong> ₹{calculationPreview.discount_amount ?? 0}</div>
                   <div style={{marginBottom:'0.25rem'}}><strong>EZT tokens required:</strong> {calculationPreview.ezt_tokens_required ?? 0} EZT</div>
                   {calculationPreview.user_ezt_balance != null && (

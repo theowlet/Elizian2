@@ -16,6 +16,9 @@ const Profile = () => {
   const [prelaunchSignups, setPrelaunchSignups] = useState([]);
   const [membershipCards, setMembershipCards] = useState([]);
   const [showEazyPass, setShowEazyPass] = useState(false);
+  const [referralCode, setReferralCode] = useState(null);
+  const [referralStats, setReferralStats] = useState(null);
+  const [referralCopyFeedback, setReferralCopyFeedback] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -29,6 +32,7 @@ const Profile = () => {
     loadTierInfo();
     loadPrelaunchSignups();
     loadMembershipCards();
+    loadReferralStats();
   }, [token, navigate]);
 
   const loadMembershipCards = async () => {
@@ -62,6 +66,10 @@ const Profile = () => {
       const data = text ? JSON.parse(text) : {};
       if (data.success && data.data) {
         setProfile(data.data);
+        try {
+          const existing = JSON.parse(localStorage.getItem("user") || "{}");
+          localStorage.setItem("user", JSON.stringify({ ...existing, ...data.data }));
+        } catch (_) {}
       } else {
         setError(data?.message ?? data?.error ?? "Failed to load profile");
       }
@@ -99,6 +107,76 @@ const Profile = () => {
         if (data.success && Array.isArray(data.data)) setPrelaunchSignups(data.data);
       }
     } catch (_) {}
+  };
+
+  const loadReferralStats = async () => {
+    try {
+      let res = await fetch(`${API_BASE}/api/v1/referrals/stats`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.data) {
+          const code = data.data.referralCode ?? null;
+          if (!code) {
+            const codeRes = await fetch(`${API_BASE}/api/v1/referrals/code`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (codeRes.ok) {
+              const codeData = await codeRes.json();
+              if (codeData.success && codeData.data?.referralCode) {
+                setReferralCode(codeData.data.referralCode);
+                res = await fetch(`${API_BASE}/api/v1/referrals/stats`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.ok) {
+                  const statsData = await res.json();
+                  if (statsData.success && statsData.data) setReferralStats(statsData.data);
+                }
+                return;
+              }
+            }
+          }
+          setReferralCode(code);
+          setReferralStats(data.data);
+        }
+      }
+    } catch (_) {}
+  };
+
+  const referralLink = referralCode
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/signup?ref=${encodeURIComponent(referralCode)}`
+    : "";
+
+  const copyReferralLink = async () => {
+    if (!referralLink) return;
+    try {
+      await navigator.clipboard.writeText(referralLink);
+      setReferralCopyFeedback("Copied!");
+      setTimeout(() => setReferralCopyFeedback(""), 2000);
+    } catch (_) {
+      setReferralCopyFeedback("Copy failed");
+      setTimeout(() => setReferralCopyFeedback(""), 2000);
+    }
+  };
+
+  const shareReferralLink = async () => {
+    if (!referralLink) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Join me on Elizian",
+          text: "Use my link to sign up and get a discount on your first booking.",
+          url: referralLink,
+        });
+        setReferralCopyFeedback("Shared!");
+        setTimeout(() => setReferralCopyFeedback(""), 2000);
+      } catch (e) {
+        if (e.name !== "AbortError") copyReferralLink();
+      }
+    } else {
+      copyReferralLink();
+    }
   };
 
   const handleLogout = () => {
@@ -427,6 +505,50 @@ const Profile = () => {
               🔔 Notifications
             </button>
           </div>
+        </section>
+
+        {/* Refer friends */}
+        <section className="profile-section">
+          <h2 className="profile-section-title">Refer friends</h2>
+          {referralCode ? (
+            <>
+              <p style={{ margin: "0 0 10px", fontSize: "0.9rem", color: "#aaa" }}>
+                Share your link; friends get a discount and you earn EZT when they complete their first booking.
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: 8 }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={referralLink}
+                  style={{
+                    flex: "1 1 200px",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #374151",
+                    background: "#111827",
+                    color: "#e5e7eb",
+                    fontSize: "0.9rem",
+                  }}
+                />
+                <button type="button" className="profile-btn secondary" onClick={copyReferralLink} style={{ marginBottom: 0 }}>
+                  Copy
+                </button>
+                <button type="button" className="profile-btn primary" onClick={shareReferralLink} style={{ marginBottom: 0 }}>
+                  Share
+                </button>
+                {referralCopyFeedback && <span style={{ fontSize: "0.85rem", color: "#7eb8da" }}>{referralCopyFeedback}</span>}
+              </div>
+              {referralStats && (referralStats.completed > 0 || referralStats.totalEztEarned > 0) && (
+                <p style={{ margin: 0, fontSize: "0.85rem", color: "#9ca3af" }}>
+                  {referralStats.completed} friend(s) joined · {Number(referralStats.totalEztEarned || 0).toFixed(0)} EZT earned
+                </p>
+              )}
+            </>
+          ) : (
+            <p style={{ margin: 0, fontSize: "0.9rem", color: "#9ca3af" }}>
+              Your referral link will appear here once the referral system has created your code.
+            </p>
+          )}
         </section>
 
         {/* Dining Preferences */}

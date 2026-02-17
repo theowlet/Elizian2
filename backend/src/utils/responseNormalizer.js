@@ -16,14 +16,14 @@ function normalizeOffer(offer) {
   const trendingFlag = Boolean(offer.is_trending || offer.is_promoted);
   const originalPrice = parseFloat(offer.original_price) || null;
   const discountedPrice = parseFloat(offer.discounted_price) || null;
-  const discountPercentage = parseFloat(offer.discount_percentage) || null;
+  const coPayPercentage = parseFloat(offer.co_pay_percentage) || null;
   const discountAmount = parseFloat(offer.discount_amount) || null;
 
   // Calculate discount summary
   let calculatedDiscounted = discountedPrice;
   if (!calculatedDiscounted && originalPrice) {
-    if (discountPercentage) {
-      calculatedDiscounted = originalPrice - (originalPrice * discountPercentage / 100);
+    if (coPayPercentage) {
+      calculatedDiscounted = originalPrice - (originalPrice * coPayPercentage / 100);
     } else if (discountAmount) {
       calculatedDiscounted = originalPrice - discountAmount;
     } else {
@@ -64,7 +64,7 @@ function normalizeOffer(offer) {
     discount: {
       original: originalPrice,
       discounted: calculatedDiscounted,
-      percentage: discountPercentage,
+      percentage: coPayPercentage,
       amount: discountAmount,
       savings: parseFloat(savings.toFixed(2)),
       hasDiscount: hasDiscount
@@ -73,7 +73,7 @@ function normalizeOffer(offer) {
     // Legacy fields for backward compatibility
     original_price: originalPrice,
     discounted_price: calculatedDiscounted,
-    discount_percentage: discountPercentage,
+    co_pay_percentage: coPayPercentage,
     discount_amount: discountAmount,
     savings: parseFloat(savings.toFixed(2)),
     
@@ -81,8 +81,6 @@ function normalizeOffer(offer) {
     status: offer.status || 'draft',
     is_active: offer.is_active !== undefined ? Boolean(offer.is_active) : true,
     is_trending: trendingFlag,
-    featured: trendingFlag,
-    // Deprecated field retained for backward compatibility
     is_promoted: trendingFlag,
     
     // Dates
@@ -107,6 +105,10 @@ function normalizeOffer(offer) {
     partner_rating: offer.partner_rating != null ? Number(offer.partner_rating) : null,
     partner_latitude: offer.partner_latitude != null ? Number(offer.partner_latitude) : null,
     partner_longitude: offer.partner_longitude != null ? Number(offer.partner_longitude) : null,
+    partner_cuisine_types: offer.partner_cuisine_types || null,
+    partner_avg_cost_for_two: offer.partner_avg_cost_for_two != null ? Number(offer.partner_avg_cost_for_two) : null,
+    min_tier_name: offer.min_tier_name || null,
+    experience_metadata: offer.experience_metadata || undefined,
   };
 }
 
@@ -133,7 +135,7 @@ function getEmptyOffer() {
     },
     original_price: null,
     discounted_price: null,
-    discount_percentage: null,
+    co_pay_percentage: null,
     discount_amount: null,
     savings: 0,
     status: 'draft',

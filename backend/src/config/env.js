@@ -23,7 +23,7 @@ const config = {
   isProduction: env === 'production',
   isTest: env === 'test',
   server: {
-    port: parseInt(process.env.PORT || '4000', 10),
+    port: parseInt(process.env.PORT || '3000', 10),
     requestIdHeader: process.env.REQUEST_ID_HEADER || 'x-request-id'
   },
   cors: {
@@ -43,9 +43,19 @@ const config = {
   },
   database: {
     url: process.env.DATABASE_URL || null,
-    ssl: process.env.DATABASE_URL
-      ? { rejectUnauthorized: false }
-      : false,
+    // Use SSL only for remote DBs (Railway, Neon, etc.). Local Postgres typically does not support SSL.
+    ssl: (() => {
+      const url = process.env.DATABASE_URL || '';
+      if (!url) return false;
+      try {
+        const u = new URL(url);
+        const host = (u.hostname || '').toLowerCase();
+        if (host === 'localhost' || host === '127.0.0.1') return false;
+        return { rejectUnauthorized: false };
+      } catch {
+        return false;
+      }
+    })(),
     maxConnections: parseInt(process.env.PG_POOL_MAX || '20', 10),
     idleTimeoutMillis: parseInt(process.env.PG_IDLE_TIMEOUT || '30000', 10),
     connectionTimeoutMillis: parseInt(process.env.PG_CONN_TIMEOUT || '10000', 10) // Increased from 2000ms to 10000ms (10 seconds)

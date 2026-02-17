@@ -290,9 +290,11 @@ const BookingHistory = () => {
                     <p style={{ margin: '0 0 0.5rem 0', color: '#9ca3af', fontSize: '0.9rem' }}>
                       Booking ID: {booking.booking_reference || booking.id}
                     </p>
-                    {booking.partner_name && (
-                      <p style={{ margin: '0 0 0.5rem 0', color: '#9ca3af', fontSize: '0.9rem' }}>
-                        Partner: {booking.partner_name}
+                    {(booking.partner_name || booking.deal_title) && (
+                      <p style={{ margin: '0 0 0.5rem 0', color: '#d1d5db', fontSize: '0.9rem' }}>
+                        {booking.partner_name && <span>Venue: {booking.partner_name}</span>}
+                        {booking.partner_name && booking.deal_title && ' · '}
+                        {booking.deal_title && <span>Deal: {booking.deal_title}</span>}
                       </p>
                     )}
                   </div>
@@ -308,6 +310,22 @@ const BookingHistory = () => {
                   background: '#111827',
                   borderRadius: '8px'
                 }}>
+                  {(booking.partner_name || booking.deal_title) && (
+                    <>
+                      {booking.partner_name && (
+                        <div>
+                          <div style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Venue</div>
+                          <div style={{ fontWeight: '600' }}>{booking.partner_name}</div>
+                        </div>
+                      )}
+                      {booking.deal_title && (
+                        <div>
+                          <div style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Deal / Event</div>
+                          <div style={{ fontWeight: '600' }}>{booking.deal_title}</div>
+                        </div>
+                      )}
+                    </>
+                  )}
                   <div>
                     <div style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Date & Time</div>
                     <div style={{ fontWeight: '600' }}>

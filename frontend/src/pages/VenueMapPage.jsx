@@ -3,33 +3,30 @@ import { useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import "../styles/venueMap.css";
 
-// Fix default marker icons in react-leaflet (webpack/vite)
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
-});
+// Small glitter marker for venue locations (no default pin)
+function createGlitterIcon() {
+  return L.divIcon({
+    className: "venue-glitter-marker",
+    html: `<span class="venue-glitter-dot" style="display:block;width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#fff,#f5e6a3 25%,#e8c547 50%,#c9a227 75%,#a67c00);box-shadow:0 0 0 1px rgba(255,255,255,0.6),0 0 8px 2px rgba(230,180,50,0.6);" aria-hidden="true"></span>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+}
 
 const DEFAULT_CENTER = [20.5937, 78.9629]; // India
 const DEFAULT_ZOOM = 4;
 
-function FitBounds({ venues }) {
+function FitBounds({ venues, getCoords }) {
   const map = useMap();
-  const withCoords = venues.filter((v) => {
-    const lat = v.latitude != null ? Number(v.latitude) : null;
-    const lon = v.longitude != null ? Number(v.longitude) : null;
-    return lat != null && lon != null && !(lat === 0 && lon === 0);
-  });
+  const withCoords = venues.filter((v) => getCoords(v) !== null);
   if (withCoords.length === 0) return null;
   if (withCoords.length === 1) {
-    map.setView([Number(withCoords[0].latitude), Number(withCoords[0].longitude)], 14);
+    map.setView(getCoords(withCoords[0]), 14);
     return null;
   }
-  const bounds = L.latLngBounds(
-    withCoords.map((v) => [Number(v.latitude), Number(v.longitude)])
-  );
+  const bounds = L.latLngBounds(withCoords.map((v) => getCoords(v)));
   map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
   return null;
 }
@@ -44,8 +41,8 @@ const VenueMapPage = () => {
   const [mapReady, setMapReady] = useState(false);
 
   const fetchVenues = useCallback(
-    async (lat, lon) => {
-      setLoading(true);
+    async (lat, lon, isRefetch = false) => {
+      if (!isRefetch) setLoading(true);
       setError(null);
       try {
         let url = `${API_BASE}/api/v1/partners`;
@@ -59,14 +56,14 @@ const VenueMapPage = () => {
         const data = await res.json();
         if (!res.ok) {
           setError(data?.message ?? data?.error ?? "Failed to load venues");
-          setVenues([]);
+          if (!isRefetch) setVenues([]);
           return;
         }
-        const list = Array.isArray(data.data) ? data.data : [];
+        const list = Array.isArray(data.data) ? data.data : Array.isArray(data.partners) ? data.partners : [];
         setVenues(list);
       } catch (err) {
         setError(err.message || "Failed to load venues");
-        setVenues([]);
+        if (!isRefetch) setVenues([]);
       } finally {
         setLoading(false);
       }
@@ -85,7 +82,7 @@ const VenueMapPage = () => {
       (pos) => {
         if (!cancelled) {
           setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-          fetchVenues(pos.coords.latitude, pos.coords.longitude);
+          fetchVenues(pos.coords.latitude, pos.coords.longitude, true);
         }
       },
       () => {},
@@ -96,11 +93,13 @@ const VenueMapPage = () => {
     };
   }, [fetchVenues]);
 
-  const venuesWithCoords = venues.filter((v) => {
-    const lat = v.latitude != null ? Number(v.latitude) : null;
-    const lon = v.longitude != null ? Number(v.longitude) : null;
-    return lat != null && lon != null && !(lat === 0 && lon === 0);
-  });
+  const getVenueCoords = (v) => {
+    const lat = v.latitude != null ? Number(v.latitude) : v.lat != null ? Number(v.lat) : null;
+    const lon = v.longitude != null ? Number(v.longitude) : v.lng != null ? Number(v.lng) : null;
+    if (lat == null || lon == null || Number.isNaN(lat) || Number.isNaN(lon) || (lat === 0 && lon === 0)) return null;
+    return [lat, lon];
+  };
+  const venuesWithCoords = venues.filter((v) => getVenueCoords(v) !== null);
 
   return (
     <div className="venue-map-page" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
@@ -115,8 +114,11 @@ const VenueMapPage = () => {
           ←
         </button>
         <h1 style={{ margin: 0, fontSize: "1.25rem" }}>Venues on map</h1>
-        {userLocation && (
-          <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>Sorted by distance</span>
+        {!loading && (
+          <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>
+            {venuesWithCoords.length} venue{venuesWithCoords.length !== 1 ? "s" : ""}
+            {userLocation ? " · Sorted by distance" : ""}
+          </span>
         )}
       </header>
 
@@ -145,7 +147,8 @@ const VenueMapPage = () => {
           {venuesWithCoords.map((venue) => (
             <Marker
               key={venue.id}
-              position={[Number(venue.latitude), Number(venue.longitude)]}
+              position={getVenueCoords(venue)}
+              icon={createGlitterIcon()}
             >
               <Popup>
                 <div style={{ minWidth: "160px" }}>
@@ -162,7 +165,7 @@ const VenueMapPage = () => {
               </Popup>
             </Marker>
           ))}
-          {mapReady && venuesWithCoords.length > 0 && <FitBounds venues={venuesWithCoords} />}
+          {mapReady && venuesWithCoords.length > 0 && <FitBounds venues={venuesWithCoords} getCoords={getVenueCoords} />}
         </MapContainer>
       </div>
 

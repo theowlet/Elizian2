@@ -8,11 +8,27 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
  * Visible only on screens >= 769px (hidden on mobile via CSS)
  * Replaces the BottomNav on desktop
  */
+const getUserDisplayName = () => {
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return null;
+    const user = JSON.parse(raw);
+    const first = (user.first_name || '').trim();
+    const last = (user.last_name || '').trim();
+    if (first || last) return [first, last].filter(Boolean).join(' ');
+    if (user.name) return String(user.name).trim();
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 const DesktopTopNav = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const token = localStorage.getItem('token');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [userName, setUserName] = useState(() => getUserDisplayName());
 
   // Pages where nav should NOT appear
   const hiddenPaths = [
@@ -31,6 +47,10 @@ const DesktopTopNav = () => {
     const interval = setInterval(fetchUnread, 30000);
     return () => clearInterval(interval);
   }, [token]);
+
+  useEffect(() => {
+    setUserName(getUserDisplayName());
+  }, [location.pathname]);
 
   const fetchUnread = async () => {
     try {
@@ -60,8 +80,8 @@ const DesktopTopNav = () => {
 
   const rightLinks = [
     { path: '/wallet', label: 'Wallet', icon: '💰' },
-    { path: '/notifications', label: 'Alerts', icon: '🔔', badge: unreadCount },
-    { path: '/profile', label: 'Profile', icon: '👤' },
+    { path: '/notifications', label: 'Notifications', icon: '🔔', badge: unreadCount },
+    { path: '/profile', label: userName || 'Profile', icon: '👤' },
   ];
 
   return (

@@ -155,7 +155,7 @@ class AchievementService {
         return Math.min(100, Math.round((stats.totalSpend / amount) * 100));
 
       case 'tier_reached':
-        const tierOrder = { Aether: 1, Nova: 2, Luminar: 3, Valiant: 4, Echelon: 5 };
+        const tierOrder = { Ather: 1, Nova: 2, Luminar: 3, Valiant: 4, Echelon: 5 };
         const requiredTier = tierOrder[criteria.tier] || 1;
         const currentTier = tierOrder[stats.tier] || 1;
         return currentTier >= requiredTier ? 100 : Math.round((currentTier / requiredTier) * 100);

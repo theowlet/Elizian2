@@ -5,6 +5,7 @@ const adminController = require('../controllers/adminController');
 const adminService = require('../services/adminService');
 const rewardsController = require('../controllers/rewardsController');
 const adminRedemptionController = require('../controllers/adminRedemptionController');
+const adminCampaignController = require('../controllers/adminCampaignController');
 const { adminOverrideRateLimiter } = require('../middleware/rateLimiter');
 const { getUserRoleById } = require('../utils/queries');
 
@@ -56,10 +57,22 @@ router.use(requireSuperAdmin);
 // Dashboard
 router.get('/dashboard', adminController.getDashboard);
 
+// Enterprise Campaign Orchestrator (admin only)
+router.get('/campaigns', adminCampaignController.listCampaigns);
+router.get('/campaigns/schema', adminCampaignController.getCampaignSchema);
+router.get('/campaigns/:id', adminCampaignController.getCampaign);
+router.get('/campaigns/:id/analytics', adminCampaignController.getCampaignAnalytics);
+router.post('/campaigns', adminCampaignController.createCampaign);
+router.put('/campaigns/:id', adminCampaignController.updateCampaign);
+router.delete('/campaigns/:id', adminCampaignController.deleteCampaign);
+router.post('/campaigns/:id/clone', adminCampaignController.cloneCampaign);
+router.put('/campaigns/:id/pause', adminCampaignController.pauseCampaign);
+
 // Partners management
 router.get('/partners', adminController.listPartners);
 router.patch('/partners/:id/status', adminController.updatePartnerStatus);
 router.put('/partners/:id/featured-eligibility', adminController.updatePartnerFeaturedEligibility);
+router.put('/partners/:id/partner-tier', adminController.updatePartnerTier);
 
 // Deals/Offers management
 router.get('/deals', adminController.listDeals);
@@ -70,11 +83,13 @@ router.post('/deals/bulk-reject', adminController.bulkRejectDeals);
 router.post('/offers/:offerId/feature-approve', async (req, res) => {
   try {
     const role = await getUserRoleById(req.userId);
+    const reason = req.body?.reason || req.body?.trending_approval_reason || null;
     const result = await adminService.updateTrendingStatus(
       req.params.offerId,
       'admin_approve',
       req.userId,
-      role
+      role,
+      reason
     );
     if (!result.success) {
       return res.status(400).json({

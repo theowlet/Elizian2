@@ -40,6 +40,8 @@ router.delete('/:id/menu-images/:index', partnerController.deleteMenuImage);
 
 // Venue detail page (public): partner profile, menu, hours, reviews summary, active offers
 router.get('/:id/venue-detail', partnerController.getVenueDetail);
+// Public: today's check-in count for social proof (NFC taps + visit sessions)
+router.get('/:id/check-ins-today', partnerController.getCheckInsToday);
 
 // Venue reviews (social proof): list public, submit requires auth
 const reviewController = require('../controllers/reviewController');
@@ -98,6 +100,28 @@ router.get('/:id/staff/check-ins', authenticateToken, staffController.listCheckI
 // Current partner profile (must be before /:id so "me" is not captured as id)
 router.get('/me', authenticateToken, partnerController.getPartnerMe);
 
+// Operating Hours Management (partner-only, authenticated)
+const operatingHoursController = require('../controllers/operatingHoursController');
+router.get('/me/operating-hours', authenticateToken, operatingHoursController.getHours);
+router.put('/me/operating-hours', authenticateToken, operatingHoursController.updateHours);
+router.post('/me/special-closures', authenticateToken, operatingHoursController.addClosure);
+router.get('/me/special-closures', authenticateToken, operatingHoursController.listClosures);
+router.delete('/me/special-closures/:id', authenticateToken, operatingHoursController.deleteClosure);
+router.post('/me/accepting-bookings', authenticateToken, operatingHoursController.toggleAccepting);
+
+// Public endpoints for users to see venue hours
+router.get('/:id/operating-hours', operatingHoursController.getPublicHours);
+router.get('/:id/operating-hours/:date', operatingHoursController.getHoursForDate);
+
+// Waitlist management (partner-only, authenticated)
+const waitlistController = require('../controllers/waitlistController');
+router.get('/me/waitlist', authenticateToken, waitlistController.getPartnerWaitlist);
+router.post('/me/waitlist/notify-next', authenticateToken, waitlistController.notifyNext);
+router.get('/me/waitlist/stats', authenticateToken, waitlistController.getWaitlistStats);
+router.get('/:id/waitlist', authenticateToken, waitlistController.getPartnerWaitlist);
+router.post('/:id/waitlist/notify-next', authenticateToken, waitlistController.notifyNext);
+router.get('/:id/waitlist/stats', authenticateToken, waitlistController.getWaitlistStats);
+
 // Verify venue location (geocode address → update lat/lon; partner auth)
 router.post('/:id/verify-location', authenticateToken, partnerController.verifyLocation);
 
@@ -129,9 +153,10 @@ router.delete('/:id/menu/:itemId', menuController.deleteMenuItem);
 // Partner offers routes
 const offerController = require('../controllers/offerController');
 router.get('/:id/offers', offerController.listOffers);
-router.post('/:id/offers', offerController.createOffer);
-router.put('/:partnerId/offers/:offerId', offerController.updateOffer);
-router.delete('/:partnerId/offers/:offerId', offerController.deleteOffer);
+router.get('/:id/offers/:offerId', offerController.getOffer);
+router.post('/:id/offers', authenticateToken, offerController.createOffer);
+router.put('/:partnerId/offers/:offerId', authenticateToken, offerController.updateOffer);
+router.delete('/:partnerId/offers/:offerId', authenticateToken, offerController.deleteOffer);
 
 // Partner orders routes (food/pre-orders)
 const orderController = require('../controllers/orderController');

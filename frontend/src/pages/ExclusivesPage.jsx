@@ -133,7 +133,7 @@ const ExclusivesPage = () => {
           ))}
         </div>
 
-        {/* Offers list */}
+        {/* Deals list */}
         {filtered.length === 0 ? (
           <div style={s.emptyState}>
             <span style={{ fontSize: '2rem' }}>🔒</span>

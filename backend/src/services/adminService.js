@@ -4,6 +4,7 @@ const { writeAudit } = require('../utils/audit');
 const { AppError } = require('../../utils/response');
 const { logError, log } = require('../../utils/logger');
 const { emitRealtimeEvent, emitToRoom, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
+const { normalizeTierName } = require('../utils/tierNames');
 
 const pool = getPool();
 
@@ -107,6 +108,16 @@ async function updatePartnerFeaturedEligibility(partnerId, approved_for_featured
   return { success: true };
 }
 
+// Update partner subscription tier (bronze, silver, gold)
+async function updatePartnerTier(partnerId, partnerTier, actorUserId, actorRole) {
+  const updated = await adminRepository.updatePartnerTier(partnerId, partnerTier);
+  if (!updated) {
+    throw new AppError(404, 'Partner not found');
+  }
+  await writeAudit(actorUserId, actorRole, 'partner_tier', 'partner', partnerId, { partner_tier: updated.partner_tier });
+  return { success: true, partner_tier: updated.partner_tier };
+}
+
 // List admin deals
 async function listDeals(filters = {}) {
   return await adminRepository.listAdminDeals(filters);
@@ -161,14 +172,24 @@ async function updateOfferFeaturedStatus(offerId, is_trending, reason, actorUser
     throw new AppError(404, "Deal not found");
   }
 
-  if (!eligibility.eligible) {
+  // When admin sets trending and the only reason is tier-based (Bronze cannot request, or legacy
+  // partner not approved), allow the operation (treat as force) so admin can override.
+  const onlyTierOrLegacyReason =
+    is_trending &&
+    !eligibility.eligible &&
+    eligibility.reasons?.length === 1 &&
+    (eligibility.reasons[0].includes('Bronze partners cannot request') ||
+      eligibility.reasons[0].includes('not approved for featured'));
+  const useForce = force || onlyTierOrLegacyReason;
+
+  if (!eligibility.eligible && !onlyPartnerNotApproved) {
     throw new AppError(400, `Deal not eligible: ${summarizeEligibilityReasons(eligibility)}`);
   }
 
   const result = await adminRepository.updateOfferFeaturedStatus(
     offerId,
     is_trending,
-    force,
+    useForce,
     actorUserId,
     actorRole
   );
@@ -176,12 +197,12 @@ async function updateOfferFeaturedStatus(offerId, is_trending, reason, actorUser
     throw new AppError(400, result.error || "Unable to update trending status");
   }
 
-  if (is_trending && !result.partner_eligible && !force) {
+  if (is_trending && !result.partner_eligible && !useForce) {
     throw new AppError(400, "Partner is not eligible for trending. Use force=true to override.");
   }
 
-  if (is_trending && !result.partner_eligible && force) {
-    log(`⚠️ Admin forced trending for ineligible partner (offer ID: ${offerId})`);
+  if (is_trending && !result.partner_eligible && useForce) {
+    log(`⚠️ Admin set trending for partner not approved for featured (offer ID: ${offerId})`);
   }
 
   const trendingData = result.data || {};
@@ -205,11 +226,10 @@ async function updateOfferFeaturedStatus(offerId, is_trending, reason, actorUser
   return { success: true, data: result.data };
 }
 
-async function updateTrendingStatus(dealId, action, actorUserId, actorRole) {
+async function updateTrendingStatus(dealId, action, actorUserId, actorRole, reason = null) {
   try {
     let eligibilityContext = null;
     if (action !== 'partner_request') {
-      // For trending operations, check featured eligibility
       eligibilityContext = await adminRepository.checkDealEligibility(dealId, pool, {
         checkFeaturedEligibility: true,
         requireValidDates: false
@@ -222,7 +242,7 @@ async function updateTrendingStatus(dealId, action, actorUserId, actorRole) {
       }
     }
 
-    const result = await adminRepository.updateTrendingStatus(dealId, action, actorUserId, actorRole);
+    const result = await adminRepository.updateTrendingStatus(dealId, action, actorUserId, actorRole, reason);
     if (!result) {
       return { success: false, error: 'Deal not found' };
     }
@@ -560,9 +580,15 @@ async function listBookings({ status, search, startDate, endDate, page, limit })
     params.push(limit, offset);
     
     const result = await pool.query(query, params);
-    
+
+    const bookings = result.rows.map(b => ({
+      ...b,
+      customer_tier: normalizeTierName(b.customer_tier || b.user_tier_at_booking),
+      user_tier_at_booking: normalizeTierName(b.user_tier_at_booking)
+    }));
+
     return {
-      bookings: result.rows,
+      bookings,
       pagination: {
         total,
         page,
@@ -595,7 +621,7 @@ async function getBookingDetails(bookingId) {
         po.description as deal_description,
         po.service_type as deal_type,
         po.price as deal_price,
-        po.discount_percentage as deal_discount,
+        po.co_pay_percentage as deal_discount,
         tl.ledger_type as payment_method,
         tl.amount as payment_amount,
         tl.created_at as payment_date
@@ -614,10 +640,13 @@ async function getBookingDetails(bookingId) {
     }
     
     const booking = result.rows[0];
-    
-    // Get tier information if it exists
-    // Use user_tier_at_booking (actual column name) instead of tier_achieved_at_booking
-    const tierName = booking.user_tier_at_booking || booking.current_tier_name;
+
+    const rawTier = booking.user_tier_at_booking || booking.customer_tier || booking.current_tier_name;
+    booking.customer_tier = normalizeTierName(rawTier);
+    booking.user_tier_at_booking = booking.customer_tier;
+
+    // Get tier information if it exists (use canonical name for lookup)
+    const tierName = booking.customer_tier;
     if (tierName) {
       const tierQuery = `
         SELECT * FROM loyalty_tiers 
@@ -1069,6 +1098,7 @@ module.exports = {
   listPartners,
   updatePartnerStatus,
   updatePartnerFeaturedEligibility,
+  updatePartnerTier,
   listDeals,
   updateDealStatus,
   updateOfferFeaturedStatus,

@@ -252,6 +252,10 @@ const offerRoutes = require('./routes/offerRoutes');
 app.use('/api/v1/offers', offerRoutes);
 app.use('/api/v1/deals', offerRoutes);  // Alias: deals and offers are the same
 
+// Collections (featured removed; single promotional category is Trending)
+const collectionsRoutes = require('./routes/collectionsRoutes');
+app.use('/api/v1/collections', collectionsRoutes);
+
 // Import and mount service routes (service types, categories)
 const serviceRoutes = require('./routes/serviceRoutes');
 app.use('/api/v1', serviceRoutes);

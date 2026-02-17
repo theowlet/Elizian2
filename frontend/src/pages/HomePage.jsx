@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import DealMenuPane from "../components/DealMenuPane";
+import ExperienceCard from "../components/ExperienceCard";
+import { getFiltersForCategory } from "../config/filterSchema";
 
 // STABILIZATION FIX: Gate debug logging behind development mode
 // Prevents performance degradation and information leakage in production.
@@ -12,11 +14,28 @@ const HomePage = () => {
   const navigate = useNavigate();
 
   const [currentSection, setCurrentSection] = useState("home");
-  // const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState(null);
   const [activeCategory, setActiveCategory] = useState("all");
   const [showNearMe, setShowNearMe] = useState(false);
+  // Server-side filter params (universal, multi-vertical)
+  const [maxDistanceKm, setMaxDistanceKm] = useState(null);
+  const [minRating, setMinRating] = useState(null);
+  const [priceMin, setPriceMin] = useState(null);
+  const [priceMax, setPriceMax] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  // Category-specific dynamic filters (API param names)
+  const [cuisineTypes, setCuisineTypes] = useState([]);
+  const [mealType, setMealType] = useState([]);
+  const [therapyType, setTherapyType] = useState([]);
+  const [durationMin, setDurationMin] = useState(null);
+  const [durationMax, setDurationMax] = useState(null);
+  const [eventType, setEventType] = useState([]);
+  const [eventDate, setEventDate] = useState(null);
+  const [starRating, setStarRating] = useState(null);
+  const [refundable, setRefundable] = useState(false);
+  const [specialization, setSpecialization] = useState([]);
 
   // Single source of truth: all deals fetched once
   const [allDeals, setAllDeals] = useState([]);
@@ -29,8 +48,7 @@ const HomePage = () => {
   });
   const [selectedDeal, setSelectedDeal] = useState(null);
   const [isMenuPaneOpen, setIsMenuPaneOpen] = useState(false);
-  const [recommendedDeals, setRecommendedDeals] = useState([]);
-
+  const [activeCampaigns, setActiveCampaigns] = useState([]);
   const categories = [
     { id: "all", name: "All Experiences", icon: "🌟" },
     { id: "dining", name: "Dining", icon: "🍽️" },
@@ -94,13 +112,15 @@ const HomePage = () => {
   /**
    * Get trending deals filtered by category
    * ONLY affects Trending Experiences section
+   * TRENDING = High-engagement offers with is_trending flag set
    */
   const getTrendingDeals = (deals, selectedCategory) => {
     if (!deals || deals.length === 0) return [];
 
-    // Filter by is_trending flag
+    // Filter by is_trending flag ONLY
+    // Note: 'featured' doesn't exist in partner_offers table
     let trending = deals.filter(
-      (deal) => deal.is_trending === true || deal.featured === true,
+      (deal) => deal.is_trending === true
     );
 
     // Apply category filter if not "all"
@@ -280,6 +300,33 @@ const HomePage = () => {
     return allDeals;
   };
 
+  /**
+   * Sort deals by active filter (distance, discount, rating, price).
+   * Returns new array; when sortBy is null, returns deals unchanged.
+   */
+  const sortDealsBy = (deals, sortBy) => {
+    if (!deals?.length || !sortBy) return deals || [];
+    const arr = [...deals];
+    if (sortBy === "distance") {
+      arr.sort((a, b) => {
+        const da = a.distance_km != null ? Number(a.distance_km) : Infinity;
+        const db = b.distance_km != null ? Number(b.distance_km) : Infinity;
+        return da - db;
+      });
+    } else if (sortBy === "discount") {
+      arr.sort((a, b) => {
+        const pctA = a.originalPrice > 0 ? ((a.originalPrice - (a.price || 0)) / a.originalPrice) * 100 : 0;
+        const pctB = b.originalPrice > 0 ? ((b.originalPrice - (b.price || 0)) / b.originalPrice) * 100 : 0;
+        return pctB - pctA; // higher discount first
+      });
+    } else if (sortBy === "rating") {
+      arr.sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0));
+    } else if (sortBy === "price") {
+      arr.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+    }
+    return arr;
+  };
+
   // ============================================
   // MEMOIZED SECTION DATA (Derived from allDeals)
   // ============================================
@@ -308,12 +355,23 @@ const HomePage = () => {
     [allDeals, activeCategory],
   );
 
+  const sortedTrendingDeals = useMemo(
+    () => sortDealsBy(trendingDeals, activeFilter),
+    [trendingDeals, activeFilter],
+  );
+
+  const sortedAllPartnerDeals = useMemo(
+    () => sortDealsBy(allPartnerDeals, activeFilter),
+    [allPartnerDeals, activeFilter],
+  );
+
   // ============================================
   // DATA FETCHING
   // ============================================
 
   /**
    * Fetch all deals (single source of truth). Pass coords when "Near Me" is on for geo-sort and distance_km.
+   * Server-side filters (max_distance_km, min_rating, price_min, price_max) applied when set.
    */
   const loadAllDeals = async (coords = null) => {
     try {
@@ -323,6 +381,23 @@ const HomePage = () => {
         params.set("user_latitude", coords.latitude);
         params.set("user_longitude", coords.longitude);
       }
+      if (maxDistanceKm != null && maxDistanceKm > 0) params.set("max_distance_km", String(maxDistanceKm));
+      if (minRating != null && minRating >= 0) params.set("min_rating", String(minRating));
+      if (priceMin != null && priceMin >= 0) params.set("price_min", String(priceMin));
+      if (priceMax != null && priceMax > 0) params.set("price_max", String(priceMax));
+      // Do NOT filter by service_type here: we need all deals so Top Restaurants, Live Now,
+      // and Upcoming Events always have data. Category filter is applied client-side for
+      // Trending Experiences and All Partner Deals only.
+      if (cuisineTypes.length > 0) cuisineTypes.forEach((c) => params.append("cuisine_types", c));
+      if (mealType.length > 0) mealType.forEach((m) => params.append("meal_type", m));
+      if (therapyType.length > 0) therapyType.forEach((t) => params.append("therapy_type", t));
+      if (durationMin != null && durationMin >= 0) params.set("duration_min", String(durationMin));
+      if (durationMax != null && durationMax > 0) params.set("duration_max", String(durationMax));
+      if (eventType.length > 0) eventType.forEach((e) => params.append("event_type", e));
+      if (eventDate) params.set("event_date", eventDate);
+      if (starRating != null && starRating >= 0) params.set("star_rating", String(starRating));
+      if (refundable) params.set("refundable", "true");
+      if (specialization.length > 0) specialization.forEach((s) => params.append("specialization", s));
       const url = `${API_BASE}/api/v1/offers?${params.toString()}`;
 
       const response = await fetch(url);
@@ -354,8 +429,8 @@ const HomePage = () => {
             item.image_url ||
             "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
           service_type: item.service_type || "others",
-          is_trending: item.is_trending || item.featured || false,
-          featured: item.featured || item.partner_approved_for_featured || false,
+          is_trending: item.is_trending || false, // Offer-level trending flag
+          partner_approved_for_featured: Boolean(item.partner_approved_for_featured), // Venue-level premium status
           rating: item.rating || item.partner_rating || 4.5,
           location: item.partner_name || item.location,
           latitude: item.latitude || item.partner_latitude,
@@ -367,8 +442,12 @@ const HomePage = () => {
           category_name: item.category_name,
           perk_type: item.perk_type || "discount",
           perk_description: item.perk_description,
+          min_tier_name: item.min_tier_name || null,
           distance_km: item.distance_km != null ? Number(item.distance_km) : null,
-          partner_approved_for_featured: Boolean(item.partner_approved_for_featured),
+          partner_cuisine_types: item.partner_cuisine_types || null,
+          partner_avg_cost_for_two: item.partner_avg_cost_for_two != null ? Number(item.partner_avg_cost_for_two) : null,
+          experience_metadata: item.experience_metadata || undefined,
+          partner_address: item.partner_address || null,
         }));
 
         setAllDeals(formattedDeals);
@@ -397,9 +476,9 @@ const HomePage = () => {
     originalPrice: item.original_price,
     image: item.image_url || "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
     service_type: item.service_type || "others",
-    is_trending: item.is_trending || item.featured || false,
-    featured: item.featured || item.partner_approved_for_featured || false,
-    rating: item.rating || item.partner_rating || 4.5,
+    is_trending: item.is_trending || false,
+    partner_approved_for_featured: Boolean(item.partner_approved_for_featured),
+    rating: (item.rating || item.partner_rating) ?? 4.5,
     location: item.partner_name || item.location,
     latitude: item.latitude || item.partner_latitude,
     longitude: item.longitude || item.partner_longitude,
@@ -407,30 +486,16 @@ const HomePage = () => {
     end_date: item.end_date,
     partner_id: item.partner_id,
     partner_name: item.partner_name,
+    partner_address: item.partner_address || null,
     category_name: item.category_name,
     perk_type: item.perk_type || "discount",
     perk_description: item.perk_description,
+    min_tier_name: item.min_tier_name || null,
     distance_km: item.distance_km != null ? Number(item.distance_km) : null,
-    partner_approved_for_featured: Boolean(item.partner_approved_for_featured),
+    partner_cuisine_types: item.partner_cuisine_types || null,
+    partner_avg_cost_for_two: item.partner_avg_cost_for_two != null ? Number(item.partner_avg_cost_for_two) : null,
+    experience_metadata: item.experience_metadata || undefined,
   });
-
-  const loadRecommendations = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-    try {
-      const r = await fetch(`${API_BASE}/api/v1/recommendations/offers`, {
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      });
-      const j = await r.json();
-      if (j.success && Array.isArray(j.data)) {
-        setRecommendedDeals(j.data.map(formatDealFromApi));
-      } else {
-        setRecommendedDeals([]);
-      }
-    } catch (e) {
-      setRecommendedDeals([]);
-    }
-  };
 
   const getUserLocation = () => {
     if (navigator.geolocation) {
@@ -457,8 +522,17 @@ const HomePage = () => {
     setUser(userData);
 
     getUserLocation();
-    loadAllDeals();
-    if (localStorage.getItem("token")) loadRecommendations();
+
+    const loadCampaigns = async () => {
+      try {
+        const r = await fetch(`${API_BASE}/api/v1/collections/active-campaigns`);
+        const j = await r.json();
+        if (j.success && Array.isArray(j.data)) setActiveCampaigns(j.data);
+      } catch (e) {
+        setActiveCampaigns([]);
+      }
+    };
+    loadCampaigns();
 
     // Listen for book deal event from menu pane
     const handleBookDealEvent = (e) => {
@@ -470,6 +544,11 @@ const HomePage = () => {
       window.removeEventListener("bookDeal", handleBookDealEvent);
     };
   }, []);
+
+  // Refetch when server-side filters or category change (and on mount)
+  useEffect(() => {
+    loadAllDeals(showNearMe ? userCoordinates : null);
+  }, [showNearMe, userCoordinates?.latitude, userCoordinates?.longitude, maxDistanceKm, minRating, priceMin, priceMax, activeCategory, cuisineTypes, mealType, therapyType, durationMin, durationMax, eventType, eventDate, starRating, refundable, specialization]);
 
   // Helper function to check if token is expired
   const isTokenExpired = (token) => {
@@ -817,24 +896,37 @@ const HomePage = () => {
                   className="search-input"
                   placeholder="Search restaurants, events, cuisines..."
                   aria-label="Search experiences"
+                  value={searchKeyword}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setSearchKeyword(v);
+                    const lower = (v || "").trim().toLowerCase();
+                    if (lower.includes("massage") || lower.includes("spa") || lower.includes("salon")) setActiveCategory("spa");
+                    else if (lower.includes("concert") || lower.includes("event") || lower.includes("show") || lower.includes("ticket")) setActiveCategory("events");
+                    else if (lower.includes("stay") || lower.includes("hotel") || lower.includes("resort")) setActiveCategory("travel");
+                    else if (lower.includes("doctor") || lower.includes("clinic") || lower.includes("health")) setActiveCategory("healthcare");
+                    else if (lower.includes("yoga") || lower.includes("wellness")) setActiveCategory("wellness");
+                  }}
                 />
-                {/* <button
+                <button
+                  type="button"
                   className={`filter-toggle ${activeFilter ? "active" : ""}`}
                   onClick={() => setIsFilterOpen(!isFilterOpen)}
                   aria-label="Toggle filters"
                 >
                   <span className="filter-icon">⚙️</span>
                   {activeFilter && <span className="filter-badge">•</span>}
-                </button> */}
+                </button>
               </div>
 
-              {/* {isFilterOpen && (
+              {isFilterOpen && (
                 <div className="filter-panel">
                   <div className="filter-header">
-                    <h4>Filters</h4>
+                    <h4>Sort by</h4>
                     <button
+                      type="button"
                       className="clear-filters"
-                      onClick={() => setActiveFilter(null)}
+                      onClick={() => { setActiveFilter(null); setMaxDistanceKm(null); setMinRating(null); setPriceMin(null); setPriceMax(null); setCuisineTypes([]); setMealType([]); setTherapyType([]); setDurationMin(null); setDurationMax(null); setEventType([]); setEventDate(null); setStarRating(null); setRefundable(false); setSpecialization([]); setIsFilterOpen(false); }}
                     >
                       Clear all
                     </button>
@@ -842,9 +934,10 @@ const HomePage = () => {
                   <div className="filter-options">
                     {filters.map((filter) => (
                       <button
+                        type="button"
                         key={filter.id}
                         className={`filter-chip ${activeFilter === filter.id ? "active" : ""}`}
-                        onClick={() => setActiveFilter(filter.id)}
+                        onClick={() => { setActiveFilter(filter.id); setIsFilterOpen(false); }}
                         aria-pressed={activeFilter === filter.id}
                       >
                         <span className="filter-chip-icon">{filter.icon}</span>
@@ -852,8 +945,71 @@ const HomePage = () => {
                       </button>
                     ))}
                   </div>
+                  <div className="filter-header" style={{ marginTop: "12px" }}>
+                    <h4 style={{ fontSize: "0.9rem" }}>Filter (server)</h4>
+                  </div>
+                  <div className="filter-options">
+                    <button
+                      type="button"
+                      className={`filter-chip ${maxDistanceKm === 10 ? "active" : ""}`}
+                      onClick={() => { setMaxDistanceKm(maxDistanceKm === 10 ? null : 10); setIsFilterOpen(false); }}
+                    >
+                      📍 Within 10 km
+                    </button>
+                    <button
+                      type="button"
+                      className={`filter-chip ${maxDistanceKm === 25 ? "active" : ""}`}
+                      onClick={() => { setMaxDistanceKm(maxDistanceKm === 25 ? null : 25); setIsFilterOpen(false); }}
+                    >
+                      📍 Within 25 km
+                    </button>
+                    <button
+                      type="button"
+                      className={`filter-chip ${minRating === 4 ? "active" : ""}`}
+                      onClick={() => { setMinRating(minRating === 4 ? null : 4); setIsFilterOpen(false); }}
+                    >
+                      ⭐ 4+ rating
+                    </button>
+                    </div>
+                  {(() => {
+                    const { categoryFilters } = getFiltersForCategory(activeCategory);
+                    if (categoryFilters.length === 0) return null;
+                    const chips = [];
+                    categoryFilters.forEach((f) => {
+                      if (f.type === "multi-select" && f.options) {
+                        f.options.slice(0, 5).forEach((opt) => {
+                          const key = f.key;
+                          const arr = key === "cuisine" ? cuisineTypes : key === "mealType" ? mealType : key === "therapyType" ? therapyType : key === "eventType" ? eventType : key === "specialization" ? specialization : [];
+                          const isActive = arr.includes(opt);
+                          const toggle = () => {
+                            const setter = key === "cuisine" ? setCuisineTypes : key === "mealType" ? setMealType : key === "therapyType" ? setTherapyType : key === "eventType" ? setEventType : setSpecialization;
+                            setter(isActive ? arr.filter((x) => x !== opt) : [...arr, opt]);
+                            setIsFilterOpen(false);
+                          };
+                          chips.push(
+                            <button key={`${f.key}-${opt}`} type="button" className={`filter-chip ${isActive ? "active" : ""}`} onClick={toggle}>
+                              {opt}
+                            </button>
+                          );
+                        });
+                      } else if (f.type === "boolean" && f.apiKey === "refundable") {
+                        chips.push(
+                          <button key={f.key} type="button" className={`filter-chip ${refundable ? "active" : ""}`} onClick={() => { setRefundable(!refundable); setIsFilterOpen(false); }}>
+                            Refundable
+                          </button>
+                        );
+                      }
+                    });
+                    if (chips.length === 0) return null;
+                    return (
+                      <div className="filter-header" style={{ marginTop: "12px" }}>
+                        <h4 style={{ fontSize: "0.9rem" }}>Category filters</h4>
+                        <div className="filter-options">{chips}</div>
+                      </div>
+                    );
+                  })()}
                 </div>
-              )} */}
+              )}
             </div>
           </section>
 
@@ -873,6 +1029,59 @@ const HomePage = () => {
               ))}
             </div>
           </section>
+
+          {/* Dynamic campaign sections (from active campaigns API) */}
+          {activeCampaigns.length > 0 &&
+            activeCampaigns.map((campaign) => {
+              const offers = campaign.offers || [];
+              const filtered = activeCategory === "all" ? offers : offers.filter((o) => (o.service_type || "others") === (categoryToServiceType[activeCategory] || activeCategory));
+              if (filtered.length === 0) return null;
+              return (
+                <section key={campaign.id} className="trending-section" style={{ marginBottom: "2rem" }}>
+                  <div className="section-header">
+                    <h2 className="section-title">
+                      <span className="title-icon">🔥</span>
+                      {campaign.name}
+                    </h2>
+                    {campaign.description && <span className="section-subtitle">{campaign.description}</span>}
+                  </div>
+                  <div className="trending-grid">
+                    {filtered.map((item) => (
+                      <div key={item.id} className="trending-card" onClick={(e) => handleDealCardClick(formatDealFromApi(item), e)}>
+                        <div className="card-image" style={{ backgroundImage: `url(${item.image_url || item.image || "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80"})` }} role="img" aria-label={item.title}>
+                          <div className="card-badge trending">🔥 Trending</div>
+                          {item.min_tier_name && (
+                            <div className="card-badge" style={{ background: "rgba(167, 139, 250, 0.9)", color: "#fff" }} title={`Unlock at ${item.min_tier_name} tier`}>Unlock at {item.min_tier_name}</div>
+                          )}
+                          <div className="card-rating">
+                            <span className="rating-star">⭐</span>
+                            <span>{Number(item.rating || item.partner_rating || 4.5).toFixed(1)}</span>
+                          </div>
+                        </div>
+                        <div className="card-content">
+                          <div className="card-meta-row">
+                            {item.category_name && <span className="card-category">{item.category_name}</span>}
+                            {item.distance_km != null && <span className="card-distance">{formatDistance(item.distance_km)}</span>}
+                          </div>
+                          <h3 className="card-title">{item.title}</h3>
+                          <p className="card-description">{item.description}</p>
+                          <div className="card-footer">
+                            <div className="card-price">{formatPrice(item.discounted_price || item.original_price || item.price)}</div>
+                            <div className="card-actions">
+                              {item.partner_id && (
+                                <button className="card-action-btn" onClick={() => handleBookDeal(formatDealFromApi(item))} aria-label={`Book ${item.title}`}>
+                                  Book
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
 
           {/* ============================================
               1. TRENDING EXPERIENCES (Affected by category filter)
@@ -926,7 +1135,7 @@ const HomePage = () => {
               <div className="loading-state">
                 <p>Loading experiences...</p>
               </div>
-            ) : trendingDeals.length === 0 ? (
+            ) : sortedTrendingDeals.length === 0 ? (
               <div className="empty-state">
                 <p>
                   No trending experiences found
@@ -938,7 +1147,7 @@ const HomePage = () => {
               </div>
             ) : (
               <div className="trending-grid">
-                {trendingDeals.map((item) => (
+                {sortedTrendingDeals.map((item) => (
                   <div key={item.id} className="trending-card">
                     <div
                       className="card-image"
@@ -946,9 +1155,9 @@ const HomePage = () => {
                       role="img"
                       aria-label={item.title}
                     >
-                      <div className="card-badge trending">Trending</div>
-                      {(item.featured || item.partner_approved_for_featured) && (
-                        <div className="card-badge featured" title="Featured venue">⭐ Featured</div>
+                      <div className="card-badge trending">🔥 Trending</div>
+                      {item.min_tier_name && (
+                        <div className="card-badge" style={{ background: "rgba(167, 139, 250, 0.9)", color: "#fff" }} title={`Unlock at ${item.min_tier_name} tier`}>Unlock at {item.min_tier_name}</div>
                       )}
                       <div className="card-rating">
                         <span className="rating-star">⭐</span>
@@ -1002,68 +1211,6 @@ const HomePage = () => {
               </div>
             )}
           </section>
-
-          {/* Recommended for you (logged-in, preference-based) */}
-          {recommendedDeals.length > 0 && (
-            <section className="trending-section">
-              <div className="section-header">
-                <h2 className="section-title">
-                  <span className="title-icon">✨</span>
-                  Recommended for you
-                </h2>
-              </div>
-              <div className="trending-grid">
-                {recommendedDeals.map((item) => (
-                  <div
-                    key={item.id}
-                    className="trending-card"
-                    onClick={(e) => handleDealCardClick(item, e)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <div className="card-image" style={{ backgroundImage: `url(${item.image})` }} role="img" aria-label={item.title}>
-                      {(item.featured || item.partner_approved_for_featured) && (
-                        <div className="card-badge featured">⭐ Featured</div>
-                      )}
-                      {item.perk_type && item.perk_type !== "discount" && (
-                        <div className="card-badge perk">{item.perk_type === "free_item" ? "Free item" : item.perk_type}</div>
-                      )}
-                      <div className="card-rating">
-                        <span className="rating-star">⭐</span>
-                        <span>{Number(item.rating).toFixed(1)}</span>
-                      </div>
-                    </div>
-                    <div className="card-content">
-                      <div className="card-meta-row">
-                        {item.category_name && <span className="card-category">{item.category_name}</span>}
-                        {item.distance_km != null && <span className="card-distance">{formatDistance(item.distance_km)}</span>}
-                      </div>
-                      <h3 className="card-title">{item.title}</h3>
-                      {(item.perk_type && item.perk_type !== "discount") || item.perk_description ? (
-                        <p className="card-perks">{item.perk_description || item.perk_type}</p>
-                      ) : null}
-                      <p className="card-description">{item.description}</p>
-                      <div className="card-footer">
-                        <div className="card-price">
-                          {formatPrice(item.price)}
-                          {item.originalPrice && item.originalPrice > item.price && (
-                            <span className="original-price">{formatPrice(item.originalPrice)}</span>
-                          )}
-                        </div>
-                        <div className="card-actions">
-                          {item.partner_id && (
-                            <button type="button" className="card-link-btn" onClick={(e) => { e.stopPropagation(); navigate(`/venue/${item.partner_id}`); }}>
-                              View venue
-                            </button>
-                          )}
-                          <button className="card-action-btn" onClick={() => handleBookDeal(item)}>Book Now</button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
 
           {/* ============================================
               2. TOP RESTAURANTS NEAR YOU (NOT affected by category filter)
@@ -1301,14 +1448,14 @@ const HomePage = () => {
                 <span className="title-icon">🎁</span>
                 All Partner Deals
               </h2>
-              <span className="section-subtitle">Discover amazing offers</span>
+              <span className="section-subtitle">Discover amazing deals</span>
             </div>
 
             {loading ? (
               <div className="loading-state">
                 <p>Loading deals...</p>
               </div>
-            ) : allPartnerDeals.length === 0 ? (
+            ) : sortedAllPartnerDeals.length === 0 ? (
               <div className="empty-state">
                 <p>
                   No deals available
@@ -1319,72 +1466,15 @@ const HomePage = () => {
                 </p>
               </div>
             ) : (
-              <div className="trending-grid">
-                {allPartnerDeals.map((deal) => (
-                  <div key={deal.id} className="trending-card">
-                    <div
-                      className="card-image"
-                      style={{ backgroundImage: `url(${deal.image})` }}
-                      role="img"
-                      aria-label={deal.title}
-                    >
-                      {deal.is_trending && (
-                        <div className="card-badge trending">Trending</div>
-                      )}
-                      {(deal.featured || deal.partner_approved_for_featured) && (
-                        <div className="card-badge featured">⭐ Featured</div>
-                      )}
-                      {deal.perk_type && deal.perk_type !== "discount" && (
-                        <div className="card-badge perk">{deal.perk_type === "free_item" ? "Free item" : deal.perk_type === "secret_menu" ? "Secret menu" : deal.perk_type === "priority_access" ? "Priority access" : "Perk"}</div>
-                      )}
-                      <div className="card-rating">
-                        <span className="rating-star">⭐</span>
-                        <span>{Number(deal.rating).toFixed(1)}</span>
-                      </div>
-                    </div>
-                    <div className="card-content">
-                      <div className="card-meta-row">
-                        {deal.category_name && <span className="card-category">{deal.category_name}</span>}
-                        {deal.distance_km != null && <span className="card-distance">{formatDistance(deal.distance_km)}</span>}
-                      </div>
-                      <h3 className="card-title">{deal.title}</h3>
-                      {(deal.perk_type && deal.perk_type !== "discount") || deal.perk_description ? (
-                        <p className="card-perks">{deal.perk_description || (deal.perk_type === "free_item" ? "Free item" : deal.perk_type === "secret_menu" ? "Secret menu" : deal.perk_type === "priority_access" ? "Priority access" : deal.perk_type)}</p>
-                      ) : null}
-                      <p className="card-description">{deal.description}</p>
-                      <div className="card-footer">
-                        <div className="card-price">
-                          {formatPrice(deal.price)}
-                          {deal.originalPrice &&
-                            deal.originalPrice > deal.price && (
-                              <span className="original-price">
-                                {formatPrice(deal.originalPrice)}
-                              </span>
-                            )}
-                        </div>
-                        <div className="card-actions">
-                          {deal.partner_id && (
-                            <button
-                              type="button"
-                              className="card-link-btn"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/venue/${deal.partner_id}`);
-                              }}
-                            >
-                              View venue
-                            </button>
-                          )}
-                          <button
-                            className="card-action-btn"
-                            onClick={() => deal.partner_id ? handleBookDeal(deal) : navigate(`/experience/${deal.id}`)}
-                          >
-                            {deal.partner_id ? "Book Now" : "View Details"}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              <div className="trending-grid experience-card-grid">
+                {sortedAllPartnerDeals.map((deal) => (
+                  <ExperienceCard
+                    key={deal.id}
+                    deal={deal}
+                    onBook={handleBookDeal}
+                    formatPrice={formatPrice}
+                    formatDistance={formatDistance}
+                  />
                 ))}
               </div>
             )}
@@ -1976,14 +2066,6 @@ const HomePage = () => {
           right: 12px;
           background: #059669;
         }
-
-        .card-badge.featured {
-          top: 12px;
-          left: auto;
-          right: 12px;
-          background: #b45309;
-        }
-        .card-badge.trending + .card-badge.featured { right: 12px; top: 40px; }
 
         .event-badge.live {
           background: #10b981;

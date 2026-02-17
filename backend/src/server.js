@@ -10,6 +10,7 @@ const cache = require('../utils/cache');
 const { startBookingAutoCancelJob } = require('./jobs/bookingAutoCancelJob');
 const { startEventCleanupJob } = require('./jobs/eventCleanupJob');
 const { startRedemptionExpirationJob } = require('./jobs/redemptionExpirationJob');
+const { startWaitlistPromotionJob } = require('./jobs/waitlistPromotionJob');
 
 // Validate environment before proceeding
 validateEnvironment();
@@ -51,6 +52,7 @@ initializeAllTables().catch((err) => {
 startBookingAutoCancelJob();
 startEventCleanupJob();
 startRedemptionExpirationJob();
+startWaitlistPromotionJob();
 
 // Import app after all initialization
 const app = require('./app');

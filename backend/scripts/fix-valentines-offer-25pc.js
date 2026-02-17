@@ -13,12 +13,12 @@ async function main() {
 
   const result = await pool.query(
     `UPDATE partner_offers po
-     SET discount_percentage = 25
+     SET co_pay_percentage = 25
      FROM partners p
      WHERE po.partner_id = p.id
        AND p.name ILIKE '%Bikers Cafe%'
        AND po.title ILIKE '%Valentin%'
-     RETURNING po.id, po.title, po.discount_percentage`
+     RETURNING po.id, po.title, po.co_pay_percentage`
   );
 
   if (result.rows.length === 0) {

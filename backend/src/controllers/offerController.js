@@ -8,18 +8,44 @@ async function listOffers(req, res) {
   try {
     const { id } = req.params;
     const offers = await offerService.listOffersByPartner(id);
-    offers.forEach((item) => {
-      item.image_url = getS3FileUrl(item.image_url);
-    });
+    const defaultOfferKey = 'uploads/default-offer.jpg';
+    const normalized = offers.map((item) => ({
+      ...item,
+      image_url: item.image_url ? getS3FileUrl(item.image_url) : getS3FileUrl(defaultOfferKey),
+      co_pay_percentage: item.co_pay_percentage != null ? item.co_pay_percentage : null,
+    }));
 
-    console.log("partner offer list", offers);
-    successResponse(res, 200, "Partner offers retrieved successfully", offers);
+    console.log("partner offer list", normalized);
+    successResponse(res, 200, "Partner offers retrieved successfully", normalized);
   } catch (err) {
     logError("Partner offers fetch error:", err);
     errorResponse(
       res,
       err.statusCode || 500,
       err.message || "Failed to fetch partner offers",
+    );
+  }
+}
+
+// Get single offer by partner (for edit form)
+async function getOffer(req, res) {
+  try {
+    const { id: partnerId, offerId } = req.params;
+    const offer = await offerService.getOfferByPartner(partnerId, offerId);
+    const { getS3FileUrl } = require("../../utils/s3Bucket");
+    const defaultOfferKey = 'uploads/default-offer.jpg';
+    const response = {
+      ...offer,
+      image_url: offer.image_url ? getS3FileUrl(offer.image_url) : getS3FileUrl(defaultOfferKey),
+      co_pay_percentage: offer.co_pay_percentage != null ? offer.co_pay_percentage : null,
+    };
+    successResponse(res, 200, "Offer retrieved successfully", response);
+  } catch (err) {
+    logError("Partner offer fetch error:", err);
+    errorResponse(
+      res,
+      err.statusCode || 500,
+      err.message || "Failed to fetch offer",
     );
   }
 }
@@ -39,7 +65,10 @@ async function createOffer(req, res) {
       req.body.image_base64 ? req.body.image_base64.length : 0,
     );
 
-    const offer = await offerService.createOffer(id, req.body);
+    const offer = await offerService.createOffer(id, req.body, {
+      actorUserId: req.user?.id,
+      actorPartnerId: req.partnerId
+    });
     // Use consistent response format
     successResponse(res, 201, "Offer created successfully", offer);
   } catch (err) {
@@ -56,7 +85,10 @@ async function createOffer(req, res) {
 async function updateOffer(req, res) {
   try {
     const { partnerId, offerId } = req.params;
-    const offer = await offerService.updateOffer(partnerId, offerId, req.body);
+    const offer = await offerService.updateOffer(partnerId, offerId, req.body, {
+      actorUserId: req.user?.id,
+      actorPartnerId: req.partnerId
+    });
     successResponse(res, 200, "Offer updated successfully", offer);
   } catch (err) {
     logError("Offer update error:", err);
@@ -72,7 +104,10 @@ async function updateOffer(req, res) {
 async function deleteOffer(req, res) {
   try {
     const { partnerId, offerId } = req.params;
-    await offerService.deleteOffer(partnerId, offerId);
+    await offerService.deleteOffer(partnerId, offerId, {
+      actorUserId: req.user?.id,
+      actorPartnerId: req.partnerId
+    });
     successResponse(res, 200, "Offer deleted successfully");
   } catch (err) {
     logError("Offer deletion error:", err);
@@ -143,13 +178,29 @@ async function listPublicOffers(req, res) {
       ? parseFloat(req.query.max_distance_km)
       : null;
 
+    // Dynamic (category-specific) filter params — optional, backward compatible
+    const parseArray = (v) => {
+      if (!v) return null;
+      if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean);
+      return String(v).split(",").map((c) => c.trim()).filter(Boolean);
+    };
+    const mealType = parseArray(req.query.meal_type);
+    const therapyType = parseArray(req.query.therapy_type);
+    const eventType = parseArray(req.query.event_type);
+    const specialization = parseArray(req.query.specialization);
+    const durationMin = req.query.duration_min != null ? parseInt(req.query.duration_min, 10) : null;
+    const durationMax = req.query.duration_max != null ? parseInt(req.query.duration_max, 10) : null;
+    const eventDate = req.query.event_date && /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.event_date).trim()) ? String(req.query.event_date).trim() : null;
+    const starRating = req.query.star_rating != null ? parseInt(req.query.star_rating, 10) : null;
+    const refundable = req.query.refundable === "true" ? true : null;
+
     const filters = {
-      is_active: req.query.is_active === "false" ? false : true, // Default to true
+      is_active: req.query.is_active === "false" ? false : true,
       service_type: serviceType,
       trending: req.query.trending === "true" ? true : null,
       limit: limit,
       admin: req.query.admin === "true",
-      include_expired: req.query.include_expired === "true", // Debug: include expired offers
+      include_expired: req.query.include_expired === "true",
       cuisine_types: cuisineTypes,
       price_min: priceMin,
       price_max: priceMax,
@@ -157,6 +208,15 @@ async function listPublicOffers(req, res) {
       user_latitude: userLat,
       user_longitude: userLng,
       max_distance_km: maxDistance,
+      meal_type: mealType?.length ? mealType : null,
+      therapy_type: therapyType?.length ? therapyType : null,
+      duration_min: Number.isFinite(durationMin) ? durationMin : null,
+      duration_max: Number.isFinite(durationMax) ? durationMax : null,
+      event_type: eventType?.length ? eventType : null,
+      event_date: eventDate,
+      star_rating: Number.isFinite(starRating) ? starRating : null,
+      refundable,
+      specialization: specialization?.length ? specialization : null,
     };
 
     const offers = await offerService.listPublicOffers(filters);
@@ -210,6 +270,7 @@ async function getPublicOfferById(req, res) {
 
 module.exports = {
   listOffers,
+  getOffer,
   createOffer,
   updateOffer,
   deleteOffer,

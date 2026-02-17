@@ -13,11 +13,14 @@ const tierService = require('./tierService');
 const bankOfferService = require('./bankOfferService');
 const reservationService = require('./reservationService');
 const preOrderService = require('./preOrderService');
+const bookingValidation = require('./bookingValidation');
+const slotCapacityService = require('./slotCapacityService');
 const { AppError } = require('../../utils/response');
 const { logError, log } = require('../../utils/logger');
 const { emitRealtimeEvent, emitToRoom, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
 const { generateAndUploadQRCode } = require('../utils/qrCodeGenerator');
 const { v4: uuidv4 } = require('uuid');
+const { normalizeTierName } = require('../utils/tierNames');
 
 const pool = getPool();
 
@@ -107,12 +110,53 @@ async function createBooking(bookingData) {
       bookingPayload.event_id = event_id;
       bookingPayload.status = 'confirmed';
     } else if (offer_id) {
-      // Offer booking
-      // CRITICAL: Only allow booking of offers from approved partners
-      const offer = await offerRepository.getOfferById(offer_id, true);
+      // Offer booking: fetch without partner filter first to return a specific error
+      let offer = await offerRepository.getOfferById(offer_id, false);
       if (!offer) {
+        const raw = await offerRepository.getOfferByIdRaw(offer_id);
+        if (!raw) {
+          await client.query('ROLLBACK');
+          throw new AppError(404, "Offer not found");
+        }
         await client.query('ROLLBACK');
-        throw new AppError(404, "Offer not found, expired, or partner not approved");
+        const status = (raw.status && String(raw.status).toLowerCase().trim()) || '';
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (status !== 'active' && !raw.is_active) {
+          throw new AppError(400, "This deal is not active. It may be draft, paused, or rejected. Please select another deal.");
+        }
+        if (raw.start_date && new Date(raw.start_date).toDateString() > today.toDateString()) {
+          throw new AppError(400, "This deal is not yet open for booking. Please try again from the start date.");
+        }
+        if (raw.end_date && new Date(raw.end_date).toDateString() < today.toDateString()) {
+          throw new AppError(400, "This deal's booking period has ended. Please select another deal.");
+        }
+        const pStatus = (raw.partner_status && String(raw.partner_status).toLowerCase().trim()) || '';
+        if (['suspended', 'rejected'].includes(pStatus)) {
+          throw new AppError(400, "This partner is not accepting bookings. Please select another deal.");
+        }
+        throw new AppError(400, "This deal is not currently available for booking. Please try again or select another deal.");
+      }
+      const offerStatus = (offer.status && String(offer.status).toLowerCase().trim()) || '';
+      if (offerStatus !== 'active') {
+        await client.query('ROLLBACK');
+        throw new AppError(400, "This deal is not active and cannot be booked. Please select another deal.");
+      }
+      const now = new Date();
+      if (offer.start_date && new Date(offer.start_date) > now) {
+        await client.query('ROLLBACK');
+        throw new AppError(400, "This deal is not yet valid for booking. Please try again after the start date.");
+      }
+      if (offer.end_date && new Date(offer.end_date) < now) {
+        await client.query('ROLLBACK');
+        throw new AppError(400, "This deal has expired and is no longer available for booking.");
+      }
+      // When deal is active (already validated above), allow booking unless partner is explicitly suspended or rejected.
+      const partnerStatus = offer.partner_status != null ? String(offer.partner_status).toLowerCase() : '';
+      const partnerBlocked = ['suspended', 'rejected'].includes(partnerStatus);
+      if (partnerBlocked) {
+        await client.query('ROLLBACK');
+        throw new AppError(400, "This partner is suspended or rejected. Booking is not available. Please select a different deal.");
       }
 
       partner_id = offer.partner_id;
@@ -127,6 +171,11 @@ async function createBooking(bookingData) {
       bookingPayload.deal_id = offer_id;  // Use deal_id to match table schema
       bookingPayload.offer_id = offer_id;  // Keep for backwards compatibility
       bookingPayload.status = 'confirmed';
+      // Snapshot deal co-pay at booking time so redemption uses terms that applied when user booked
+      const coPayPct = offer.co_pay_percentage != null ? parseFloat(offer.co_pay_percentage) : null;
+      if (coPayPct != null && !isNaN(coPayPct)) {
+        bookingPayload.co_pay_percentage_at_booking = coPayPct;
+      }
     } else if (show_id) {
       // Show/Theatre booking
       if (!seat_template_ids || !Array.isArray(seat_template_ids) || seat_template_ids.length === 0) {
@@ -316,16 +365,87 @@ async function createBooking(bookingData) {
       throw new AppError(500, "Partner mapping failed for booking. Cannot create booking without partner_id.");
     }
 
-    // Fetch user's current tier at booking time (for tier tracking + QR code)
+    // Fetch user's current tier at booking time (canonical: Ather, Nova, Luminar, Valiant, Echelon only)
     let userTierAtBooking = 'Ather';
     try {
       const tierResult = await client.query(
         `SELECT current_tier_name FROM users WHERE id = $1`,
         [user_id]
       );
-      userTierAtBooking = tierResult.rows[0]?.current_tier_name || 'Ather';
+      userTierAtBooking = normalizeTierName(tierResult.rows[0]?.current_tier_name);
     } catch (tierErr) {
       logError('⚠️ Could not fetch user tier for booking:', tierErr);
+    }
+
+    // ============================================
+    // CRITICAL: OPERATING HOURS + ECHELON VALIDATION
+    // ============================================
+    // This is the MANDATORY gatekeeper for all bookings
+    // NO booking can bypass this check
+    // Echelon tier can override CAPACITY, but NOT operating hours
+
+    if (bookingDate && bookingTime && partner_id) {
+      log(`🔍 Validating booking time: ${bookingDate} ${bookingTime} for partner ${partner_id}`);
+
+      const validation = await bookingValidation.validateBookingRequest({
+        partner_id,
+        user_id,
+        booking_date: bookingDate,
+        booking_time: bookingTime,
+        party_size: num_tickets || 1,
+        user_tier: userTierAtBooking
+      });
+
+      if (!validation.allowed) {
+        await client.query('ROLLBACK');
+
+        // Return different messages based on reason
+        if (validation.reason === 'CAPACITY_FULL' && validation.can_waitlist) {
+          throw new AppError(409, validation.message || 'Time slot fully booked. Join waitlist?', {
+            can_waitlist: true,
+            waitlist_info: validation.waitlist_info
+          });
+        }
+
+        throw new AppError(400, validation.message || `Booking not allowed: ${validation.reason}`, {
+          reason: validation.reason,
+          can_waitlist: validation.can_waitlist || false
+        });
+      }
+
+      if (validation.override_used) {
+        bookingPayload.is_priority_override = true;
+        bookingPayload.override_reason = validation.override_reason;
+        log(`👑 Echelon override used for user ${user_id} at ${bookingDate} ${bookingTime}`);
+      }
+
+      // Concurrency-safe slot reserve (venue_time_slots). If table missing, LEGACY and we do not touch slots.
+      let slotReserved = false;
+      const slotDt = slotCapacityService.toSlotDatetime(bookingDate, bookingTime);
+      if (slotDt) {
+        const reserveResult = await slotCapacityService.reserveSlot(
+          client,
+          partner_id,
+          slotDt,
+          (String(userTierAtBooking || '').trim().toLowerCase() === 'echelon'),
+          num_tickets || 1,
+          slotCapacityService.DEFAULT_CAPACITY,
+          slotCapacityService.DEFAULT_ECHELON_BUFFER
+        );
+        if (reserveResult.status === 'CONFIRMED') {
+          slotReserved = true;
+          if (reserveResult.is_priority_override) {
+            bookingPayload.is_priority_override = true;
+            bookingPayload.override_reason = bookingPayload.override_reason || 'Echelon tier capacity override';
+          }
+        } else if (reserveResult.status === 'FULL') {
+          await client.query('ROLLBACK');
+          throw new AppError(409, 'Time slot just became full. Try again or join waitlist.', { can_waitlist: true });
+        }
+        bookingPayload._slotReserved = slotReserved;
+      }
+    } else {
+      log(`⚠️ Skipping hours validation: bookingDate=${bookingDate}, bookingTime=${bookingTime}, partner_id=${partner_id}`);
     }
 
     // Create booking FIRST (before QR generation)
@@ -527,7 +647,8 @@ async function createBooking(bookingData) {
             party_size: reservation_data.partySize || num_tickets,
             occasion: reservation_data.occasion,
             special_requests: reservation_data.specialRequests || special_requests,
-            seating_preference: reservation_data.seatingPreference
+            seating_preference: reservation_data.seatingPreference,
+            skipCapacityUpdate: Boolean(bookingPayload._slotReserved)
           }, client);
           log(`Table reservation created for booking ${booking.id}`);
         }
@@ -708,8 +829,29 @@ async function createBooking(bookingData) {
     });
     emitToRoom(`users:${user_id}`, REALTIME_EVENTS.BOOKING_CREATED, bookingEventPayload);
 
+    // Campaign engine: non-blocking event for attribution / rules
+    const campaignEngine = require('../campaign/campaignService');
+    campaignEngine.processEvent('booking_created', {
+      userId: user_id,
+      experienceId: offer_id,
+      partnerId: partner_id,
+      amount: booking.amount,
+      userTier: user?.current_tier_name,
+    }).catch((e) => logError('Campaign engine booking_created:', e));
+
     return booking;
   } catch (err) {
+    // Release slot capacity if it was reserved in this transaction (cross-vertical: dining/slots)
+    // Must run in standalone transaction so decrement commits even when this transaction rolls back
+    if (typeof bookingPayload !== 'undefined' && bookingPayload && bookingPayload._slotReserved && partner_id && bookingDate && bookingTime) {
+      const slotDt = slotCapacityService.toSlotDatetime(bookingDate, bookingTime);
+      if (slotDt) {
+        const partySize = (bookingPayload.num_guests ?? bookingPayload.num_tickets ?? num_tickets) || 1;
+        await slotCapacityService.releaseSlotStandalone(partner_id, slotDt, partySize).catch((e) => {
+          logError('Release slot on rollback failed (slot count may be stale):', e);
+        });
+      }
+    }
     await client.query('ROLLBACK');
     throw err;
   } finally {
@@ -751,12 +893,13 @@ async function rescheduleBooking(bookingId, userId, { booking_date, booking_time
     const booking = bookingResult.rows[0];
 
     // Check if booking can be rescheduled (not already redeemed, cancelled, or completed)
+    // Past-date bookings that are still confirmed/pending CAN be rescheduled to today or a future date
     if (['redeemed', 'cancelled', 'completed'].includes(booking.status)) {
       await client.query('ROLLBACK');
       throw new AppError(400, `Cannot reschedule a booking with status: ${booking.status}`);
     }
 
-    // Validate new date is not in the past
+    // Validate new date is not in the past (must be today or future)
     const newDate = new Date(booking_date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);

@@ -111,7 +111,7 @@ async function seedData() {
         partner_id UUID NOT NULL,
         title VARCHAR(255) NOT NULL,
         description TEXT,
-        discount_percentage NUMERIC(5,2),
+        co_pay_percentage NUMERIC(5,2),
         original_price NUMERIC(10,2),
         discounted_price NUMERIC(10,2),
         start_date TIMESTAMP NOT NULL,
@@ -124,7 +124,7 @@ async function seedData() {
     `);
 
     await client.query(`
-      INSERT INTO partner_offers (partner_id, title, description, discount_percentage, original_price, discounted_price, start_date, end_date, is_active, is_trending, service_type)
+      INSERT INTO partner_offers (partner_id, title, description, co_pay_percentage, original_price, discounted_price, start_date, end_date, is_active, is_trending, service_type)
       VALUES
         ($1, 'Early Bird Dining Offer', 'Book before 6 PM and get 20% off', 20, 2500, 2000, NOW(), NOW() + INTERVAL '15 days', true, true, 'dining'),
         ($2, 'Weekend Spa Delight', 'Special weekend pricing on spa packages', 15, 3500, 2975, NOW(), NOW() + INTERVAL '20 days', true, false, 'spa')

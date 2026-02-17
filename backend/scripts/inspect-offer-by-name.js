@@ -24,13 +24,13 @@ async function main() {
     console.log('Partners (first 20):');
     for (const row of partners.rows) {
       const offers = await pool.query(
-        `SELECT id, title, discount_percentage, discount_amount, offer_type, start_date, end_date, status
+        `SELECT id, title, co_pay_percentage, discount_amount, offer_type, start_date, end_date, status
          FROM partner_offers WHERE partner_id = $1 ORDER BY created_at DESC LIMIT 3`,
         [row.id]
       );
       console.log(`  ${row.name} (${row.id})`);
       offers.rows.forEach((o) => {
-        console.log(`    - ${o.title}: discount_percentage=${o.discount_percentage}, discount_amount=${o.discount_amount}, type=${o.offer_type}`);
+        console.log(`    - ${o.title}: co_pay_percentage=${o.co_pay_percentage}, discount_amount=${o.discount_amount}, type=${o.offer_type}`);
       });
     }
     return;
@@ -47,7 +47,7 @@ async function main() {
 
   for (const partner of partnerResult.rows) {
     console.log('Partner:', partner.name, '(', partner.id, ')\n');
-    let offersQuery = `SELECT id, title, description, discount_percentage, discount_amount, offer_type, original_price, discounted_price, start_date, end_date, status, is_active
+    let offersQuery = `SELECT id, title, description, co_pay_percentage, discount_amount, offer_type, original_price, discounted_price, start_date, end_date, status, is_active
                         FROM partner_offers WHERE partner_id = $1`;
     const params = [partner.id];
     if (offerTitlePattern) {
@@ -65,7 +65,7 @@ async function main() {
     for (const o of offers.rows) {
       console.log('Offer:', o.title);
       console.log('  id:', o.id);
-      console.log('  discount_percentage:', o.discount_percentage);
+      console.log('  co_pay_percentage:', o.co_pay_percentage);
       console.log('  discount_amount:', o.discount_amount);
       console.log('  offer_type:', o.offer_type);
       console.log('  original_price:', o.original_price, '| discounted_price:', o.discounted_price);

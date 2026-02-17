@@ -23,7 +23,7 @@ function runPureTests() {
   console.log('--- Pure calculation tests (no DB) ---\n');
 
   // 20% offer, bill 2000
-  const offer20 = { discount_percentage: 20, offer_type: 'co_pay' };
+  const offer20 = { co_pay_percentage: 20, offer_type: 'co_pay' };
   const r1 = calculateRedemptionAmounts(null, 2000, offer20);
   console.log('Offer 20%, Bill ₹2000:');
   console.log('  discount_amount:', r1.discount_amount, '(expected 400)');
@@ -34,7 +34,7 @@ function runPureTests() {
   console.log('');
 
   // 25% offer, bill 1000
-  const offer25 = { discount_percentage: 25, offer_type: 'co_pay' };
+  const offer25 = { co_pay_percentage: 25, offer_type: 'co_pay' };
   const r2 = calculateRedemptionAmounts(null, 1000, offer25);
   console.log('Offer 25%, Bill ₹1000:');
   console.log('  discount_amount:', r2.discount_amount, '(expected 250)');
@@ -59,16 +59,16 @@ async function runDbTest() {
     const { getPool } = require(path.join(backendRoot, 'src/config/db'));
     pool = getPool();
     const offerRow = await pool.query(
-      'SELECT id, discount_percentage, offer_type FROM partner_offers WHERE discount_percentage IS NOT NULL LIMIT 1'
+      'SELECT id, co_pay_percentage, offer_type FROM partner_offers WHERE co_pay_percentage IS NOT NULL LIMIT 1'
     );
     if (offerRow.rows.length === 0) {
-      console.log('No partner_offers with discount_percentage found. Skip DB test.');
+      console.log('No partner_offers with co_pay_percentage found. Skip DB test.');
       return true;
     }
     const offer = offerRow.rows[0];
     const offerId = offer.id;
-    const pct = parseFloat(offer.discount_percentage) || 0;
-    console.log('Using offer id:', offerId, 'discount_percentage:', pct);
+    const pct = parseFloat(offer.co_pay_percentage) || 0;
+    console.log('Using offer id:', offerId, 'co_pay_percentage:', pct);
     const totalBill = 2000;
     const breakdown = await calculateRedemptionBreakdown(offerId, totalBill, null);
     console.log('Bill ₹2000 breakdown:', JSON.stringify(breakdown, null, 2));

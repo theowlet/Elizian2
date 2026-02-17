@@ -13,6 +13,7 @@ const {
   toRelativeImagePath
 } = require('../utils/dealRules');
 const { normalizeOffers } = require('../utils/responseNormalizer');
+const { createAuditLogEntry } = require('../../utils/audit');
 
 const OFFER_STATUS = {
   DRAFT: 'draft',
@@ -60,7 +61,25 @@ async function listOffersByPartner(partnerId) {
   }
 }
 
-async function createOffer(partnerId, offerData) {
+async function getOfferByPartner(partnerId, offerId) {
+  try {
+    const partner = await partnerRepository.getPartnerById(partnerId);
+    if (!partner) {
+      throw new AppError(404, 'Partner not found');
+    }
+    const offer = await offerRepository.getOfferByPartnerAndId(partnerId, offerId);
+    if (!offer) {
+      throw new AppError(404, 'Offer not found');
+    }
+    return offer;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    logError('Get offer by partner error:', error);
+    throw new AppError(500, `Failed to get offer: ${error.message}`);
+  }
+}
+
+async function createOffer(partnerId, offerData, options = {}) {
   try {
     const partner = await partnerRepository.getPartnerById(partnerId);
     if (!partner) {
@@ -88,6 +107,11 @@ async function createOffer(partnerId, offerData) {
 
     if (endDate <= startDate) {
       throw new AppError(400, 'End date must be after start date');
+    }
+
+    const coPayPct = offerData.co_pay_percentage != null ? parseFloat(offerData.co_pay_percentage) : null;
+    if (coPayPct != null && !isNaN(coPayPct) && (coPayPct < 0 || coPayPct > 100)) {
+      throw new AppError(400, 'Co-pay percentage must be between 0 and 100');
     }
 
     const scheduleStatus = determineScheduleStatus(startDate, endDate);
@@ -138,7 +162,7 @@ async function createOffer(partnerId, offerData) {
 
     const discountValues = deriveDiscountValues({
       original_price: finalOriginalPrice || offerData.original_price,
-      discount_percentage: offerData.discount_percentage,
+      co_pay_percentage: offerData.co_pay_percentage,
       discount_amount: offerData.discount_amount,
       discounted_price: offerData.discounted_price
     });
@@ -155,7 +179,7 @@ async function createOffer(partnerId, offerData) {
       service_type: finalServiceType,
       original_price: discountValues.original_price,
       discounted_price: discountValues.discounted_price,
-      discount_percentage: discountValues.discount_percentage,
+      co_pay_percentage: discountValues.co_pay_percentage,
       discount_amount: discountValues.discount_amount,
       savings: discountValues.savings,
       ezt_equivalent: discountValues.ezt_equivalent,
@@ -178,6 +202,33 @@ async function createOffer(partnerId, offerData) {
       timestamp: new Date().toISOString()
     });
 
+    try {
+      await createAuditLogEntry(
+        options.actorUserId || null,
+        'partner create deal',
+        'offer',
+        offer.id,
+        {
+          previous: null,
+          next: {
+            title: offer.title,
+            co_pay_percentage: offer.co_pay_percentage,
+            image_url: offer.image_url,
+            perk_type: offer.perk_type,
+            perk_description: offer.perk_description,
+            start_date: offer.start_date,
+            end_date: offer.end_date,
+            status: offer.status,
+            partner_id: partnerId
+          },
+          partner_id: partnerId,
+          actor_partner_id: options.actorPartnerId
+        }
+      );
+    } catch (auditErr) {
+      logError('Audit log create offer failed:', auditErr);
+    }
+
     return offer;
   } catch (error) {
     if (error instanceof AppError) throw error;
@@ -186,7 +237,7 @@ async function createOffer(partnerId, offerData) {
   }
 }
 
-async function updateOffer(partnerId, offerId, updates) {
+async function updateOffer(partnerId, offerId, updates, options = {}) {
   try {
     const partner = await partnerRepository.getPartnerById(partnerId);
     if (!partner) {
@@ -209,8 +260,12 @@ async function updateOffer(partnerId, offerId, updates) {
       throw new AppError(400, 'Invalid end date');
     }
     if (newStart) {
+      const existingStart = new Date(existingOffer.start_date);
       const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-      if (newStart < fiveMinutesAgo) {
+      // Only reject when changing to a new past date; allow keeping existing (past) start when editing
+      const within24h = Math.abs(existingStart.getTime() - newStart.getTime()) < 24 * 60 * 60 * 1000;
+      const existingWasInPast = existingStart < fiveMinutesAgo;
+      if (!within24h && newStart < fiveMinutesAgo && !existingWasInPast) {
         throw new AppError(400, 'Start date must be within 5 minutes of current time or in the future');
       }
     }
@@ -224,6 +279,11 @@ async function updateOffer(partnerId, offerId, updates) {
       }
     }
 
+    const coPayPct = updates.co_pay_percentage != null ? parseFloat(updates.co_pay_percentage) : null;
+    if (coPayPct != null && !isNaN(coPayPct) && (coPayPct < 0 || coPayPct > 100)) {
+      throw new AppError(400, 'Co-pay percentage must be between 0 and 100');
+    }
+
     let finalImageUrl = updates.image_url;
     if (updates.image_base64) {
       if (existingOffer.image_url) {
@@ -232,6 +292,9 @@ async function updateOffer(partnerId, offerId, updates) {
       finalImageUrl = await handleOfferImageUpload(updates.image_base64, updates.image_filename);
     } else if (finalImageUrl) {
       finalImageUrl = sanitizeImageUrl(finalImageUrl);
+    } else if (existingOffer.image_url) {
+      // No new upload and no explicit image_url in updates: preserve existing deal image
+      finalImageUrl = existingOffer.image_url;
     }
 
     const payload = { ...updates, image_url: finalImageUrl };
@@ -255,18 +318,18 @@ async function updateOffer(partnerId, offerId, updates) {
     if (
       payload.original_price !== undefined ||
       payload.discounted_price !== undefined ||
-      payload.discount_percentage !== undefined ||
+      payload.co_pay_percentage !== undefined ||
       payload.discount_amount !== undefined
     ) {
       const discountValues = deriveDiscountValues({
         original_price: payload.original_price ?? existingOffer.original_price,
-        discount_percentage: payload.discount_percentage ?? existingOffer.discount_percentage,
+        co_pay_percentage: payload.co_pay_percentage ?? existingOffer.co_pay_percentage,
         discount_amount: payload.discount_amount ?? existingOffer.discount_amount,
         discounted_price: payload.discounted_price ?? existingOffer.discounted_price
       });
       payload.original_price = discountValues.original_price;
       payload.discounted_price = discountValues.discounted_price;
-      payload.discount_percentage = discountValues.discount_percentage;
+      payload.co_pay_percentage = discountValues.co_pay_percentage;
       payload.discount_amount = discountValues.discount_amount;
       payload.savings = discountValues.savings;
       payload.ezt_equivalent = discountValues.ezt_equivalent;
@@ -287,6 +350,43 @@ async function updateOffer(partnerId, offerId, updates) {
       timestamp: new Date().toISOString()
     });
 
+    try {
+      const previous = {
+        title: existingOffer.title,
+        co_pay_percentage: existingOffer.co_pay_percentage,
+        image_url: existingOffer.image_url,
+        perk_type: existingOffer.perk_type,
+        perk_description: existingOffer.perk_description,
+        start_date: existingOffer.start_date,
+        end_date: existingOffer.end_date,
+        status: existingOffer.status
+      };
+      const next = {
+        title: updatedOffer.title,
+        co_pay_percentage: updatedOffer.co_pay_percentage,
+        image_url: updatedOffer.image_url,
+        perk_type: updatedOffer.perk_type,
+        perk_description: updatedOffer.perk_description,
+        start_date: updatedOffer.start_date,
+        end_date: updatedOffer.end_date,
+        status: updatedOffer.status
+      };
+      await createAuditLogEntry(
+        options.actorUserId || null,
+        'partner update deal',
+        'offer',
+        offerId,
+        {
+          previous,
+          next,
+          partner_id: partnerId,
+          actor_partner_id: options.actorPartnerId
+        }
+      );
+    } catch (auditErr) {
+      logError('Audit log update offer failed:', auditErr);
+    }
+
     return updatedOffer;
   } catch (error) {
     if (error instanceof AppError) throw error;
@@ -295,7 +395,7 @@ async function updateOffer(partnerId, offerId, updates) {
   }
 }
 
-async function deleteOffer(partnerId, offerId) {
+async function deleteOffer(partnerId, offerId, options = {}) {
   try {
     const partner = await partnerRepository.getPartnerById(partnerId);
     if (!partner) {
@@ -313,6 +413,28 @@ async function deleteOffer(partnerId, offerId) {
       partnerId,
       timestamp: new Date().toISOString()
     });
+
+    try {
+      await createAuditLogEntry(
+        options.actorUserId || null,
+        'partner delete deal',
+        'offer',
+        offerId,
+        {
+          previous: {
+            title: deleted.title,
+            co_pay_percentage: deleted.co_pay_percentage,
+            image_url: deleted.image_url,
+            status: deleted.status
+          },
+          next: null,
+          partner_id: partnerId,
+          actor_partner_id: options.actorPartnerId
+        }
+      );
+    } catch (auditErr) {
+      logError('Audit log delete offer failed:', auditErr);
+    }
 
     return { deleted: true, id: offerId };
   } catch (error) {
@@ -347,6 +469,22 @@ async function listPublicOffers(filters = {}) {
     limit: normalizedLimit,
     admin: Boolean(admin),
     partner_ids: filters.partner_ids && Array.isArray(filters.partner_ids) ? filters.partner_ids : null,
+    cuisine_types: filters.cuisine_types && Array.isArray(filters.cuisine_types) && filters.cuisine_types.length > 0 ? filters.cuisine_types : null,
+    price_min: filters.price_min != null && Number.isFinite(Number(filters.price_min)) ? Number(filters.price_min) : null,
+    price_max: filters.price_max != null && Number.isFinite(Number(filters.price_max)) ? Number(filters.price_max) : null,
+    min_rating: filters.min_rating != null && Number.isFinite(Number(filters.min_rating)) ? Number(filters.min_rating) : null,
+    user_latitude: filters.user_latitude != null && Number.isFinite(Number(filters.user_latitude)) ? Number(filters.user_latitude) : null,
+    user_longitude: filters.user_longitude != null && Number.isFinite(Number(filters.user_longitude)) ? Number(filters.user_longitude) : null,
+    max_distance_km: filters.max_distance_km != null && Number.isFinite(Number(filters.max_distance_km)) && Number(filters.max_distance_km) > 0 ? Number(filters.max_distance_km) : null,
+    meal_type: filters.meal_type && Array.isArray(filters.meal_type) && filters.meal_type.length > 0 ? filters.meal_type : null,
+    therapy_type: filters.therapy_type && Array.isArray(filters.therapy_type) && filters.therapy_type.length > 0 ? filters.therapy_type : null,
+    duration_min: filters.duration_min != null && Number.isFinite(Number(filters.duration_min)) ? Number(filters.duration_min) : null,
+    duration_max: filters.duration_max != null && Number.isFinite(Number(filters.duration_max)) ? Number(filters.duration_max) : null,
+    event_type: filters.event_type && Array.isArray(filters.event_type) && filters.event_type.length > 0 ? filters.event_type : null,
+    event_date: filters.event_date || null,
+    star_rating: filters.star_rating != null && Number.isFinite(Number(filters.star_rating)) ? Number(filters.star_rating) : null,
+    refundable: filters.refundable === true ? true : null,
+    specialization: filters.specialization && Array.isArray(filters.specialization) && filters.specialization.length > 0 ? filters.specialization : null,
   };
 
   log('[offerService] listPublicOffers request', {
@@ -374,9 +512,12 @@ async function listPublicOffers(filters = {}) {
   }
 }
 
+// Return public offer by ID. Same eligibility as booking: deal active and within dates, partner not suspended/rejected.
 async function getPublicOfferById(offerId) {
-  const offer = await offerRepository.getOfferById(offerId, true);
+  const offer = await offerRepository.getOfferById(offerId, false);
   if (!offer) return null;
+  const partnerStatus = offer.partner_status != null ? String(offer.partner_status).toLowerCase().trim() : '';
+  if (['suspended', 'rejected'].includes(partnerStatus)) return null;
   const { getS3FileUrl } = require('../../utils/s3Bucket');
   return {
     ...offer,
@@ -388,6 +529,7 @@ async function getPublicOfferById(offerId) {
 
 module.exports = {
   listOffersByPartner,
+  getOfferByPartner,
   createOffer,
   updateOffer,
   deleteOffer,

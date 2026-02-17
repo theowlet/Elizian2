@@ -26,6 +26,14 @@ const BookingDetails = () => {
     }
   }, [id, booking]);
 
+  // When opened from list, booking may lack venue/deal – fetch once to get full voucher details
+  useEffect(() => {
+    if (booking && id && (booking.partner_name == null) && (booking.deal_title == null)) {
+      loadBookingDetails();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
   // Load pending redemption for this booking
   useEffect(() => {
     if (booking?.id) {
@@ -174,7 +182,12 @@ const BookingDetails = () => {
             booking_reference: result.data.booking_reference,
             all_booking_fields: Object.keys(result.data)
           });
-          setBooking(result.data);
+          // Never overwrite voucher deal/venue with empty – preserve existing if API omits them
+          setBooking(prev => ({
+            ...result.data,
+            deal_title: result.data.deal_title ?? prev?.deal_title,
+            partner_name: result.data.partner_name ?? prev?.partner_name
+          }));
           setQrCodeLoading(false);
           // If QR code was just generated, it will be in the response
           if (result.data.qr_code_url) {

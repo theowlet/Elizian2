@@ -34,7 +34,14 @@ async function getPartnerMe(req, res) {
       return errorResponse(res, 401, "Partner authentication required");
     }
     const partner = await partnerService.getPartnerById(partnerId, false);
-    successResponse(res, 200, "Partner profile retrieved successfully", partner);
+    const { getPartnerTierBenefits } = require('../config/partnerTierBenefits');
+    const tier = (partner.partner_tier || 'bronze').toLowerCase();
+    const partnerTierBenefits = getPartnerTierBenefits(partner.partner_tier);
+    successResponse(res, 200, "Partner profile retrieved successfully", {
+      ...partner,
+      partner_tier: partner.partner_tier || 'bronze',
+      partner_tier_benefits: partnerTierBenefits,
+    });
   } catch (err) {
     logError("❌ Partner me error:", err);
     errorResponse(res, err.statusCode || 500, err.message || "Failed to retrieve partner profile");
@@ -351,11 +358,41 @@ async function deleteMenuImage(req, res) {
   }
 }
 
+// Public: get today's check-in count for a venue (NFC taps + visit sessions for social proof)
+async function getCheckInsToday(req, res) {
+  try {
+    const { id: partnerId } = req.params;
+    const { getPool } = require('../config/db');
+    const pool = getPool();
+    const result = await pool.query(
+      `SELECT COUNT(*)::int AS count
+       FROM (
+         SELECT 1 FROM nfc_tap_events WHERE partner_id = $1 AND (created_at AT TIME ZONE 'UTC')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date
+         UNION ALL
+         SELECT 1 FROM visit_sessions WHERE partner_id = $1 AND (created_at AT TIME ZONE 'UTC')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date
+       ) t`,
+      [partnerId]
+    );
+    const count = result.rows[0]?.count ?? 0;
+    successResponse(res, 200, 'Check-ins today', { count });
+  } catch (err) {
+    const msg = err.message || '';
+    const code = err.code || '';
+    if (code === '42P01' || /relation .* does not exist/i.test(msg)) {
+      successResponse(res, 200, 'Check-ins today', { count: 0 });
+      return;
+    }
+    logError('getCheckInsToday error:', err);
+    errorResponse(res, 500, err.message || 'Failed to get check-ins count');
+  }
+}
+
 module.exports = {
   listPartners,
   getPartnerMe,
   getPartner,
   getVenueDetail,
+  getCheckInsToday,
   createPartner,
   updatePartner,
   verifyLocation,

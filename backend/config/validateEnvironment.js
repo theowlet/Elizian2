@@ -3,7 +3,6 @@ const { log, logError } = require('../utils/logger');
 function validateEnvironment() {
   const errors = [];
   const warnings = [];
-console.error("data url",process.env.DATABASE_URL)
 
   if (!process.env.DATABASE_URL) {
     const dbVars = ['DB_USER', 'DB_HOST', 'DB_NAME', 'DB_PASSWORD', 'DB_PORT'];
@@ -84,7 +83,14 @@ console.error("data url",process.env.DATABASE_URL)
   log('\n📋 Environment Configuration:');
   log(`   - NODE_ENV: ${process.env.NODE_ENV}`);
   if (process.env.DATABASE_URL) {
-    log('   - DATABASE_URL: ***SET (Railway)***');
+    try {
+      const u = new URL(process.env.DATABASE_URL);
+      const host = (u.hostname || '').toLowerCase();
+      const label = host === 'localhost' || host === '127.0.0.1' ? 'local' : 'remote';
+      log(`   - DATABASE_URL: ***SET (${label})***`);
+    } catch {
+      log('   - DATABASE_URL: ***SET***');
+    }
   } else {
     log(`   - DB_HOST: ${process.env.DB_HOST}`);
     log(`   - DB_NAME: ${process.env.DB_NAME}`);

@@ -142,8 +142,8 @@ export function renderRestaurantsList(restaurants) {
     <div class="restaurant-card" onclick="showRestaurantDetails('${restaurant.id}')">
       <div class="restaurant-image">
         <img src="${imgSrc}" alt="${escapeHtml(restaurant.name)}">
-        ${restaurant.discount_percentage > 0 ? 
-          `<div class="discount-badge">${restaurant.discount_percentage}% OFF</div>` : ''}
+        ${(restaurant.co_pay_percentage || restaurant.discount_percentage) > 0 ? 
+          `<div class="discount-badge">${(restaurant.co_pay_percentage || restaurant.discount_percentage)}% OFF</div>` : ''}
       </div>
       <div class="restaurant-info">
         <h3>${escapeHtml(restaurant.name)}</h3>
@@ -325,7 +325,7 @@ function showRestaurantDetailsModal(restaurant, menuItems, currentServiceType = 
           <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
             ${restaurant.city ? `<div style="display: flex; align-items: center; gap: 4px;"><span>📍</span> ${restaurant.city}</div>` : ''}
             ${restaurant.rating ? `<div style="display: flex; align-items: center; gap: 4px;"><span>⭐</span> ${restaurant.rating}</div>` : ''}
-            ${restaurant.discount_percentage > 0 ? `<div style="background: #10b981; color: white; padding: 4px 12px; border-radius: 8px; font-weight: 600;">${restaurant.discount_percentage}% OFF</div>` : ''}
+            ${(restaurant.co_pay_percentage || restaurant.discount_percentage) > 0 ? `<div style="background: #10b981; color: white; padding: 4px 12px; border-radius: 8px; font-weight: 600;">${(restaurant.co_pay_percentage || restaurant.discount_percentage)}% OFF</div>` : ''}
           </div>
           
           ${restaurant.address ? `<p style="color: #666; margin-bottom: 16px;"><strong>Address:</strong> ${restaurant.address}</p>` : ''}

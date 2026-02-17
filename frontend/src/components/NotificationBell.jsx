@@ -81,7 +81,7 @@ const NotificationBell = () => {
             <span style={{ fontSize: '1.25rem' }}>🔔</span>
             <div style={{ flex: 1 }}>
               <div style={styles.pushTitle}>Enable notifications?</div>
-              <div style={styles.pushSub}>Get alerts for bookings, rewards & exclusive offers</div>
+              <div style={styles.pushSub}>Get alerts for bookings, rewards & exclusive deals</div>
             </div>
           </div>
           <div style={styles.pushActions}>

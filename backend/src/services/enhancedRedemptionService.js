@@ -11,6 +11,7 @@ const tierService = require('./tierService');
 const loyaltyEngine = require('../../services/loyaltyEngineService');
 const tokenService = require('./tokenService');
 const redemptionCalculationService = require('./redemptionCalculationService');
+const { applyBookingTimeCoPay } = redemptionCalculationService;
 const visitSessionRepository = require('../repositories/visitSessionRepository');
 const { AppError } = require('../../utils/response');
 const { log, logError } = require('../../utils/logger');
@@ -127,19 +128,41 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
 
     await client.query('BEGIN');
 
-    // Get booking with lock
-    const bookingResult = await client.query(
-      `SELECT 
-        b.id, b.user_id, b.partner_id, b.deal_id, b.status, b.voucher_state,
-        b.voucher_code, b.booking_reference, b.total_price, b.fiat_amount,
-        b.booking_date, b.booking_time, b.expires_at, b.created_at,
-        po.id as offer_id, po.end_date as offer_end_date
-       FROM bookings b
-       LEFT JOIN partner_offers po ON b.deal_id = po.id
-       WHERE b.voucher_code = $1
-       FOR UPDATE OF b`,
-      [voucher_code]
-    );
+    // Get booking with lock (include co_pay_percentage_at_booking for redemption by booking-time terms)
+    let bookingResult;
+    try {
+      bookingResult = await client.query(
+        `SELECT 
+          b.id, b.user_id, b.partner_id, b.deal_id, b.status, b.voucher_state,
+          b.voucher_code, b.booking_reference, b.total_price, b.fiat_amount,
+          b.booking_date, b.booking_time, b.expires_at, b.created_at,
+          b.co_pay_percentage_at_booking,
+          po.id as offer_id, po.end_date as offer_end_date
+         FROM bookings b
+         LEFT JOIN partner_offers po ON b.deal_id = po.id
+         WHERE b.voucher_code = $1
+         FOR UPDATE OF b`,
+        [voucher_code]
+      );
+    } catch (colErr) {
+      if (colErr.code === '42703' || /column .* does not exist/i.test(colErr.message || '')) {
+        bookingResult = await client.query(
+          `SELECT 
+            b.id, b.user_id, b.partner_id, b.deal_id, b.status, b.voucher_state,
+            b.voucher_code, b.booking_reference, b.total_price, b.fiat_amount,
+            b.booking_date, b.booking_time, b.expires_at, b.created_at,
+            po.id as offer_id, po.end_date as offer_end_date
+           FROM bookings b
+           LEFT JOIN partner_offers po ON b.deal_id = po.id
+           WHERE b.voucher_code = $1
+           FOR UPDATE OF b`,
+          [voucher_code]
+        );
+        if (bookingResult.rows[0]) bookingResult.rows[0].co_pay_percentage_at_booking = null;
+      } else {
+        throw colErr;
+      }
+    }
 
     if (bookingResult.rows.length === 0) {
       await client.query('ROLLBACK');
@@ -244,10 +267,11 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       booking.visit_session_id = visitSession.id;
     }
 
-    const offerRow = await client.query(
-      'SELECT discount_percentage, discount_amount, offer_type FROM partner_offers WHERE id = $1',
+    let offerRow = await client.query(
+      'SELECT co_pay_percentage, discount_amount, offer_type FROM partner_offers WHERE id = $1',
       [booking.deal_id]
     ).then(r => r.rows[0] || null);
+    offerRow = applyBookingTimeCoPay(offerRow, booking);
     const calculated = redemptionCalculationService.calculateRedemptionAmounts(booking.deal_id, total_bill_amount, offerRow);
     const validation = redemptionCalculationService.validateCalculation(total_bill_amount, ezt_co_pay_amount, net_amount_from_user, booking.deal_id, offerRow);
 
@@ -458,7 +482,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
           redemption_longitude,
           geo_verified,
           booking.visit_session_id || null,
-          calculated.discount_percentage,
+          calculated.co_pay_percentage,
           calculated.discount_amount,
           calculated.ezt_tokens_required,
           DUAL_CONFIRMATION_ENABLED ? 'pending' : null,
@@ -492,6 +516,26 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     }
 
     const redemption = redemptionResult.rows[0];
+
+    // Deduct EZT tokens for co-pay when single-step redemption (no dual confirmation)
+    // When DUAL_CONFIRMATION is enabled, tokens are deducted in redemptionConfirmationService on consumer confirm
+    if (!DUAL_CONFIRMATION_ENABLED) {
+      const eztRequired = parseFloat(calculated.ezt_tokens_required || 0);
+      if (eztRequired > 0) {
+        try {
+          await tokenService.redeemTokens(
+            booking.user_id,
+            eztRequired,
+            null,
+            `Voucher redemption (Booking ${booking.booking_reference})`,
+            client
+          );
+        } catch (tokenErr) {
+          await client.query('ROLLBACK');
+          throw new AppError(400, `Insufficient EZT balance. Required: ${eztRequired.toFixed(5)} EZT for this redemption. ${tokenErr.message}`);
+        }
+      }
+    }
 
     // Log successful redemption
     await voucherAuditService.logAuditEvent({
@@ -820,17 +864,18 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       logError('Rollback error:', rollbackErr.message);
     }
     try {
+      const ctx = context || {};
       await voucherAuditService.logAuditEvent({
-        voucherCode: redemptionData.voucher_code,
+        voucherCode: redemptionData?.voucher_code,
         action: 'redemption_failure',
-        actorId: context.actorId || redemptionData.partner_id,
-        actorRole: context.actorRole || 'partner',
+        actorId: ctx.actorId || redemptionData?.partner_id,
+        actorRole: ctx.actorRole || 'partner',
         errorData: {
           error: error.message,
           stack: error.stack
         },
-        ipAddress: context.ipAddress,
-        userAgent: context.userAgent,
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
         executor: client
       });
     } catch (auditErr) {

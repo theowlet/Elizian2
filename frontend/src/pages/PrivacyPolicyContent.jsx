@@ -73,7 +73,7 @@ const PrivacyPolicyContent = () => (
     <h2>3. How Do We Use Your Information?</h2>
     <p>We may use collected information in the following ways:</p>
     <ul>
-      <li>To personalise user experience and display relevant content and offers</li>
+      <li>To personalise user experience and display relevant content and deals</li>
       <li>To improve our App based on analytics and user feedback</li>
       <li>To fulfil voucher, restaurant, partner, or event-based transactions</li>
       <li>To provide customer support and respond to queries</li>

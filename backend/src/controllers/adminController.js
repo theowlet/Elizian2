@@ -60,6 +60,20 @@ async function updatePartnerFeaturedEligibility(req, res) {
   }
 }
 
+// Update partner subscription tier (bronze, silver, gold)
+async function updatePartnerTier(req, res) {
+  try {
+    const { id } = req.params;
+    const { partner_tier } = req.body || {};
+    const actorRole = await getUserRoleById(req.userId);
+    const result = await adminService.updatePartnerTier(id, partner_tier, req.userId, actorRole);
+    res.json({ success: true, partner_tier: result.partner_tier });
+  } catch (err) {
+    logError('admin partner-tier error', err);
+    res.status(err.statusCode || 500).json({ success: false, error: err.message || 'Failed to update partner tier' });
+  }
+}
+
 // List admin deals
 async function listDeals(req, res) {
   try {
@@ -404,6 +418,7 @@ module.exports = {
   listPartners,
   updatePartnerStatus,
   updatePartnerFeaturedEligibility,
+  updatePartnerTier,
   listDeals,
   updateDealStatus,
   updateOfferFeaturedStatus,
