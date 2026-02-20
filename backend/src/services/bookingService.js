@@ -175,9 +175,13 @@ async function createBooking(bookingData) {
       bookingPayload.deal_id = offer_id;  // Use deal_id to match table schema
       bookingPayload.offer_id = offer_id;  // Keep for backwards compatibility
       bookingPayload.status = 'confirmed';
-      // Snapshot deal co-pay at booking time so redemption uses terms that applied when user booked (default 0 if not set)
-      const coPayPct = offer.co_pay_percentage != null ? parseFloat(offer.co_pay_percentage) : 0;
-      bookingPayload.co_pay_percentage_at_booking = Number.isNaN(coPayPct) ? 0 : Math.min(100, Math.max(0, coPayPct));
+      // Snapshot deal co-pay at booking time so redemption uses terms that applied when user booked.
+      // Backward-compat: some deployments still have legacy discount_percentage.
+      const rawCoPay = offer.co_pay_percentage != null ? offer.co_pay_percentage : offer.discount_percentage;
+      const coPayPct = rawCoPay != null ? parseFloat(rawCoPay) : NaN;
+      bookingPayload.co_pay_percentage_at_booking = Number.isFinite(coPayPct)
+        ? Math.min(100, Math.max(0, coPayPct))
+        : null;
     } else if (show_id) {
       // Show/Theatre booking
       if (!seat_template_ids || !Array.isArray(seat_template_ids) || seat_template_ids.length === 0) {
@@ -1057,4 +1061,3 @@ module.exports = {
   rescheduleBooking,
   confirmPayment
 };
-

@@ -258,6 +258,7 @@ async function disputeRedemption(req, res) {
 /**
  * Get pending confirmations for the current user (consumer)
  * GET /api/v1/redemptions/pending
+ * GET /api/v1/redemptions/pending?booking_id=123  — pending for this booking only (so "Confirm your redemption" shows reliably)
  */
 async function getPendingConfirmations(req, res) {
   try {
@@ -265,7 +266,10 @@ async function getPendingConfirmations(req, res) {
     if (!userId) {
       return errorResponse(res, 401, 'Authentication required');
     }
+    const bookingId = req.query.booking_id != null ? parseInt(req.query.booking_id, 10) : null;
     const pool = getPool();
+    const params = bookingId != null && !Number.isNaN(bookingId) ? [userId, bookingId] : [userId];
+    const bookingFilter = bookingId != null && !Number.isNaN(bookingId) ? ' AND ra.booking_id = $2' : '';
     let result;
     try {
       result = await pool.query(
@@ -286,8 +290,9 @@ async function getPendingConfirmations(req, res) {
            AND ra.redemption_status = 'pending_confirmation'
            AND (ra.customer_confirmation_status IS NULL OR ra.customer_confirmation_status = 'pending')
            AND (ra.confirmation_expires_at IS NULL OR ra.confirmation_expires_at > NOW())
+           ${bookingFilter}
          ORDER BY ra.confirmation_expires_at ASC`,
-        [userId]
+        params
       );
     } catch (queryErr) {
       if (queryErr.code === '42703' || /column .* does not exist/i.test(queryErr.message || '')) {
@@ -301,8 +306,9 @@ async function getPendingConfirmations(req, res) {
            FROM redemption_audit ra
            JOIN bookings b ON b.id = ra.booking_id
            WHERE b.user_id = $1 AND ra.redemption_status = 'pending_confirmation'
+           ${bookingFilter}
            ORDER BY ra.redeemed_at ASC`,
-          [userId]
+          params
         );
       } else {
         throw queryErr;

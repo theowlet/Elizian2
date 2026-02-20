@@ -178,6 +178,7 @@ function AppRoutes() {
       <Route path="/developer" element={<ProtectedRoute requireAuth={true}><DeveloperPage /></ProtectedRoute>} />
       <Route path="/wallet" element={<ProtectedRoute requireAuth={true}><WalletPage /></ProtectedRoute>} />
       <Route path="/messages" element={<ProtectedRoute requireAuth={true}><MessagingPage /></ProtectedRoute>} />
+      <Route path="/messages/conversation/:conversationId" element={<ProtectedRoute requireAuth={true}><MessagingPage /></ProtectedRoute>} />
       <Route path="/messages/:partnerId" element={<ProtectedRoute requireAuth={true}><MessagingPage /></ProtectedRoute>} />
       <Route path="/reserve" element={<ProtectedRoute requireAuth={true}><ReservationPage /></ProtectedRoute>} />
       <Route path="/exclusives" element={<ProtectedRoute requireAuth={true}><ExclusivesPage /></ProtectedRoute>} />

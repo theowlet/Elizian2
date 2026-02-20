@@ -2,8 +2,48 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useNotifications } from '../context/NotificationContext';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  (typeof window !== 'undefined' ? window.MY_GLOBAL_CONFIG?.apiUrl : '') ||
+  'http://localhost:4000'
+).replace(/\/+$/, '');
 const POLL_FALLBACK_MS = 30000;
+const DEBUG_MESSAGING = import.meta.env.DEV || import.meta.env.VITE_DEBUG_MESSAGING === 'true';
+
+function logMessaging(...args) {
+  if (DEBUG_MESSAGING) console.debug('[MessagingPage]', ...args);
+}
+
+function logMessagingError(...args) {
+  if (DEBUG_MESSAGING) console.error('[MessagingPage]', ...args);
+}
+
+async function parseJsonResponse(res) {
+  const raw = await res.text();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    return { success: false, message: 'Invalid JSON response', raw };
+  }
+}
+
+function extractConversation(payload) {
+  if (payload && typeof payload === 'object') {
+    if (payload.conversation && typeof payload.conversation === 'object') return payload.conversation;
+    if (payload.data?.conversation && typeof payload.data.conversation === 'object') return payload.data.conversation;
+    if (payload.data && payload.data.id) return payload.data;
+  }
+  return null;
+}
+
+function extractMessages(payload) {
+  if (Array.isArray(payload?.messages)) return payload.messages;
+  if (Array.isArray(payload?.data?.messages)) return payload.data.messages;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
 
 /* ------------------------------------------------------------------ */
 /* EAZY PASS Colour Palette                                             */
@@ -160,57 +200,82 @@ const ChatView = ({ conversation, token, onBack, onMessagesRead }) => {
   const [deleting, setDeleting] = useState(false);
   const listRef = useRef(null);
   const longPressTimer = useRef(null);
-  const hdrs = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const conversationId = conversation?.id;
+  const authHeaders = useCallback(
+    () => ({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    [token]
+  );
 
   const loadMessages = useCallback(async () => {
+    if (!conversationId || !token) {
+      setMessages([]);
+      setLoading(false);
+      return;
+    }
+
+    const url = `${API_BASE}/api/v1/conversations/${conversationId}/messages`;
+    logMessaging('loadMessages()', { conversationId, url });
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/conversations/${conversation.id}/messages`,
-        { headers: hdrs }
-      );
-      const data = await res.json();
-      if (data.success) {
-        const msgs = Array.isArray(data.data?.messages) ? data.data.messages : (Array.isArray(data.data) ? data.data : []);
-        setMessages(msgs);
+      const res = await fetch(url, { headers: authHeaders() });
+      const payload = await parseJsonResponse(res);
+      logMessaging('loadMessages() response', { conversationId, status: res.status, payload });
+
+      if (res.ok && payload?.success) {
+        const nextMessages = extractMessages(payload);
+        setMessages(nextMessages);
+        logMessaging('messages state updated', { conversationId, count: nextMessages.length });
+      } else {
+        setMessages([]);
       }
-    } catch (_) {} finally {
+    } catch (error) {
+      logMessagingError('loadMessages() failed', { conversationId, error });
+      setMessages([]);
+    } finally {
       setLoading(false);
     }
-  }, [conversation.id]);
+  }, [authHeaders, conversationId, token]);
 
   const markRead = useCallback(async () => {
+    if (!conversationId || !token) return;
+    const url = `${API_BASE}/api/v1/conversations/${conversationId}/read`;
     try {
-      await fetch(`${API_BASE}/api/v1/conversations/${conversation.id}/read`, {
-        method: 'POST', headers: hdrs,
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: authHeaders(),
       });
-      if (onMessagesRead) onMessagesRead();
-    } catch (_) {}
-  }, [conversation.id]);
+      const payload = await parseJsonResponse(res);
+      logMessaging('markRead() response', { conversationId, status: res.status, payload });
+      if (res.ok && onMessagesRead) onMessagesRead();
+    } catch (error) {
+      logMessagingError('markRead() failed', { conversationId, error });
+    }
+  }, [authHeaders, conversationId, onMessagesRead, token]);
 
   useEffect(() => {
     loadMessages();
     markRead();
-  }, [conversation.id]);
+  }, [loadMessages, markRead]);
 
   useEffect(() => {
     const onMessageReceived = (e) => {
       const payload = e.detail || {};
-      if (payload.conversationId === conversation.id) {
+      if (payload.conversationId === conversationId) {
         loadMessages();
       }
     };
     window.addEventListener('elizian-message-received', onMessageReceived);
     return () => window.removeEventListener('elizian-message-received', onMessageReceived);
-  }, [conversation.id, loadMessages]);
+  }, [conversationId, loadMessages]);
 
   useEffect(() => {
+    if (!conversationId) return;
     if (socketConnected) return;
     const interval = setInterval(() => {
       loadMessages();
       markRead();
     }, POLL_FALLBACK_MS);
     return () => clearInterval(interval);
-  }, [conversation.id, loadMessages, markRead, socketConnected]);
+  }, [conversationId, loadMessages, markRead, socketConnected]);
 
   const prevMsgCount = useRef(0);
   useEffect(() => {
@@ -221,7 +286,7 @@ const ChatView = ({ conversation, token, onBack, onMessagesRead }) => {
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim() || sending) return;
+    if (!conversationId || !token || !input.trim() || sending) return;
     const text = input.trim();
     setSending(true);
     setInput('');
@@ -233,18 +298,24 @@ const ChatView = ({ conversation, token, onBack, onMessagesRead }) => {
     };
     setMessages(prev => [...prev, optimistic]);
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/conversations/${conversation.id}/messages`,
-        { method: 'POST', headers: hdrs, body: JSON.stringify({ body: text }) }
-      );
-      const data = await res.json();
-      if (data.success) {
-        setMessages(prev => prev.map(m => m.id === optimistic.id ? data.data : m));
+      const url = `${API_BASE}/api/v1/conversations/${conversationId}/messages`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ body: text }),
+      });
+      const payload = await parseJsonResponse(res);
+      logMessaging('sendMessage() response', { conversationId, status: res.status, payload });
+
+      if (res.ok && payload?.success) {
+        const persisted = payload?.data || optimistic;
+        setMessages(prev => prev.map(m => m.id === optimistic.id ? persisted : m));
       } else {
         setMessages(prev => prev.filter(m => m.id !== optimistic.id));
         setInput(text);
       }
-    } catch (_) {
+    } catch (error) {
+      logMessagingError('sendMessage() failed', { conversationId, error });
       setMessages(prev => prev.filter(m => m.id !== optimistic.id));
       setInput(text);
     } finally {
@@ -266,19 +337,21 @@ const ChatView = ({ conversation, token, onBack, onMessagesRead }) => {
   };
 
   const deleteMessage = async (msgId) => {
+    if (!conversationId || !token || !msgId) return;
     setDeleting(true);
     try {
-      const res = await fetch(
-        `${API_BASE}/api/v1/conversations/${conversation.id}/messages/${msgId}`,
-        { method: 'DELETE', headers: hdrs }
-      );
-      const data = await res.json();
-      if (data.success) {
+      const url = `${API_BASE}/api/v1/conversations/${conversationId}/messages/${msgId}`;
+      const res = await fetch(url, { method: 'DELETE', headers: authHeaders() });
+      const payload = await parseJsonResponse(res);
+      logMessaging('deleteMessage() response', { conversationId, messageId: msgId, status: res.status, payload });
+
+      if (res.ok && payload?.success) {
         setMessages(prev => prev.filter(m => m.id !== msgId));
       } else {
-        alert(data.message || 'Cannot delete this message');
+        alert(payload?.message || 'Cannot delete this message');
       }
-    } catch (_) {
+    } catch (error) {
+      logMessagingError('deleteMessage() failed', { conversationId, messageId: msgId, error });
       alert('Failed to delete message');
     } finally {
       setDeleting(false);
@@ -321,7 +394,7 @@ const ChatView = ({ conversation, token, onBack, onMessagesRead }) => {
             <div style={{ ...s.spinner, margin: '0 auto 0.5rem' }} />
             Loading messages...
           </div>
-        ) : groupedMessages.length === 0 ? (
+        ) : messages.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: C.textSecondary }}>
             <p style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>👋</p>
             <p style={{ fontWeight: 600, color: C.champagne }}>Start the conversation!</p>
@@ -442,25 +515,105 @@ const ChatView = ({ conversation, token, onBack, onMessagesRead }) => {
 /* ------------------------------------------------------------------ */
 const MessagingPage = () => {
   const navigate = useNavigate();
-  const { partnerId } = useParams();
+  const { partnerId, conversationId } = useParams();
   const { socketConnected } = useNotifications();
   const token = localStorage.getItem('token');
   const [conversations, setConversations] = useState([]);
   const [selectedConv, setSelectedConv] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const authHeaders = useCallback(
+    () => ({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }),
+    [token]
+  );
+
+  const loadConversations = useCallback(async () => {
+    if (!token) {
+      setConversations([]);
+      setLoading(false);
+      return;
+    }
+
+    const url = `${API_BASE}/api/v1/conversations`;
+    logMessaging('loadConversations()', { url });
+    try {
+      const res = await fetch(url, { headers: authHeaders() });
+      const payload = await parseJsonResponse(res);
+      logMessaging('loadConversations() response', { status: res.status, payload });
+
+      if (res.ok && payload?.success) {
+        const list = Array.isArray(payload.data) ? payload.data : [];
+        setConversations(list);
+      } else {
+        setConversations([]);
+      }
+    } catch (error) {
+      logMessagingError('loadConversations() failed', { error });
+      setConversations([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [authHeaders, token]);
+
+  const openPartnerConversation = useCallback(async (pid) => {
+    if (!pid || !token) return;
+    const url = `${API_BASE}/api/v1/partners/${pid}/conversations/me`;
+    logMessaging('openPartnerConversation()', { partnerId: pid, url });
+    try {
+      const res = await fetch(url, { headers: authHeaders() });
+      const payload = await parseJsonResponse(res);
+      logMessaging('openPartnerConversation() response', { partnerId: pid, status: res.status, payload });
+      if (res.ok && payload?.success && payload?.data) setSelectedConv(payload.data);
+    } catch (error) {
+      logMessagingError('openPartnerConversation() failed', { partnerId: pid, error });
+    }
+  }, [authHeaders, token]);
+
+  const openConversationById = useCallback(async (cid) => {
+    if (!cid || !token) return;
+    logMessaging('openConversationById()', { conversationId: cid });
+
+    const existing = conversations.find((conv) => String(conv.id) === String(cid));
+    if (existing) {
+      setSelectedConv(existing);
+      return;
+    }
+
+    const url = `${API_BASE}/api/messages/${cid}`;
+    try {
+      const res = await fetch(url, { headers: authHeaders() });
+      const payload = await parseJsonResponse(res);
+      logMessaging('openConversationById() response', { conversationId: cid, status: res.status, payload });
+      if (!res.ok || !payload?.success) return;
+
+      const conv = extractConversation(payload);
+      if (conv) setSelectedConv(conv);
+
+      const msgList = extractMessages(payload);
+      logMessaging('openConversationById() messages', { conversationId: cid, count: msgList.length });
+    } catch (error) {
+      logMessagingError('openConversationById() failed', { conversationId: cid, error });
+    }
+  }, [authHeaders, conversations, token]);
+
+  useEffect(() => {
+    logMessaging('route params', { partnerId, conversationId });
+  }, [partnerId, conversationId]);
+
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
     loadConversations();
-  }, [token]);
+  }, [loadConversations, navigate, token]);
 
   useEffect(() => {
-    const onMessageReceived = () => {
+    const onMessageReceived = (e) => {
+      const payload = e.detail || {};
+      logMessaging('elizian-message-received event', payload);
       if (!selectedConv) loadConversations();
     };
     window.addEventListener('elizian-message-received', onMessageReceived);
     return () => window.removeEventListener('elizian-message-received', onMessageReceived);
-  }, [selectedConv]);
+  }, [loadConversations, selectedConv]);
 
   useEffect(() => {
     if (!token) return;
@@ -469,31 +622,22 @@ const MessagingPage = () => {
       if (!selectedConv) loadConversations();
     }, 15000);
     return () => clearInterval(interval);
-  }, [token, selectedConv, socketConnected]);
+  }, [loadConversations, selectedConv, socketConnected, token]);
 
   useEffect(() => {
     if (partnerId && token) openPartnerConversation(partnerId);
-  }, [partnerId]);
+  }, [openPartnerConversation, partnerId, token]);
 
-  const hdrs = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  useEffect(() => {
+    if (!conversationId || !token || selectedConv) return;
+    openConversationById(conversationId);
+  }, [conversationId, openConversationById, selectedConv, token]);
 
-  const loadConversations = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/conversations`, { headers: hdrs });
-      const data = await res.json();
-      if (data.success) setConversations(Array.isArray(data.data) ? data.data : []);
-    } catch (_) {} finally {
-      setLoading(false);
-    }
-  };
-
-  const openPartnerConversation = async (pid) => {
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/partners/${pid}/conversations/me`, { headers: hdrs });
-      const data = await res.json();
-      if (data.success && data.data) setSelectedConv(data.data);
-    } catch (_) {}
-  };
+  useEffect(() => {
+    if (!selectedConv || conversations.length === 0) return;
+    const refreshed = conversations.find((conv) => String(conv.id) === String(selectedConv.id));
+    if (refreshed) setSelectedConv(refreshed);
+  }, [conversations, selectedConv]);
 
   if (selectedConv) {
     return (
@@ -576,7 +720,7 @@ const s = {
 
   /* Chat */
   chatWrap: {
-    display: 'flex', flexDirection: 'column', height: '100dvh', maxWidth: '480px', margin: '0 auto',
+    display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, maxWidth: '480px', margin: '0 auto',
     background: C.obsidian,
   },
   chatHeader: {
@@ -596,7 +740,7 @@ const s = {
   chatHeaderSub: { fontSize: '0.7rem', color: C.textSecondary },
 
   messageList: {
-    flex: 1, overflowY: 'auto', padding: '0.5rem 0.75rem',
+    flex: 1, minHeight: 0, overflowY: 'auto', padding: '0.5rem 0.75rem',
     display: 'flex', flexDirection: 'column', gap: '3px',
     background: `linear-gradient(180deg, ${C.obsidian} 0%, #0E0E12 100%)`,
   },

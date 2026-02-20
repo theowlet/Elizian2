@@ -1,6 +1,7 @@
 const { getPool } = require('../config/db');
 const tokenService = require('./tokenService');
 const pool = getPool();
+let legacyDiscountPercentageColumnExists = null;
 
 /** 1 EZT = 100 INR for co-pay calculation */
 const EZT_TO_INR = 100;
@@ -8,10 +9,34 @@ const EZT_TO_INR = 100;
 /**
  * Get offer discount (percentage and/or fixed amount) and type by offer id
  */
-async function getOfferDiscount(offerId) {
+async function hasLegacyDiscountPercentageColumn(executor = null) {
+  if (legacyDiscountPercentageColumnExists !== null) return legacyDiscountPercentageColumnExists;
+  const db = executor && typeof executor.query === 'function' ? executor : pool;
+  try {
+    const result = await db.query(
+      `SELECT 1
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'partner_offers'
+         AND column_name = 'discount_percentage'
+       LIMIT 1`
+    );
+    legacyDiscountPercentageColumnExists = result.rowCount > 0;
+  } catch (_) {
+    legacyDiscountPercentageColumnExists = false;
+  }
+  return legacyDiscountPercentageColumnExists;
+}
+
+async function getOfferDiscount(offerId, executor = null) {
   if (!offerId) return null;
-  const result = await pool.query(
-    `SELECT co_pay_percentage, discount_amount, offer_type, title FROM partner_offers WHERE id = $1`,
+  const db = executor && typeof executor.query === 'function' ? executor : pool;
+  const hasLegacyColumn = await hasLegacyDiscountPercentageColumn(db);
+  const coPaySelector = hasLegacyColumn
+    ? 'COALESCE(co_pay_percentage, discount_percentage) AS co_pay_percentage'
+    : 'co_pay_percentage';
+  const result = await db.query(
+    `SELECT ${coPaySelector}, discount_amount, offer_type, title FROM partner_offers WHERE id = $1`,
     [offerId]
   );
   return result.rows[0] || null;
@@ -31,6 +56,12 @@ function applyBookingTimeCoPay(offerRow, booking) {
   const pct = parseFloat(raw);
   if (Number.isNaN(pct) || pct < 0) return offerRow;
   const effective = Math.min(100, pct);
+  if (effective === 0) {
+    const current = parseFloat(offerRow?.co_pay_percentage);
+    // Backward-compat: if snapshot is 0 but current deal has a positive co-pay,
+    // prefer the deal value (older bookings could store 0 when only legacy discount % was populated).
+    if (!Number.isNaN(current) && current > 0) return offerRow;
+  }
   const base = offerRow && typeof offerRow === 'object' ? { ...offerRow } : { discount_amount: null, offer_type: 'co_pay', title: null };
   base.co_pay_percentage = effective;
   return base;
@@ -86,7 +117,7 @@ function calculateRedemptionAmounts(offerId, totalBillAmount, offerRow = null) {
  * @param {{ booking?: { co_pay_percentage_at_booking?: number|string|null }, executor?: object }} options - Pass booking to use booking-time co-pay; executor for transaction
  */
 async function calculateRedemptionBreakdown(offerId, totalBillAmount, userId = null, options = {}) {
-  let offerRow = await getOfferDiscount(offerId);
+  let offerRow = await getOfferDiscount(offerId, options.executor || null);
   offerRow = applyBookingTimeCoPay(offerRow, options.booking || null);
   const amounts = calculateRedemptionAmounts(offerId, totalBillAmount, offerRow);
   const standardCoPayInr = parseFloat(amounts.ezt_co_pay_amount || 0);

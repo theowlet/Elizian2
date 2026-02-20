@@ -238,6 +238,10 @@ async function updateCampaign(id, data, actorUserId = null) {
     }
 
     const tiers = validateTiers(data.target_tiers ?? data.targets?.target_tiers);
+    const hasTargetTierUpdate = data.target_tiers !== undefined || data.targets?.target_tiers !== undefined;
+    const hasTargetCategoryUpdate = data.target_categories !== undefined || data.targets?.target_categories !== undefined;
+    const hasGeoFilterUpdate = data.geo_filter !== undefined || data.targets?.geo_filter !== undefined;
+    const hasUserSegmentUpdate = data.user_segment !== undefined || data.targets?.user_segment !== undefined;
     const updates = [];
     const values = [];
     let n = 1;
@@ -267,6 +271,38 @@ async function updateCampaign(id, data, actorUserId = null) {
       "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'campaign_targets')"
     );
     if (hasTargets.rows[0]?.exists) {
+      const existingTargetsResult = await client.query(
+        `SELECT target_tiers, target_categories, geo_filter, user_segment
+         FROM campaign_targets
+         WHERE campaign_id = $1`,
+        [id]
+      );
+      const existingTargets = existingTargetsResult.rows[0] || {};
+
+      const requestedTargetTiers = data.target_tiers ?? data.targets?.target_tiers;
+      const nextTargetTiers = hasTargetTierUpdate
+        ? (tiers.length ? tiers : (Array.isArray(requestedTargetTiers) ? requestedTargetTiers : []))
+        : (Array.isArray(existingTargets.target_tiers) ? existingTargets.target_tiers : []);
+
+      const requestedTargetCategories = data.target_categories ?? data.targets?.target_categories;
+      const nextTargetCategories = hasTargetCategoryUpdate
+        ? (Array.isArray(requestedTargetCategories) ? requestedTargetCategories : [])
+        : (Array.isArray(existingTargets.target_categories) ? existingTargets.target_categories : []);
+
+      const requestedGeoFilter = hasGeoFilterUpdate
+        ? (data.geo_filter ?? data.targets?.geo_filter ?? {})
+        : (existingTargets.geo_filter ?? {});
+      const nextGeoFilter = requestedGeoFilter && typeof requestedGeoFilter === 'object' && !Array.isArray(requestedGeoFilter)
+        ? requestedGeoFilter
+        : {};
+
+      const requestedUserSegment = hasUserSegmentUpdate
+        ? (data.user_segment ?? data.targets?.user_segment ?? {})
+        : (existingTargets.user_segment ?? {});
+      const nextUserSegment = requestedUserSegment && typeof requestedUserSegment === 'object' && !Array.isArray(requestedUserSegment)
+        ? requestedUserSegment
+        : {};
+
       await client.query(
         `INSERT INTO campaign_targets (campaign_id, target_tiers, target_categories, geo_filter, user_segment)
          VALUES ($1, $2::text[], $3::text[], COALESCE($4::jsonb, '{}'), COALESCE($5::jsonb, '{}'))
@@ -277,10 +313,10 @@ async function updateCampaign(id, data, actorUserId = null) {
            user_segment = EXCLUDED.user_segment`,
         [
           id,
-          tiers.length ? tiers : (data.target_tiers || []),
-          Array.isArray(data.target_categories) ? data.target_categories : [],
-          data.geo_filter ? JSON.stringify(data.geo_filter) : '{}',
-          data.user_segment ? JSON.stringify(data.user_segment) : '{}',
+          nextTargetTiers,
+          nextTargetCategories,
+          JSON.stringify(nextGeoFilter),
+          JSON.stringify(nextUserSegment),
         ]
       );
     }

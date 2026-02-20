@@ -9,6 +9,7 @@ import EnterpriseAnalyticsDashboard from '../components/analytics/EnterpriseAnal
 import MenuBuilderModal from '../components/MenuBuilderModal';
 import '../styles/partnerConsole.css';
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const ENTERPRISE_CAMPAIGN_LIMIT = 10;
 
 /** Extract lat/lng from Google Maps URL. Handles @lat,lng and ?q=lat,lng. Short links (goo.gl) need to be opened to get the full URL. */
 function extractCoordsFromMapsUrl(url) {
@@ -18,6 +19,33 @@ function extractCoordsFromMapsUrl(url) {
   const qMatch = url.match(/[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (qMatch) return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
   return null;
+}
+
+function normalizePartnerTier(tierValue) {
+  return String(tierValue || 'bronze').trim().toLowerCase();
+}
+
+function createDefaultEnterpriseCampaignForm() {
+  return {
+    name: '',
+    description: '',
+    campaign_type: 'Growth Boost',
+    start_at: '',
+    end_at: '',
+    status: 'draft',
+    target_tiers: [],
+    target_categories: [],
+    geo_filter: {},
+    user_segment: {},
+    rule_json: {
+      trigger: { event: '', conditions: [] },
+      action: { type: '', params: {} },
+    },
+    budget_limit: null,
+    priority_weight: 0,
+    auto_expiry: false,
+    activateAfterSave: false,
+  };
 }
 
 /* ------------------ Small presentational components ------------------ */
@@ -156,6 +184,22 @@ export default function PartnerConsole() {
   const [campaignForm, setCampaignForm] = useState({ title: '', body: '', segment_filter: null });
   const [campaignEditId, setCampaignEditId] = useState(null);
   const [sendingCampaignId, setSendingCampaignId] = useState(null);
+  const [campaignWorkflowType, setCampaignWorkflowType] = useState('legacy');
+  const [campaignAccessLoading, setCampaignAccessLoading] = useState(false);
+  const [campaignTier, setCampaignTier] = useState('bronze');
+  const [enterpriseCampaignSchema, setEnterpriseCampaignSchema] = useState(null);
+  const [enterpriseCampaigns, setEnterpriseCampaigns] = useState([]);
+  const [enterpriseCampaignTotal, setEnterpriseCampaignTotal] = useState(0);
+  const [enterpriseCampaignLoading, setEnterpriseCampaignLoading] = useState(false);
+  const [enterpriseCampaignSearch, setEnterpriseCampaignSearch] = useState('');
+  const [enterpriseCampaignStatusFilter, setEnterpriseCampaignStatusFilter] = useState('');
+  const [enterpriseCampaignPage, setEnterpriseCampaignPage] = useState(0);
+  const [enterpriseCampaignWizardOpen, setEnterpriseCampaignWizardOpen] = useState(false);
+  const [enterpriseCampaignWizardStep, setEnterpriseCampaignWizardStep] = useState(1);
+  const [enterpriseCampaignEditingId, setEnterpriseCampaignEditingId] = useState(null);
+  const [enterpriseCampaignForm, setEnterpriseCampaignForm] = useState(createDefaultEnterpriseCampaignForm());
+  const [enterpriseCampaignSaving, setEnterpriseCampaignSaving] = useState(false);
+  const [enterpriseCampaignActionId, setEnterpriseCampaignActionId] = useState('');
 
   const [serviceTypes, setServiceTypes] = useState([]);
   const [serviceCategories, setServiceCategories] = useState([]);
@@ -237,6 +281,7 @@ export default function PartnerConsole() {
 
   useEffect(() => {
     if (partner && partner.id) {
+      setCampaignTier(normalizePartnerTier(partner.partner_tier));
       loadDashboard();
       loadMenuItems();
       loadOffers();
@@ -396,6 +441,82 @@ export default function PartnerConsole() {
       const j = await r.json();
       if (j.success) setCampaigns(j.data || []);
     } catch (e) { console.error(e); }
+  }
+
+  async function loadEnterpriseCampaigns({
+    page = enterpriseCampaignPage,
+    search = enterpriseCampaignSearch,
+    status = enterpriseCampaignStatusFilter,
+  } = {}) {
+    if (!partner) return;
+    setEnterpriseCampaignLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', String(ENTERPRISE_CAMPAIGN_LIMIT));
+      params.set('offset', String(Math.max(0, page) * ENTERPRISE_CAMPAIGN_LIMIT));
+      if ((search || '').trim()) params.set('search', search.trim());
+      if (status) params.set('status', status);
+
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/enterprise-campaigns?${params.toString()}`, { headers: headers() });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.success) {
+        setEnterpriseCampaigns(j.data?.campaigns || []);
+        setEnterpriseCampaignTotal(j.data?.total || 0);
+        if (j.data?.tier) setCampaignTier(normalizePartnerTier(j.data.tier));
+      } else {
+        setEnterpriseCampaigns([]);
+        setEnterpriseCampaignTotal(0);
+        if (r.status !== 403) {
+          showNotification(j.message || j.error || 'Failed to load campaigns', 'error');
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      setEnterpriseCampaigns([]);
+      setEnterpriseCampaignTotal(0);
+      showNotification('Failed to load campaigns', 'error');
+    } finally {
+      setEnterpriseCampaignLoading(false);
+    }
+  }
+
+  async function loadCampaignHub() {
+    if (!partner) return;
+    setCampaignAccessLoading(true);
+    try {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/enterprise-campaigns/schema`, { headers: headers() });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.success && j.data) {
+        setCampaignWorkflowType('enterprise');
+        setCampaignTier(normalizePartnerTier(j.data.tier || partner?.partner_tier));
+        setEnterpriseCampaignSchema(j.data);
+        setEnterpriseCampaignPage(0);
+        await loadEnterpriseCampaigns({ page: 0, search: enterpriseCampaignSearch, status: enterpriseCampaignStatusFilter });
+      } else {
+        setCampaignWorkflowType('legacy');
+        setEnterpriseCampaignSchema(null);
+        setEnterpriseCampaigns([]);
+        setEnterpriseCampaignTotal(0);
+        await loadCampaigns();
+      }
+    } catch (e) {
+      console.error(e);
+      setCampaignWorkflowType('legacy');
+      setEnterpriseCampaignSchema(null);
+      setEnterpriseCampaigns([]);
+      setEnterpriseCampaignTotal(0);
+      await loadCampaigns();
+    } finally {
+      setCampaignAccessLoading(false);
+    }
+  }
+
+  async function refreshCampaignSection() {
+    if (campaignWorkflowType === 'enterprise') {
+      await loadEnterpriseCampaigns();
+      return;
+    }
+    await loadCampaigns();
   }
 
   async function loadGuests() {
@@ -706,7 +827,7 @@ export default function PartnerConsole() {
     // lazy load
     if (section === 'menu') { loadMenuItems(); loadMenuPhotos(); }
     if (section === 'offers') loadOffers();
-    if (section === 'campaigns') loadCampaigns();
+    if (section === 'campaigns') loadCampaignHub();
     if (section === 'guests') loadGuests();
     if (section === 'tiers') { /* Partner tier comes from partner object */ }
     if (section === 'messages') loadConversations();
@@ -1235,20 +1356,36 @@ export default function PartnerConsole() {
     setShowCampaignModal(true);
   }
 
+  function parseSegmentFilterInput(rawValue) {
+    const text = (rawValue ?? '').trim();
+    if (!text) return { ok: true, value: null };
+    const lowered = text.toLowerCase();
+    // Accept common placeholders as "blank" to reduce form friction.
+    if (['nil', 'null', 'none', 'na', 'n/a'].includes(lowered)) {
+      return { ok: true, value: null };
+    }
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed === null) return { ok: true, value: null };
+      if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return { ok: false, value: null };
+      }
+      return { ok: true, value: parsed };
+    } catch (_) {
+      return { ok: false, value: null };
+    }
+  }
+
   async function saveCampaign(e) {
     e.preventDefault();
     if (!partner) return;
     const payload = { title: campaignForm.title.trim(), body: campaignForm.body.trim() };
-    let segment_filter = null;
-    if (campaignForm.segment_filter && campaignForm.segment_filter.trim()) {
-      try {
-        segment_filter = JSON.parse(campaignForm.segment_filter);
-      } catch (_) {
-        showNotification('Invalid JSON in segment filter', 'error');
-        return;
-      }
+    const parsedFilter = parseSegmentFilterInput(campaignForm.segment_filter);
+    if (!parsedFilter.ok) {
+      showNotification('Could not read the audience rule. Leave it blank, or use the example format.', 'error');
+      return;
     }
-    payload.segment_filter = segment_filter;
+    payload.segment_filter = parsedFilter.value;
     try {
       const url = campaignEditId
         ? `${API_BASE}/api/v1/partners/${partner.id}/campaigns/${campaignEditId}`
@@ -1294,13 +1431,198 @@ export default function PartnerConsole() {
     }
   }
 
-  function CampaignsSection() {
+  async function openEnterpriseCampaignWizard(campaignId = null) {
+    if (!partner) return;
+    const tier = normalizePartnerTier(campaignTier || partner?.partner_tier);
+    if (tier === 'bronze') {
+      showNotification('Campaign creation is available for Gold tier partners.', 'error');
+      return;
+    }
+
+    setEnterpriseCampaignEditingId(campaignId);
+    setEnterpriseCampaignWizardStep(1);
+    setEnterpriseCampaignForm(createDefaultEnterpriseCampaignForm());
+
+    if (!campaignId) {
+      setEnterpriseCampaignWizardOpen(true);
+      return;
+    }
+
+    setEnterpriseCampaignSaving(true);
+    try {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/enterprise-campaigns/${campaignId}`, { headers: headers() });
+      const j = await r.json().catch(() => ({}));
+      if (!(r.ok && j.success && j.data?.campaign)) {
+        showNotification(j.message || j.error || 'Failed to load campaign', 'error');
+        return;
+      }
+      const c = j.data.campaign;
+      const rule = c.rules?.[0]?.rule_json || c.growth_rule || {};
+      const trigger = rule.trigger || {};
+      const action = rule.action || {};
+      setEnterpriseCampaignForm({
+        name: c.name || '',
+        description: c.description || '',
+        campaign_type: c.campaign_type || 'Growth Boost',
+        start_at: c.start_at ? c.start_at.slice(0, 10) : (c.start_date ? String(c.start_date).slice(0, 10) : ''),
+        end_at: c.end_at ? c.end_at.slice(0, 10) : (c.end_date ? String(c.end_date).slice(0, 10) : ''),
+        status: c.status || 'draft',
+        target_tiers: Array.isArray(c.target_tiers) ? c.target_tiers : [],
+        target_categories: Array.isArray(c.target_categories) ? c.target_categories : [],
+        geo_filter: c.geo_filter && typeof c.geo_filter === 'object' ? c.geo_filter : {},
+        user_segment: c.user_segment && typeof c.user_segment === 'object' ? c.user_segment : {},
+        rule_json: {
+          trigger: {
+            event: trigger.event || '',
+            conditions: Array.isArray(trigger.conditions) ? trigger.conditions : [],
+          },
+          action: {
+            type: action.type || '',
+            params: action.params || {},
+          },
+        },
+        budget_limit: c.budget_limit != null ? Number(c.budget_limit) : null,
+        priority_weight: c.priority_weight ?? 0,
+        auto_expiry: !!c.auto_expiry,
+        activateAfterSave: false,
+      });
+      setEnterpriseCampaignWizardOpen(true);
+    } catch (err) {
+      showNotification('Failed to load campaign', 'error');
+    } finally {
+      setEnterpriseCampaignSaving(false);
+    }
+  }
+
+  async function saveEnterpriseCampaign() {
+    if (!partner) return;
+    const tier = normalizePartnerTier(campaignTier || partner?.partner_tier);
+    if (tier === 'bronze') {
+      showNotification('Bronze partners do not have campaign creation access.', 'error');
+      return;
+    }
+    if (!enterpriseCampaignForm.name?.trim()) {
+      showNotification('Campaign name is required', 'error');
+      return;
+    }
+
+    setEnterpriseCampaignSaving(true);
+    try {
+      const startAt = enterpriseCampaignForm.start_at
+        ? new Date(`${enterpriseCampaignForm.start_at}T00:00:00Z`).toISOString()
+        : new Date().toISOString();
+      const endAt = enterpriseCampaignForm.end_at
+        ? new Date(`${enterpriseCampaignForm.end_at}T23:59:59Z`).toISOString()
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      if (new Date(endAt).getTime() < new Date(startAt).getTime()) {
+        showNotification('End date cannot be earlier than start date', 'error');
+        return;
+      }
+
+      const rule = enterpriseCampaignForm.rule_json || {};
+      const hasRule =
+        !!rule?.trigger?.event ||
+        !!rule?.action?.type ||
+        (Array.isArray(rule?.trigger?.conditions) && rule.trigger.conditions.length > 0);
+      const rulePayload = hasRule
+        ? {
+            trigger: {
+              event: rule.trigger?.event || null,
+              conditions: Array.isArray(rule.trigger?.conditions) ? rule.trigger.conditions : [],
+            },
+            action: {
+              type: rule.action?.type || null,
+              params: rule.action?.params || {},
+            },
+          }
+        : undefined;
+
+      const payload = {
+        name: enterpriseCampaignForm.name.trim(),
+        description: enterpriseCampaignForm.description?.trim() || null,
+        campaign_type: enterpriseCampaignForm.campaign_type || null,
+        start_at: startAt,
+        end_at: endAt,
+        status: tier === 'gold'
+          ? ((!enterpriseCampaignEditingId && enterpriseCampaignForm.activateAfterSave) ? 'active' : (enterpriseCampaignForm.status || 'draft'))
+          : 'draft',
+        target_tiers: enterpriseCampaignForm.target_tiers || [],
+        target_categories: enterpriseCampaignForm.target_categories || [],
+        geo_filter: enterpriseCampaignForm.geo_filter && (enterpriseCampaignForm.geo_filter.city || enterpriseCampaignForm.geo_filter.sector)
+          ? enterpriseCampaignForm.geo_filter
+          : {},
+        user_segment: enterpriseCampaignForm.user_segment && typeof enterpriseCampaignForm.user_segment === 'object'
+          ? enterpriseCampaignForm.user_segment
+          : {},
+        rule_json: rulePayload,
+        budget_limit: enterpriseCampaignForm.budget_limit != null ? enterpriseCampaignForm.budget_limit : null,
+        priority_weight: enterpriseCampaignForm.priority_weight ?? 0,
+        auto_expiry: !!enterpriseCampaignForm.auto_expiry,
+      };
+
+      const url = enterpriseCampaignEditingId
+        ? `${API_BASE}/api/v1/partners/${partner.id}/enterprise-campaigns/${enterpriseCampaignEditingId}`
+        : `${API_BASE}/api/v1/partners/${partner.id}/enterprise-campaigns`;
+      const r = await authFetch(url, {
+        method: enterpriseCampaignEditingId ? 'PUT' : 'POST',
+        headers: headers(),
+        body: JSON.stringify(payload),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.success) {
+        setEnterpriseCampaignWizardOpen(false);
+        setEnterpriseCampaignEditingId(null);
+        setEnterpriseCampaignWizardStep(1);
+        setEnterpriseCampaignForm(createDefaultEnterpriseCampaignForm());
+        await loadEnterpriseCampaigns({ page: enterpriseCampaignPage, search: enterpriseCampaignSearch, status: enterpriseCampaignStatusFilter });
+        showNotification(j.message || (tier === 'silver'
+          ? 'Campaign request submitted for admin review'
+          : enterpriseCampaignEditingId ? 'Campaign updated' : 'Campaign created'));
+      } else {
+        showNotification(j.message || j.error || 'Failed to save campaign', 'error');
+      }
+    } catch (err) {
+      showNotification('Failed to save campaign', 'error');
+    } finally {
+      setEnterpriseCampaignSaving(false);
+    }
+  }
+
+  async function changeEnterpriseCampaignStatus(campaignId, action) {
+    if (!partner || !campaignId || !action) return;
+    const tier = normalizePartnerTier(campaignTier || partner?.partner_tier);
+    if (tier !== 'gold') {
+      showNotification('Only Gold partners can activate or pause campaigns directly.', 'error');
+      return;
+    }
+    setEnterpriseCampaignActionId(`${action}:${campaignId}`);
+    try {
+      const r = await authFetch(
+        `${API_BASE}/api/v1/partners/${partner.id}/enterprise-campaigns/${campaignId}/${action}`,
+        { method: 'POST', headers: headers() }
+      );
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.success) {
+        await loadEnterpriseCampaigns({ page: enterpriseCampaignPage, search: enterpriseCampaignSearch, status: enterpriseCampaignStatusFilter });
+        showNotification(action === 'pause' ? 'Campaign paused' : 'Campaign activated');
+      } else {
+        showNotification(j.message || j.error || 'Status update failed', 'error');
+      }
+    } catch (err) {
+      showNotification('Status update failed', 'error');
+    } finally {
+      setEnterpriseCampaignActionId('');
+    }
+  }
+
+  function LegacyCampaignsSection() {
     return (
       <div>
         <div className="pc-content-header">
           <h1>Notification Campaigns</h1>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <button className="btn btn-primary" onClick={loadCampaigns}>Refresh</button>
+            <button className="btn btn-primary" onClick={refreshCampaignSection}>Refresh</button>
             <button className="btn btn-primary" onClick={openAddCampaign}>New campaign</button>
           </div>
         </div>
@@ -1332,6 +1654,209 @@ export default function PartnerConsole() {
         </div>
       </div>
     );
+  }
+
+  function EnterpriseCampaignsSection() {
+    const tier = normalizePartnerTier(campaignTier || partner?.partner_tier);
+    const isBronze = tier === 'bronze';
+    const isSilver = tier === 'silver';
+    const isGold = tier === 'gold';
+    const startIdx = enterpriseCampaignTotal === 0 ? 0 : enterpriseCampaignPage * ENTERPRISE_CAMPAIGN_LIMIT + 1;
+    const endIdx = Math.min((enterpriseCampaignPage + 1) * ENTERPRISE_CAMPAIGN_LIMIT, enterpriseCampaignTotal);
+
+    const statusBadgeClass = (status) => {
+      if (status === 'active') return 'success';
+      if (status === 'paused' || status === 'scheduled') return 'warning';
+      if (status === 'expired') return 'error';
+      return 'default';
+    };
+
+    return (
+      <div>
+        <div className="pc-content-header">
+          <h1>{isSilver ? 'Campaign Requests' : 'Campaign Manager'}</h1>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <input
+              className="pc-form-input"
+              style={{ width: 220 }}
+              placeholder="Search campaigns..."
+              value={enterpriseCampaignSearch}
+              onChange={(e) => setEnterpriseCampaignSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setEnterpriseCampaignPage(0);
+                  loadEnterpriseCampaigns({ page: 0, search: enterpriseCampaignSearch, status: enterpriseCampaignStatusFilter });
+                }
+              }}
+            />
+            <select
+              className="pc-form-input"
+              style={{ width: 140 }}
+              value={enterpriseCampaignStatusFilter}
+              onChange={(e) => {
+                const value = e.target.value;
+                setEnterpriseCampaignStatusFilter(value);
+                setEnterpriseCampaignPage(0);
+                loadEnterpriseCampaigns({ page: 0, search: enterpriseCampaignSearch, status: value });
+              }}
+            >
+              <option value="">All status</option>
+              <option value="draft">Draft</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="active">Active</option>
+              <option value="paused">Paused</option>
+              <option value="expired">Expired</option>
+            </select>
+            <button className="btn btn-secondary" onClick={() => { setEnterpriseCampaignPage(0); loadEnterpriseCampaigns({ page: 0, search: enterpriseCampaignSearch, status: enterpriseCampaignStatusFilter }); }}>Search</button>
+            <button className="btn btn-primary" onClick={() => loadCampaignHub()}>Refresh</button>
+            {!isBronze && (
+              <button className="btn btn-primary" onClick={() => openEnterpriseCampaignWizard(null)}>
+                {isSilver ? 'New request' : 'New campaign'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {isBronze ? (
+          <div className="pc-table-container">
+            <div style={{ padding: 24 }}>
+              <h3 style={{ marginTop: 0, marginBottom: 8 }}>Campaign creation is not available for Bronze partners</h3>
+              <p style={{ margin: 0, color: '#666' }}>
+                Upgrade to Gold tier for full campaign workflow access. Silver partners can submit requests to Admin.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p style={{ color: '#666', marginBottom: 16 }}>
+              {isSilver
+                ? 'Silver partners can draft campaign requests. Admin reviews and activates approved campaigns.'
+                : 'Gold partners can create, activate, pause, and manage campaigns directly.'}
+            </p>
+            <div className="pc-table-container">
+              {enterpriseCampaignLoading ? (
+                <div style={{ padding: 36, textAlign: 'center', color: '#666' }}>Loading campaigns...</div>
+              ) : (
+                <>
+                  <table className="pc-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Start</th>
+                        <th>End</th>
+                        <th>Target tiers</th>
+                        {isSilver && <th>Admin review</th>}
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {enterpriseCampaigns.length === 0 ? (
+                        <tr>
+                          <td colSpan={isSilver ? 8 : 7} style={{ textAlign: 'center', padding: 28 }}>
+                            {isSilver ? 'No campaign requests yet.' : 'No campaigns yet.'}
+                          </td>
+                        </tr>
+                      ) : enterpriseCampaigns.map((c) => {
+                        const status = c.status || (c.is_active ? 'active' : 'draft');
+                        const requestStatus = c.user_segment?.__partner_context?.request_status || null;
+                        const busyPause = enterpriseCampaignActionId === `pause:${c.id}`;
+                        const busyActivate = enterpriseCampaignActionId === `activate:${c.id}`;
+                        return (
+                          <tr key={c.id}>
+                            <td style={{ fontWeight: 600 }}>{c.name || '—'}</td>
+                            <td>{c.campaign_type || '—'}</td>
+                            <td>
+                              <span className={`pc-badge pc-badge-${statusBadgeClass(status)}`}>
+                                {status}
+                              </span>
+                            </td>
+                            <td>{(c.start_at || c.start_date) ? new Date(c.start_at || c.start_date).toLocaleDateString() : '—'}</td>
+                            <td>{(c.end_at || c.end_date) ? new Date(c.end_at || c.end_date).toLocaleDateString() : '—'}</td>
+                            <td>{Array.isArray(c.target_tiers) && c.target_tiers.length > 0 ? c.target_tiers.join(', ') : 'All'}</td>
+                            {isSilver && <td>{requestStatus ? String(requestStatus).replace(/_/g, ' ') : 'pending admin review'}</td>}
+                            <td>
+                              <div className="pc-actions">
+                                <button className="btn btn-sm btn-secondary" onClick={() => openEnterpriseCampaignWizard(c.id)}>Edit</button>
+                                {isGold && status === 'active' && (
+                                  <button
+                                    className="btn btn-sm btn-secondary"
+                                    onClick={() => changeEnterpriseCampaignStatus(c.id, 'pause')}
+                                    disabled={busyPause || busyActivate}
+                                  >
+                                    {busyPause ? 'Pausing…' : 'Pause'}
+                                  </button>
+                                )}
+                                {isGold && status !== 'active' && status !== 'expired' && (
+                                  <button
+                                    className="btn btn-sm btn-primary"
+                                    onClick={() => changeEnterpriseCampaignStatus(c.id, 'activate')}
+                                    disabled={busyPause || busyActivate}
+                                  >
+                                    {busyActivate ? 'Activating…' : 'Activate'}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {enterpriseCampaignTotal > ENTERPRISE_CAMPAIGN_LIMIT && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                      <span style={{ color: '#666', fontSize: '0.9rem' }}>
+                        {startIdx}–{endIdx} of {enterpriseCampaignTotal}
+                      </span>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          className="btn btn-secondary"
+                          disabled={enterpriseCampaignPage === 0}
+                          onClick={() => {
+                            const nextPage = Math.max(0, enterpriseCampaignPage - 1);
+                            setEnterpriseCampaignPage(nextPage);
+                            loadEnterpriseCampaigns({ page: nextPage, search: enterpriseCampaignSearch, status: enterpriseCampaignStatusFilter });
+                          }}
+                        >
+                          Previous
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          disabled={(enterpriseCampaignPage + 1) * ENTERPRISE_CAMPAIGN_LIMIT >= enterpriseCampaignTotal}
+                          onClick={() => {
+                            const nextPage = enterpriseCampaignPage + 1;
+                            setEnterpriseCampaignPage(nextPage);
+                            loadEnterpriseCampaigns({ page: nextPage, search: enterpriseCampaignSearch, status: enterpriseCampaignStatusFilter });
+                          }}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  function CampaignsSection() {
+    if (campaignAccessLoading) {
+      return (
+        <div className="pc-table-container">
+          <div style={{ padding: 28, textAlign: 'center', color: '#666' }}>Loading campaign access...</div>
+        </div>
+      );
+    }
+    if (campaignWorkflowType === 'enterprise') {
+      return <EnterpriseCampaignsSection />;
+    }
+    return <LegacyCampaignsSection />;
   }
 
   function GuestsSection() {
@@ -2432,18 +2957,331 @@ export default function PartnerConsole() {
         </form>
       </Modal>
 
-      {/* Campaign modal */}
-      <Modal id="campaignModal" title={campaignEditId ? 'Edit campaign' : 'New campaign'} show={showCampaignModal} onClose={() => setShowCampaignModal(false)} width={560}>
-        <form onSubmit={saveCampaign}>
-          <div className="pc-form-group"><label>Title *</label><input className="pc-form-input" required value={campaignForm.title} onChange={e => setCampaignForm({ ...campaignForm, title: e.target.value })} placeholder="e.g. Weekend special" /></div>
-          <div className="pc-form-group"><label>Message body *</label><textarea className="pc-form-input" required rows={4} value={campaignForm.body} onChange={e => setCampaignForm({ ...campaignForm, body: e.target.value })} placeholder="Your message to guests..." /></div>
-          <div className="pc-form-group"><label>Segment filter (optional JSON)</label><textarea className="pc-form-input" rows={2} value={typeof campaignForm.segment_filter === 'string' ? campaignForm.segment_filter : (campaignForm.segment_filter ? JSON.stringify(campaignForm.segment_filter, null, 2) : '')} onChange={e => setCampaignForm({ ...campaignForm, segment_filter: e.target.value })} placeholder='e.g. {"min_visits": 2}' /></div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-            <button type="button" className="btn btn-secondary" onClick={() => setShowCampaignModal(false)}>Cancel</button>
-            <button type="submit" className="btn btn-primary">{campaignEditId ? 'Update' : 'Create draft'}</button>
+      {/* Enterprise campaign wizard */}
+      {enterpriseCampaignWizardOpen && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={() => !enterpriseCampaignSaving && setEnterpriseCampaignWizardOpen(false)}
+        >
+          <div
+            style={{ background: '#1f2937', borderRadius: 12, maxWidth: 560, width: '100%', maxHeight: '90vh', overflow: 'auto', padding: 24 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 8px' }}>
+              {enterpriseCampaignEditingId ? 'Edit campaign' : normalizePartnerTier(campaignTier) === 'silver' ? 'New campaign request' : 'New campaign'}
+            </h3>
+            <p style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: 16 }}>Step {enterpriseCampaignWizardStep} of 5</p>
+
+            {enterpriseCampaignWizardStep === 1 && (
+              <>
+                <div className="pc-form-group" style={{ marginBottom: 12 }}>
+                  <label className="pc-form-label">Name</label>
+                  <input
+                    className="pc-form-input"
+                    value={enterpriseCampaignForm.name}
+                    onChange={(e) => setEnterpriseCampaignForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="Campaign name"
+                  />
+                </div>
+                <div className="pc-form-group" style={{ marginBottom: 12 }}>
+                  <label className="pc-form-label">Description</label>
+                  <textarea
+                    className="pc-form-input"
+                    rows={2}
+                    value={enterpriseCampaignForm.description}
+                    onChange={(e) => setEnterpriseCampaignForm((f) => ({ ...f, description: e.target.value }))}
+                    placeholder="Optional"
+                  />
+                </div>
+                <div className="pc-form-group" style={{ marginBottom: 12 }}>
+                  <label className="pc-form-label">Type</label>
+                  <select
+                    className="pc-form-input"
+                    value={enterpriseCampaignForm.campaign_type}
+                    onChange={(e) => setEnterpriseCampaignForm((f) => ({ ...f, campaign_type: e.target.value }))}
+                  >
+                    <option value="Seasonal">Seasonal</option>
+                    <option value="Tier Exclusive">Tier Exclusive</option>
+                    <option value="Geographic">Geographic</option>
+                    <option value="Growth Boost">Growth Boost</option>
+                    <option value="Experimental">Experimental</option>
+                  </select>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div className="pc-form-group">
+                    <label className="pc-form-label">Start date</label>
+                    <input
+                      type="date"
+                      className="pc-form-input"
+                      value={enterpriseCampaignForm.start_at || ''}
+                      onChange={(e) => setEnterpriseCampaignForm((f) => ({ ...f, start_at: e.target.value || '' }))}
+                    />
+                  </div>
+                  <div className="pc-form-group">
+                    <label className="pc-form-label">End date</label>
+                    <input
+                      type="date"
+                      className="pc-form-input"
+                      value={enterpriseCampaignForm.end_at || ''}
+                      onChange={(e) => setEnterpriseCampaignForm((f) => ({ ...f, end_at: e.target.value || '' }))}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {enterpriseCampaignWizardStep === 2 && (
+              <>
+                <div className="pc-form-group" style={{ marginBottom: 12 }}>
+                  <label className="pc-form-label">Target tiers</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {(enterpriseCampaignSchema?.target_tiers || ['Ather', 'Nova', 'Luminar', 'Valiant', 'Echelon']).map((t) => (
+                      <label key={t} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={(enterpriseCampaignForm.target_tiers || []).includes(t)}
+                          onChange={(e) => setEnterpriseCampaignForm((f) => ({
+                            ...f,
+                            target_tiers: e.target.checked
+                              ? [...(f.target_tiers || []), t]
+                              : (f.target_tiers || []).filter((x) => x !== t),
+                          }))}
+                        />
+                        <span>{t}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="pc-form-group" style={{ marginBottom: 12 }}>
+                  <label className="pc-form-label">Target categories</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {(enterpriseCampaignSchema?.target_categories || ['Dining', 'Spa', 'Events', 'Travel', 'Healthcare', 'Others']).map((cat) => (
+                      <label key={cat} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={(enterpriseCampaignForm.target_categories || []).includes(cat)}
+                          onChange={(e) => setEnterpriseCampaignForm((f) => ({
+                            ...f,
+                            target_categories: e.target.checked
+                              ? [...(f.target_categories || []), cat]
+                              : (f.target_categories || []).filter((x) => x !== cat),
+                          }))}
+                        />
+                        <span>{cat}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div className="pc-form-group">
+                    <label className="pc-form-label">Geo: City</label>
+                    <input
+                      className="pc-form-input"
+                      value={enterpriseCampaignForm.geo_filter?.city || ''}
+                      onChange={(e) => setEnterpriseCampaignForm((f) => ({ ...f, geo_filter: { ...(f.geo_filter || {}), city: e.target.value || undefined } }))}
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div className="pc-form-group">
+                    <label className="pc-form-label">Sector</label>
+                    <input
+                      className="pc-form-input"
+                      value={enterpriseCampaignForm.geo_filter?.sector || ''}
+                      onChange={(e) => setEnterpriseCampaignForm((f) => ({ ...f, geo_filter: { ...(f.geo_filter || {}), sector: e.target.value || undefined } }))}
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
+                <div className="pc-form-group" style={{ marginBottom: 12 }}>
+                  <label className="pc-form-label">User segment</label>
+                  <select
+                    className="pc-form-input"
+                    value={enterpriseCampaignForm.user_segment?.segment || ''}
+                    onChange={(e) => setEnterpriseCampaignForm((f) => ({ ...f, user_segment: { ...(f.user_segment || {}), segment: e.target.value || undefined } }))}
+                  >
+                    <option value="">Any</option>
+                    {(enterpriseCampaignSchema?.user_segments || ['new', 'dormant', 'high_value', 'low_engagement']).map((s) => (
+                      <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {enterpriseCampaignWizardStep === 3 && (
+              <>
+                <div className="pc-form-group" style={{ marginBottom: 12 }}>
+                  <label className="pc-form-label">IF event</label>
+                  <select
+                    className="pc-form-input"
+                    value={enterpriseCampaignForm.rule_json?.trigger?.event || ''}
+                    onChange={(e) => setEnterpriseCampaignForm((f) => ({
+                      ...f,
+                      rule_json: {
+                        ...(f.rule_json || {}),
+                        trigger: { ...(f.rule_json?.trigger || {}), event: e.target.value },
+                        action: f.rule_json?.action || {},
+                      },
+                    }))}
+                  >
+                    <option value="">— Select —</option>
+                    {(enterpriseCampaignSchema?.event_types || []).map((ev) => (
+                      <option key={ev} value={ev}>{ev}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="pc-form-group" style={{ marginBottom: 12 }}>
+                  <label className="pc-form-label">THEN action</label>
+                  <select
+                    className="pc-form-input"
+                    value={enterpriseCampaignForm.rule_json?.action?.type || ''}
+                    onChange={(e) => setEnterpriseCampaignForm((f) => ({
+                      ...f,
+                      rule_json: {
+                        ...(f.rule_json || {}),
+                        action: { type: e.target.value, params: f.rule_json?.action?.params || {} },
+                      },
+                    }))}
+                  >
+                    <option value="">— Select —</option>
+                    {(enterpriseCampaignSchema?.action_types || []).map((ac) => (
+                      <option key={ac} value={ac}>{ac.replace(/_/g, ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+                <p style={{ color: '#9ca3af', fontSize: '0.8rem' }}>Advanced conditions can be added via API as JSON.</p>
+              </>
+            )}
+
+            {enterpriseCampaignWizardStep === 4 && (
+              <>
+                <div className="pc-form-group" style={{ marginBottom: 12 }}>
+                  <label className="pc-form-label">Budget cap (₹)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={100}
+                    className="pc-form-input"
+                    value={enterpriseCampaignForm.budget_limit ?? ''}
+                    onChange={(e) => setEnterpriseCampaignForm((f) => ({ ...f, budget_limit: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) }))}
+                    placeholder="Leave empty for no limit"
+                  />
+                </div>
+                <div className="pc-form-group" style={{ marginBottom: 12 }}>
+                  <label className="pc-form-label">Priority weight</label>
+                  <input
+                    type="number"
+                    min={0}
+                    className="pc-form-input"
+                    value={enterpriseCampaignForm.priority_weight ?? 0}
+                    onChange={(e) => setEnterpriseCampaignForm((f) => ({ ...f, priority_weight: Math.max(0, Number(e.target.value) || 0) }))}
+                  />
+                </div>
+                <div className="pc-form-group" style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!enterpriseCampaignForm.auto_expiry}
+                      onChange={(e) => setEnterpriseCampaignForm((f) => ({ ...f, auto_expiry: e.target.checked }))}
+                    />
+                    <span>Auto-expiry (respect end date)</span>
+                  </label>
+                </div>
+              </>
+            )}
+
+            {enterpriseCampaignWizardStep === 5 && (
+              <>
+                <div style={{ padding: 12, background: '#111827', borderRadius: 8, marginBottom: 16 }}>
+                  <div style={{ marginBottom: 8 }}><strong>{enterpriseCampaignForm.name || 'Unnamed'}</strong> — {enterpriseCampaignForm.campaign_type}</div>
+                  <div style={{ fontSize: '0.85rem', color: '#9ca3af' }}>
+                    Tiers: {(enterpriseCampaignForm.target_tiers || []).length ? enterpriseCampaignForm.target_tiers.join(', ') : 'All'} · Categories: {(enterpriseCampaignForm.target_categories || []).length ? enterpriseCampaignForm.target_categories.join(', ') : 'Any'}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#9ca3af', marginTop: 4 }}>
+                    Rule: IF {enterpriseCampaignForm.rule_json?.trigger?.event || '—'} THEN {enterpriseCampaignForm.rule_json?.action?.type || '—'}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#9ca3af', marginTop: 4 }}>
+                    Budget: {enterpriseCampaignForm.budget_limit != null ? `₹${Number(enterpriseCampaignForm.budget_limit).toLocaleString()}` : 'No limit'} · Priority: {enterpriseCampaignForm.priority_weight ?? 0}
+                  </div>
+                </div>
+                {!enterpriseCampaignEditingId && normalizePartnerTier(campaignTier) === 'gold' && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={enterpriseCampaignForm.activateAfterSave}
+                      onChange={(e) => setEnterpriseCampaignForm((f) => ({ ...f, activateAfterSave: e.target.checked }))}
+                    />
+                    <span>Activate campaign after save</span>
+                  </label>
+                )}
+                {normalizePartnerTier(campaignTier) === 'silver' && (
+                  <p style={{ color: '#fbbf24', fontSize: '0.85rem', marginBottom: 0 }}>
+                    This will be submitted to Admin for review and approval.
+                  </p>
+                )}
+              </>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 16 }}>
+              <div>
+                {enterpriseCampaignWizardStep > 1 && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={enterpriseCampaignSaving}
+                    onClick={() => setEnterpriseCampaignWizardStep((s) => s - 1)}
+                  >
+                    Back
+                  </button>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {enterpriseCampaignWizardStep < 5 ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={enterpriseCampaignWizardStep === 1 && !enterpriseCampaignForm.name.trim()}
+                    onClick={() => setEnterpriseCampaignWizardStep((s) => s + 1)}
+                  >
+                    Next
+                  </button>
+                ) : (
+                  <>
+                    <button type="button" className="btn btn-secondary" disabled={enterpriseCampaignSaving} onClick={() => setEnterpriseCampaignWizardOpen(false)}>Cancel</button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={enterpriseCampaignSaving || !enterpriseCampaignForm.name.trim()}
+                      onClick={saveEnterpriseCampaign}
+                    >
+                      {enterpriseCampaignSaving ? 'Saving...' : enterpriseCampaignEditingId ? 'Update' : normalizePartnerTier(campaignTier) === 'silver' ? 'Submit request' : 'Save campaign'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
-        </form>
-      </Modal>
+        </div>
+      )}
+
+      {/* Legacy campaign modal */}
+      {campaignWorkflowType === 'legacy' && (
+        <Modal id="campaignModal" title={campaignEditId ? 'Edit campaign' : 'New campaign'} show={showCampaignModal} onClose={() => setShowCampaignModal(false)} width={560}>
+          <form onSubmit={saveCampaign}>
+            <div className="pc-form-group"><label>Title *</label><input className="pc-form-input" required value={campaignForm.title} onChange={e => setCampaignForm({ ...campaignForm, title: e.target.value })} placeholder="e.g. Weekend special" /></div>
+            <div className="pc-form-group"><label>Message body *</label><textarea className="pc-form-input" required rows={4} value={campaignForm.body} onChange={e => setCampaignForm({ ...campaignForm, body: e.target.value })} placeholder="Your message to guests..." /></div>
+            <div className="pc-form-group">
+              <label>Who should receive this message? (optional)</label>
+              <textarea className="pc-form-input" rows={2} value={typeof campaignForm.segment_filter === 'string' ? campaignForm.segment_filter : (campaignForm.segment_filter ? JSON.stringify(campaignForm.segment_filter, null, 2) : '')} onChange={e => setCampaignForm({ ...campaignForm, segment_filter: e.target.value })} placeholder='Leave blank to send to all guests. Example: {"min_visits": 2}' />
+              <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#6b7280' }}>Leave this empty to send to everyone. Only use the example format if you want to target a specific group.</p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowCampaignModal(false)}>Cancel</button>
+              <button type="submit" className="btn btn-primary">{campaignEditId ? 'Update' : 'Create draft'}</button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* Guest profile modal */}
       <Modal id="guestModal" title="Guest profile" show={showGuestModal} onClose={() => { setShowGuestModal(false); setGuestProfile(null); }} width={600}>

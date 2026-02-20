@@ -207,6 +207,7 @@ app.use('/api/v1/partners', partnerRoutes);
 // In-app messaging (conversations)
 const conversationRoutes = require('./routes/conversationRoutes');
 app.use('/api/v1/conversations', conversationRoutes);
+app.use('/api/messages', conversationRoutes.legacyMessagesRouter);
 
 // Subscription passes
 const subscriptionPassRoutes = require('./routes/subscriptionPassRoutes');
@@ -318,4 +319,3 @@ try {
 app.use(errorHandler);
 
 module.exports = app;
-

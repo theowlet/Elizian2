@@ -6,13 +6,43 @@ const pool = getPool();
 //  COLUMN EXISTENCE CACHE — checked once per process
 // ═══════════════════════════════════════════════════════════════════════
 let _hasNewCols = null;
+const REQUIRED_MESSAGE_COLS = ['status', 'delivered_at', 'read_at', 'deleted_at', 'deleted_by'];
+const REQUIRED_CONVERSATION_COLS = ['user_last_read_at', 'partner_last_read_at'];
+
 async function hasMessagingUpgrade() {
   if (_hasNewCols !== null) return _hasNewCols;
   try {
-    await pool.query("SELECT status FROM venue_messages LIMIT 0");
-    _hasNewCols = true;
-  } catch (_) {
+    const msgCols = await pool.query(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'venue_messages'`
+    );
+    const convCols = await pool.query(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema = current_schema()
+         AND table_name = 'venue_conversations'`
+    );
+
+    const msgSet = new Set(msgCols.rows.map((r) => r.column_name));
+    const convSet = new Set(convCols.rows.map((r) => r.column_name));
+    const missing = [
+      ...REQUIRED_MESSAGE_COLS
+        .filter((col) => !msgSet.has(col))
+        .map((col) => `venue_messages.${col}`),
+      ...REQUIRED_CONVERSATION_COLS
+        .filter((col) => !convSet.has(col))
+        .map((col) => `venue_conversations.${col}`),
+    ];
+
+    _hasNewCols = missing.length === 0;
+    if (process.env.DEBUG_MESSAGING === 'true') {
+      log(`[MessagingRepo] hasMessagingUpgrade=${_hasNewCols}${missing.length ? ` missing=${missing.join(',')}` : ''}`);
+    }
+  } catch (err) {
     _hasNewCols = false;
+    logError('[MessagingRepo] hasMessagingUpgrade check failed', err);
   }
   return _hasNewCols;
 }

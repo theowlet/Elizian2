@@ -40,6 +40,17 @@ function matchesTargeting(campaign, context) {
   const targets = campaign.targets || campaign;
   const userTier = context.userTier || context.user_tier;
   if (userTier && !isTierValid(userTier)) return false;
+  const scopedPartnerId =
+    targets.user_segment?.__partner_context?.partner_id ||
+    targets.user_segment?.partner_id ||
+    campaign.user_segment?.__partner_context?.partner_id ||
+    campaign.user_segment?.partner_id ||
+    null;
+  const contextPartnerId = context.partnerId || context.partner_id || context.partner?.id || null;
+  if (scopedPartnerId) {
+    if (!contextPartnerId) return false;
+    if (String(scopedPartnerId) !== String(contextPartnerId)) return false;
+  }
   const tiers = targets.target_tiers || campaign.target_tiers || [];
   if (Array.isArray(tiers) && tiers.length > 0 && userTier && !tiers.includes(userTier)) return false;
   const categories = targets.target_categories || campaign.target_categories || [];

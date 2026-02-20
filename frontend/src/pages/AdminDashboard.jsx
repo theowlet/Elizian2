@@ -722,6 +722,84 @@ export default function AdminDashboard() {
         else showNotif(j.message || 'Pause failed', 'error');
       } catch (e) { showNotif('Network error', 'error'); }
     };
+    const isPartnerRequestCampaign = (campaign) => {
+      const requestContext = campaign?.user_segment?.__partner_context;
+      return requestContext?.request_to_admin === true
+        || requestContext?.request_status === 'pending_admin_review'
+        || String(campaign?.name || '').startsWith('[REQUEST]');
+    };
+    const handleApproveRequest = async (campaign) => {
+      if (!campaign?.id) return;
+      if (!window.confirm(`Approve campaign request "${campaign.name || 'Untitled'}" and activate it?`)) return;
+      try {
+        const existingContext = campaign?.user_segment?.__partner_context || {};
+        const nextUserSegment = {
+          ...(campaign?.user_segment || {}),
+          __partner_context: {
+            ...existingContext,
+            request_to_admin: false,
+            request_status: 'approved_by_admin',
+            approved_at: new Date().toISOString(),
+          },
+        };
+        const cleanedName = String(campaign?.name || '').replace(/^\[REQUEST\]\s*/i, '').trim();
+        const payload = {
+          status: 'active',
+          name: cleanedName || campaign?.name || 'Untitled Campaign',
+          user_segment: nextUserSegment,
+        };
+        const r = await fetch(`${API_BASE}/api/v1/admin/campaigns/${campaign.id}`, {
+          method: 'PUT',
+          headers: headers(),
+          body: JSON.stringify(payload),
+        });
+        const j = await r.json();
+        if (j.success) {
+          loadCampaigns();
+          showNotif('Campaign request approved and activated');
+        } else {
+          showNotif(j.message || 'Approval failed', 'error');
+        }
+      } catch (e) {
+        showNotif('Network error', 'error');
+      }
+    };
+    const handleRequestChanges = async (campaign) => {
+      if (!campaign?.id) return;
+      const reason = window.prompt('Ask partner to revise this request.\nOptional note for internal tracking:', '');
+      if (reason === null) return;
+      try {
+        const existingContext = campaign?.user_segment?.__partner_context || {};
+        const nextUserSegment = {
+          ...(campaign?.user_segment || {}),
+          __partner_context: {
+            ...existingContext,
+            request_to_admin: true,
+            request_status: 'changes_requested',
+            admin_note: reason.trim() || null,
+            reviewed_at: new Date().toISOString(),
+          },
+        };
+        const payload = {
+          status: 'draft',
+          user_segment: nextUserSegment,
+        };
+        const r = await fetch(`${API_BASE}/api/v1/admin/campaigns/${campaign.id}`, {
+          method: 'PUT',
+          headers: headers(),
+          body: JSON.stringify(payload),
+        });
+        const j = await r.json();
+        if (j.success) {
+          loadCampaigns();
+          showNotif('Marked as changes requested');
+        } else {
+          showNotif(j.message || 'Update failed', 'error');
+        }
+      } catch (e) {
+        showNotif('Network error', 'error');
+      }
+    };
     const openAnalytics = (id) => {
       setCampaignAnalyticsId(id);
       setCampaignAnalyticsData(null);
@@ -795,14 +873,24 @@ export default function AdminDashboard() {
                   <tbody>
                     {campaigns.length === 0 ? (
                       <tr><td colSpan={10} style={{ textAlign: 'center', padding: 32 }}>No campaigns. Create one with New campaign.</td></tr>
-                    ) : campaigns.map((c) => (
+                    ) : campaigns.map((c) => {
+                      const status = c.status || (c.is_active ? 'active' : 'draft');
+                      const requestContext = c.user_segment?.__partner_context || null;
+                      const isPartnerRequest = isPartnerRequestCampaign(c);
+                      const requestStatus = requestContext?.request_status;
+                      return (
                       <tr key={c.id}>
                         <td style={{ fontWeight: 600 }}>{c.name || '—'}</td>
                         <td>{c.campaign_type || '—'}</td>
                         <td>
-                          <span className={`pc-badge pc-badge-${(c.status || (c.is_active ? 'active' : 'draft')) === 'active' ? 'success' : (c.status || 'draft') === 'paused' ? 'warning' : 'default'}`}>
-                            {c.status || (c.is_active ? 'active' : 'draft')}
+                          <span className={`pc-badge pc-badge-${status === 'active' ? 'success' : status === 'paused' ? 'warning' : 'default'}`}>
+                            {status}
                           </span>
+                          {isPartnerRequest && requestStatus && (
+                            <div style={{ marginTop: 4, fontSize: '0.72rem', color: '#f59e0b' }}>
+                              {String(requestStatus).replace(/_/g, ' ')}
+                            </div>
+                          )}
                         </td>
                         <td style={{ fontSize: '0.85rem' }}>{(c.start_at || c.start_date) ? new Date(c.start_at || c.start_date).toLocaleDateString() : '—'}</td>
                         <td style={{ fontSize: '0.85rem' }}>{(c.end_at || c.end_date) ? new Date(c.end_at || c.end_date).toLocaleDateString() : '—'}</td>
@@ -813,8 +901,14 @@ export default function AdminDashboard() {
                         <td>
                           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                             <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => { setEditingCampaignId(c.id); setCampaignWizardOpen(true); }}>Edit</button>
+                            {isPartnerRequest && status === 'draft' && (
+                              <>
+                                <button type="button" className="btn btn-primary" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => handleApproveRequest(c)}>Approve</button>
+                                <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => handleRequestChanges(c)}>Request changes</button>
+                              </>
+                            )}
                             <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => handleClone(c.id)}>Clone</button>
-                            {(c.status || '') === 'active' && (
+                            {status === 'active' && (
                               <button type="button" className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => handlePause(c.id)}>Pause</button>
                             )}
                             <button type="button" className="btn btn-primary" style={{ padding: '4px 8px', fontSize: '0.8rem' }} onClick={() => openAnalytics(c.id)}>Analytics</button>
@@ -822,7 +916,7 @@ export default function AdminDashboard() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>

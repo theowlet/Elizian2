@@ -37,12 +37,41 @@ const BookingDetails = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Load pending redemption for this booking
-  useEffect(() => {
-    if (booking?.id) {
-      loadPendingRedemption();
+  // Load pending redemption for this booking. Pass booking_id so API returns pending for this booking only.
+  const loadPendingRedemption = React.useCallback(async (bookingId) => {
+    const idToUse = bookingId != null ? Number(bookingId) : (booking?.id != null ? Number(booking.id) : null);
+    if (idToUse == null) return;
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const pendingUrl = `${API_BASE}/api/v1/redemptions/pending?booking_id=${idToUse}`;
+      const [pendingRes, summaryRes] = await Promise.all([
+        fetch(pendingUrl, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE}/api/v1/rewards/summary`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      const pendingJson = await pendingRes.json();
+      if (pendingJson.success && pendingJson.data?.pending) {
+        const match = pendingJson.data.pending[0] || null;
+        if (match) setPendingRedemption(match);
+        else setPendingRedemption(null);
+      } else setPendingRedemption(null);
+      const summaryJson = await summaryRes.json();
+      if (summaryJson.success && summaryJson.data?.ezt?.balance != null) {
+        setCustomerEztBalance(parseFloat(summaryJson.data.ezt.balance));
+      } else {
+        setCustomerEztBalance(null);
+      }
+    } catch (err) {
+      console.error('Load pending redemption error:', err);
+      setPendingRedemption(null);
     }
   }, [booking?.id]);
+
+  useEffect(() => {
+    if (booking?.id != null) {
+      loadPendingRedemption(booking.id);
+    }
+  }, [booking?.id, loadPendingRedemption]);
 
   // Countdown timer for pending confirmation
   useEffect(() => {
@@ -58,32 +87,6 @@ const BookingDetails = () => {
     const iv = setInterval(update, 1000);
     return () => clearInterval(iv);
   }, [pendingRedemption?.confirmation_expires_at]);
-
-  const loadPendingRedemption = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-      const [pendingRes, summaryRes] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/redemptions/pending`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${API_BASE}/api/v1/rewards/summary`, { headers: { Authorization: `Bearer ${token}` } })
-      ]);
-      const pendingJson = await pendingRes.json();
-      if (pendingJson.success && pendingJson.data?.pending) {
-        const match = pendingJson.data.pending.find(p => p.booking_id === booking.id);
-        if (match) setPendingRedemption(match);
-        else setPendingRedemption(null);
-      } else setPendingRedemption(null);
-      const summaryJson = await summaryRes.json();
-      if (summaryJson.success && summaryJson.data?.ezt?.balance != null) {
-        setCustomerEztBalance(parseFloat(summaryJson.data.ezt.balance));
-      } else {
-        setCustomerEztBalance(null);
-      }
-    } catch (err) {
-      console.error('Load pending redemption error:', err);
-      setPendingRedemption(null);
-    }
-  };
 
   const handleConfirmRedemption = async () => {
     if (!pendingRedemption) return;
@@ -209,6 +212,10 @@ const BookingDetails = () => {
           // If QR code was just generated, it will be in the response
           if (result.data.qr_code_url) {
             setQrCodeLoading(false);
+          }
+          // Fetch pending redemption for this booking so "Confirm your redemption" shows if partner already submitted
+          if (result.data.id != null) {
+            loadPendingRedemption(result.data.id);
           }
         } else {
           setError('Booking not found');
@@ -547,7 +554,7 @@ const BookingDetails = () => {
             <>
               <div style={{ position: 'relative', display: 'inline-block' }}>
                 <img
-                  src={booking.qr_code_url}
+                  src={booking.qr_code_url.startsWith('http') ? booking.qr_code_url : `${API_BASE}${booking.qr_code_url.startsWith('/') ? '' : '/'}${booking.qr_code_url}`}
                   alt="Booking QR Code"
                   style={{
                     width: '220px',

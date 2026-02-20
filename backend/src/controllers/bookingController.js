@@ -156,6 +156,11 @@ async function getBooking(req, res) {
       }
     }
 
+    // Always normalize qr_code_url to a full URL (S3 or existing http(s)) so the frontend can load the image
+    if (booking.qr_code_url) {
+      booking.qr_code_url = getS3FileUrl(booking.qr_code_url) || booking.qr_code_url;
+    }
+
     successResponse(res, 200, "Booking retrieved successfully", booking);
   } catch (err) {
     logError("❌ Get booking error:", err);

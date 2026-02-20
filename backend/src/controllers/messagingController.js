@@ -73,7 +73,9 @@ async function getMessages(req, res) {
 
     // Auto-mark messages as delivered when fetched
     const readerType = isPartner ? 'partner' : 'user';
-    await messagingRepository.markAsDelivered(conversationId, readerType).catch(() => {});
+    await messagingRepository
+      .markAsDelivered(conversationId, readerType)
+      .catch((deliverErr) => logError('Mark delivered error:', deliverErr));
 
     // Stable contract for frontend + backward compatibility
     return res.status(200).json({
@@ -129,7 +131,9 @@ async function getMessagesForPartner(req, res) {
     log(`[Messaging] getMessagesForPartner partnerId=${partnerId} conversationId=${conversationId} count=${messages.length}`);
 
     // Auto-mark as delivered when partner fetches
-    await messagingRepository.markAsDelivered(conversationId, 'partner').catch(() => {});
+    await messagingRepository
+      .markAsDelivered(conversationId, 'partner')
+      .catch((deliverErr) => logError('Mark delivered for partner error:', deliverErr));
 
     // Stable contract for frontend + backward compatibility
     return res.status(200).json({

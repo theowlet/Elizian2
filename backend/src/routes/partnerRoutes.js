@@ -53,6 +53,16 @@ router.get('/:id/campaigns/:campaignId', authenticateToken, checkPartnerOwnershi
 router.put('/:id/campaigns/:campaignId', authenticateToken, checkPartnerOwnership, campaignController.update);
 router.post('/:id/campaigns/:campaignId/send', authenticateToken, checkPartnerOwnership, campaignController.sendCampaign);
 
+// Enterprise campaign workflow for partners (tier-gated)
+const partnerEnterpriseCampaignController = require('../controllers/partnerEnterpriseCampaignController');
+router.get('/:id/enterprise-campaigns/schema', authenticateToken, checkPartnerOwnership, partnerEnterpriseCampaignController.getSchema);
+router.get('/:id/enterprise-campaigns', authenticateToken, checkPartnerOwnership, partnerEnterpriseCampaignController.listCampaigns);
+router.get('/:id/enterprise-campaigns/:campaignId', authenticateToken, checkPartnerOwnership, partnerEnterpriseCampaignController.getCampaign);
+router.post('/:id/enterprise-campaigns', authenticateToken, checkPartnerOwnership, partnerEnterpriseCampaignController.createCampaign);
+router.put('/:id/enterprise-campaigns/:campaignId', authenticateToken, checkPartnerOwnership, partnerEnterpriseCampaignController.updateCampaign);
+router.post('/:id/enterprise-campaigns/:campaignId/pause', authenticateToken, checkPartnerOwnership, partnerEnterpriseCampaignController.pauseCampaign);
+router.post('/:id/enterprise-campaigns/:campaignId/activate', authenticateToken, checkPartnerOwnership, partnerEnterpriseCampaignController.activateCampaign);
+
 // Guest CRM (partner-only, authenticated)
 const guestController = require('../controllers/guestController');
 router.get('/:id/guests', authenticateToken, checkPartnerOwnership, guestController.listGuests);

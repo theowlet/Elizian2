@@ -63,12 +63,16 @@ async function getActiveCampaigns() {
       ? ` AND (c.budget_limit IS NULL OR (SELECT COALESCE(SUM(reward_issued), 0) FROM campaign_attribution WHERE campaign_id = c.id) < c.budget_limit)`
       : '';
     const sql = hasTargets.rows[0]?.exists
-      ? `SELECT c.*, ct.target_tiers, ct.target_categories FROM campaigns c LEFT JOIN campaign_targets ct ON ct.campaign_id = c.id WHERE ${baseWhere}${budgetFilter}`
-      : `SELECT c.*, c.target_tiers, c.target_categories FROM campaigns c WHERE ${baseWhere}${budgetFilter}`;
+      ? `SELECT c.*, ct.target_tiers, ct.target_categories, ct.user_segment AS ct_user_segment FROM campaigns c LEFT JOIN campaign_targets ct ON ct.campaign_id = c.id WHERE ${baseWhere}${budgetFilter}`
+      : `SELECT c.*, c.target_tiers, c.target_categories, c.user_segment AS ct_user_segment FROM campaigns c WHERE ${baseWhere}${budgetFilter}`;
     const result = await pool.query(sql, [nowIso]);
-    activeCampaignsCache.data = result.rows;
+    const normalized = (result.rows || []).map((row) => ({
+      ...row,
+      user_segment: row.ct_user_segment ?? row.user_segment ?? {},
+    }));
+    activeCampaignsCache.data = normalized;
     activeCampaignsCache.cachedAt = Date.now();
-    return result.rows;
+    return normalized;
   } catch (err) {
     logError('[CampaignEngine] getActiveCampaigns error:', err);
     return [];

@@ -14,7 +14,8 @@ const BENEFITS = {
       'Listing on Elizian app and map',
       'Basic analytics and booking management',
       'Standard support',
-      'Offer and campaign creation',
+      'Offer creation and management',
+      'Campaign creation is not available',
       'Trending: admin can override to mark deals as Trending',
     ],
   },
@@ -27,6 +28,7 @@ const BENEFITS = {
       'Priority support',
       'Request deal to be Trending (admin approves with reason)',
       'Guest CRM and messaging',
+      'Can submit campaign requests for admin approval',
     ],
   },
   gold: {
@@ -38,6 +40,7 @@ const BENEFITS = {
       'Dedicated account support',
       'Early access to new platform features',
       'Co-marketing and campaign support',
+      'Full enterprise campaign workflow access',
     ],
   },
 };

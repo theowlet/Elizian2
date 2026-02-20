@@ -35,11 +35,11 @@ async function getPartnerMe(req, res) {
     }
     const partner = await partnerService.getPartnerById(partnerId, false);
     const { getPartnerTierBenefits } = require('../config/partnerTierBenefits');
-    const tier = (partner.partner_tier || 'bronze').toLowerCase();
-    const partnerTierBenefits = getPartnerTierBenefits(partner.partner_tier);
+    const tier = String(partner?.partner_tier || 'bronze').toLowerCase();
+    const partnerTierBenefits = getPartnerTierBenefits(tier);
     successResponse(res, 200, "Partner profile retrieved successfully", {
       ...partner,
-      partner_tier: partner.partner_tier || 'bronze',
+      partner_tier: tier,
       partner_tier_benefits: partnerTierBenefits,
     });
   } catch (err) {
@@ -425,4 +425,3 @@ module.exports = {
   uploadMenuImages,
   deleteMenuImage
 };
-

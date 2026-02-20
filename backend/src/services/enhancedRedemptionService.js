@@ -18,7 +18,8 @@ const { AppError } = require('../../utils/response');
 const { log, logError } = require('../../utils/logger');
 
 const DUAL_CONFIRMATION_ENABLED = process.env.DUAL_CONFIRMATION_ENABLED === 'true' || process.env.DUAL_CONFIRMATION_ENABLED === '1';
-const REQUIRE_VISIT_SESSION_FOR_REDEMPTION = process.env.REQUIRE_VISIT_SESSION_FOR_REDEMPTION !== 'false';
+// When true: partner can redeem only after customer has checked in at venue (app check-in). Default false = redemption allowed without check-in.
+const REQUIRE_VISIT_SESSION_FOR_REDEMPTION = process.env.REQUIRE_VISIT_SESSION_FOR_REDEMPTION === 'true' || process.env.REQUIRE_VISIT_SESSION_FOR_REDEMPTION === '1';
 
 const pool = getPool();
 
@@ -217,7 +218,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
         action: 'redemption_failure',
         actorId: actorId,
         actorRole: actorRole,
-        errorData: { 
+        errorData: {
           error: 'Invalid voucher state for redemption',
           current_state: currentState,
           required_state: 'active',
@@ -227,6 +228,9 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
         userAgent: userAgent,
         executor: client
       });
+      if (currentState === 'pending_confirmation') {
+        throw new AppError(400, 'This voucher is already awaiting customer confirmation. Ask the customer to open the app → Bookings → this booking → and tap "Confirm" to complete the redemption. You cannot submit again until they confirm or the request expires (~30 min).');
+      }
       throw new AppError(400, `Cannot redeem voucher in state '${currentState}'. Voucher must be 'active'. Current state: ${currentState}`);
     }
 
@@ -267,12 +271,10 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       booking.visit_session_id = visitSession.id;
     }
 
-    let offerRow = await client.query(
-      'SELECT co_pay_percentage, discount_amount, offer_type FROM partner_offers WHERE id = $1',
-      [booking.deal_id]
-    ).then(r => r.rows[0] || null);
+    const effectiveOfferId = booking.deal_id || booking.offer_id || null;
+    let offerRow = await redemptionCalculationService.getOfferDiscount(effectiveOfferId, client);
     offerRow = applyBookingTimeCoPay(offerRow, booking);
-    const calculated = redemptionCalculationService.calculateRedemptionAmounts(booking.deal_id, total_bill_amount, offerRow);
+    const calculated = redemptionCalculationService.calculateRedemptionAmounts(effectiveOfferId, total_bill_amount, offerRow);
     const customerWalletEzt = await tokenService.getBalance(booking.user_id, client);
     const walletAffordableInr = Math.round(customerWalletEzt * EZT_TO_INR * 100) / 100;
     const standardCoPayInr = parseFloat(calculated.ezt_co_pay_amount || 0);
@@ -282,7 +284,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       total_bill_amount,
       ezt_co_pay_amount,
       net_amount_from_user,
-      booking.deal_id,
+      effectiveOfferId,
       offerRow,
       { maxAllowedCoPayInr: maxAllowedCoPay }
     );
@@ -972,4 +974,3 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
 module.exports = {
   redeemVoucherEnhanced
 };
-
