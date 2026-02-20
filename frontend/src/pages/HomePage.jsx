@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import DealMenuPane from "../components/DealMenuPane";
 import ExperienceCard from "../components/ExperienceCard";
+import SkeletonLoader from "../components/SkeletonLoader";
 import { getFiltersForCategory } from "../config/filterSchema";
 
 // STABILIZATION FIX: Gate debug logging behind development mode
@@ -10,7 +11,7 @@ const isDev = import.meta.env.DEV;
 const debugLog = (...args) => { if (isDev) console.log(...args); };
 
 const HomePage = () => {
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
   const navigate = useNavigate();
 
   const [currentSection, setCurrentSection] = useState("home");
@@ -99,6 +100,7 @@ const HomePage = () => {
   };
 
   const formatDistance = (distanceKm) => {
+    if (distanceKm == null || !Number.isFinite(distanceKm)) return "—";
     if (distanceKm < 1) {
       return `${(distanceKm * 1000).toFixed(0)} m away`;
     }
@@ -350,6 +352,40 @@ const HomePage = () => {
 
   const upcomingEvents = useMemo(() => getUpcomingEvents(allDeals), [allDeals]);
 
+  // Attach client-side distance to live events when user location is available (near real-time)
+  const liveEventsWithDistance = useMemo(() => {
+    const lat = userCoordinates?.latitude;
+    const lon = userCoordinates?.longitude;
+    if (lat == null || lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return liveEvents.map((e) => ({ ...e, distanceKmClient: null }));
+    }
+    return liveEvents.map((e) => {
+      const dLat = e.latitude ?? e.partner_latitude;
+      const dLon = e.longitude ?? e.partner_longitude;
+      const km = dLat != null && dLon != null && Number.isFinite(dLat) && Number.isFinite(dLon)
+        ? calculateDistance(lat, lon, dLat, dLon)
+        : null;
+      return { ...e, distanceKmClient: km };
+    });
+  }, [liveEvents, userCoordinates?.latitude, userCoordinates?.longitude]);
+
+  // Attach client-side distance to upcoming events when user location is available
+  const upcomingEventsWithDistance = useMemo(() => {
+    const lat = userCoordinates?.latitude;
+    const lon = userCoordinates?.longitude;
+    if (lat == null || lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return upcomingEvents.map((e) => ({ ...e, distanceKmClient: null }));
+    }
+    return upcomingEvents.map((e) => {
+      const dLat = e.latitude ?? e.partner_latitude;
+      const dLon = e.longitude ?? e.partner_longitude;
+      const km = dLat != null && dLon != null && Number.isFinite(dLat) && Number.isFinite(dLon)
+        ? calculateDistance(lat, lon, dLat, dLon)
+        : null;
+      return { ...e, distanceKmClient: km };
+    });
+  }, [upcomingEvents, userCoordinates?.latitude, userCoordinates?.longitude]);
+
   const allPartnerDeals = useMemo(
     () => getAllPartnerDeals(allDeals, activeCategory),
     [allDeals, activeCategory],
@@ -395,6 +431,26 @@ const HomePage = () => {
     );
   }, [trendingDealsDeduped, searchKeyword]);
 
+  // Trending sorted by distance (ascending) from user; client-side Haversine. No coords → default order; missing deal coords → bottom.
+  const trendingSortedByDistance = useMemo(() => {
+    const list = searchFilteredTrending;
+    const lat = userCoordinates?.latitude;
+    const lon = userCoordinates?.longitude;
+    if (lat == null || lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return list;
+    }
+    const withDistance = list.map((d) => {
+      const dLat = d.latitude ?? d.partner_latitude;
+      const dLon = d.longitude ?? d.partner_longitude;
+      const distanceKm = dLat != null && dLon != null && Number.isFinite(dLat) && Number.isFinite(dLon)
+        ? calculateDistance(lat, lon, dLat, dLon)
+        : Infinity;
+      return { ...d, distanceKmClient: distanceKm === Infinity ? null : distanceKm };
+    });
+    withDistance.sort((a, b) => (a.distanceKmClient ?? Infinity) - (b.distanceKmClient ?? Infinity));
+    return withDistance;
+  }, [searchFilteredTrending, userCoordinates?.latitude, userCoordinates?.longitude]);
+
   const sortedAllPartnerDeals = useMemo(
     () => sortDealsBy(allPartnerDeals, activeFilter),
     [allPartnerDeals, activeFilter],
@@ -412,6 +468,23 @@ const HomePage = () => {
         (d.partner_cuisine_types && String(d.partner_cuisine_types).toLowerCase().includes(q)),
     );
   }, [sortedAllPartnerDeals, searchKeyword]);
+
+  // All Partner Deals: inject client-side distance when user location available so every card shows distance (near real-time)
+  const searchFilteredPartnerDealsWithDistance = useMemo(() => {
+    const lat = userCoordinates?.latitude;
+    const lon = userCoordinates?.longitude;
+    if (lat == null || lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return searchFilteredPartnerDeals;
+    }
+    return searchFilteredPartnerDeals.map((d) => {
+      const dLat = d.latitude ?? d.partner_latitude;
+      const dLon = d.longitude ?? d.partner_longitude;
+      const km = dLat != null && dLon != null && Number.isFinite(dLat) && Number.isFinite(dLon)
+        ? calculateDistance(lat, lon, dLat, dLon)
+        : null;
+      return { ...d, distance_km: km ?? d.distance_km };
+    });
+  }, [searchFilteredPartnerDeals, userCoordinates?.latitude, userCoordinates?.longitude]);
 
   // ============================================
   // DATA FETCHING
@@ -558,7 +631,8 @@ const HomePage = () => {
           setCurrentLocation("Your location");
           localStorage.setItem("userLocation", "Your location");
         },
-        () => {
+        (err) => {
+          if (isDev) console.warn("[HomePage] Location permission denied or unavailable — trending will use default order.", err?.message || err);
           const savedLocation = localStorage.getItem("userLocation");
           setCurrentLocation(savedLocation || "Mumbai, India");
         },
@@ -737,238 +811,52 @@ const HomePage = () => {
   };
 
   return (
-    <div className="elizian-container">
+    <div className="elizian-container elizian-theme">
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
 
-      <header className="top-nav">
-        <div className="container nav-container">
-          <div
-            className="elizian-landing-logo"
-            onClick={() => navigate("/")}
-            style={{ cursor: "pointer" }}
-          >
-            <img
-              src="/assets/z.png"
-              alt="Elizian"
-              className="elizian-landing-logo-img"
-            />
-            <span className="elizian-landing-logo-text">Elizian</span>
-          </div>
-
-          <nav className="desktop-nav">
-            <a
-              href="#"
-              className={`nav-link ${currentSection === "home" ? "active" : ""}`}
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigation("home");
-              }}
-            >
-              Home
-            </a>
-            <a
-              href="#"
-              className={`nav-link ${currentSection === "experiences" ? "active" : ""}`}
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigation("experiences");
-              }}
-            >
-              Experiences
-            </a>
-            <a
-              href="#"
-              className={`nav-link ${currentSection === "restaurants" ? "active" : ""}`}
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigation("restaurants");
-              }}
-            >
-              Restaurants
-            </a>
-            <a
-              href="#"
-              className={`nav-link ${currentSection === "events" ? "active" : ""}`}
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigation("events");
-              }}
-            >
-              Events
-            </a>
-            <a
-              href="#"
-              className={`nav-link ${currentSection === "profile" ? "active" : ""}`}
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigation("profile");
-              }}
-            >
-              Profile
-            </a>
-            <a
-              href="#"
-              className="nav-link"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate("/bookings");
-              }}
-            >
-              My Bookings
-            </a>
-          </nav>
-
+      <header className="elizian-header-minimal">
+        <div className="elizian-header-inner">
           <button
-            className="mobile-menu-btn"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle mobile menu"
+            type="button"
+            className="elizian-logo-crest"
+            onClick={() => navigate("/home")}
+            aria-label="Home"
           >
-            <span className="menu-icon">☰</span>
+            <img src="/assets/z.png" alt="" className="elizian-crest-img" />
           </button>
-
-          <div className="user-actions">
+          <h1 className="elizian-brand-name">Elizian</h1>
+          <button
+            type="button"
+            className="elizian-avatar-wrap"
+            onClick={() => navigate("/profile")}
+            aria-label="Profile"
+          >
             {user?.first_name ? (
-              <>
-                <span className="welcome-text">
-                  Welcome, {user.first_name} {user.last_name || ""}
-                </span>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => navigate("/bookings")}
-                  style={{ marginRight: "0.5rem" }}
-                >
-                  My Bookings
-                </button>
-                <button className="btn btn-primary" onClick={handleLogout}>
-                  Logout
-                </button>
-              </>
+              <span className="elizian-avatar">{String(user.first_name[0]).toUpperCase()}</span>
             ) : (
-              <>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => navigate("/login")}
-                >
-                  Login
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => navigate("/signup")}
-                >
-                  Sign Up
-                </button>
-              </>
+              <span className="elizian-avatar elizian-avatar-icon">👤</span>
             )}
-          </div>
+          </button>
         </div>
-
-        {mobileMenuOpen && (
-          <div className="mobile-nav-menu">
-            <a
-              href="#"
-              className="mobile-nav-link"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigation("home");
-              }}
-            >
-              Home
-            </a>
-            {/* <a
-              href="#"
-              className="mobile-nav-link"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigation("experiences");
-              }}
-            >
-              Experiences
-            </a> */}
-            {/* <a
-              href="#"
-              className="mobile-nav-link"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigation("restaurants");
-              }}
-            >
-              Restaurants
-            </a> */}
-            {/* <a
-              href="#"
-              className="mobile-nav-link"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigation("events");
-              }}
-            >
-              Events
-            </a> */}
-            <a
-              href="#"
-              className="mobile-nav-link"
-              onClick={(e) => {
-                e.preventDefault();
-                handleNavigation("profile");
-              }}
-            >
-              Profile
-            </a>
-            <a
-              href="#"
-              className="mobile-nav-link"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate("/bookings");
-              }}
-            >
-              My Bookings
-            </a>
-            {user?.first_name && (
-              <a
-                href="#"
-                className="mobile-nav-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleLogout();
-                }}
-              >
-                Logout
-              </a>
-            )}
-          </div>
-        )}
       </header>
 
-      <div className="location-bar">
-        <div className="container">
-          <div className="location-selector">
-            <span className="location-icon">📍</span>
-            <div className="location-details">
-              <div className="location-main">
-                {currentLocation}
-                {!currentLocation && <span className="dropdown-arrow">▼</span>}
-              </div>
-              {!currentLocation && (
-                <div className="location-sub">Detecting your location...</div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
       <main id="main-content" className="main-content">
-        <div className="container">
+        <div className="container main-container">
+          <section className="elizian-hero">
+            <h2 className="elizian-hero-title">Discover Curated Experiences</h2>
+            <p className="elizian-hero-sub">Luxury. Premium. Members-only.</p>
+          </section>
+
           <section className="search-section">
             <div className="search-wrapper">
-              <div className="search-input-group">
-                <span className="search-icon">🔍</span>
+              <div className="elizian-search-bar">
+                <span className="elizian-search-icon" aria-hidden>🔍</span>
                 <input
                   type="text"
-                  className="search-input"
-                  placeholder="Search restaurants, events, cuisines..."
+                  className="elizian-search-input"
+                  placeholder="Search dining, spa, events…"
                   aria-label="Search experiences"
                   value={searchKeyword}
                   onChange={(e) => {
@@ -984,7 +872,7 @@ const HomePage = () => {
                 />
                 <button
                   type="button"
-                  className={`filter-toggle ${activeFilter ? "active" : ""}`}
+                  className={`elizian-filter-toggle ${activeFilter ? "active" : ""}`}
                   onClick={() => setIsFilterOpen(!isFilterOpen)}
                   aria-label="Toggle filters"
                 >
@@ -994,7 +882,7 @@ const HomePage = () => {
               </div>
 
               {isFilterOpen && (
-                <div className="filter-panel">
+                <div className="elizian-filter-panel">
                   <div className="filter-header">
                     <h4>Sort by</h4>
                     <button
@@ -1087,12 +975,13 @@ const HomePage = () => {
             </div>
           </section>
 
-          <section className="category-section">
-            <div className="categories-scroll">
+          <section className="elizian-category-section">
+            <div className="elizian-category-scroll">
               {categories.map((category) => (
                 <button
                   key={category.id}
-                  className={`category-chip ${activeCategory === category.id ? "active" : ""}`}
+                  type="button"
+                  className={`elizian-category-pill ${activeCategory === category.id ? "active" : ""}`}
                   onClick={() => setActiveCategory(category.id)}
                   aria-label={`Filter by ${category.name}`}
                   aria-pressed={activeCategory === category.id}
@@ -1209,15 +1098,23 @@ const HomePage = () => {
                 >
                   Map
                 </button>
+                <button
+                  className="view-all-btn"
+                  onClick={() => navigate("/trending")}
+                  style={{ marginLeft: "8px" }}
+                  title="View all trending"
+                >
+                  View all
+                </button>
                 <span className="section-subtitle">Popular this week</span>
               </div>
             </div>
 
             {loading ? (
-              <div className="loading-state">
-                <p>Loading experiences...</p>
+              <div className="trending-grid" style={{ gap: "1rem" }}>
+                <SkeletonLoader variant="card" count={6} />
               </div>
-            ) : searchFilteredTrending.length === 0 ? (
+            ) : trendingSortedByDistance.length === 0 ? (
               <div className="empty-state">
                 <p>
                   {searchKeyword?.trim()
@@ -1226,11 +1123,11 @@ const HomePage = () => {
                 </p>
               </div>
             ) : (
-              <div className="trending-grid">
-                {searchFilteredTrending.map((item) => (
+              <div className="trending-scroll-container">
+                {trendingSortedByDistance.map((item) => (
                   <div
                     key={item.id}
-                    className="trending-card"
+                    className="trending-card trending-scroll-card"
                     onClick={(e) => handleDealCardClick(item, e)}
                     style={{ cursor: "pointer" }}
                     role="button"
@@ -1240,11 +1137,11 @@ const HomePage = () => {
                   >
                     <div
                       className="card-image"
-                      style={{ backgroundImage: `url(${item.image})` }}
+                      style={{ backgroundImage: `url(${item.image || item.image_url})` }}
                       role="img"
                       aria-label={item.title}
                     >
-                      {top20TrendingIds.has(item.id) && <div className="card-badge trending">🔥 Trending</div>}
+                      <div className="card-badge trending">🔥 Trending</div>
                       {item.min_tier_name && (
                         <div className="card-badge" style={{ background: "rgba(167, 139, 250, 0.9)", color: "#fff" }} title={`Unlock at ${item.min_tier_name} tier`}>Unlock at {item.min_tier_name}</div>
                       )}
@@ -1256,7 +1153,7 @@ const HomePage = () => {
                     <div className="card-content">
                       <div className="card-meta-row">
                         {item.category_name && <span className="card-category">{item.category_name}</span>}
-                        {item.distance_km != null && <span className="card-distance">{formatDistance(item.distance_km)}</span>}
+                        <span className="card-distance">{formatDistance(item.distanceKmClient ?? item.distance_km)}</span>
                       </div>
                       <h3 className="card-title">{item.title}</h3>
                       {(item.perk_type && item.perk_type !== "discount") || item.perk_description ? (
@@ -1299,81 +1196,67 @@ const HomePage = () => {
           {/* ============================================
               2. TOP RESTAURANTS NEAR YOU (NOT affected by category filter)
               ============================================ */}
-          <section className="restaurants-section">
-            <div className="section-header">
-              <h2 className="section-title">
+          <section className="home-section restaurants-section">
+            <div className="section-header-modern">
+              <div className="section-header-accent" aria-hidden />
+              <h2 className="section-title-modern">
                 <span className="title-icon">🍽️</span>
                 Top Restaurants Near You
               </h2>
               <button
-                className="view-all-btn"
+                className="view-all-btn-modern"
                 onClick={() => {
                   setActiveCategory("dining");
-                  // Scroll to All Partner Deals section
                   setTimeout(() => {
-                    document
-                      .getElementById("all-partner-deals")
-                      ?.scrollIntoView({ behavior: "smooth" });
+                    document.getElementById("all-partner-deals")?.scrollIntoView({ behavior: "smooth" });
                   }, 100);
                 }}
               >
-                View All →
+                View all
               </button>
             </div>
 
             {loading ? (
-              <div className="loading-state">
+              <div className="loading-state-modern">
                 <p>Loading restaurants...</p>
               </div>
             ) : topRestaurants.length === 0 ? (
-              <div className="empty-state">
+              <div className="empty-state-modern">
                 <p>No restaurants found near you.</p>
               </div>
             ) : (
-              <div className="restaurants-grid">
+              <div className="restaurants-scroll-container">
                 {topRestaurants.map((restaurant) => (
                   <div
                     key={restaurant.id}
-                    className="restaurant-card"
+                    className="home-card restaurant-scroll-card"
                     onClick={(e) => handleDealCardClick(restaurant, e)}
                     style={{ cursor: "pointer" }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleDealCardClick(restaurant, e); } }}
+                    aria-label={`View ${restaurant.title}`}
                   >
                     <div
-                      className="restaurant-image"
+                      className="home-card-image"
                       style={{ backgroundImage: `url(${restaurant.image})` }}
                       role="img"
                       aria-label={restaurant.title}
                     >
-                      <div className="restaurant-rating">
-                        <span className="rating-star">⭐</span>
-                        <span>{restaurant.rating}</span>
-                      </div>
+                      <div className="home-card-badge rating">⭐ {Number(restaurant.rating).toFixed(1)}</div>
                     </div>
-                    <div className="restaurant-info">
-                      <div className="restaurant-header">
-                        <h3 className="restaurant-name">{restaurant.title}</h3>
-                        <div className="restaurant-price-range">
-                          {restaurant.priceRange || "$$"}
-                        </div>
-                      </div>
-                      <p className="restaurant-cuisine">
-                        {restaurant.category_name || "Multi-cuisine"}
-                      </p>
-                      <div className="restaurant-meta">
-                        <span className="restaurant-distance">
-                          {restaurant.distanceFormatted || "N/A"}
-                        </span>
-                        <span className="restaurant-action">
-                          <button
-                            className="btn-sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleBookDeal(restaurant);
-                            }}
-                          >
-                            Book Now
-                          </button>
-                        </span>
+                    <div className="home-card-body">
+                      <h3 className="home-card-title">{restaurant.title}</h3>
+                      <p className="home-card-meta">{restaurant.category_name || "Multi-cuisine"} · {restaurant.priceRange || "$$"}</p>
+                      <div className="home-card-footer">
+                        <span className="home-card-distance">{restaurant.distanceFormatted || "—"}</span>
+                        <button
+                          type="button"
+                          className="home-card-cta"
+                          onClick={(e) => { e.stopPropagation(); handleBookDeal(restaurant); }}
+                        >
+                          Book
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1385,78 +1268,59 @@ const HomePage = () => {
           {/* ============================================
               3. LIVE NOW (NOT affected by category filter - Events only)
               ============================================ */}
-          <section className="events-section">
-            <div className="section-header">
-              <h2 className="section-title">
+          <section className="home-section events-section">
+            <div className="section-header-modern">
+              <div className="section-header-accent live" aria-hidden />
+              <h2 className="section-title-modern">
                 <span className="title-icon">🎪</span>
                 Live Now
               </h2>
-              <span className="section-subtitle">
-                Events happening right now
-              </span>
+              <span className="section-subtitle-modern">Happening right now</span>
             </div>
 
             {loading ? (
-              <div className="loading-state">
+              <div className="loading-state-modern">
                 <p>Loading live events...</p>
               </div>
             ) : liveEvents.length === 0 ? (
-              <div className="empty-state">
+              <div className="empty-state-modern">
                 <p>No live events at the moment.</p>
               </div>
             ) : (
-              <div className="events-grid">
-                {liveEvents.map((event) => (
+              <div className="events-scroll-container">
+                {liveEventsWithDistance.map((event) => (
                   <div
                     key={event.id}
-                    className="event-card"
+                    className="home-card event-scroll-card"
                     onClick={(e) => handleDealCardClick(event, e)}
                     style={{ cursor: "pointer" }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleDealCardClick(event, e); } }}
+                    aria-label={`Join ${event.title}`}
                   >
                     <div
-                      className="event-image"
+                      className="home-card-image"
                       style={{ backgroundImage: `url(${event.image})` }}
                       role="img"
                       aria-label={event.title}
                     >
-                      <div className="event-badge live">LIVE</div>
+                      <div className="home-card-badge live">LIVE</div>
                     </div>
-                    <div className="event-info">
-                      <div className="event-header">
-                        <h3 className="event-title">{event.title}</h3>
-                        <div className="event-type">
-                          {event.category_name || "General"}
-                        </div>
-                      </div>
-                      <div className="event-meta">
-                        <div className="event-time">
-                          <span className="time-icon">🕒</span>
-                          <span>
-                            {event.start_date
-                              ? new Date(event.start_date).toLocaleDateString(
-                                  "en-IN",
-                                  {
-                                    month: "short",
-                                    day: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  },
-                                )
-                              : "Ongoing"}
-                          </span>
-                        </div>
-                        <div className="event-location">
-                          <span className="location-icon">📍</span>
-                          <span>
-                            {event.location || event.partner_name || "Downtown"}
-                          </span>
-                        </div>
+                    <div className="home-card-body">
+                      <h3 className="home-card-title">{event.title}</h3>
+                      <p className="home-card-meta">{event.category_name || "Event"}</p>
+                      <div className="home-card-meta-row">
+                        <span>🕒 {event.start_date ? new Date(event.start_date).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "Ongoing"}</span>
+                        <span>📍 {event.location || event.partner_name || "—"}</span>
+                        <span className="home-card-distance">📍 {formatDistance(event.distanceKmClient ?? event.distance_km)}</span>
                       </div>
                       <button
-                        className="btn btn-primary event-action"
-                        onClick={() => handleBookDeal(event)}
+                        type="button"
+                        className="home-card-cta primary"
+                        onClick={(e) => { e.stopPropagation(); handleBookDeal(event); }}
                       >
-                        Join Now
+                        Join now
                       </button>
                     </div>
                   </div>
@@ -1468,54 +1332,54 @@ const HomePage = () => {
           {/* ============================================
               4. UPCOMING EVENTS (NOT affected by category filter - Events only)
               ============================================ */}
-          <section className="upcoming-section">
-            <div className="section-header">
-              <h2 className="section-title">
+          <section className="home-section upcoming-section">
+            <div className="section-header-modern">
+              <div className="section-header-accent upcoming" aria-hidden />
+              <h2 className="section-title-modern">
                 <span className="title-icon">🎭</span>
                 Upcoming Events
               </h2>
               <button
-                className="view-all-btn"
+                className="view-all-btn-modern"
                 onClick={() => navigate("/events")}
               >
-                View all events →
+                View all
               </button>
             </div>
 
             {loading ? (
-              <div className="loading-state">
+              <div className="loading-state-modern">
                 <p>Loading upcoming events...</p>
               </div>
             ) : upcomingEvents.length === 0 ? (
-              <div className="empty-state">
+              <div className="empty-state-modern">
                 <p>No upcoming events scheduled.</p>
               </div>
             ) : (
-              <div className="events-scroll">
-                {upcomingEvents.map((event) => (
+              <div className="upcoming-scroll-container">
+                {upcomingEventsWithDistance.map((event) => (
                   <div
                     key={`upcoming-${event.id}`}
-                    className="event-scroll-card"
+                    className="home-card upcoming-scroll-card"
                     onClick={(e) => handleDealCardClick(event, e)}
                     style={{ cursor: "pointer" }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleDealCardClick(event, e); } }}
+                    aria-label={`View ${event.title}`}
                   >
                     <div
-                      className="event-scroll-image"
+                      className="home-card-image"
                       style={{ backgroundImage: `url(${event.image})` }}
                       role="img"
                       aria-label={event.title}
-                    ></div>
-                    <div className="event-scroll-content">
-                      <h4>{event.title}</h4>
-                      <p>
-                        {event.category_name || "General"} •{" "}
-                        {event.start_date
-                          ? new Date(event.start_date).toLocaleDateString(
-                              "en-IN",
-                              { month: "short", day: "numeric" },
-                            )
-                          : "Coming Soon"}
+                    />
+                    <div className="home-card-body compact">
+                      <h4 className="home-card-title small">{event.title}</h4>
+                      <p className="home-card-meta">
+                        {event.category_name || "Event"} · {event.start_date ? new Date(event.start_date).toLocaleDateString("en-IN", { month: "short", day: "numeric" }) : "Soon"}
                       </p>
+                      <p className="home-card-distance">📍 {formatDistance(event.distanceKmClient ?? event.distance_km)}</p>
                     </div>
                   </div>
                 ))}
@@ -1526,21 +1390,22 @@ const HomePage = () => {
           {/* ============================================
               5. ALL PARTNER DEALS (Affected by category filter)
               ============================================ */}
-          <section id="all-partner-deals" className="deals-section">
-            <div className="section-header">
-              <h2 className="section-title">
+          <section id="all-partner-deals" className="home-section deals-section">
+            <div className="section-header-modern">
+              <div className="section-header-accent deals" aria-hidden />
+              <h2 className="section-title-modern">
                 <span className="title-icon">🎁</span>
                 All Partner Deals
               </h2>
-              <span className="section-subtitle">Discover amazing deals</span>
+              <span className="section-subtitle-modern">Discover amazing deals</span>
             </div>
 
             {loading ? (
-              <div className="loading-state">
+              <div className="loading-state-modern">
                 <p>Loading deals...</p>
               </div>
-            ) : searchFilteredPartnerDeals.length === 0 ? (
-              <div className="empty-state">
+            ) : searchFilteredPartnerDealsWithDistance.length === 0 ? (
+              <div className="empty-state-modern">
                 <p>
                   {searchKeyword?.trim()
                     ? `No deals match "${searchKeyword.trim()}".`
@@ -1548,16 +1413,17 @@ const HomePage = () => {
                 </p>
               </div>
             ) : (
-              <div className="trending-grid experience-card-grid">
-                {searchFilteredPartnerDeals.map((deal) => (
-                  <ExperienceCard
-                    key={deal.id}
-                    deal={deal}
-                    onBook={handleBookDeal}
-                    formatPrice={formatPrice}
-                    formatPriceLabel={formatPriceLabel}
-                    formatDistance={formatDistance}
-                  />
+              <div className="deals-scroll-container">
+                {searchFilteredPartnerDealsWithDistance.map((deal) => (
+                  <div key={deal.id} className="deals-scroll-card">
+                    <ExperienceCard
+                      deal={deal}
+                      onBook={handleBookDeal}
+                      formatPrice={formatPrice}
+                      formatPriceLabel={formatPriceLabel}
+                      formatDistance={formatDistance}
+                    />
+                  </div>
                 ))}
               </div>
             )}
@@ -1577,64 +1443,34 @@ const HomePage = () => {
         />
       )}
 
-      <footer className="main-footer">
-        <div className="container">
-          <div className="footer-content">
-            <div className="footer-section">
-              <h4>Elizian</h4>
-              <p>Discover curated experiences for unforgettable moments.</p>
-            </div>
-            <div className="footer-section">
-              <h4>Quick Links</h4>
-              <a href="/about">About Us</a>
-              <a href="/contact">Contact</a>
-              <a href="/privacy_policy">Privacy Policy</a>
-              <a href="/terms">Terms of Service</a>
-            </div>
-            {/* <div className="footer-section">
-              <h4>Categories</h4>
-              <a href="/category/dining">Dining</a>
-              <a href="/category/events">Events</a>
-              <a href="/category/wellness">Wellness</a>
-              <a href="/category/travel">Travel</a>
-            </div> */}
-            {/* <div className="footer-section">
-              <h4>Download App</h4>
-              <button className="app-store-btn">App Store</button>
-              <button className="play-store-btn">Google Play</button>
-            </div> */}
-          </div>
-          <div className="footer-bottom">
-            <p>
-              &copy; {new Date().getFullYear()} Elizian. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
-
       <style>{`
-        .elizian-container {
-          --primary-color: #004f4a;
-          --secondary-color: #059669;
-          --accent-color: #f59e0b;
-          --text-color: #1f2937;
-          --text-light: #6b7280;
-          --bg-color: #ffffff;
-          --bg-light: #f9fafb;
-          --border-color: #e5e7eb;
-          --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-          --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
+        .elizian-theme {
+          --primary-color: #D4AF37;
+          --secondary-color: #5B4BB4;
+          --accent-color: #D4AF37;
+          --text-color: #F3F4F6;
+          --text-light: #9CA3AF;
+          --bg-color: #111827;
+          --bg-light: #0B0F1A;
+          --border-color: rgba(212, 175, 55, 0.2);
+          --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+          --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.5);
           --radius: 12px;
           --radius-sm: 8px;
+          --radius-xl: 20px;
           min-height: 100vh;
           padding-bottom: 80px;
           background: var(--bg-light);
+          color: var(--text-color);
         }
 
         .elizian-container * {
           box-sizing: border-box;
         }
 
+        .main-container {
+          width: 100%;
+        }
         .elizian-container .container {
           max-width: auto;
           margin: 0 auto;
@@ -1650,7 +1486,7 @@ const HomePage = () => {
           top: -40px;
           left: 0;
           background: var(--primary-color);
-          color: white;
+          color: #0B0F1A;
           padding: 8px;
           z-index: 1000;
           text-decoration: none;
@@ -1660,111 +1496,233 @@ const HomePage = () => {
           top: 0;
         }
 
-        .top-nav {
-          background: var(--bg-color);
-          box-shadow: var(--shadow);
+        .elizian-header-minimal {
           position: sticky;
           top: 0;
           z-index: 100;
+          background: rgba(11, 15, 26, 0.9);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border-bottom: 1px solid rgba(212, 175, 55, 0.1);
+          transition: background 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        @media (min-width: 769px) {
+          .elizian-header-minimal {
+            display: none;
+          }
         }
 
-        .nav-container {
+        .elizian-header-inner {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 16px 20px;
+          padding: 12px 16px;
+          max-width: 1200px;
+          margin: 0 auto;
         }
 
-        .elizian-landing-logo {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          font-weight: 700;
-          font-size: 1.5rem;
-          color: var(--primary-color);
-          cursor: pointer;
-        }
-
-        .elizian-landing-logo-img {
-          width: 32px;
-          height: 32px;
-          border-radius: 8px;
-          object-fit: cover;
-        }
-
-        .desktop-nav {
-          display: none;
-          gap: 32px;
-        }
-
-        @media (min-width: 768px) {
-          .desktop-nav {
-            display: flex;
-          }
-        }
-
-        .nav-link {
-          text-decoration: none;
-          color: var(--text-light);
-          font-weight: 500;
-          transition: color 0.2s;
-          cursor: pointer;
-        }
-
-        .nav-link:hover,
-        .nav-link.active {
-          color: var(--primary-color);
-        }
-
-        .mobile-menu-btn {
+        .elizian-logo-crest {
           background: none;
           border: none;
-          font-size: 24px;
+          padding: 4px;
           cursor: pointer;
-          padding: 8px;
+        }
+
+        .elizian-crest-img {
+          width: 32px;
+          height: 32px;
           display: block;
+          filter: brightness(1.1);
         }
 
-        @media (min-width: 768px) {
-          .mobile-menu-btn {
-            display: none;
-          }
-        }
-
-        .mobile-nav-menu {
-          background: var(--bg-color);
-          border-top: 1px solid var(--border-color);
-          padding: 20px;
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        @media (min-width: 768px) {
-          .mobile-nav-menu {
-            display: none;
-          }
-        }
-
-        .mobile-nav-link {
-          text-decoration: none;
+        .elizian-brand-name {
+          font-family: var(--font-serif), Georgia, serif;
+          font-size: 1.5rem;
+          font-weight: 600;
           color: var(--text-color);
-          font-weight: 500;
-          padding: 12px 0;
-          border-bottom: 1px solid var(--border-color);
-          cursor: pointer;
+          letter-spacing: 0.02em;
+          margin: 0;
         }
 
-        .user-actions {
-          display: none;
-          gap: 12px;
+        .elizian-avatar-wrap {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          border: 1px solid rgba(212, 175, 55, 0.3);
+          background: rgba(17, 24, 39, 0.8);
+          display: flex;
           align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: border-color 0.25s ease, box-shadow 0.25s ease;
         }
 
-        @media (min-width: 768px) {
-          .user-actions {
-            display: flex;
+        .elizian-avatar-wrap:hover {
+          border-color: var(--primary-color);
+          box-shadow: 0 0 12px rgba(212, 175, 55, 0.2);
+        }
+
+        .elizian-avatar {
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: var(--primary-color);
+        }
+
+        .elizian-avatar-icon {
+          font-size: 1rem;
+        }
+
+        .elizian-hero {
+          padding: 2.5rem 0 2rem;
+          text-align: center;
+          animation: elizian-fade-in 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        @media (min-width: 769px) {
+          .elizian-hero {
+            padding: 0.75rem 0 1rem;
           }
+          .search-section {
+            padding: 0.5rem 0 0.75rem;
+          }
+          .elizian-category-section {
+            padding: 0.5rem 0 1rem;
+          }
+          .main-content .container {
+            padding-top: 0;
+          }
+        }
+
+        @keyframes elizian-fade-in {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .elizian-hero-title {
+          font-family: var(--font-serif), Georgia, serif;
+          font-size: clamp(1.75rem, 5vw, 2.5rem);
+          font-weight: 700;
+          color: var(--text-color);
+          letter-spacing: -0.02em;
+          line-height: 1.2;
+          margin: 0 0 0.75rem 0;
+        }
+
+        .elizian-hero-sub {
+          font-size: 0.95rem;
+          color: var(--text-light);
+          letter-spacing: 0.04em;
+          margin: 0;
+        }
+
+        .elizian-search-bar {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          background: rgba(17, 24, 39, 0.7);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: 1px solid rgba(212, 175, 55, 0.25);
+          border-radius: 16px;
+          padding: 12px 16px;
+          transition: border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .elizian-search-bar:focus-within {
+          border-color: rgba(212, 175, 55, 0.5);
+          box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.15);
+        }
+
+        .elizian-search-icon {
+          font-size: 1rem;
+          opacity: 0.8;
+        }
+
+        .elizian-search-input {
+          flex: 1;
+          border: none;
+          background: transparent;
+          color: var(--text-color);
+          font-size: 1rem;
+          outline: none;
+        }
+
+        .elizian-search-input::placeholder {
+          color: var(--text-light);
+        }
+
+        .elizian-filter-toggle {
+          background: none;
+          border: none;
+          color: var(--text-light);
+          cursor: pointer;
+          padding: 4px;
+        }
+
+        .elizian-filter-toggle.active {
+          color: var(--primary-color);
+        }
+
+        .elizian-category-section {
+          padding: 1rem 0 1.25rem;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+        }
+
+        .elizian-category-section::-webkit-scrollbar {
+          display: none;
+        }
+
+        .elizian-category-scroll {
+          display: flex;
+          gap: 10px;
+          padding-bottom: 4px;
+        }
+
+        .elizian-category-pill {
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 16px;
+          background: rgba(17, 24, 39, 0.6);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 20px;
+          color: var(--text-light);
+          font-size: 0.875rem;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .elizian-category-pill:hover {
+          border-color: rgba(212, 175, 55, 0.3);
+          color: var(--text-color);
+        }
+
+        .elizian-category-pill.active {
+          background: rgba(212, 175, 55, 0.15);
+          border-color: rgba(212, 175, 55, 0.4);
+          color: var(--primary-color);
+        }
+
+        .elizian-filter-panel {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          margin-top: 8px;
+          background: var(--bg-color);
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius);
+          padding: 16px;
+          box-shadow: var(--shadow-lg);
+          z-index: 10;
+          color: var(--text-color);
+        }
+        .elizian-filter-panel h4,
+        .elizian-filter-panel .filter-header {
+          color: var(--text-color);
         }
 
         .welcome-text {
@@ -1783,11 +1741,13 @@ const HomePage = () => {
 
         .btn-primary {
           background: var(--primary-color);
-          color: white;
+          color: #0B0F1A;
+          transition: opacity 0.25s ease, box-shadow 0.25s ease;
         }
 
         .btn-primary:hover {
-          background: #003832;
+          opacity: 0.95;
+          box-shadow: 0 0 16px rgba(212, 175, 55, 0.3);
         }
 
         .btn-secondary {
@@ -1941,12 +1901,13 @@ const HomePage = () => {
           border-radius: 20px;
           font-size: 0.875rem;
           cursor: pointer;
-          transition: all 0.2s;
+          transition: all 0.25s ease;
+          color: var(--text-color);
         }
 
         .filter-chip.active {
           background: var(--primary-color);
-          color: white;
+          color: #0B0F1A;
           border-color: var(--primary-color);
         }
 
@@ -2079,6 +2040,60 @@ const HomePage = () => {
           gap: 20px;
         }
 
+        /* Trending Experiences: single horizontal scroll row, swipeable on mobile */
+        .trending-scroll-container {
+          display: flex;
+          overflow-x: auto;
+          gap: 16px;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+          padding-bottom: 8px;
+          scrollbar-width: none;
+        }
+        .trending-scroll-container::-webkit-scrollbar {
+          display: none;
+        }
+        .trending-scroll-container .trending-scroll-card {
+          min-width: 280px;
+          max-width: 280px;
+          flex-shrink: 0;
+          scroll-snap-align: start;
+          border-radius: 20px;
+          overflow: hidden;
+          border: 1px solid rgba(212, 175, 55, 0.12);
+          transition: border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+        .trending-scroll-container .trending-scroll-card:hover {
+          border-color: rgba(212, 175, 55, 0.35);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }
+        .trending-scroll-container .card-image {
+          height: 180px;
+          position: relative;
+        }
+        .trending-scroll-container .card-image::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(to top, rgba(11, 15, 26, 0.85) 0%, transparent 50%);
+          pointer-events: none;
+        }
+        .trending-scroll-container .card-content {
+          position: relative;
+          margin-top: -48px;
+          padding: 12px 14px 16px;
+          z-index: 1;
+        }
+        .trending-scroll-container .card-title {
+          font-family: var(--font-serif), Georgia, serif;
+          font-size: 1.15rem;
+          color: var(--text-color);
+        }
+        .trending-scroll-container .card-distance {
+          font-size: 0.75rem;
+          color: var(--text-light);
+        }
+
         @media (min-width: 640px) {
           .trending-grid,
           .restaurants-grid,
@@ -2140,7 +2155,11 @@ const HomePage = () => {
         }
 
         .card-badge.trending {
-          background: #ef4444;
+          background: var(--primary-color);
+          color: #0B0F1A;
+          font-size: 0.7rem;
+          padding: 4px 10px;
+          border-radius: 8px;
         }
 
         .card-badge.perk {
@@ -2375,74 +2394,279 @@ const HomePage = () => {
           color: var(--text-light);
         }
 
-        .main-footer {
-          background: var(--bg-light);
-          padding: 40px 0 20px;
-          margin-top: 60px;
+        /* ========== HOME SECTIONS: Futuristic global / app-like ========== */
+        .home-section {
+          margin-bottom: 2.5rem;
+          padding: 0;
+        }
+        .home-section:last-of-type {
+          margin-bottom: 3rem;
         }
 
-        .footer-content {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 32px;
-          margin-bottom: 32px;
+        .section-header-modern {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 10px 16px;
+          margin-bottom: 1.25rem;
+          padding-bottom: 0.75rem;
+          position: relative;
         }
-
-        @media (min-width: 768px) {
-          .footer-content {
-            grid-template-columns: repeat(2, 1fr);
-          }
+        .section-header-accent {
+          position: absolute;
+          left: 0;
+          bottom: 0;
+          width: 40px;
+          height: 3px;
+          border-radius: 2px;
+          background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
         }
-
-        @media (min-width: 1024px) {
-          .footer-content {
-            grid-template-columns: repeat(4, 1fr);
-          }
+        .section-header-accent.live {
+          background: linear-gradient(90deg, #10b981, #059669);
         }
-
-        .footer-section h4 {
-          margin-bottom: 16px;
-          font-size: 1.125rem;
+        .section-header-accent.upcoming {
+          background: linear-gradient(90deg, #8b5cf6, #6366f1);
         }
-
-        .footer-section a {
-          display: block;
+        .section-header-accent.deals {
+          background: linear-gradient(90deg, var(--accent-color), #f97316);
+        }
+        .section-title-modern {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-family: var(--font-serif), Georgia, serif;
+          font-size: 1.35rem;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+          color: var(--text-color);
+          margin: 0;
+        }
+        .title-icon {
+          font-size: 1.2rem;
+        }
+        .section-subtitle-modern {
+          font-size: 0.8rem;
           color: var(--text-light);
-          text-decoration: none;
-          margin-bottom: 8px;
-          transition: color 0.2s;
-          cursor: pointer;
+          margin-left: auto;
         }
-
-        .footer-section a:hover {
+        .view-all-btn-modern {
+          margin-left: auto;
+          padding: 8px 14px;
+          font-size: 0.8rem;
+          font-weight: 600;
           color: var(--primary-color);
-        }
-
-        .footer-bottom {
-          text-align: center;
-          padding-top: 20px;
-          border-top: 1px solid var(--border-color);
-          color: var(--text-light);
-          font-size: 0.875rem;
-        }
-
-        .app-store-btn,
-        .play-store-btn {
-          display: block;
-          width: 100%;
-          margin-bottom: 8px;
-          padding: 8px 12px;
-          background: var(--text-color);
-          color: white;
+          background: rgba(0, 79, 74, 0.08);
           border: none;
-          border-radius: var(--radius-sm);
-          font-weight: 500;
+          border-radius: 20px;
           cursor: pointer;
+          transition: background 0.2s, color 0.2s;
+        }
+        .view-all-btn-modern:hover {
+          background: rgba(0, 79, 74, 0.14);
+        }
+
+        .loading-state-modern,
+        .empty-state-modern {
+          text-align: center;
+          padding: 2.5rem 1rem;
+          min-height: 140px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .loading-state-modern p,
+        .empty-state-modern p {
+          margin: 0;
+          font-size: 0.95rem;
+          color: var(--text-light);
+        }
+
+        /* Horizontal scroll rows (mobile-first, swipeable) */
+        .restaurants-scroll-container,
+        .events-scroll-container,
+        .upcoming-scroll-container {
+          display: flex;
+          overflow-x: auto;
+          gap: 16px;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+          padding-bottom: 12px;
+          scrollbar-width: none;
+        }
+        .restaurants-scroll-container::-webkit-scrollbar,
+        .events-scroll-container::-webkit-scrollbar,
+        .upcoming-scroll-container::-webkit-scrollbar {
+          display: none;
+        }
+
+        .home-card {
+          flex-shrink: 0;
+          scroll-snap-align: start;
+          background: var(--bg-color);
+          border-radius: 16px;
+          overflow: hidden;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+          border: 1px solid rgba(0, 0, 0, 0.04);
+        }
+        .home-card:hover,
+        .home-card:focus-visible {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+        }
+        .restaurant-scroll-card,
+        .event-scroll-card,
+        .upcoming-scroll-card {
+          min-width: 280px;
+          max-width: 280px;
+        }
+
+        .home-card-image {
+          height: 160px;
+          background-size: cover;
+          background-position: center;
+          position: relative;
+        }
+        .home-card-badge {
+          position: absolute;
+          top: 10px;
+          left: 10px;
+          padding: 4px 10px;
+          border-radius: 8px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          background: rgba(0, 0, 0, 0.65);
+          color: #fff;
+        }
+        .home-card-badge.live {
+          background: linear-gradient(135deg, #10b981, #059669);
+          left: auto;
+          right: 10px;
+        }
+        .home-card-badge.rating {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .home-card-body {
+          padding: 14px;
+        }
+        .home-card-body.compact {
+          padding: 10px 12px;
+        }
+        .home-card-title {
+          font-size: 1.05rem;
+          font-weight: 600;
+          margin: 0 0 4px 0;
+          color: var(--text-color);
+          line-height: 1.3;
+        }
+        .home-card-title.small {
+          font-size: 0.95rem;
+        }
+        .home-card-meta {
+          font-size: 0.8rem;
+          color: var(--text-light);
+          margin: 0 0 10px 0;
+          line-height: 1.4;
+        }
+        .home-card-meta-row {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          font-size: 0.75rem;
+          color: var(--text-light);
+          margin-bottom: 12px;
+        }
+        .home-card-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .home-card-distance {
+          font-size: 0.8rem;
+          color: var(--text-light);
+        }
+        .home-card-cta {
+          padding: 8px 14px;
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: var(--primary-color);
+          background: rgba(0, 79, 74, 0.1);
+          border: none;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .home-card-cta:hover {
+          background: rgba(0, 79, 74, 0.18);
+        }
+        .home-card-cta.primary {
+          width: 100%;
+          background: var(--primary-color);
+          color: #fff;
+        }
+        .home-card-cta.primary:hover {
+          background: #00423d;
+        }
+
+        .deals-scroll-container {
+          display: flex;
+          overflow-x: auto;
+          gap: 16px;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+          padding-bottom: 12px;
+          scrollbar-width: none;
+        }
+        .deals-scroll-container::-webkit-scrollbar {
+          display: none;
+        }
+        .deals-scroll-card {
+          min-width: 280px;
+          max-width: 280px;
+          flex-shrink: 0;
+          scroll-snap-align: start;
+        }
+        .deals-scroll-card .experience-card {
+          width: 100%;
+          max-width: 280px;
         }
 
         @media (max-width: 767px) {
           .container {
             padding: 0 16px;
+          }
+
+          .elizian-header-inner {
+            padding: 8px 12px;
+          }
+
+          .elizian-hero {
+            padding: 1rem 0 1rem;
+          }
+
+          .elizian-hero-title {
+            margin-bottom: 0.35rem;
+            font-size: clamp(1.4rem, 5vw, 1.75rem);
+          }
+
+          .elizian-hero-sub {
+            font-size: 0.85rem;
+          }
+
+          .search-section {
+            padding: 0.5rem 0;
+            width: 100%;
+          }
+          .search-section .search-wrapper {
+            width: 100%;
+          }
+          .search-section .elizian-search-bar {
+            width: 100%;
+            box-sizing: border-box;
           }
 
           .section-header {
@@ -2458,6 +2682,96 @@ const HomePage = () => {
 
           .search-input-group {
             padding: 10px 14px;
+          }
+        }
+
+        /* Desktop only: 1024px+ — wider content, less side margins, trending uses width, mobile untouched */
+        @media (min-width: 1024px) {
+          body {
+            padding-left: 0;
+            padding-right: 0;
+          }
+          .elizian-container .container.main-container,
+          .main-container {
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding-left: 40px;
+            padding-right: 40px;
+            box-sizing: border-box;
+          }
+          .elizian-container .elizian-hero {
+            min-height: auto;
+            max-width: 1100px;
+            margin-left: auto;
+            margin-right: auto;
+            padding-top: 20px;
+            padding-bottom: 16px;
+            text-align: center;
+          }
+          .elizian-container .elizian-hero-title {
+            margin-bottom: 0.35rem;
+            text-align: center;
+          }
+          .elizian-container .elizian-hero-sub {
+            margin-top: 0.25rem;
+            text-align: center;
+          }
+          .elizian-container .search-section {
+            padding-top: 0;
+            padding-bottom: 0.5rem;
+            display: block;
+          }
+          .elizian-container .search-section .search-wrapper {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 24px;
+            margin-left: auto;
+            margin-right: auto;
+            margin-bottom: 0;
+          }
+          .elizian-container .search-section .elizian-search-bar {
+            width: 100%;
+            box-sizing: border-box;
+          }
+          .elizian-container .elizian-category-section {
+            margin-top: 12px;
+            overflow-x: visible;
+            overflow-y: visible;
+            padding: 0.5rem 0 1rem;
+            -webkit-overflow-scrolling: unset;
+          }
+          .elizian-container .elizian-category-scroll {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            gap: 10px 12px;
+            padding-bottom: 0;
+          }
+          .elizian-container .elizian-category-pill {
+            flex-shrink: 0;
+          }
+          .elizian-container .trending-section {
+            width: 100%;
+            margin-top: 24px;
+            box-sizing: border-box;
+          }
+          .elizian-container .trending-scroll-container {
+            max-width: 100%;
+            gap: 24px;
+          }
+          .elizian-container .trending-scroll-container .trending-scroll-card {
+            min-width: 320px;
+            max-width: 320px;
+          }
+          .elizian-container .experience-card {
+            min-width: 320px;
+          }
+        }
+        @media (min-width: 1600px) {
+          .elizian-container .container.main-container,
+          .main-container {
+            max-width: 1500px;
           }
         }
       `}</style>

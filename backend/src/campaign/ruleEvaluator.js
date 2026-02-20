@@ -1,5 +1,4 @@
 'use strict';
-const { logError } = require('../../utils/logger');
 const { isTierValid } = require('./campaignTypes');
 
 function evaluateRule(ruleJson, context) {

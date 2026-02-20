@@ -330,6 +330,11 @@ async function validateBookingTime(partnerId, bookingDate, bookingTime, duration
       [partnerId, dayOfWeek]
     );
 
+    log(`🕐 Hours lookup: partner=${partnerId}, date=${bookingDate}, dayOfWeek=${dayOfWeek} (${getDayName(dayOfWeek)}), todayRows=${todayRows.length}, bookingTime=${bookingTime}, startMin=${startMin}`);
+    if (todayRows.length > 0) {
+      log(`🕐 Today's hours: opens_at=${todayRows[0].opens_at}, closes_at=${todayRows[0].closes_at}, is_closed=${todayRows[0].is_closed}`);
+    }
+
     // ========================================
     // 6. FETCH PREVIOUS DAY'S HOURS (FOR OVERNIGHT SPILLOVER)
     // ========================================
@@ -421,22 +426,46 @@ async function validateBookingTime(partnerId, bookingDate, bookingTime, duration
     }
 
     // ========================================
-    // 9. NO HOURS CONFIGURED (BACKWARD COMPATIBILITY)
+    // 9. NO HOURS FOR THIS DAY — distinguish "not configured at all" vs "closed today"
     // ========================================
     if (todayRows.length === 0 && prevRows.length === 0) {
-      log(`⚠️ No operating hours configured for partner ${partnerId}, day ${dayOfWeek} - allowing booking`);
-      return { valid: true, source: 'NO_HOURS_CONFIGURED', hours: null };
+      // Check if partner has hours for ANY day (i.e. they did set up their schedule)
+      const { rows: anyDayRows } = await pool.query(
+        `SELECT 1 FROM partner_hours WHERE partner_id = $1 LIMIT 1`,
+        [partnerId]
+      );
+
+      if (anyDayRows.length > 0) {
+        // Partner has hours for other days → this day is implicitly closed
+        log(`❌ Partner ${partnerId} has no hours for day ${dayOfWeek} (${getDayName(dayOfWeek)}) - treating as closed`);
+        return {
+          valid: false,
+          reason: 'VENUE_CLOSED_ON_DAY',
+          message: `Venue is closed on ${getDayName(dayOfWeek)}s`,
+          hours: null
+        };
+      }
+
+      // Partner has NO hours for ANY day → schedule not configured at all
+      // Allow booking for backward compat (partner may not have set up operating hours yet)
+      log(`⚠️ No operating hours configured for partner ${partnerId} at all - allowing booking (backward compat)`);
+      return {
+        valid: true,
+        reason: 'NO_HOURS_CONFIGURED',
+        message: 'No operating hours configured — booking allowed by default',
+        hours: null
+      };
     }
 
     // ========================================
-    // 10. REJECTION WITH CONTEXT
+    // 10. REJECTION WITH CONTEXT (today has hours but booking doesn't fit)
     // ========================================
     const rejectionReason = todayRows.length > 0 && todayRows[0].is_closed
       ? 'VENUE_CLOSED_ON_DAY'
       : 'OUTSIDE_OPERATING_HOURS';
 
     const rejectionMessage = todayRows.length > 0 && todayRows[0].is_closed
-      ? `Venue closed on ${getDayName(dayOfWeek)}s`
+      ? `Venue is closed on ${getDayName(dayOfWeek)}s`
       : `Booking time ${bookingTime} is outside operating hours`;
 
     return { 

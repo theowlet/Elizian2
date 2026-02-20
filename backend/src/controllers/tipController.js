@@ -2,6 +2,8 @@ const tipService = require('../services/tipService');
 const { successResponse, errorResponse } = require('../../utils/response');
 const { logError } = require('../../utils/logger');
 
+const VALID_PAYMENT_METHODS = ['ezt', 'fiat'];
+
 async function createTip(req, res) {
   try {
     const userId = req.userId;
@@ -10,6 +12,11 @@ async function createTip(req, res) {
     }
     const { id: partnerId } = req.params;
     const { amount_decimal, currency, payment_method, notes, booking_id } = req.body;
+
+    if (payment_method && !VALID_PAYMENT_METHODS.includes(payment_method)) {
+      return errorResponse(res, 400, "payment_method must be 'ezt' or 'fiat'");
+    }
+
     const tip = await tipService.createTip(userId, partnerId, {
       amount_decimal,
       currency,
@@ -40,7 +47,23 @@ async function listForPartner(req, res) {
   }
 }
 
+async function listByUser(req, res) {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return errorResponse(res, 401, 'Authentication required');
+    }
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const tips = await tipService.listByUser(userId, limit);
+    successResponse(res, 200, 'Tips retrieved', tips);
+  } catch (err) {
+    logError('List user tips error:', err);
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to list tips');
+  }
+}
+
 module.exports = {
   createTip,
   listForPartner,
+  listByUser,
 };

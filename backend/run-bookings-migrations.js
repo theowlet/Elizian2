@@ -23,6 +23,8 @@ const MIGRATIONS = [
   'db/20251108_ezt_token_updates.sql',
   'db/deal_slots.sql',
   'db/migrations/2026-02-enterprise-booking-engine.sql',    // is_priority_override
+  'db/migrations/2026-02-bookings-co-pay-at-booking.sql',  // co_pay_percentage_at_booking
+  'db/migrations/2026-02-booking-reward-multiplier.sql',   // reward_multiplier (campaign EZT boost)
 ];
 
 async function run() {

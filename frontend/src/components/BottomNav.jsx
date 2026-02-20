@@ -1,33 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-
-const getUserDisplayName = () => {
-  try {
-    const raw = localStorage.getItem('user');
-    if (!raw) return null;
-    const user = JSON.parse(raw);
-    const first = (user.first_name || '').trim();
-    const last = (user.last_name || '').trim();
-    if (first || last) return [first, last].filter(Boolean).join(' ');
-    if (user.name) return String(user.name).trim();
-    return null;
-  } catch {
-    return null;
-  }
-};
+function getUserDisplayName(user) {
+  if (!user) return null;
+  const first = (user.first_name || '').trim();
+  const last = (user.last_name || '').trim();
+  if (first || last) return [first, last].filter(Boolean).join(' ');
+  if (user.name) return String(user.name).trim();
+  return null;
+}
 
 /**
  * Mobile Bottom Navigation Bar
- * Shows on authenticated user pages only
+ * Shows on authenticated user pages only. Uses AuthContext + NotificationContext.
  */
 const BottomNav = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const token = localStorage.getItem('token');
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [profileLabel, setProfileLabel] = useState(() => getUserDisplayName() || 'Profile');
+  const { token, user } = useAuth();
+  const { unreadCount } = useNotifications();
+  const profileLabel = useMemo(() => getUserDisplayName(user) || 'Profile', [user]);
 
   // Pages where bottom nav should NOT appear
   const hiddenPaths = [
@@ -40,35 +34,13 @@ const BottomNav = () => {
     location.pathname === p || location.pathname.startsWith('/admin') || location.pathname.startsWith('/partner/')
   ) || !token;
 
-  useEffect(() => {
-    if (!token) return;
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
-  }, [token]);
-
-  useEffect(() => {
-    setProfileLabel(getUserDisplayName() || 'Profile');
-  }, [location.pathname]);
-
-  const fetchUnread = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/notifications/unread-count`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) setUnreadCount(data.data?.count || data.data?.unreadCount || 0);
-    } catch (_) {}
-  };
-
   if (shouldHide) return null;
 
   const tabs = [
     { path: '/home', icon: '🏠', label: 'Home' },
-    { path: '/exclusives', icon: '✨', label: 'Exclusives' },
-    { path: '/wallet', icon: '💰', label: 'Wallet' },
-    { path: '/notifications', icon: '🔔', label: 'Notifications', badge: unreadCount },
-    { path: '/profile', icon: '👤', label: profileLabel },
+    { path: '/bookings', icon: '📋', label: 'Bookings' },
+    { path: '/messages', icon: '💬', label: 'Messages', badge: unreadCount },
+    { path: '/profile', icon: '👤', label: 'Profile' },
   ];
 
   const isActive = (path) => {
@@ -87,7 +59,7 @@ const BottomNav = () => {
             onClick={() => navigate(tab.path)}
             style={{
               ...styles.tab,
-              color: active ? '#004f4a' : '#9ca3af',
+              color: active ? gold : inactive,
             }}
             aria-label={tab.label}
           >
@@ -99,8 +71,8 @@ const BottomNav = () => {
             </div>
             <span style={{
               ...styles.label,
-              fontWeight: active ? 700 : 500,
-              color: active ? '#004f4a' : '#9ca3af',
+              fontWeight: active ? 600 : 500,
+              color: active ? gold : inactive,
             }}>
               {tab.label}
             </span>
@@ -112,6 +84,11 @@ const BottomNav = () => {
   );
 };
 
+const gold = '#D4AF37';
+const bgNav = 'rgba(11, 15, 26, 0.95)';
+const borderNav = 'rgba(212, 175, 55, 0.12)';
+const inactive = '#9CA3AF';
+
 const styles = {
   nav: {
     position: 'fixed',
@@ -119,14 +96,16 @@ const styles = {
     left: 0,
     right: 0,
     width: '100%',
-    background: '#fff',
-    borderTop: '1px solid #f3f4f6',
+    background: bgNav,
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    borderTop: `1px solid ${borderNav}`,
     display: 'flex',
     justifyContent: 'space-around',
     alignItems: 'center',
     padding: '0.35rem 0 env(safe-area-inset-bottom, 0.35rem)',
     zIndex: 10002,
-    boxShadow: '0 -1px 8px rgba(0,0,0,0.04)',
+    boxShadow: '0 -4px 24px rgba(0,0,0,0.3)',
     pointerEvents: 'auto',
     touchAction: 'manipulation',
   },
@@ -135,13 +114,13 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '1px',
+    gap: '2px',
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    padding: '4px 0',
+    padding: '6px 0',
     position: 'relative',
-    transition: 'color 0.15s',
+    transition: 'color 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
     WebkitTapHighlightColor: 'transparent',
     pointerEvents: 'auto',
     touchAction: 'manipulation',
@@ -155,8 +134,8 @@ const styles = {
     position: 'absolute',
     top: '-4px',
     right: '-8px',
-    background: '#ef4444',
-    color: '#fff',
+    background: gold,
+    color: '#0B0F1A',
     fontSize: '0.55rem',
     fontWeight: 700,
     minWidth: '14px',
@@ -170,7 +149,7 @@ const styles = {
   },
   label: {
     fontSize: '0.6rem',
-    letterSpacing: '0.01em',
+    letterSpacing: '0.02em',
     lineHeight: 1,
   },
   activeIndicator: {
@@ -178,9 +157,9 @@ const styles = {
     top: '-1px',
     left: '50%',
     transform: 'translateX(-50%)',
-    width: '20px',
+    width: '24px',
     height: '2px',
-    background: '#004f4a',
+    background: gold,
     borderRadius: '1px',
   },
 };

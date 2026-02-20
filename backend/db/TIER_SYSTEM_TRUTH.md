@@ -10,7 +10,7 @@
 **Spelling:** Use "Ather" (not "Aether"). Use "Echelon" (capital E).
 
 **Migration warning:**  
-`2026-02-tier-names-consistency.sql` renames tiers to Beacon, Crest, Ascend. **Do not run that migration** as-is; it violates the system truth above. Tier names must remain **Ather, Nova, Luminar, Valiant, Echelon**.
+**Recurring wrong names:** The migration `2026-02-tier-names-consistency.sql` renamed Nova→Beacon, Luminar→Crest, Valiant→Ascend. It has been **renamed to `.sql.disabled`** and **excluded in `scripts/run-migrations.js`** so it is never run again. If Tier Configuration ever shows Beacon/Crest/Ascend again (e.g. from an old run), restore with: `node run-tier-names-repair.js`.
 
 **DB:** Ensure `loyalty_tiers` and any tier references use only these five names. Legacy `tiers` table should align (e.g. `name` IN ('Ather','Nova','Luminar','Valiant','Echelon')).
 

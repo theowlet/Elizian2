@@ -44,16 +44,17 @@ export function computeDiscountSummary(offer = {}) {
     ? original - discounted
     : 0;
 
-  // Calculate percentage if not provided
-  let calculatedPercent = percent;
-  if (calculatedPercent === 0 && original > 0 && discounted < original) {
-    calculatedPercent = ((original - discounted) / original) * 100;
-  }
+  // Use explicit co_pay_percentage as source of truth when provided; never overwrite with reverse-calculation from prices (avoids 50% → 49.94% due to rounded discounted_price)
+  const hasExplicitPercent = percent > 0;
+  const derivedPercent = (original > 0 && discounted < original)
+    ? ((original - discounted) / original) * 100
+    : 0;
+  const displayPercent = hasExplicitPercent ? percent : derivedPercent;
 
   return {
     original: parseFloat(original.toFixed(2)),
     discounted: parseFloat(discounted.toFixed(2)),
-    percentage: parseFloat(calculatedPercent.toFixed(2)),
+    percentage: parseFloat((hasExplicitPercent ? Math.round(displayPercent * 100) / 100 : displayPercent).toFixed(2)),
     amount: parseFloat(amount.toFixed(2)),
     savings: parseFloat(savings.toFixed(2)),
     hasDiscount: original > 0 && discounted < original,

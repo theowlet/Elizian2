@@ -8,18 +8,16 @@ const userRepository = require('../repositories/userRepository');
 const settingsRepository = require('../repositories/settingsRepository');
 const tokenService = require('./tokenService');
 const theatreService = require('../../services/theatreService');
-const loyaltyEngine = require('../../services/loyaltyEngineService');
-const tierService = require('./tierService');
 const bankOfferService = require('./bankOfferService');
 const reservationService = require('./reservationService');
 const preOrderService = require('./preOrderService');
 const bookingValidation = require('./bookingValidation');
 const slotCapacityService = require('./slotCapacityService');
+const { v4: uuidv4 } = require('uuid');
 const { AppError } = require('../../utils/response');
 const { logError, log } = require('../../utils/logger');
 const { emitRealtimeEvent, emitToRoom, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
 const { generateAndUploadQRCode } = require('../utils/qrCodeGenerator');
-const { v4: uuidv4 } = require('uuid');
 const { normalizeTierName } = require('../utils/tierNames');
 
 const pool = getPool();
@@ -61,6 +59,8 @@ async function createBooking(bookingData) {
     let bookingPayload = { user_id, num_tickets, special_requests };
     let amount = 0;
     let partner_id = null;
+    let serviceType = null; // Track service type to decide if hours validation is required
+    let eventStartTimeForDefault = null; // For event_id: use event.start_time when user didn't send date/time
     let commission_percentage = 10.0;
 
     // Get commission percentage from system settings (with timeout and fallback)
@@ -90,6 +90,8 @@ async function createBooking(bookingData) {
       }
 
       partner_id = event.partner_id;
+      serviceType = 'events';
+      eventStartTimeForDefault = event.start_time || null;
 
       // Check if event has passed
       if (event.start_time && new Date(event.start_time) < new Date()) {
@@ -160,11 +162,13 @@ async function createBooking(bookingData) {
       }
 
       partner_id = offer.partner_id;
+      serviceType = (offer.service_type || '').toLowerCase();
 
-      // Check redemptions limit
-      if (offer.max_redemptions && (offer.current_redemptions || 0) >= offer.max_redemptions) {
+      // Atomic redemption limit: reserve one slot only if under max (prevents race conditions)
+      const updatedOffer = await offerRepository.incrementOfferRedemptionsAtomic(offer_id, client);
+      if (!updatedOffer) {
         await client.query('ROLLBACK');
-        throw new AppError(400, "Offer redemption limit reached");
+        throw new AppError(400, "Offer fully redeemed");
       }
 
       amount = parseFloat(offer.discounted_price || offer.original_price || 0);
@@ -209,6 +213,7 @@ async function createBooking(bookingData) {
         [show.screen_id]
       );
       partner_id = theatreResult.rows[0]?.partner_id || null;
+      serviceType = 'shows';
 
       bookingPayload.show_id = show_id;
       bookingPayload.seat_template_ids = seat_template_ids;
@@ -318,11 +323,11 @@ async function createBooking(bookingData) {
     // Extract booking date and time from multiple sources (priority order):
     // 1. Direct booking_date/booking_time (for events, passed from frontend)
     // 2. reservation_data.date/time (for dining)
-    // 3. Current date/time (fallback)
+    // 3. Current date/time (fallback — for storage only, NOT validated against hours)
     // CRITICAL: Check booking_date and booking_time FIRST (before bookingPayload which is empty initially)
     let bookingDate = booking_date || null;
     let bookingTime = booking_time || null;
-    
+
     // Only fallback to bookingPayload if direct values are not provided
     if (!bookingDate) {
       bookingDate = bookingPayload.booking_date || null;
@@ -330,10 +335,10 @@ async function createBooking(bookingData) {
     if (!bookingTime) {
       bookingTime = bookingPayload.booking_time || null;
     }
-    
+
     // CRITICAL: Log the initial values to debug time extraction
     log(`🔍 Booking time extraction - Initial: booking_time=${booking_time}, bookingPayload.booking_time=${bookingPayload.booking_time}, reservation_data=${JSON.stringify(reservation_data)}`);
-    
+
     if (reservation_data) {
       if (reservation_data.date) {
         bookingDate = reservation_data.date;
@@ -343,16 +348,34 @@ async function createBooking(bookingData) {
         log(`✅ Using time from reservation_data: ${bookingTime}`);
       }
     }
-    
-    // If still no date/time, use current date/time
-    if (!bookingDate) {
-      bookingDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-      log(`⚠️ No booking date provided, using current date: ${bookingDate}`);
+
+    // Determine if this booking type REQUIRES operating hours validation.
+    // Time-based services (dining, events, shows) must be validated — they represent
+    // a specific visit to the venue at a specific time.
+    // Non-time-based services (spa vouchers, travel packages, wellness, etc.) are
+    // voucher purchases — the user will visit the venue at their convenience later.
+    const TIME_BASED_SERVICES = ['dining', 'events', 'shows'];
+    const requiresHoursValidation = TIME_BASED_SERVICES.includes(serviceType);
+
+    // Default date/time for STORAGE and validation. For events with no date/time, use event start_time.
+    if (!bookingDate || !bookingTime) {
+      if (serviceType === 'events' && eventStartTimeForDefault) {
+        const d = new Date(eventStartTimeForDefault);
+        if (!bookingDate) bookingDate = d.toISOString().split('T')[0];
+        if (!bookingTime) bookingTime = d.toTimeString().slice(0, 5);
+        log(`⚠️ No booking date/time provided, using event start for record/validation: ${bookingDate} ${bookingTime}`);
+      } else {
+        if (!bookingDate) {
+          bookingDate = new Date().toISOString().split('T')[0];
+          log(`⚠️ No booking date provided, using current date for record: ${bookingDate}`);
+        }
+        if (!bookingTime) {
+          bookingTime = new Date().toTimeString().slice(0, 5);
+          log(`⚠️ No booking time provided, using current time for record: ${bookingTime}`);
+        }
+      }
     }
-    if (!bookingTime) {
-      bookingTime = new Date().toTimeString().slice(0, 5); // HH:MM format
-      log(`⚠️ No booking time provided, using current time: ${bookingTime}`);
-    } else {
+    if (bookingTime) {
       log(`✅ Final booking time: ${bookingTime}`);
     }
     
@@ -378,11 +401,13 @@ async function createBooking(bookingData) {
     // ============================================
     // CRITICAL: OPERATING HOURS + ECHELON VALIDATION
     // ============================================
-    // This is the MANDATORY gatekeeper for all bookings
-    // NO booking can bypass this check
-    // Echelon tier can override CAPACITY, but NOT operating hours
+    // For time-based services (dining, events, shows): ALWAYS validate against
+    // operating hours — default to current time if user didn't provide one.
+    // For non-time-based services (spa, wellness, travel, etc.): skip this check
+    // because the user is purchasing a voucher, not reserving a specific time slot.
+    // Echelon tier can override CAPACITY, but NOT operating hours.
 
-    if (bookingDate && bookingTime && partner_id) {
+    if (requiresHoursValidation && partner_id) {
       log(`🔍 Validating booking time: ${bookingDate} ${bookingTime} for partner ${partner_id}`);
 
       const validation = await bookingValidation.validateBookingRequest({
@@ -442,8 +467,31 @@ async function createBooking(bookingData) {
         }
         bookingPayload._slotReserved = slotReserved;
       }
-    } else {
-      log(`⚠️ Skipping hours validation: bookingDate=${bookingDate}, bookingTime=${bookingTime}, partner_id=${partner_id}`);
+    } else if (partner_id) {
+      log(`⏩ Skipping hours validation — service_type="${serviceType}" is not time-based. Stored date/time: ${bookingDate} ${bookingTime}`);
+    }
+
+    // Campaign evaluation inside transaction: get reward_multiplier for use at redemption
+    if (offer_id) {
+      try {
+        const campaignEngine = require('../campaign/campaignService');
+        const campaignContext = {
+          userId: user_id,
+          experienceId: offer_id,
+          partnerId: partner_id,
+          amount: finalAmount,
+          userTier: userTierAtBooking,
+        };
+        const campaignResult = await campaignEngine.processEvent('booking_created', campaignContext);
+        const multiplier = campaignResult?.campaign_effects?.reward_multiplier;
+        if (multiplier != null) {
+          bookingPayload.reward_multiplier = Math.max(0.1, Math.min(5, Number(multiplier)));
+          log(`📊 Campaign reward_multiplier applied for booking: ${bookingPayload.reward_multiplier}`);
+        }
+      } catch (campaignErr) {
+        logError('Campaign evaluation (non-fatal):', campaignErr);
+        // Continue with default 1.0
+      }
     }
 
     // Create booking FIRST (before QR generation)
@@ -623,11 +671,7 @@ async function createBooking(bookingData) {
       transaction_type: 'purchase'
     }, client);  // BUG FIX #2: Pass client for transaction atomicity
 
-    // Update offer redemption count if offer booking
-    // CRITICAL: Pass client to ensure atomicity within transaction
-    if (offer_id) {
-      await offerRepository.incrementOfferRedemptions(offer_id, client);
-    }
+    // Offer redemption count already incremented atomically above (incrementOfferRedemptionsAtomic)
 
     // Create table reservation if provided (for dining offers)
     let reservation = null;
@@ -827,15 +871,40 @@ async function createBooking(bookingData) {
     });
     emitToRoom(`users:${user_id}`, REALTIME_EVENTS.BOOKING_CREATED, bookingEventPayload);
 
-    // Campaign engine: non-blocking event for attribution / rules
-    const campaignEngine = require('../campaign/campaignService');
-    campaignEngine.processEvent('booking_created', {
-      userId: user_id,
-      experienceId: offer_id,
-      partnerId: partner_id,
-      amount: booking.amount,
-      userTier: user?.current_tier_name,
-    }).catch((e) => logError('Campaign engine booking_created:', e));
+    // Booking confirmation notifications (after commit; failure must not rollback booking)
+    try {
+      const notificationService = require('./notificationService');
+      await notificationService.create({
+        userId: user_id,
+        type: 'booking_created',
+        title: 'Booking confirmed',
+        message: `Your booking for ${dealTitle || 'your deal'} is confirmed. Voucher: ${booking.voucher_code || booking.booking_reference}.`,
+        actionUrl: `/bookings/${booking.id}`,
+        priority: 'high',
+        metadata: { booking_id: booking.id, offer_name: dealTitle, booking_date: bookingDate, voucher_code: booking.voucher_code },
+        sentViaInApp: true,
+        sentViaPush: true,
+      });
+      if (partner_id) {
+        const partner = await partnerRepository.getPartnerById(partner_id);
+        const partnerUserId = partner?.user_id || partner?.owner_user_id;
+        if (partnerUserId) {
+          await notificationService.create({
+            userId: partnerUserId,
+            type: 'booking_received',
+            title: 'New booking',
+            message: `New booking for ${dealTitle || 'deal'}. Ref: ${booking.booking_reference}. Voucher: ${booking.voucher_code || '—'}.`,
+            actionUrl: `/partner/bookings`,
+            priority: 'high',
+            metadata: { booking_id: booking.id, offer_name: dealTitle, booking_date: bookingDate, voucher_code: booking.voucher_code },
+            sentViaInApp: true,
+            sentViaPush: true,
+          });
+        }
+      }
+    } catch (notifErr) {
+      logError('Booking notification failed (booking already committed):', notifErr);
+    }
 
     return booking;
   } catch (err) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 /* ═══════════════════════════════════════════════════════════════════════
    EAZY PASS — Luxury Dark Gold Digital Membership Card
@@ -296,7 +296,7 @@ const EazyPassModal = ({ isOpen, onClose }) => {
                   : '---'}
               </span>
               <span style={S.footerDot}>&middot;</span>
-              <span style={S.footerText}>elizian.com</span>
+              <span style={S.footerText}>elizian.in</span>
             </div>
           </div>
         ) : null}

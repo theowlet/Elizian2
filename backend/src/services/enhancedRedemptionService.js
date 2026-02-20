@@ -13,6 +13,7 @@ const tokenService = require('./tokenService');
 const redemptionCalculationService = require('./redemptionCalculationService');
 const { applyBookingTimeCoPay, EZT_TO_INR } = redemptionCalculationService;
 const visitSessionRepository = require('../repositories/visitSessionRepository');
+const partnerTierRepository = require('../repositories/partnerTierRepository');
 const { AppError } = require('../../utils/response');
 const { log, logError } = require('../../utils/logger');
 
@@ -604,6 +605,34 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       executor: client
     });
 
+    // Platform earnings ledger (dynamic tier fees) — same transaction
+    try {
+      const partnerRow = await client.query('SELECT tier_id FROM partners WHERE id = $1', [partner_id]);
+      const tierId = partnerRow.rows[0]?.tier_id;
+      if (tierId) {
+        const tier = await partnerTierRepository.getTierForRedemption(tierId, client);
+        if (tier) {
+          const bill = parseFloat(total_bill_amount) || 0;
+          const platform_fee_total = Math.round(bill * (Number(tier.platform_fee_percent) / 100) * 100) / 100;
+          const fiat_component = Math.round(bill * (Number(tier.fiat_fee_percent) / 100) * 100) / 100;
+          const ezt_component = Math.round(bill * (Number(tier.ezt_fee_percent) / 100) * 100) / 100;
+          await partnerTierRepository.insertLedgerEntry({
+            partner_id,
+            tier_id: tier.id,
+            booking_id: booking.id,
+            redemption_id: redemption.id,
+            bill_amount: bill,
+            platform_fee_total,
+            fiat_component,
+            ezt_component
+          }, client);
+        }
+      }
+    } catch (ledgerErr) {
+      logError('Platform earnings ledger insert (non-fatal):', ledgerErr.message);
+      // Do not rollback redemption; ledger is additive reporting
+    }
+
     if (DUAL_CONFIRMATION_ENABLED) {
       await client.query('COMMIT');
       log(`✅ Redemption ${redemption.id} created — pending customer confirmation (expires ${confirmationExpiresAt})`);
@@ -651,6 +680,11 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
           // Process tier rewards and check for tier upgrade
           tierResult = await tierService.processBookingWithTier(booking.user_id, tierAmount, client);
           eztEarned = tierResult.eztEarned;
+          const rewardMultiplier = booking.reward_multiplier != null ? Math.max(0.1, Math.min(5, Number(booking.reward_multiplier))) : 1;
+          if (rewardMultiplier !== 1 && eztEarned > 0) {
+            eztEarned = Math.round(eztEarned * rewardMultiplier * 100) / 100;
+            log(`✅ Campaign reward_multiplier applied at redemption: ${rewardMultiplier}x → EZT ${eztEarned}`);
+          }
           
           // Update booking with tier information (within transaction)
           const bookingRepository = require('../repositories/bookingRepository');

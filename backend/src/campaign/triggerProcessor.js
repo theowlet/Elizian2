@@ -10,6 +10,7 @@ const CACHE_TTL_MS = 30000; // 30s — avoid N+1 and heavy rules on every event
 
 async function processEvent(eventType, context) {
   try {
+    if (!context.campaign_effects) context.campaign_effects = {};
     const campaigns = await getActiveCampaigns();
     let processed = 0;
     for (const campaign of campaigns) {
@@ -25,13 +26,18 @@ async function processEvent(eventType, context) {
           result.action.params,
           { ...context, campaignId: campaign.id, campaignName: campaign.name || campaign.title, campaignDescription: campaign.description || '' }
         );
-        if (actionResult) processed++;
+        if (actionResult) {
+          processed++;
+          if (actionResult.multiplier != null) context.campaign_effects.reward_multiplier = actionResult.multiplier;
+          if (actionResult.weight != null) context.campaign_effects.search_boost = actionResult.weight;
+          if (actionResult.tier != null) context.campaign_effects.tier_override = actionResult.tier;
+        }
       }
     }
-    return { processed, campaigns: campaigns.length };
+    return { processed, campaigns: campaigns.length, campaign_effects: context.campaign_effects };
   } catch (err) {
     logError('[CampaignEngine] processEvent error:', err);
-    return { processed: 0, campaigns: 0, error: err.message };
+    return { processed: 0, campaigns: 0, campaign_effects: (context && context.campaign_effects) || {}, error: err.message };
   }
 }
 

@@ -1,22 +1,96 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
+import Swal from "sweetalert2";
+import "sweetalert2/dist/sweetalert2.min.css";
 import "leaflet/dist/leaflet.css";
 import "../styles/venueMap.css";
 
-// Small glitter marker for venue locations (no default pin)
-function createGlitterIcon() {
+// Logo marker – Z logo on black circle with gold/white ring
+const MAP_MARKER_LOGO_URL = "/images/map-marker-logo.png";
+
+function createLogoIcon() {
+  const size = 32;
+  const html = `
+    <span class="venue-logo-marker" aria-hidden="true">
+      <img src="${MAP_MARKER_LOGO_URL}" alt="" width="${size}" height="${size}" class="venue-logo-img" />
+    </span>
+  `;
   return L.divIcon({
-    className: "venue-glitter-marker",
-    html: `<span class="venue-glitter-dot" style="display:block;width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#fff,#f5e6a3 25%,#e8c547 50%,#c9a227 75%,#a67c00);box-shadow:0 0 0 1px rgba(255,255,255,0.6),0 0 8px 2px rgba(230,180,50,0.6);" aria-hidden="true"></span>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+    className: "venue-logo-marker-wrap",
+    html,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
 }
 
 const DEFAULT_CENTER = [20.5937, 78.9629]; // India
 const DEFAULT_ZOOM = 4;
+
+// Opens SweetAlert with full venue details on marker click (so the alert shows properly)
+function openVenueSweetAlert(venue, API_BASE, navigate) {
+  Swal.fire({
+    title: venue.name || "Venue",
+    allowOutsideClick: true,
+    showCancelButton: true,
+    confirmButtonText: "View full venue",
+    cancelButtonText: "Close",
+    showClass: { popup: "swal2-show" },
+    didOpen: () => {
+      Swal.showLoading();
+      fetch(`${API_BASE}/api/v1/partners/${venue.id}/venue-detail`)
+        .then((r) => r.json())
+        .then((data) => {
+          const v = data?.success && data?.data ? data.data : venue;
+          const category = v.category_name || v.category_slug || "";
+          const address = v.formatted_address || v.address || "";
+          const phone = v.phone_number || "";
+          const description = v.description || "";
+          const offers = (v.offers || []).slice(0, 5);
+          const html = `
+            <div class="venue-swal-content" style="text-align:left; max-height: 50vh; overflow-y: auto;">
+              ${category ? `<div style="font-size:0.85rem; color:#64748b; margin-bottom:8px;">${escapeHtml(category)}</div>` : ""}
+              ${description ? `<p style="margin:0 0 8px; font-size:0.9rem; line-height:1.4; color:#334155;">${escapeHtml(description)}</p>` : ""}
+              ${address ? `<p style="margin:0 0 4px; font-size:0.85rem; color:#475569;">📍 ${escapeHtml(address)}</p>` : ""}
+              ${phone ? `<p style="margin:0 0 8px; font-size:0.85rem;"><a href="tel:${escapeHtml(phone)}">${escapeHtml(phone)}</a></p>` : ""}
+              ${offers.length > 0 ? `<div style="margin-bottom:8px; font-size:0.85rem; color:#475569;"><strong>Offers:</strong> ${offers.map((o) => escapeHtml(o.title || o.perk_type || "")).filter(Boolean).join(" · ") || "—"}</div>` : ""}
+            </div>
+          `;
+          Swal.fire({
+            title: v.name || venue.name,
+            html,
+            allowOutsideClick: true,
+            showCancelButton: true,
+            confirmButtonText: "View full venue",
+            cancelButtonText: "Close",
+            showClass: { popup: "swal2-show" },
+            width: "min(420px, 92vw)",
+          }).then((result) => {
+            if (result.isConfirmed) navigate(`/venue/${venue.id}`);
+          });
+        })
+        .catch(() => {
+          Swal.fire({
+            title: venue.name,
+            html: "<p style='color:#64748b'>Could not load details.</p>",
+            showCancelButton: true,
+            confirmButtonText: "View full venue",
+            cancelButtonText: "Close",
+          }).then((result) => {
+            if (result.isConfirmed) navigate(`/venue/${venue.id}`);
+          });
+        });
+    },
+  });
+}
+
+function escapeHtml(text) {
+  if (text == null) return "";
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
 
 function FitBounds({ venues, getCoords }) {
   const map = useMap();
@@ -32,7 +106,7 @@ function FitBounds({ venues, getCoords }) {
 }
 
 const VenueMapPage = () => {
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
   const navigate = useNavigate();
   const [venues, setVenues] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +190,10 @@ const VenueMapPage = () => {
         <h1 style={{ margin: 0, fontSize: "1.25rem" }}>Venues on map</h1>
         {!loading && (
           <span style={{ fontSize: "0.85rem", opacity: 0.9 }}>
-            {venuesWithCoords.length} venue{venuesWithCoords.length !== 1 ? "s" : ""}
+            {venuesWithCoords.length} venue{venuesWithCoords.length !== 1 ? "s" : ""} on map
+            {venues.length > venuesWithCoords.length && (
+              <span style={{ opacity: 0.85 }}> ({venues.length - venuesWithCoords.length} without location)</span>
+            )}
             {userLocation ? " · Sorted by distance" : ""}
           </span>
         )}
@@ -148,22 +225,11 @@ const VenueMapPage = () => {
             <Marker
               key={venue.id}
               position={getVenueCoords(venue)}
-              icon={createGlitterIcon()}
-            >
-              <Popup>
-                <div style={{ minWidth: "160px" }}>
-                  <strong>{venue.name}</strong>
-                  {venue.city && <div style={{ fontSize: "0.9rem", color: "#555" }}>{venue.city}</div>}
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/venue/${venue.id}`)}
-                    style={{ marginTop: "8px", padding: "6px 12px", cursor: "pointer", background: "#1a1a2e", color: "#eee", border: "none", borderRadius: "6px" }}
-                  >
-                    View venue
-                  </button>
-                </div>
-              </Popup>
-            </Marker>
+              icon={createLogoIcon()}
+              eventHandlers={{
+                click: () => openVenueSweetAlert(venue, API_BASE, navigate),
+              }}
+            />
           ))}
           {mapReady && venuesWithCoords.length > 0 && <FitBounds venues={venuesWithCoords} getCoords={getVenueCoords} />}
         </MapContainer>
@@ -172,6 +238,11 @@ const VenueMapPage = () => {
       {!loading && venuesWithCoords.length === 0 && venues.length > 0 && (
         <div style={{ padding: "12px 16px", background: "#2d2d44", color: "#ccc", fontSize: "0.9rem" }}>
           No venues have location set. View them from the home feed.
+        </div>
+      )}
+      {!loading && venuesWithCoords.length > 0 && venues.length > venuesWithCoords.length && (
+        <div style={{ padding: "8px 16px", background: "#2d2d44", color: "#9ca3af", fontSize: "0.8rem" }}>
+          Only venues with a set location appear on the map. To show more venues, add latitude/longitude in Partner Console or Admin.
         </div>
       )}
     </div>

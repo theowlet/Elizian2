@@ -2,6 +2,7 @@ const { getPool } = require('../config/db');
 const { AppError } = require('../../utils/response');
 const { log, logError } = require('../../utils/logger');
 const pushService = require('./pushNotificationService');
+const { emitToRoom } = require('../utils/realtimeEmitter');
 
 const pool = getPool();
 
@@ -45,6 +46,14 @@ class NotificationService {
       );
 
       log(`✅ Notification created for user ${userId}: ${type}`);
+
+      emitToRoom(`users:${userId}`, 'notification_received', {
+        notificationId: result.rows[0].id,
+        type,
+        title: title || '',
+        message: message || '',
+        actionUrl: actionUrl || null,
+      });
 
       // Send push notification asynchronously (fire-and-forget)
       if (pushService.isPushConfigured()) {

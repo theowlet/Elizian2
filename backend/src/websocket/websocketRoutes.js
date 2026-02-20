@@ -5,6 +5,7 @@
 
 const { log, logError } = require('../../utils/logger');
 const { addClient, removeClient } = require('./websocketServer');
+const { verifyToken } = require('../utils/jwt');
 
 /**
  * Initialize WebSocket routes
@@ -27,6 +28,44 @@ function initializeWebSocketRoutes(io) {
       message: 'Connected to Elizian real-time service',
       clientId: clientId,
       timestamp: new Date().toISOString()
+    });
+
+    // Authenticate: client sends { token }, server sets socket.userId and allows join_user_room
+    socket.on('authenticate', (payload, callback) => {
+      try {
+        const token = payload && payload.token;
+        if (!token) {
+          if (typeof callback === 'function') callback({ success: false, error: 'Token required' });
+          return;
+        }
+        const decoded = verifyToken(token);
+        if (!decoded || !decoded.userId) {
+          if (typeof callback === 'function') callback({ success: false, error: 'Invalid token' });
+          return;
+        }
+        socket.userId = decoded.userId;
+        if (typeof callback === 'function') callback({ success: true, userId: socket.userId });
+      } catch (err) {
+        logError('WebSocket authenticate error:', err);
+        if (typeof callback === 'function') callback({ success: false, error: err.message });
+      }
+    });
+
+    // Join the user's private room (must call after authenticate)
+    socket.on('join_user_room', (callback) => {
+      try {
+        if (!socket.userId) {
+          if (typeof callback === 'function') callback({ success: false, error: 'Authenticate first' });
+          return;
+        }
+        const room = `users:${socket.userId}`;
+        socket.join(room);
+        log(`👤 Client ${clientId} joined user room: ${room}`);
+        if (typeof callback === 'function') callback({ success: true, room });
+      } catch (err) {
+        logError('Error joining user room:', err);
+        if (typeof callback === 'function') callback({ success: false, error: err.message });
+      }
     });
 
     // Handle client joining rooms

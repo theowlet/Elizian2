@@ -1,5 +1,4 @@
 const { getPool } = require('../config/db');
-const { logError } = require('./logger');
 
 const pool = getPool();
 

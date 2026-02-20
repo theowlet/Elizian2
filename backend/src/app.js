@@ -102,19 +102,8 @@ function staticCorsMiddleware(req, res, next) {
 
 // Serve static files from backend/uploads directory
 // __dirname is backend/src, so uploads are at backend/uploads
-const uploadsRoot = path.join(__dirname, '..', 'uploads');
-const uploadsOffers = path.join(uploadsRoot, 'offers');
-
-// Ensure upload directories exist on startup
 const fs = require('fs');
-[uploadsRoot, uploadsOffers, path.join(uploadsRoot, 'menu'), path.join(uploadsRoot, 'events'), path.join(uploadsRoot, 'orders'), path.join(uploadsRoot, 'vouchers')].forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-    log(`📁 Created upload directory: ${dir}`);
-  }
-});
-
-log(`📁 Serving static uploads from: ${path.resolve(uploadsRoot)}`);
+const uploadsRoot = path.join(__dirname, '..', 'uploads');
 
 // Static file serving with CORS headers - MUST be before helmet
 app.use('/uploads', (req, res, next) => {
@@ -259,6 +248,10 @@ app.use('/api/v1/collections', collectionsRoutes);
 // Import and mount service routes (service types, categories)
 const serviceRoutes = require('./routes/serviceRoutes');
 app.use('/api/v1', serviceRoutes);
+
+// Import and mount taxonomy routes (hierarchical menu taxonomy)
+const taxonomyRoutes = require('./routes/taxonomyRoutes');
+app.use('/api/v1', taxonomyRoutes);
 
 // Import and mount tier routes (loyalty tiers system)
 const tierRoutes = require('./routes/tierRoutes');

@@ -2627,7 +2627,7 @@
                         <button type="button" class="btn btn-primary" onclick="document.getElementById('menuImageInput').click()">Choose Images</button>
                         <input type="file" id="menuImageInput" accept="image/*" multiple style="display:none;">
                         <p style="margin-top:1rem; color:var(--text-muted); font-size:0.875rem;">
-                            Supports JPG, PNG, WebP • Max 10MB each • Up to 20 pages
+                            Supports JPG, PNG, WebP • Max 10MB each • No limit on number of pages
                         </p>
                     </div>
                     <div id="imagePreviewGrid" class="image-preview-grid" style="display:none;"></div>
@@ -2673,7 +2673,7 @@
             });
 
             if (!validFiles.length) return;
-            menuImageFiles = [...menuImageFiles, ...validFiles].slice(0, 20);
+            menuImageFiles = [...menuImageFiles, ...validFiles];
             renderImagePreviews();
         }
 

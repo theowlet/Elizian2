@@ -7,7 +7,7 @@ const { AppError } = require('../../utils/response');
 const { logError, log } = require('../../utils/logger');
 const { getPool } = require('../config/db');
 const { writeAudit } = require('../utils/audit');
-const { uploadToS3, getS3FileUrl } = require('../../utils/s3Bucket');
+const { getS3FileUrl } = require('../../utils/s3Bucket');
 const { ethers } = require('ethers');
 const { normalizeTierName } = require('../utils/tierNames');
 
@@ -471,23 +471,16 @@ async function getPartnerRewardsAnalytics(partnerId) {
 }
 
 // Update partner menu images (scrollable menu viewer)
+// menuImages must be an array of already-resolved URL strings (local paths or S3 HTTPS URLs).
+// S3 upload is handled by the controller BEFORE calling this function.
 async function updatePartnerMenuImages(partnerId, menuImages = []) {
   const partner = await partnerRepository.getPartnerById(partnerId);
   if (!partner) {
     throw new AppError(404, "Partner not found");
   }
-  const normalized = Array.isArray(menuImages) ? menuImages : [];
-  
-  // Check if menuImages are file objects (for S3 upload) or paths (already stored locally)
-  // If first item is a string starting with '/', treat as local paths
-  // Otherwise, treat as file objects and upload to S3
-  const isLocalPath = normalized.length > 0;
-  let finalImageUrls = normalized;
-  if (isLocalPath) {
-    // Upload to S3 if file objects providedx
-    finalImageUrls = await uploadToS3(normalized);
-  }
-  
+  // Accept only strings (URLs / paths). Strip out any non-string entries to be safe.
+  const finalImageUrls = (Array.isArray(menuImages) ? menuImages : []).filter(u => typeof u === 'string');
+
   const updated = await partnerRepository.updatePartnerMenuImages(partnerId, finalImageUrls);
   return parseMenuImages(updated);
 }

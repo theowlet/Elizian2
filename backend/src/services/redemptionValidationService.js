@@ -5,7 +5,7 @@
 
 const { getPool } = require('../config/db');
 const { AppError } = require('../../utils/response');
-const { log, logError } = require('../../utils/logger');
+const { logError } = require('../../utils/logger');
 
 const pool = getPool();
 

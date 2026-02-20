@@ -89,12 +89,14 @@ async function executeAction(actionType, params, context) {
   }
 }
 
-function getRewardModifier() {
-  return 1.0;
+function getRewardModifier(userId, context = {}) {
+  const modifier = context.reward_multiplier ?? context.campaign_effects?.reward_multiplier;
+  return modifier != null ? Math.max(0.1, Math.min(5, Number(modifier))) : 1.0;
 }
 
-function getVisibilityBoost() {
-  return 0;
+function getVisibilityBoost(userId, context = {}) {
+  const boost = context.search_boost ?? context.campaign_effects?.search_boost;
+  return boost != null ? Math.max(0, Math.min(100, Number(boost))) : 0;
 }
 
 module.exports = { executeAction, getRewardModifier, getVisibilityBoost, ACTIONS };

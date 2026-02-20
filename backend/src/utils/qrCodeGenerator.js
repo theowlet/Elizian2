@@ -7,16 +7,12 @@ const { log, logError } = require('../../utils/logger');
 const { AppError } = require('../../utils/response');
 
 /**
- * Generate QR code for voucher and upload to S3
+ * Generate QR code for voucher and upload to S3.
+ * QR v3: Encodes only a compact deep link URL (~56 bytes) for fast, reliable scanning.
+ * Booking details are displayed AROUND the QR in the UI, not encoded inside it.
+ *
  * @param {string} voucherCode - UUID voucher code
- * @param {Object} metadata - Additional metadata to encode (optional)
- * @param {string} metadata.booking_reference - Human-readable booking reference
- * @param {string} metadata.deal_title - Deal/Event name
- * @param {string} metadata.partner_name - Partner name
- * @param {string} metadata.booking_date - Booking date
- * @param {string} metadata.booking_time - Booking time
- * @param {string} metadata.booking_id - Booking ID (for backend processing)
- * @param {string} metadata.partner_id - Partner ID (for backend processing)
+ * @param {Object} metadata - Metadata for logging/audit (NOT encoded in QR)
  * @returns {Promise<string>} S3 URL of the QR code image
  */
 async function generateAndUploadQRCode(voucherCode, metadata = {}) {
@@ -25,97 +21,8 @@ async function generateAndUploadQRCode(voucherCode, metadata = {}) {
       throw new AppError(400, 'Voucher code is required for QR generation');
     }
 
-    // Format date and time for human readability
-    const formatDate = (dateString) => {
-      if (!dateString) return 'N/A';
-      try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-IN', { 
-          year: 'numeric', 
-          month: 'short', 
-          day: 'numeric' 
-        });
-      } catch (e) {
-        return dateString;
-      }
-    };
-
-    const formatTime = (timeString) => {
-      if (!timeString) return '';
-      try {
-        // If it's a full datetime, extract time
-        if (timeString.includes('T')) {
-          const date = new Date(timeString);
-          return date.toLocaleTimeString('en-IN', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            hour12: true
-          });
-        }
-        // If it's just time (HH:MM), format it
-        const [hours, minutes] = timeString.split(':');
-        const hour = parseInt(hours);
-        const ampm = hour >= 12 ? 'PM' : 'AM';
-        const displayHour = hour % 12 || 12;
-        return `${displayHour}:${minutes} ${ampm}`;
-      } catch (e) {
-        return timeString;
-      }
-    };
-
-    // Format currency for display
-    const formatAmount = (amt) => {
-      if (!amt && amt !== 0) return null;
-      return `₹${parseFloat(amt).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    };
-
-    // Build human-readable QR code content with full voucher details
-    const humanReadableContent = [
-      '════════════════════════',
-      '   ELIZIAN VOUCHER',
-      '════════════════════════',
-      '',
-      `Ref: ${metadata.booking_reference || 'N/A'}`,
-      `Guest: ${metadata.guest_name || 'N/A'}`,
-      metadata.user_tier ? `Tier: ${metadata.user_tier}` : '',
-      `Deal: ${metadata.deal_title || 'N/A'}`,
-      metadata.partner_name ? `Venue: ${metadata.partner_name}` : '',
-      metadata.num_guests ? `Guests: ${metadata.num_guests}` : '',
-      metadata.booking_date ? `Date: ${formatDate(metadata.booking_date)}` : '',
-      metadata.booking_time ? `Time: ${formatTime(metadata.booking_time)}` : '',
-      '',
-      metadata.total_amount != null ? `Amount: ${formatAmount(metadata.total_amount)}` : '',
-      metadata.ezt_redeemed ? `EZT Used: ${metadata.ezt_redeemed}` : '',
-      metadata.expires_at ? `Valid Until: ${formatDate(metadata.expires_at)}` : '',
-      '',
-      `Voucher: ${voucherCode}`,
-      '',
-      '════════════════════════',
-      'Scan at venue for redemption',
-      '════════════════════════'
-    ].filter(line => line !== '').join('\n');
-
-    // Also include technical data in JSON format for backend processing
-    const technicalData = {
-      voucher_code: voucherCode,
-      booking_reference: metadata.booking_reference,
-      booking_id: metadata.booking_id,
-      partner_id: metadata.partner_id,
-      user_id: metadata.user_id,
-      user_tier: metadata.user_tier || null,
-      total_amount: metadata.total_amount || 0,
-      original_amount: metadata.original_amount || 0,
-      ezt_redeemed: metadata.ezt_redeemed || 0,
-      booking_type: metadata.booking_type || null,
-      voucher_state: metadata.voucher_state || 'active',
-      expires_at: metadata.expires_at || null,
-      type: 'voucher',
-      version: 2
-    };
-
-    // Combine human-readable and technical data
-    // Format: Human-readable text, followed by JSON for machine processing
-    const qrContent = `${humanReadableContent}\n\n---\n${JSON.stringify(technicalData)}`;
+    // QR v3: Encode only the deep link URL — compact, scannable, future-proof
+    const qrContent = `https://elizian.in/v/${voucherCode}`;
 
     // Generate QR code as buffer (PNG format)
     const qrBuffer = await QRCode.toBuffer(qrContent, {
@@ -211,23 +118,21 @@ async function generateAndUploadQRCode(voucherCode, metadata = {}) {
 
 /**
  * Generate QR code data URL (for immediate display, not persisted)
- * Used for testing or temporary display
+ * Used for testing or temporary display.
+ * QR v3: Encodes only deep link URL.
+ *
  * @param {string} voucherCode - UUID voucher code
- * @param {Object} metadata - Additional metadata
+ * @param {Object} metadata - Unused (kept for API compatibility)
  * @returns {Promise<string>} Data URL of QR code
  */
 async function generateQRCodeDataURL(voucherCode, metadata = {}) {
   try {
-    const qrData = {
-      voucher_code: voucherCode,
-      type: 'voucher',
-      ...metadata
-    };
+    const qrContent = `https://elizian.in/v/${voucherCode}`;
 
-    const dataURL = await QRCode.toDataURL(JSON.stringify(qrData), {
+    const dataURL = await QRCode.toDataURL(qrContent, {
       width: 512,
       margin: 2,
-      errorCorrectionLevel: 'M'
+      errorCorrectionLevel: 'H'
     });
 
     return dataURL;

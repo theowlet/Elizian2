@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/partnerConsole.css'; // Reuse partner console CSS framework
+import EnterpriseAnalyticsDashboard from '../components/analytics/EnterpriseAnalyticsDashboard';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 /* ─── Layout Components ────────────────────────────────── */
 function AdminHeader({ onLogout }) {
@@ -24,6 +25,7 @@ function AdminHeader({ onLogout }) {
 function AdminSidebar({ active, onNavigate }) {
   const nav = [
     ['dashboard', 'Dashboard'],
+    ['analytics', 'Analytics'],
     ['partners', 'Partners'],
     ['deals', 'Deals'],
     ['campaigns', 'Campaign Manager'],
@@ -32,6 +34,8 @@ function AdminSidebar({ active, onNavigate }) {
     ['rewards', 'Rewards'],
     ['redemptions', 'Redemptions'],
     ['tiers', 'Tier Config'],
+    ['partner-tiers', 'Partner Tiers'],
+    ['platform-earnings', 'Platform Earnings'],
     ['settings', 'Settings'],
   ];
   return (
@@ -64,6 +68,12 @@ export default function AdminDashboard() {
   const [settings, setSettings] = useState([]);
   const [tiers, setTiers] = useState([]);
   const [tierEdits, setTierEdits] = useState({}); // { tierName: { ...editedFields } }
+  const [partnerTiers, setPartnerTiers] = useState([]);
+  const [partnerTiersLoading, setPartnerTiersLoading] = useState(false);
+  const [platformEarnings, setPlatformEarnings] = useState(null);
+  const [platformEarningsLoading, setPlatformEarningsLoading] = useState(false);
+  const [earningsStartDate, setEarningsStartDate] = useState('');
+  const [earningsEndDate, setEarningsEndDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
 
@@ -486,7 +496,34 @@ export default function AdminDashboard() {
     if (section === 'rewards') loadRewards();
     if (section === 'redemptions') loadRedemptions();
     if (section === 'tiers') loadTiers();
+    if (section === 'partner-tiers') loadPartnerTiers();
+    if (section === 'platform-earnings') loadPlatformEarnings();
     if (section === 'settings') loadSettings();
+  }
+
+  async function loadPartnerTiers() {
+    setPartnerTiersLoading(true);
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/admin/partner-tiers`, { headers: headers() });
+      const j = await r.json();
+      if (j.success && Array.isArray(j.data)) setPartnerTiers(j.data);
+      else setPartnerTiers([]);
+    } catch (e) { setPartnerTiers([]); }
+    setPartnerTiersLoading(false);
+  }
+
+  async function loadPlatformEarnings() {
+    setPlatformEarningsLoading(true);
+    try {
+      const q = new URLSearchParams();
+      if (earningsStartDate) q.set('start_date', earningsStartDate);
+      if (earningsEndDate) q.set('end_date', earningsEndDate);
+      const r = await fetch(`${API_BASE}/api/v1/admin/platform-earnings?${q}`, { headers: headers() });
+      const j = await r.json();
+      if (j.success && j.data) setPlatformEarnings(j.data);
+      else setPlatformEarnings(null);
+    } catch (e) { setPlatformEarnings(null); }
+    setPlatformEarningsLoading(false);
   }
 
   function logout() {
@@ -1182,6 +1219,263 @@ export default function AdminDashboard() {
     label: { display: 'block', fontSize: '0.75rem', color: '#9ca3af', marginBottom: 4, fontWeight: 500 },
   };
 
+  function PartnerTiersSection() {
+    const [createOpen, setCreateOpen] = useState(false);
+    const [form, setForm] = useState({ name: '', description: '', platform_fee_percent: 15, fiat_fee_percent: 10, ezt_fee_percent: 5, is_active: true });
+    const [saving, setSaving] = useState(false);
+    const [editingTier, setEditingTier] = useState(null);
+    const [editForm, setEditForm] = useState({ name: '', description: '', platform_fee_percent: 0, fiat_fee_percent: 0, ezt_fee_percent: 0, is_active: true });
+    const [superAdminConfirm, setSuperAdminConfirm] = useState({ open: false, action: null, payload: null });
+
+    const createTier = async () => {
+      if (!form.name.trim() || Number(form.platform_fee_percent) !== Number(form.fiat_fee_percent) + Number(form.ezt_fee_percent)) {
+        showNotif('Name required and fiat + ezt must equal platform_fee_percent', 'error');
+        return;
+      }
+      setSaving(true);
+      try {
+        const r = await fetch(`${API_BASE}/api/v1/admin/partner-tiers`, {
+          method: 'POST', headers: { ...headers(), 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        });
+        const j = await r.json();
+        if (j.success) { setCreateOpen(false); setForm({ name: '', description: '', platform_fee_percent: 15, fiat_fee_percent: 10, ezt_fee_percent: 5, is_active: true }); loadPartnerTiers(); showNotif('Tier created', 'success'); }
+        else showNotif(j.message || j.error || 'Failed', 'error');
+      } catch (e) { showNotif('Request failed', 'error'); }
+      setSaving(false);
+    };
+
+    const updateTier = async (id, body) => {
+      try {
+        const r = await fetch(`${API_BASE}/api/v1/admin/partner-tiers/${id}`, {
+          method: 'PUT', headers: { ...headers(), 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        const j = await r.json();
+        if (j.success) { setEditingTier(null); loadPartnerTiers(); showNotif('Tier updated', 'success'); }
+        else showNotif(j.message || j.error || 'Failed', 'error');
+      } catch (e) { showNotif('Request failed', 'error'); }
+    };
+
+    const setActive = async (id, active) => {
+      try {
+        const r = await fetch(`${API_BASE}/api/v1/admin/partner-tiers/${id}/active`, {
+          method: 'PATCH', headers: { ...headers(), 'Content-Type': 'application/json' }, body: JSON.stringify({ active }),
+        });
+        const j = await r.json();
+        if (j.success) { loadPartnerTiers(); showNotif(active ? 'Tier activated' : 'Tier deactivated', 'success'); }
+        else showNotif(j.message || j.error || 'Failed', 'error');
+      } catch (e) { showNotif('Request failed', 'error'); }
+    };
+
+    const deleteTier = async (id) => {
+      try {
+        const r = await fetch(`${API_BASE}/api/v1/admin/partner-tiers/${id}`, { method: 'DELETE', headers: headers() });
+        const j = await r.json();
+        if (j.success) { loadPartnerTiers(); showNotif('Tier deleted', 'success'); }
+        else showNotif(j.message || j.error || 'Failed', 'error');
+      } catch (e) { showNotif('Request failed', 'error'); }
+    };
+
+    const openEditModal = (t) => {
+      setEditingTier(t);
+      setEditForm({
+        name: t.name || '',
+        description: t.description || '',
+        platform_fee_percent: Number(t.platform_fee_percent) || 0,
+        fiat_fee_percent: Number(t.fiat_fee_percent) || 0,
+        ezt_fee_percent: Number(t.ezt_fee_percent) || 0,
+        is_active: t.is_active !== false,
+      });
+    };
+
+    const requestEditSave = () => {
+      const p = Number(editForm.platform_fee_percent);
+      const f = Number(editForm.fiat_fee_percent);
+      const e = Number(editForm.ezt_fee_percent);
+      if (!editForm.name.trim()) { showNotif('Name is required', 'error'); return; }
+      if (Math.abs((f + e) - p) > 0.01) { showNotif('Fiat % + EZT % must equal Platform %', 'error'); return; }
+      setSuperAdminConfirm({ open: true, action: 'edit', payload: { id: editingTier.id, body: editForm } });
+    };
+
+    const requestDelete = (id) => {
+      if (!window.confirm('Delete this tier? This will fail if any partner is assigned to it.')) return;
+      setSuperAdminConfirm({ open: true, action: 'delete', payload: { id } });
+    };
+
+    const onSuperAdminConfirm = async () => {
+      if (superAdminConfirm.action === 'edit' && superAdminConfirm.payload?.body) {
+        await updateTier(superAdminConfirm.payload.id, superAdminConfirm.payload.body);
+      } else if (superAdminConfirm.action === 'delete' && superAdminConfirm.payload?.id) {
+        await deleteTier(superAdminConfirm.payload.id);
+      }
+      setSuperAdminConfirm({ open: false, action: null, payload: null });
+    };
+
+    return (
+      <div>
+        <div className="pc-content-header">
+          <h1>Partner Tiers</h1>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-secondary" onClick={loadPartnerTiers}>Refresh</button>
+            <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>Create Tier</button>
+          </div>
+        </div>
+        <p style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: 16 }}>
+          Dynamic subscription tiers; platform fee split (fiat + EZT). Gold/Silver/Bronze are default seeded. Editing and deleting require Super Admin confirmation.
+        </p>
+        {partnerTiersLoading ? <p style={{ padding: 24, textAlign: 'center' }}>Loading...</p> : (
+          <div className="pc-table-container">
+            <table className="pc-table">
+              <thead><tr><th>Name</th><th>Description</th><th>Platform %</th><th>Fiat %</th><th>EZT %</th><th>Active</th><th>Actions</th></tr></thead>
+              <tbody>
+                {partnerTiers.map(t => (
+                  <tr key={t.id}>
+                    <td><strong>{t.name}</strong></td>
+                    <td style={{ maxWidth: 200 }}>{t.description || '—'}</td>
+                    <td>{t.platform_fee_percent}</td>
+                    <td>{t.fiat_fee_percent}</td>
+                    <td>{t.ezt_fee_percent}</td>
+                    <td>{t.is_active ? 'Yes' : 'No'}</td>
+                    <td>
+                      <button className="btn btn-sm btn-secondary" onClick={() => openEditModal(t)}>Edit</button>
+                      <button className="btn btn-sm btn-secondary" style={{ marginLeft: 4 }} onClick={() => setActive(t.id, !t.is_active)}>{t.is_active ? 'Deactivate' : 'Activate'}</button>
+                      <button className="btn btn-sm btn-danger" style={{ marginLeft: 4 }} onClick={() => requestDelete(t.id)}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {partnerTiers.length === 0 && <p style={{ padding: 24, textAlign: 'center', color: '#666' }}>No partner tiers. Create one or run migration to seed Gold/Silver/Bronze.</p>}
+          </div>
+        )}
+        {createOpen && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={() => setCreateOpen(false)}>
+            <div style={{ background: '#1f2937', borderRadius: 12, maxWidth: 420, width: '100%', padding: 24 }} onClick={e => e.stopPropagation()}>
+              <h3 style={{ margin: '0 0 16px' }}>Create Partner Tier</h3>
+              <div style={{ display: 'grid', gap: 12 }}>
+                <div><label style={ts.label}>Name</label><input className="pc-form-input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Platinum" style={{ width: '100%' }} /></div>
+                <div><label style={ts.label}>Description</label><input className="pc-form-input" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Optional" style={{ width: '100%' }} /></div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  <div><label style={ts.label}>Platform %</label><input type="number" step="0.01" className="pc-form-input" value={form.platform_fee_percent} onChange={e => setForm(f => ({ ...f, platform_fee_percent: Number(e.target.value) }))} /></div>
+                  <div><label style={ts.label}>Fiat %</label><input type="number" step="0.01" className="pc-form-input" value={form.fiat_fee_percent} onChange={e => setForm(f => ({ ...f, fiat_fee_percent: Number(e.target.value) }))} /></div>
+                  <div><label style={ts.label}>EZT %</label><input type="number" step="0.01" className="pc-form-input" value={form.ezt_fee_percent} onChange={e => setForm(f => ({ ...f, ezt_fee_percent: Number(e.target.value) }))} /></div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                  <button className="btn btn-secondary" onClick={() => setCreateOpen(false)}>Cancel</button>
+                  <button className="btn btn-primary" onClick={createTier} disabled={saving}>{saving ? 'Creating...' : 'Create'}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {editingTier && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={() => setEditingTier(null)}>
+            <div style={{ background: '#1f2937', borderRadius: 12, maxWidth: 420, width: '100%', padding: 24 }} onClick={e => e.stopPropagation()}>
+              <h3 style={{ margin: '0 0 16px' }}>Edit Partner Tier</h3>
+              <div style={{ display: 'grid', gap: 12 }}>
+                <div><label style={ts.label}>Name</label><input className="pc-form-input" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} placeholder="Tier name" style={{ width: '100%' }} /></div>
+                <div><label style={ts.label}>Description</label><input className="pc-form-input" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Optional" style={{ width: '100%' }} /></div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  <div><label style={ts.label}>Platform %</label><input type="number" step="0.01" className="pc-form-input" value={editForm.platform_fee_percent} onChange={e => setEditForm(f => ({ ...f, platform_fee_percent: Number(e.target.value) }))} /></div>
+                  <div><label style={ts.label}>Fiat %</label><input type="number" step="0.01" className="pc-form-input" value={editForm.fiat_fee_percent} onChange={e => setEditForm(f => ({ ...f, fiat_fee_percent: Number(e.target.value) }))} /></div>
+                  <div><label style={ts.label}>EZT %</label><input type="number" step="0.01" className="pc-form-input" value={editForm.ezt_fee_percent} onChange={e => setEditForm(f => ({ ...f, ezt_fee_percent: Number(e.target.value) }))} /></div>
+                </div>
+                <div><label style={ts.label}>Active</label><input type="checkbox" checked={editForm.is_active} onChange={e => setEditForm(f => ({ ...f, is_active: e.target.checked }))} /></div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                  <button className="btn btn-secondary" onClick={() => setEditingTier(null)}>Cancel</button>
+                  <button className="btn btn-primary" onClick={requestEditSave}>Save (requires Super Admin)</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {superAdminConfirm.open && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={() => setSuperAdminConfirm({ open: false, action: null, payload: null })}>
+            <div style={{ background: '#1f2937', borderRadius: 12, maxWidth: 400, width: '100%', padding: 24 }} onClick={e => e.stopPropagation()}>
+              <h3 style={{ margin: '0 0 12px', color: '#fbbf24' }}>Super Admin confirmation</h3>
+              <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginBottom: 20 }}>
+                {superAdminConfirm.action === 'edit'
+                  ? 'Editing partner tiers requires Super Admin privileges. Confirm your authorization to apply this change.'
+                  : 'Deleting a partner tier requires Super Admin privileges. Confirm your authorization to proceed.'}
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button className="btn btn-secondary" onClick={() => setSuperAdminConfirm({ open: false, action: null, payload: null })}>Cancel</button>
+                <button className="btn btn-primary" onClick={onSuperAdminConfirm} style={{ background: '#b45309' }}>Confirm</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function PlatformEarningsSection() {
+    return (
+      <div>
+        <div className="pc-content-header">
+          <h1>Platform Earnings</h1>
+          <button className="btn btn-primary" onClick={loadPlatformEarnings}>Refresh</button>
+        </div>
+        <p style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: 16 }}>
+          Revenue from platform_earnings_ledger. Optional date range below.
+        </p>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+          <div><label style={ts.label}>Start date</label><input type="date" className="pc-form-input" value={earningsStartDate} onChange={e => setEarningsStartDate(e.target.value)} /></div>
+          <div><label style={ts.label}>End date</label><input type="date" className="pc-form-input" value={earningsEndDate} onChange={e => setEarningsEndDate(e.target.value)} /></div>
+        </div>
+        {platformEarningsLoading ? <p style={{ padding: 24, textAlign: 'center' }}>Loading...</p> : platformEarnings && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              <div style={{ background: 'var(--card)', padding: 16, borderRadius: 12 }}>
+                <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>Total earnings</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>₹{Number(platformEarnings.total_earnings || 0).toFixed(2)}</div>
+              </div>
+              <div style={{ background: 'var(--card)', padding: 16, borderRadius: 12 }}>
+                <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>Fiat component</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>₹{Number(platformEarnings.total_fiat || 0).toFixed(2)}</div>
+              </div>
+              <div style={{ background: 'var(--card)', padding: 16, borderRadius: 12 }}>
+                <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>EZT component</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>₹{Number(platformEarnings.total_ezt || 0).toFixed(2)}</div>
+              </div>
+            </div>
+            {(platformEarnings.breakdown_by_tier?.length > 0) && (
+              <div>
+                <h3 style={{ marginBottom: 8 }}>By tier</h3>
+                <div className="pc-table-container">
+                  <table className="pc-table">
+                    <thead><tr><th>Tier</th><th>Total</th><th>Fiat</th><th>EZT</th></tr></thead>
+                    <tbody>
+                      {platformEarnings.breakdown_by_tier.map(r => (
+                        <tr key={r.tier_id}><td>{r.tier_name}</td><td>₹{Number(r.total_earnings).toFixed(2)}</td><td>₹{Number(r.total_fiat).toFixed(2)}</td><td>₹{Number(r.total_ezt).toFixed(2)}</td></tr>
+                      ))}</tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {(platformEarnings.breakdown_by_partner?.length > 0) && (
+              <div>
+                <h3 style={{ marginBottom: 8 }}>By partner</h3>
+                <div className="pc-table-container">
+                  <table className="pc-table">
+                    <thead><tr><th>Partner</th><th>Total</th><th>Fiat</th><th>EZT</th></tr></thead>
+                    <tbody>
+                      {platformEarnings.breakdown_by_partner.map(r => (
+                        <tr key={r.partner_id}><td>{r.partner_name}</td><td>₹{Number(r.total_earnings).toFixed(2)}</td><td>₹{Number(r.total_fiat).toFixed(2)}</td><td>₹{Number(r.total_ezt).toFixed(2)}</td></tr>
+                      ))}</tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {!platformEarnings.total_earnings && !platformEarnings.breakdown_by_tier?.length && !platformEarnings.breakdown_by_partner?.length && (
+              <p style={{ padding: 24, textAlign: 'center', color: '#666' }}>No earnings in range. Run redemptions after migration to see data.</p>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function SettingsSection() {
     return (
       <div>
@@ -1234,6 +1528,16 @@ export default function AdminDashboard() {
           <main className="pc-main-content">
             {loading && <div style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>Loading...</div>}
             {activeSection === 'dashboard' && <DashboardSection />}
+            {activeSection === 'analytics' && (
+              <EnterpriseAnalyticsDashboard
+                authHeaders={headers}
+                role="admin"
+                partnerOptions={partners}
+                tierOptions={partnerTiers}
+                dealOptions={deals}
+                categoryOptions={[]}
+              />
+            )}
             {activeSection === 'partners' && <PartnersSection />}
             {activeSection === 'deals' && <DealsSection />}
             {activeSection === 'campaigns' && <CampaignsSection />}
@@ -1242,6 +1546,8 @@ export default function AdminDashboard() {
             {activeSection === 'rewards' && <RewardsSection />}
             {activeSection === 'redemptions' && <RedemptionsSection />}
             {activeSection === 'tiers' && <TiersSection />}
+            {activeSection === 'partner-tiers' && <PartnerTiersSection />}
+            {activeSection === 'platform-earnings' && <PlatformEarningsSection />}
             {activeSection === 'settings' && <SettingsSection />}
           </main>
         </div>

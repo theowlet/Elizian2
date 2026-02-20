@@ -5,8 +5,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import OperatingHoursManager from '../components/OperatingHoursManager';
+import EnterpriseAnalyticsDashboard from '../components/analytics/EnterpriseAnalyticsDashboard';
+import MenuBuilderModal from '../components/MenuBuilderModal';
 import '../styles/partnerConsole.css';
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 /** Extract lat/lng from Google Maps URL. Handles @lat,lng and ?q=lat,lng. Short links (goo.gl) need to be opened to get the full URL. */
 function extractCoordsFromMapsUrl(url) {
@@ -160,8 +162,41 @@ export default function PartnerConsole() {
   const [coordsFromPastedLink, setCoordsFromPastedLink] = useState(null);
   const [mapsLinkInput, setMapsLinkInput] = useState('');
 
+  // Menu photo gallery state
+  const [menuPhotos, setMenuPhotos] = useState([]);
+  const [menuPhotosLoading, setMenuPhotosLoading] = useState(false);
+  const [menuPhotosUploading, setMenuPhotosUploading] = useState(false);
+  const [menuPhotoLightbox, setMenuPhotoLightbox] = useState(null); // index or null
+
   // Basic auth header helper
   const headers = () => ({ 'Content-Type': 'application/json', Authorization: token ? `Bearer ${token}` : '' });
+
+  // Check if a JWT token is expired
+  function isTokenExpired(t) {
+    if (!t) return true;
+    try {
+      const payload = JSON.parse(atob(t.split('.')[1]));
+      return payload.exp * 1000 < Date.now();
+    } catch { return true; }
+  }
+
+  // Handle expired session — clear storage and redirect
+  function handleSessionExpired() {
+    localStorage.removeItem('partnerToken');
+    localStorage.removeItem('partnerInfo');
+    navigate('/partner/login');
+  }
+
+  // Fetch wrapper that auto-redirects on 401/403 (expired token)
+  async function authFetch(url, options = {}) {
+    const res = await fetch(url, options);
+    if (res.status === 401 || res.status === 403) {
+      handleSessionExpired();
+      // Return a mock response so callers using .json() don't crash
+      return { ok: false, status: res.status, json: async () => ({ success: false, message: 'Session expired' }) };
+    }
+    return res;
+  }
 
   // Focus message input when conversation is selected (only on selection change, not every keystroke)
   useEffect(() => {
@@ -176,8 +211,9 @@ export default function PartnerConsole() {
     const storedToken = localStorage.getItem('partnerToken');
     const partnerInfo = localStorage.getItem('partnerInfo');
 
-    if (!storedToken) {
-      console.log('No partnerToken found, redirecting to login');
+    if (!storedToken || isTokenExpired(storedToken)) {
+      localStorage.removeItem('partnerToken');
+      localStorage.removeItem('partnerInfo');
       navigate('/partner/login');
       return;
     }
@@ -213,7 +249,7 @@ export default function PartnerConsole() {
   async function loadPartnerData() {
     try {
       // If token present, API should return partner associated
-      const res = await fetch(`${API_BASE}/api/v1/partners/me`, { headers: headers() });
+      const res = await authFetch(`${API_BASE}/api/v1/partners/me`, { headers: headers() });
       const json = await res.json();
       if (json.success) {
         setPartner(json.data);
@@ -230,7 +266,7 @@ export default function PartnerConsole() {
     if (!partner?.id) return;
     setVerifyingLocation(true);
     try {
-      const res = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/verify-location`, { method: 'POST', headers: headers() });
+      const res = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/verify-location`, { method: 'POST', headers: headers() });
       const json = await res.json();
       if (json.success) {
         setPartner(json.data);
@@ -253,7 +289,7 @@ export default function PartnerConsole() {
 
   async function loadServiceTypes() {
     try {
-      const r = await fetch(`${API_BASE}/api/v1/service-types`);
+      const r = await authFetch(`${API_BASE}/api/v1/service-types`);
       const j = await r.json();
       if (j.success) setServiceTypes(j.service_types || []);
     } catch (e) { console.warn('service types error', e); }
@@ -261,7 +297,7 @@ export default function PartnerConsole() {
 
   async function loadServiceCategories() {
     try {
-      const r = await fetch(`${API_BASE}/api/v1/service-categories`);
+      const r = await authFetch(`${API_BASE}/api/v1/service-categories`);
       const j = await r.json();
       if (j.success) setServiceCategories(j.data || []);
     } catch (e) { console.warn('service categories error', e); }
@@ -270,7 +306,7 @@ export default function PartnerConsole() {
   async function loadDashboard() {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/dashboard`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/dashboard`, { headers: headers() });
       const j = await r.json();
       if (j.success) setDashboardData(j.data);
     } catch (e) { console.error(e); }
@@ -279,16 +315,57 @@ export default function PartnerConsole() {
   async function loadMenuItems() {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/menu`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/menu`, { headers: headers() });
       const j = await r.json();
       if (j.success) setMenuItems(j.data || []);
+    } catch (e) { console.error(e); }
+  }
+
+  async function loadMenuPhotos() {
+    if (!partner) return;
+    setMenuPhotosLoading(true);
+    try {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/menu-images`, { headers: headers() });
+      const j = await r.json();
+      if (j.success) setMenuPhotos(j.data?.menu_images || []);
+    } catch (e) { console.error(e); }
+    finally { setMenuPhotosLoading(false); }
+  }
+
+  async function uploadMenuPhotos(files) {
+    if (!partner || !files.length) return;
+    setMenuPhotosUploading(true);
+    const formData = new FormData();
+    Array.from(files).forEach(f => formData.append('menuImages', f));
+    try {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/menu-images`, {
+        method: 'POST',
+        headers: { Authorization: token ? `Bearer ${token}` : '' },
+        body: formData,
+      });
+      const j = await r.json();
+      if (j.success) { setMenuPhotos(j.data?.images || []); }
+      else alert('Upload failed: ' + (j.message || 'unknown error'));
+    } catch (e) { console.error(e); alert('Upload failed'); }
+    finally { setMenuPhotosUploading(false); }
+  }
+
+  async function deleteMenuPhoto(index) {
+    if (!partner) return;
+    if (!window.confirm('Remove this photo?')) return;
+    try {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/menu-images/${index}`, {
+        method: 'DELETE', headers: headers()
+      });
+      const j = await r.json();
+      if (j.success) setMenuPhotos(j.data?.images || []);
     } catch (e) { console.error(e); }
   }
 
   async function loadOrders() {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/orders`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/orders`, { headers: headers() });
       const j = await r.json();
       if (j.success) setOrders(j.data || []);
     } catch (e) { console.error(e); }
@@ -297,7 +374,7 @@ export default function PartnerConsole() {
   async function loadBookings() {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/bookings`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/bookings`, { headers: headers() });
       const j = await r.json();
       if (j.success) setBookings(j.data?.bookings || []);
     } catch (e) { console.error(e); }
@@ -306,7 +383,7 @@ export default function PartnerConsole() {
   async function loadOffers() {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/offers`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/offers`, { headers: headers() });
       const j = await r.json();
       if (j.success) setOffers(j.data || []);
     } catch (e) { console.error(e); }
@@ -315,7 +392,7 @@ export default function PartnerConsole() {
   async function loadCampaigns() {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/campaigns`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/campaigns`, { headers: headers() });
       const j = await r.json();
       if (j.success) setCampaigns(j.data || []);
     } catch (e) { console.error(e); }
@@ -324,7 +401,7 @@ export default function PartnerConsole() {
   async function loadGuests() {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/guests`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/guests`, { headers: headers() });
       const j = await r.json();
       if (j.success) setGuests(j.data || []);
     } catch (e) { console.error(e); }
@@ -335,7 +412,7 @@ export default function PartnerConsole() {
     setVerifyingTierCard(true);
     setTierCardResult(null);
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partner/verify-tier-card`, {
+      const r = await authFetch(`${API_BASE}/api/v1/partner/verify-tier-card`, {
         method: 'POST', headers: headers(),
         body: JSON.stringify({ token: tierCardToken.trim() })
       });
@@ -355,7 +432,7 @@ export default function PartnerConsole() {
   async function openGuestProfile(userId) {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/guests/${userId}`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/guests/${userId}`, { headers: headers() });
       const j = await r.json();
       if (j.success) { setGuestProfile(j.data); setGuestNoteText(''); setShowGuestModal(true); }
       else showNotification(j.message || 'Failed to load guest', 'error');
@@ -367,7 +444,7 @@ export default function PartnerConsole() {
     if (!partner || !guestProfile || !guestNoteText.trim()) return;
     setAddingNote(true);
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/guests/${guestProfile.user_id}/notes`, {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/guests/${guestProfile.user_id}/notes`, {
         method: 'POST',
         headers: headers(),
         body: JSON.stringify({ note: guestNoteText.trim() }),
@@ -384,7 +461,7 @@ export default function PartnerConsole() {
   async function loadStaff() {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/staff`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/staff`, { headers: headers() });
       const j = await r.json();
       if (j.success) setStaffList(j.data || []);
     } catch (e) { console.error(e); }
@@ -392,7 +469,7 @@ export default function PartnerConsole() {
   async function loadStaffCheckIns() {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/staff/check-ins?limit=30`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/staff/check-ins?limit=30`, { headers: headers() });
       const j = await r.json();
       if (j.success) setStaffCheckIns(j.data || []);
     } catch (e) { console.error(e); }
@@ -402,7 +479,7 @@ export default function PartnerConsole() {
     if (!partner || !staffAddEmail.trim()) return;
     setAddingStaff(true);
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/staff`, {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/staff`, {
         method: 'POST', headers: headers(), body: JSON.stringify({ email: staffAddEmail.trim() }),
       });
       const j = await r.json();
@@ -414,7 +491,7 @@ export default function PartnerConsole() {
   async function removeStaff(userId) {
     if (!partner || !window.confirm('Remove this staff member?')) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/staff/${userId}`, { method: 'DELETE', headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/staff/${userId}`, { method: 'DELETE', headers: headers() });
       const j = await r.json();
       if (j.success) { loadStaff(); showNotification('Staff removed'); }
       else showNotification(j.message ?? j.error ?? 'Failed', 'error');
@@ -425,7 +502,7 @@ export default function PartnerConsole() {
     if (!partner || !staffCheckInUserId) return;
     setRecordingCheckIn(true);
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/staff/check-in`, {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/staff/check-in`, {
         method: 'POST', headers: headers(),
         body: JSON.stringify({ user_id: staffCheckInUserId, ezt_earned: parseFloat(staffCheckInEzt) || 10 }),
       });
@@ -439,14 +516,14 @@ export default function PartnerConsole() {
   // NFC Puck functions
   async function loadNfcPucks() {
     try {
-      const r = await fetch(`${API_BASE}/api/v1/nfc/pucks`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/nfc/pucks`, { headers: headers() });
       const j = await r.json();
       if (j.success) setNfcPucks(j.data || []);
     } catch (e) { console.error(e); }
   }
   async function loadNfcAnalytics() {
     try {
-      const r = await fetch(`${API_BASE}/api/v1/nfc/pucks/analytics?days=30`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/nfc/pucks/analytics?days=30`, { headers: headers() });
       const j = await r.json();
       if (j.success) setNfcAnalytics(j.data || []);
     } catch (e) { console.error(e); }
@@ -465,7 +542,7 @@ export default function PartnerConsole() {
     e.preventDefault();
     try {
       const url = nfcEditId ? `${API_BASE}/api/v1/nfc/pucks/${nfcEditId}` : `${API_BASE}/api/v1/nfc/pucks`;
-      const r = await fetch(url, {
+      const r = await authFetch(url, {
         method: nfcEditId ? 'PUT' : 'POST', headers: headers(),
         body: JSON.stringify(nfcForm),
       });
@@ -477,7 +554,7 @@ export default function PartnerConsole() {
   async function deleteNfcPuck(id) {
     if (!window.confirm('Delete this NFC puck?')) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/nfc/pucks/${id}`, { method: 'DELETE', headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/nfc/pucks/${id}`, { method: 'DELETE', headers: headers() });
       const j = await r.json();
       if (j.success) { loadNfcPucks(); showNotification('Puck deleted'); }
       else showNotification(j.message || 'Delete failed', 'error');
@@ -485,7 +562,7 @@ export default function PartnerConsole() {
   }
   async function toggleNfcPuck(puck) {
     try {
-      const r = await fetch(`${API_BASE}/api/v1/nfc/pucks/${puck.id}`, {
+      const r = await authFetch(`${API_BASE}/api/v1/nfc/pucks/${puck.id}`, {
         method: 'PUT', headers: headers(),
         body: JSON.stringify({ is_active: !puck.is_active }),
       });
@@ -497,7 +574,7 @@ export default function PartnerConsole() {
   async function loadConversations() {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations`, { headers: headers() });
       const j = await r.json().catch(() => ({}));
       if (r.ok && j.success) setConversations(j.data || []);
       else {
@@ -518,7 +595,7 @@ export default function PartnerConsole() {
     convMsgSignatureRef.current = '';  // Reset so first poll always renders
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations/${conv.id}/messages`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations/${conv.id}/messages`, { headers: headers() });
       const j = await r.json().catch(() => ({}));
       if (r.ok && j.success && j.data) {
         const list = Array.isArray(j.data?.messages) ? j.data.messages : [];
@@ -529,7 +606,7 @@ export default function PartnerConsole() {
         if (!r.ok) showNotification(msg, 'error');
       }
       // Mark messages as read
-      await fetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations/${conv.id}/read`, {
+      await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations/${conv.id}/read`, {
         method: 'POST', headers: headers(),
       }).catch(() => {});
       // Refresh conversation list to update unread counts
@@ -547,7 +624,7 @@ export default function PartnerConsole() {
     if (!selectedConvId || !partner || activeSection !== 'messages') return;
     const interval = setInterval(async () => {
       try {
-        const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations/${selectedConvId}/messages`, { headers: headers() });
+        const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations/${selectedConvId}/messages`, { headers: headers() });
         const j = await r.json().catch(() => ({}));
         if (r.ok && j.success && j.data) {
           const list = Array.isArray(j.data?.messages) ? j.data.messages : [];
@@ -561,7 +638,7 @@ export default function PartnerConsole() {
           }
         }
         // Mark as read on each poll
-        await fetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations/${selectedConvId}/read`, {
+        await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations/${selectedConvId}/read`, {
           method: 'POST', headers: headers(),
         }).catch(() => {});
       } catch (_) {}
@@ -575,7 +652,7 @@ export default function PartnerConsole() {
     setSendingConvMessage(true);
     const text = convMessageInput.trim();
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations/${selectedConvId}/messages`, {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/conversations/${selectedConvId}/messages`, {
         method: 'POST',
         headers: headers(),
         body: JSON.stringify({ body: text }),
@@ -598,7 +675,7 @@ export default function PartnerConsole() {
     if (!partner || !selectedConvId || deletingMsgId) return;
     setDeletingMsgId(msgId);
     try {
-      const r = await fetch(`${API_BASE}/api/v1/conversations/${selectedConvId}/messages/${msgId}`, {
+      const r = await authFetch(`${API_BASE}/api/v1/conversations/${selectedConvId}/messages/${msgId}`, {
         method: 'DELETE',
         headers: headers(),
       });
@@ -618,7 +695,7 @@ export default function PartnerConsole() {
   async function loadAnalytics() {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/analytics`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/analytics`, { headers: headers() });
       const j = await r.json();
       if (j.success) setAnalytics(j.data || null);
     } catch (e) { console.error(e); }
@@ -627,7 +704,7 @@ export default function PartnerConsole() {
   function handleNavigate(section) {
     setActiveSection(section);
     // lazy load
-    if (section === 'menu') loadMenuItems();
+    if (section === 'menu') { loadMenuItems(); loadMenuPhotos(); }
     if (section === 'offers') loadOffers();
     if (section === 'campaigns') loadCampaigns();
     if (section === 'guests') loadGuests();
@@ -714,7 +791,7 @@ export default function PartnerConsole() {
     setOfferForm(populateForm(o));
     setShowOfferModal(true);
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/offers/${id}`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/offers/${id}`, { headers: headers() });
       const j = await r.json();
       if (j.success && j.data) {
         setOfferForm(populateForm(j.data));
@@ -741,7 +818,7 @@ export default function PartnerConsole() {
     const numericOptionals = ['co_pay_percentage', 'discount_amount', 'original_price', 'discounted_price', 'min_purchase_amount'];
     numericOptionals.forEach((k) => { if (payload[k] === '' || payload[k] === undefined) payload[k] = null; });
     try {
-      const r = await fetch(url, { method: offerEditId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(payload) });
+      const r = await authFetch(url, { method: offerEditId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(payload) });
       const j = await r.json();
       if (j.success) { setShowOfferModal(false); loadOffers(); }
       else alert('Failed: ' + (j.message ?? j.error ?? 'unknown'));
@@ -770,7 +847,7 @@ export default function PartnerConsole() {
     if (!partner) return;
     const url = menuEditId ? `${API_BASE}/api/v1/partners/${partner.id}/menu/${menuEditId}` : `${API_BASE}/api/v1/partners/${partner.id}/menu`;
     try {
-      const r = await fetch(url, { method: menuEditId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(menuForm) });
+      const r = await authFetch(url, { method: menuEditId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(menuForm) });
       const j = await r.json();
       if (j.success) { setShowMenuModal(false); loadMenuItems(); }
       else alert('Failed: ' + (j.message ?? j.error ?? 'unknown'));
@@ -780,7 +857,7 @@ export default function PartnerConsole() {
   // Simple redeem voucher flow used in scanner section
   async function validateVoucher(code) {
     try {
-      const r = await fetch(`${API_BASE}/api/v1/vouchers/${code}`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/vouchers/${code}`, { headers: headers() });
       const j = await r.json();
       setScannerResult(j);
     } catch (e) { console.error(e); }
@@ -888,7 +965,7 @@ export default function PartnerConsole() {
         payload.longitude = displayCoords.lng;
       }
       try {
-        const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}`, { method: 'PUT', headers: headers(), body: JSON.stringify(payload) });
+        const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}`, { method: 'PUT', headers: headers(), body: JSON.stringify(payload) });
         const j = await r.json();
         if (j.success) {
           setPartner(j.data);
@@ -980,24 +1057,130 @@ export default function PartnerConsole() {
   }
 
   function MenuSection() {
+    const photoInputRef = useRef(null);
+
     return (
       <div>
-        <div className="pc-content-header"><h1>Services & Menu</h1><div><button className="btn btn-primary" onClick={openAddMenu}>Add New Service</button></div></div>
-        <div className="pc-table-container"><table className="pc-table"><thead><tr><th>Service Name</th><th>Description</th><th>Price</th><th>Category</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>
-          {menuItems.length === 0 ? (
-            <tr><td colSpan={6} style={{textAlign:'center', padding: 24}}>No items</td></tr>
-          ) : menuItems.map(item => (
-            <tr key={item.id}>
-              <td>{item.name}</td>
-              <td style={{maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.description}</td>
-              <td>₹{item.price}</td>
-              <td>{item.category || item.service_category_name || item.service_type}</td>
-              <td><span className={`pc-badge pc-badge-${item.is_available ? 'success' : 'error'}`}>{item.is_available ? 'Available' : 'Unavailable'}</span></td>
-              <td><div className="pc-actions"><button className="btn btn-sm btn-secondary" onClick={() => openEditMenu(item.id)}>Edit</button><button className="btn btn-sm btn-danger" onClick={() => deleteMenu(item.id)}>Delete</button></div></td>
-            </tr>
-          ))}
-        </tbody></table></div>
+        {/* ── Header ─────────────────────────────────────────────────────── */}
+        <div className="pc-content-header">
+          <h1>Services & Menu</h1>
+          <div><button className="btn btn-primary" onClick={openAddMenu}>+ Add New Service</button></div>
+        </div>
+
+        {/* ── Menu Photo Gallery ────────────────────────────────────────── */}
+        <div className="mphoto-section">
+          <div className="mphoto-header">
+            <div>
+              <h2 className="mphoto-title">Menu Photos</h2>
+              <p className="mphoto-subtitle">Upload your physical menu pages or food photos. Customers see these when viewing your venue.</p>
+            </div>
+            <button
+              className="btn btn-secondary"
+              onClick={() => photoInputRef.current?.click()}
+              disabled={menuPhotosUploading}
+            >
+              {menuPhotosUploading ? 'Uploading…' : '+ Upload Photos'}
+            </button>
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              style={{ display: 'none' }}
+              onChange={e => { if (e.target.files?.length) uploadMenuPhotos(e.target.files); e.target.value = ''; }}
+            />
+          </div>
+
+          {menuPhotosLoading ? (
+            <p className="mphoto-empty">Loading photos…</p>
+          ) : menuPhotos.length === 0 ? (
+            <div
+              className="mphoto-dropzone"
+              onClick={() => photoInputRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }}
+              onDragLeave={e => e.currentTarget.classList.remove('drag-over')}
+              onDrop={e => {
+                e.preventDefault();
+                e.currentTarget.classList.remove('drag-over');
+                const files = e.dataTransfer.files;
+                if (files?.length) uploadMenuPhotos(files);
+              }}
+            >
+              <span className="mphoto-dropzone-icon">🖼️</span>
+              <p>Drag & drop photos here, or click to browse</p>
+              <p className="mphoto-dropzone-hint">JPG, PNG, WebP · up to 8MB each · upload as many pages as you need</p>
+            </div>
+          ) : (
+            <div className="mphoto-strip">
+              {menuPhotos.map((url, idx) => (
+                <div key={idx} className="mphoto-thumb" onClick={() => setMenuPhotoLightbox(idx)}>
+                  <img src={url} alt={`Menu ${idx + 1}`} loading="lazy" />
+                  <button
+                    className="mphoto-thumb-delete"
+                    title="Remove"
+                    onClick={e => { e.stopPropagation(); deleteMenuPhoto(idx); }}
+                  >×</button>
+                  <span className="mphoto-thumb-num">{idx + 1}/{menuPhotos.length}</span>
+                </div>
+              ))}
+              {/* Add more tile */}
+              <div
+                className="mphoto-thumb mphoto-thumb-add"
+                onClick={() => photoInputRef.current?.click()}
+              >
+                <span style={{ fontSize: '1.75rem' }}>+</span>
+                <span style={{ fontSize: '0.72rem', marginTop: 4 }}>Add</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Lightbox ─────────────────────────────────────────────────── */}
+        {menuPhotoLightbox !== null && (
+          <div className="mphoto-lightbox" onClick={() => setMenuPhotoLightbox(null)}>
+            <button className="mphoto-lb-close" onClick={() => setMenuPhotoLightbox(null)}>×</button>
+            <button
+              className="mphoto-lb-nav mphoto-lb-prev"
+              onClick={e => { e.stopPropagation(); setMenuPhotoLightbox(i => (i - 1 + menuPhotos.length) % menuPhotos.length); }}
+            >‹</button>
+            <div className="mphoto-lb-img-wrap" onClick={e => e.stopPropagation()}>
+              <img src={menuPhotos[menuPhotoLightbox]} alt={`Menu ${menuPhotoLightbox + 1}`} className="mphoto-lb-img" />
+              <p className="mphoto-lb-counter">{menuPhotoLightbox + 1} / {menuPhotos.length}</p>
+            </div>
+            <button
+              className="mphoto-lb-nav mphoto-lb-next"
+              onClick={e => { e.stopPropagation(); setMenuPhotoLightbox(i => (i + 1) % menuPhotos.length); }}
+            >›</button>
+          </div>
+        )}
+
+        {/* ── Services Table ────────────────────────────────────────────── */}
+        <div className="mphoto-section" style={{ marginTop: 24 }}>
+          <h2 className="mphoto-title" style={{ marginBottom: 12 }}>Service Items</h2>
+          <div className="pc-table-container">
+            <table className="pc-table">
+              <thead><tr><th>Service Name</th><th>Description</th><th>Price</th><th>Category</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>
+                {menuItems.length === 0 ? (
+                  <tr><td colSpan={6} style={{textAlign:'center', padding: 24, color: 'var(--muted)'}}>No items yet — click "+ Add New Service" above</td></tr>
+                ) : menuItems.map(item => (
+                  <tr key={item.id}>
+                    <td>{item.name}</td>
+                    <td style={{maxWidth:200, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.description}</td>
+                    <td>₹{item.price}</td>
+                    <td>
+                      {item.taxonomy_parent_name
+                        ? `${item.taxonomy_parent_name} › ${item.taxonomy_name}`
+                        : item.taxonomy_name || item.category || item.service_category_name || item.service_type || '—'}
+                    </td>
+                    <td><span className={`pc-badge pc-badge-${item.is_available ? 'success' : 'error'}`}>{item.is_available ? 'Available' : 'Unavailable'}</span></td>
+                    <td><div className="pc-actions"><button className="btn btn-sm btn-secondary" onClick={() => openEditMenu(item.id)}>Edit</button><button className="btn btn-sm btn-danger" onClick={() => deleteMenu(item.id)}>Delete</button></div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     );
   }
@@ -1005,7 +1188,7 @@ export default function PartnerConsole() {
   async function deleteMenu(id) {
     if (!window.confirm('Delete item?')) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/menu/${id}`, { method: 'DELETE', headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/menu/${id}`, { method: 'DELETE', headers: headers() });
       const j = await r.json();
       if (j.success) { loadMenuItems(); showNotification('Deleted'); } else showNotification('Delete failed');
     } catch (e) { console.error(e); }
@@ -1030,7 +1213,7 @@ export default function PartnerConsole() {
   async function deleteOffer(id) {
     if (!window.confirm('Delete deal?')) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/offers/${id}`, { method: 'DELETE', headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/offers/${id}`, { method: 'DELETE', headers: headers() });
       const j = await r.json();
       if (j.success) loadOffers(); else showNotification('Delete failed');
     } catch (e) { console.error(e); }
@@ -1070,7 +1253,7 @@ export default function PartnerConsole() {
       const url = campaignEditId
         ? `${API_BASE}/api/v1/partners/${partner.id}/campaigns/${campaignEditId}`
         : `${API_BASE}/api/v1/partners/${partner.id}/campaigns`;
-      const r = await fetch(url, {
+      const r = await authFetch(url, {
         method: campaignEditId ? 'PUT' : 'POST',
         headers: headers(),
         body: JSON.stringify(payload),
@@ -1093,7 +1276,7 @@ export default function PartnerConsole() {
     if (!window.confirm('Send this campaign now? (Notifications will be sent to guests.)')) return;
     setSendingCampaignId(id);
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/campaigns/${id}/send`, {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/campaigns/${id}/send`, {
         method: 'POST',
         headers: headers(),
       });
@@ -1116,9 +1299,9 @@ export default function PartnerConsole() {
       <div>
         <div className="pc-content-header">
           <h1>Notification Campaigns</h1>
-          <div>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
             <button className="btn btn-primary" onClick={loadCampaigns}>Refresh</button>
-            <button className="btn btn-primary" onClick={openAddCampaign} style={{ marginLeft: 8 }}>New campaign</button>
+            <button className="btn btn-primary" onClick={openAddCampaign}>New campaign</button>
           </div>
         </div>
         <p style={{ color: '#666', marginBottom: 16 }}>Send push-style messages to your guests. Create a draft, then send when ready.</p>
@@ -1654,7 +1837,7 @@ export default function PartnerConsole() {
   async function loadBookingsWithFilter(status) {
     if (!partner) return;
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/bookings?status=${status}`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/bookings?status=${status}`, { headers: headers() });
       const j = await r.json();
       if (j.success) setBookings(j.data?.bookings || []);
     } catch (e) { console.error(e); }
@@ -1667,40 +1850,160 @@ export default function PartnerConsole() {
   }
 
   function AnalyticsSection() {
+    if (!partner?.id) return <div className="pc-content-header"><p>Loading…</p></div>;
     return (
       <div>
         <div className="pc-content-header"><h1>Analytics</h1></div>
-        <div className="pc-stats-grid">
-          <div className="pc-stat-card"><div className="pc-stat-value">₹{analytics?.avgOrderValue||0}</div><div className="pc-stat-label">Avg Order Value</div></div>
-          <div className="pc-stat-card"><div className="pc-stat-value">{analytics?.totalCustomers||0}</div><div className="pc-stat-label">Total Customers</div></div>
-          <div className="pc-stat-card"><div className="pc-stat-value">{analytics?.repeatCustomers||0}%</div><div className="pc-stat-label">Repeat Customers</div></div>
-        </div>
+        <EnterpriseAnalyticsDashboard
+          authHeaders={headers}
+          role="partner"
+          partnerId={partner.id}
+          dealOptions={offers}
+          categoryOptions={[]}
+          tierOptions={[]}
+          partnerOptions={[]}
+        />
       </div>
     );
   }
 
+  /**
+   * Extract voucher UUID from any QR content format (v1/v2/v3, plain UUID, or URL).
+   * Backward-compatible: handles old 800-byte QR content and new deep link URLs.
+   */
+  function extractVoucherCodeFromQR(rawText) {
+    if (!rawText || typeof rawText !== 'string') return null;
+    const trimmed = rawText.trim();
+
+    // v3: Deep link URL — https://elizian.in/v/{uuid} (also accepts .com for compat)
+    const urlMatch = trimmed.match(/elizian\.(?:in|com)\/v\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+    if (urlMatch) return urlMatch[1];
+
+    // Plain UUID (36 chars)
+    const uuidMatch = trimmed.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    if (uuidMatch) return uuidMatch[0];
+
+    // v2: Human-readable + JSON after "---" delimiter
+    const jsonSplit = trimmed.split('---');
+    if (jsonSplit.length > 1) {
+      try {
+        const data = JSON.parse(jsonSplit[jsonSplit.length - 1].trim());
+        if (data.voucher_code) return data.voucher_code;
+      } catch (_) { /* not valid JSON, continue */ }
+    }
+
+    // v1: Pure JSON
+    try {
+      const data = JSON.parse(trimmed);
+      if (data.voucher_code) return data.voucher_code;
+    } catch (_) { /* not JSON, continue */ }
+
+    // Last resort: find any UUID embedded in the text
+    const anyUuid = trimmed.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    if (anyUuid) return anyUuid[0];
+
+    return null;
+  }
+
   function QRScannerSection() {
     const codeRef = useRef();
+    const scannerRef = useRef(null);
+    const [scanning, setScanning] = useState(false);
+    const [cameraError, setCameraError] = useState(null);
+
+    // Cleanup camera on unmount
+    useEffect(() => {
+      return () => {
+        if (scannerRef.current) {
+          scannerRef.current.stop().catch(() => {});
+          scannerRef.current = null;
+        }
+      };
+    }, []);
+
+    const startScanner = async () => {
+      setCameraError(null);
+      setScanning(true);
+      try {
+        const { Html5Qrcode } = await import('html5-qrcode');
+        const scanner = new Html5Qrcode('qr-reader');
+        scannerRef.current = scanner;
+        await scanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText) => {
+            const voucherCode = extractVoucherCodeFromQR(decodedText);
+            if (voucherCode) {
+              if (codeRef.current) codeRef.current.value = voucherCode;
+              validateVoucher(voucherCode);
+              stopScanner();
+            }
+          },
+          () => {} // ignore scan-in-progress failures
+        );
+      } catch (err) {
+        setCameraError(err?.message || 'Camera access denied or not available. Use manual input below.');
+        setScanning(false);
+      }
+    };
+
+    const stopScanner = () => {
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+        scannerRef.current = null;
+      }
+      setScanning(false);
+    };
+
+    const handleValidateInput = () => {
+      const raw = codeRef.current?.value || '';
+      const voucherCode = extractVoucherCodeFromQR(raw) || raw.trim();
+      if (voucherCode) validateVoucher(voucherCode);
+    };
+
     return (
       <div>
         <div className="pc-content-header"><h1>QR Voucher Scanner</h1></div>
         <div style={{maxWidth:500}}>
+          {/* Camera scanner */}
+          <div style={{marginBottom:16}}>
+            <button
+              className={`btn ${scanning ? 'btn-danger' : 'btn-primary'}`}
+              onClick={scanning ? stopScanner : startScanner}
+              style={{marginBottom:10}}
+            >
+              {scanning ? '⏹ Stop Camera' : '📷 Scan QR Code'}
+            </button>
+            {cameraError && <div style={{color:'#b91c1c', fontSize:'0.85rem', marginBottom:8}}>{cameraError}</div>}
+            <div
+              id="qr-reader"
+              style={{
+                display: scanning ? 'block' : 'none',
+                width: '100%',
+                maxWidth: 400,
+                marginBottom: 16,
+                borderRadius: 8,
+                overflow: 'hidden',
+                border: '2px solid #10b981'
+              }}
+            />
+          </div>
+
+          {/* Manual input */}
           <div className="pc-form-group">
-            <label>Voucher Code (UUID)</label>
-            <input 
-              ref={codeRef} 
-              className="pc-form-input" 
-              placeholder="Enter voucher code or scan QR"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  validateVoucher(codeRef.current.value);
-                }
+            <label>Voucher Code / URL</label>
+            <input
+              ref={codeRef}
+              className="pc-form-input"
+              placeholder="Enter voucher code, URL, or scan QR"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleValidateInput();
               }}
             />
           </div>
           <div style={{display:'flex', gap:10}}>
-            <button className="btn btn-primary" onClick={() => validateVoucher(codeRef.current.value)}>Validate</button>
-            <button className="btn btn-secondary" onClick={() => { codeRef.current.value=''; setScannerResult(null); }}>Reset</button>
+            <button className="btn btn-primary" onClick={handleValidateInput}>Validate</button>
+            <button className="btn btn-secondary" onClick={() => { if (codeRef.current) codeRef.current.value=''; setScannerResult(null); }}>Reset</button>
           </div>
           <div style={{marginTop:20}}>
             {scannerResult && scannerResult.success ? (
@@ -1712,8 +2015,8 @@ export default function PartnerConsole() {
                 <div style={{marginBottom:8}}><strong>Amount:</strong> ₹{scannerResult.data.total_price || scannerResult.data.fiat_amount || 0}</div>
                 {scannerResult.data.status === 'confirmed' && (
                   <div style={{marginTop:10}}>
-                    <button 
-                      className="btn btn-primary" 
+                    <button
+                      className="btn btn-primary"
                       onClick={() => {
                         // Find booking and open redemption modal
                         const booking = bookings.find(b => b.voucher_code === scannerResult.data.voucher_code);
@@ -1767,7 +2070,7 @@ export default function PartnerConsole() {
     setRedeemingPass(true);
     setPassRedeemResult(null);
     try {
-      const r = await fetch(`${API_BASE}/api/v1/partners/${partner.id}/passes/redeem`, {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/passes/redeem`, {
         method: 'POST',
         headers: headers(),
         body: JSON.stringify({ code: passRedeemCode.trim() }),
@@ -1787,7 +2090,7 @@ export default function PartnerConsole() {
 
     try {
       // First, try to get redemption by voucher code
-      const r = await fetch(`${API_BASE}/api/v1/redemptions/voucher/${voucherCode}`, { headers: headers() });
+      const r = await authFetch(`${API_BASE}/api/v1/redemptions/voucher/${voucherCode}`, { headers: headers() });
       const j = await r.json();
       
       if (j.success && j.data) {
@@ -1808,7 +2111,7 @@ export default function PartnerConsole() {
       // If not redeemed, try local list then server-side lookup (covers vouchers not in first 50 bookings)
       let booking = bookings.find(b => b.voucher_code === voucherCode);
       if (!booking && partner?.id) {
-        const lookupRes = await fetch(
+        const lookupRes = await authFetch(
           `${API_BASE}/api/v1/partners/${partner.id}/vouchers/lookup?code=${encodeURIComponent(voucherCode.trim())}`,
           { headers: headers() }
         );
@@ -1886,7 +2189,7 @@ export default function PartnerConsole() {
     setCalculationPreview(null);
     try {
       const url = `${API_BASE}/api/v1/redemptions/calculate?voucher_code=${encodeURIComponent(voucherCode)}&total_bill_amount=${encodeURIComponent(totalBillAmount)}`;
-      const r = await fetch(url, { headers: headers() });
+      const r = await authFetch(url, { headers: headers() });
       const j = await r.json();
       if (j.success && j.data) {
         setCalculationPreview(j.data);
@@ -1949,7 +2252,7 @@ export default function PartnerConsole() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/v1/redemptions/redeem`, {
+      const response = await authFetch(`${API_BASE}/api/v1/redemptions/redeem`, {
         method: 'POST',
         headers: headers(),
         body: JSON.stringify({
@@ -1997,7 +2300,7 @@ export default function PartnerConsole() {
       console.error('Redemption error:', error);
       const isRefused = error?.message?.includes('Failed to fetch') || error?.name === 'TypeError';
       showNotification(
-        isRefused ? 'Cannot reach server. Is the backend running? Check API URL (e.g. http://localhost:3000).' : 'Network error. Please try again.',
+        isRefused ? 'Cannot reach server. Is the backend running? Check API URL (e.g. http://localhost:4000).' : 'Network error. Please try again.',
         'error'
       );
     }
@@ -2097,8 +2400,13 @@ export default function PartnerConsole() {
                 if (file.size > 2 * 1024 * 1024) { alert('Image should be under 2MB'); return; }
                 const reader = new FileReader();
                 reader.onload = () => {
-                  setOfferForm({ ...offerForm, image_base64: reader.result, image_filename: file.name || 'offer.jpg' });
+                  setOfferForm((prev) => ({
+                    ...prev,
+                    image_base64: reader.result,
+                    image_filename: (file.name && /\.(jpe?g|png|gif|webp)$/i.test(file.name)) ? file.name : `${file.name.replace(/\.[^.]+$/, '') || 'offer'}.jpg`,
+                  }));
                 };
+                reader.onerror = () => alert('Could not read the image file. Try another image.');
                 reader.readAsDataURL(file);
                 e.target.value = '';
               }}
@@ -2187,15 +2495,15 @@ export default function PartnerConsole() {
         </form>
       </Modal>
 
-      {/* Menu modal */}
-      <Modal id="menuItemModal" title={menuEditId ? 'Edit Service' : 'Add Service'} show={showMenuModal} onClose={() => setShowMenuModal(false)}>
-        <form onSubmit={saveMenuItem}>
-          <div className="pc-form-group"><label>Service Type</label><select className="pc-form-input" value={menuForm.service_type||''} onChange={e=>setMenuForm({...menuForm, service_type: e.target.value})}><option value="">Select</option><option value="dining">Dining</option><option value="events">Events</option><option value="healthcare">Healthcare</option><option value="spa-and-salon">Spa & Salon</option><option value="wellness">Wellness</option><option value="travel">Travel</option><option value="others">Others</option></select></div>
-          <div className="pc-form-group"><label>Service Name</label><input className="pc-form-input" required value={menuForm.name||''} onChange={e=>setMenuForm({...menuForm, name: e.target.value})} /></div>
-          <div className="pc-form-group"><label>Price (₹)</label><input type="number" className="pc-form-input" value={menuForm.price||0} onChange={e=>setMenuForm({...menuForm, price: parseFloat(e.target.value||0)})} /></div>
-          <div style={{display:'flex', gap:8, justifyContent:'flex-end', marginTop:16}}><button type="button" className="btn btn-secondary" onClick={()=>setShowMenuModal(false)}>Cancel</button><button type="submit" className="btn btn-primary">Save</button></div>
-        </form>
-      </Modal>
+      {/* Menu modal — hierarchical taxonomy-driven builder */}
+      <MenuBuilderModal
+        show={showMenuModal}
+        onClose={() => setShowMenuModal(false)}
+        editItem={menuEditId ? menuItems.find(m => m.id === menuEditId) : null}
+        partnerId={partner?.id}
+        token={token}
+        onSaved={() => { setShowMenuModal(false); loadMenuItems(); }}
+      />
 
       {/* Redemption Modal with Financial Capture */}
       <Modal 

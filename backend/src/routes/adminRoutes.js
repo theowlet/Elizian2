@@ -74,6 +74,16 @@ router.patch('/partners/:id/status', adminController.updatePartnerStatus);
 router.put('/partners/:id/featured-eligibility', adminController.updatePartnerFeaturedEligibility);
 router.put('/partners/:id/partner-tier', adminController.updatePartnerTier);
 
+// Partner tier management (CRUD for partner_tiers; dynamic tiers)
+router.get('/partner-tiers', adminController.listPartnerTiers);
+router.get('/partner-tiers/:id', adminController.getPartnerTier);
+router.post('/partner-tiers', adminController.createPartnerTier);
+router.put('/partner-tiers/:id', adminController.updatePartnerTierById);
+router.patch('/partner-tiers/:id/active', adminController.setPartnerTierActive);
+router.delete('/partner-tiers/:id', adminController.deletePartnerTier);
+// Platform revenue dashboard (from platform_earnings_ledger)
+router.get('/platform-earnings', adminController.getPlatformEarnings);
+
 // Deals/Offers management
 router.get('/deals', adminController.listDeals);
 router.patch('/deals/:id/status', adminController.updateDealStatus);
@@ -136,8 +146,26 @@ router.get('/activity', adminController.getActivity);
 // Users management
 router.get('/users', adminController.listUsers);
 
-// Analytics
+// Analytics (legacy)
 router.get('/analytics', adminController.getAnalytics);
+
+// Enterprise Analytics Dashboard (filter-driven, saved views, export)
+const adminAnalyticsController = require('../controllers/adminAnalyticsController');
+router.get('/analytics/dashboard', adminAnalyticsController.getDashboard);
+router.get('/analytics/drill-down', adminAnalyticsController.getDrillDown);
+router.get('/analytics/export/csv', adminAnalyticsController.exportCsv);
+router.get('/analytics/views', adminAnalyticsController.listViews);
+router.post('/analytics/views', adminAnalyticsController.saveView);
+router.get('/analytics/views/:viewId', adminAnalyticsController.getView);
+router.put('/analytics/views/:viewId/default', adminAnalyticsController.setDefaultView);
+router.delete('/analytics/views/:viewId', adminAnalyticsController.deleteView);
+
+// Enterprise Reporting (macro-level, admin; all via reportingEngineService)
+const reportController = require('../controllers/reportController');
+router.get('/reports', reportController.adminReport);
+router.get('/reports/drill-down', reportController.adminDrillDown);
+router.get('/reports/export/csv', reportController.exportReportCsv);
+router.get('/reports/reconciliation', reportController.reconciliationCheck);
 
 // Settings
 router.get('/settings', adminController.getSettings);

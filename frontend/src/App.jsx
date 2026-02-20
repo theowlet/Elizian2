@@ -39,10 +39,15 @@ import WalletPage from "./pages/WalletPage";
 import MessagingPage from "./pages/MessagingPage";
 import ReservationPage from "./pages/ReservationPage";
 import ExclusivesPage from "./pages/ExclusivesPage";
+import TrendingExperiencesPage from "./pages/TrendingExperiencesPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
+import ErrorBoundary from "./components/ErrorBoundary";
+import { AuthProvider } from "./context/AuthContext";
+import { NotificationProvider } from "./context/NotificationContext";
 import BottomNav from "./components/BottomNav";
 import DesktopTopNav from "./components/DesktopTopNav";
+import "./styles/skeleton.css";
 import {
   AdminPage,
   PartnerPage,
@@ -176,6 +181,7 @@ function AppRoutes() {
       <Route path="/messages/:partnerId" element={<ProtectedRoute requireAuth={true}><MessagingPage /></ProtectedRoute>} />
       <Route path="/reserve" element={<ProtectedRoute requireAuth={true}><ReservationPage /></ProtectedRoute>} />
       <Route path="/exclusives" element={<ProtectedRoute requireAuth={true}><ExclusivesPage /></ProtectedRoute>} />
+      <Route path="/trending" element={<ProtectedRoute requireAuth={true}><TrendingExperiencesPage /></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute requireAuth={true}><NotificationsPage /></ProtectedRoute>} />
       <Route
         path="/privacy_policy"
@@ -302,9 +308,15 @@ function AppShell() {
 
 function App() {
   return (
-    <Router>
-      <AppShell />
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <AuthProvider>
+          <NotificationProvider>
+            <AppShell />
+          </NotificationProvider>
+        </AuthProvider>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

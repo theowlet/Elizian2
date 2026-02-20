@@ -46,10 +46,16 @@ function deriveDiscountValues({ original_price, co_pay_percentage, discount_amou
   
   const discounted = Math.max(0, metrics.finalDiscountedPrice || 0);
 
+  // Store co_pay_percentage exactly as entered, rounded to 2 decimals (50 stays 50, never derived from prices)
+  const rawCoPay = co_pay_percentage != null && co_pay_percentage !== '' && !Number.isNaN(Number(co_pay_percentage))
+    ? Number(co_pay_percentage)
+    : null;
+  const co_pay_percentage_normalized = rawCoPay != null ? Math.round(rawCoPay * 100) / 100 : null;
+
   return {
     original_price: original,
     discounted_price: discounted,
-    co_pay_percentage: Number(co_pay_percentage) || null,
+    co_pay_percentage: co_pay_percentage_normalized,
     discount_amount: Number(discount_amount) || null,
     savings: metrics.finalSavings,
     ezt_equivalent: metrics.finalEztEquivalent

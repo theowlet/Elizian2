@@ -5,7 +5,7 @@ const VenueDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
   const [venue, setVenue] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,11 +18,16 @@ const VenueDetailPage = () => {
   const [tipCustomAmount, setTipCustomAmount] = useState("");
   const [tipNotes, setTipNotes] = useState("");
   const [submittingTip, setSubmittingTip] = useState(false);
+  const [tipPaymentMethod, setTipPaymentMethod] = useState("fiat");
+  const [eztBalance, setEztBalance] = useState(null);
   const [prelaunchSignedUp, setPrelaunchSignedUp] = useState(false);
   const [joiningWaitlist, setJoiningWaitlist] = useState(false);
   const [checkInsToday, setCheckInsToday] = useState(null);
   const [venueStats, setVenueStats] = useState(null);
   const [userTier, setUserTier] = useState(null);
+  // Menu photo slider state (must be here — not after any early return)
+  const [menuSlide, setMenuSlide] = useState(0);
+  const [menuLightbox, setMenuLightbox] = useState(null);
   const token = localStorage.getItem("token");
 
   const perkLabel = (type) => {
@@ -160,6 +165,29 @@ const VenueDetailPage = () => {
     }
   };
 
+  const openTipModal = async () => {
+    setShowTipModal(true);
+    setTipPaymentMethod("fiat");
+    if (token && eztBalance === null) {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/rewards/summary`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success && data.data?.ezt?.available != null) {
+          setEztBalance(parseFloat(data.data.ezt.available));
+        }
+      } catch (_) {}
+    }
+  };
+
+  const closeTipModal = () => {
+    setShowTipModal(false);
+    setTipNotes("");
+    setTipCustomAmount("");
+    setTipPaymentMethod("fiat");
+  };
+
   const handleSendTip = async (e) => {
     e.preventDefault();
     if (!token) {
@@ -169,6 +197,10 @@ const VenueDetailPage = () => {
     const amount = tipCustomAmount ? parseFloat(tipCustomAmount) : tipAmount;
     if (!Number.isFinite(amount) || amount <= 0) {
       alert("Please enter a valid amount");
+      return;
+    }
+    if (tipPaymentMethod === "ezt" && eztBalance !== null && amount / 100 > eztBalance) {
+      alert(`Insufficient EZT balance. You have ${eztBalance.toFixed(2)} EZT (₹${(eztBalance * 100).toFixed(0)})`);
       return;
     }
     setSubmittingTip(true);
@@ -182,16 +214,19 @@ const VenueDetailPage = () => {
         body: JSON.stringify({
           amount_decimal: amount,
           currency: "INR",
-          payment_method: "ezt",
+          payment_method: tipPaymentMethod,
           notes: tipNotes.trim() || undefined,
         }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setShowTipModal(false);
-        setTipNotes("");
-        setTipCustomAmount("");
-        alert("Thank you! Your tip has been sent.");
+        closeTipModal();
+        if (tipPaymentMethod === "ezt") {
+          setEztBalance((prev) => prev !== null ? prev - amount / 100 : prev);
+        }
+        alert(tipPaymentMethod === "ezt"
+          ? `Thank you! ${(amount / 100).toFixed(2)} EZT deducted as tip.`
+          : "Thank you! Your tip has been recorded.");
       } else {
         alert(data?.message || "Failed to send tip");
       }
@@ -294,7 +329,7 @@ const VenueDetailPage = () => {
         )}
         {token && (
           <>
-            <button type="button" className="venue-detail-tip-btn" onClick={() => setShowTipModal(true)}>
+            <button type="button" className="venue-detail-tip-btn" onClick={openTipModal}>
               Tip venue
             </button>
 {!prelaunchSignedUp && (
@@ -484,10 +519,29 @@ const VenueDetailPage = () => {
       </section>
 
       {showTipModal && (
-        <div className="venue-detail-modal-overlay" onClick={() => !submittingTip && setShowTipModal(false)}>
+        <div className="venue-detail-modal-overlay" onClick={() => !submittingTip && closeTipModal()}>
           <div className="venue-detail-modal" onClick={(e) => e.stopPropagation()}>
             <h3>Tip {venue?.name}</h3>
             <form onSubmit={handleSendTip}>
+              {/* Payment method toggle */}
+              <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+                <button type="button" onClick={() => setTipPaymentMethod("fiat")}
+                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: tipPaymentMethod === "fiat" ? "2px solid var(--primary-color, #2563eb)" : "1px solid #ddd", background: tipPaymentMethod === "fiat" ? "var(--primary-color, #2563eb)" : "#fff", color: tipPaymentMethod === "fiat" ? "#fff" : "#333", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem" }}>
+                  Fiat (UPI / Cash)
+                </button>
+                <button type="button" onClick={() => setTipPaymentMethod("ezt")}
+                  style={{ flex: 1, padding: "10px", borderRadius: 8, border: tipPaymentMethod === "ezt" ? "2px solid var(--primary-color, #2563eb)" : "1px solid #ddd", background: tipPaymentMethod === "ezt" ? "var(--primary-color, #2563eb)" : "#fff", color: tipPaymentMethod === "ezt" ? "#fff" : "#333", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem" }}>
+                  $EZT{eztBalance !== null ? ` (${eztBalance.toFixed(2)})` : ""}
+                </button>
+              </div>
+              {tipPaymentMethod === "fiat" && (
+                <p style={{ fontSize: "0.8rem", color: "#666", margin: "-0.5rem 0 0.75rem" }}>Pay via UPI / cash at the venue. This records your tip.</p>
+              )}
+              {tipPaymentMethod === "ezt" && eztBalance !== null && (
+                <p style={{ fontSize: "0.8rem", color: "#666", margin: "-0.5rem 0 0.75rem" }}>
+                  Balance: {eztBalance.toFixed(2)} EZT (₹{(eztBalance * 100).toFixed(0)})
+                </p>
+              )}
               <label>
                 Amount (₹)
                 <div className="venue-detail-tip-amounts">
@@ -499,13 +553,14 @@ const VenueDetailPage = () => {
                 </div>
                 <input type="number" min="1" step="1" placeholder="Or custom amount" value={tipCustomAmount} onChange={(e) => { setTipCustomAmount(e.target.value); }} />
               </label>
+              {tipPaymentMethod === "ezt" && (() => { const a = tipCustomAmount ? parseFloat(tipCustomAmount) : tipAmount; return Number.isFinite(a) && a > 0 ? <p style={{ fontSize: "0.8rem", color: "#004f4a", fontWeight: 600, margin: "0.25rem 0 0" }}>= {(a / 100).toFixed(2)} EZT</p> : null; })()}
               <label>
                 Note (optional)
                 <textarea value={tipNotes} onChange={(e) => setTipNotes(e.target.value)} placeholder="Thank your server or team" rows={2} />
               </label>
               <div className="venue-detail-modal-actions">
-                <button type="button" onClick={() => setShowTipModal(false)} disabled={submittingTip}>Cancel</button>
-                <button type="submit" disabled={submittingTip}>{submittingTip ? "Sending…" : "Send tip"}</button>
+                <button type="button" onClick={closeTipModal} disabled={submittingTip}>Cancel</button>
+                <button type="submit" disabled={submittingTip}>{submittingTip ? "Sending…" : `Send ${tipPaymentMethod === "ezt" ? "EZT" : ""} tip`}</button>
               </div>
             </form>
           </div>
@@ -587,16 +642,134 @@ const VenueDetailPage = () => {
       {menuImages.length > 0 && (
         <section className="venue-detail-section">
           <h2>Menu</h2>
-          <div className="venue-detail-menu-gallery">
-            {menuImages.map((url, index) => (
-              <div key={index} className="venue-detail-menu-item">
-                <img
-                  src={url.startsWith("http") ? url : `${API_BASE}${url}`}
-                  alt={`Menu ${index + 1}`}
-                />
-              </div>
-            ))}
+
+          {/* ── Main slider ─────────────────────────────────────────────── */}
+          <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#111', userSelect: 'none' }}>
+            {/* Main image */}
+            <div
+              style={{ cursor: 'zoom-in', position: 'relative' }}
+              onClick={() => setMenuLightbox(menuSlide)}
+            >
+              <img
+                src={menuImages[menuSlide].startsWith('http') ? menuImages[menuSlide] : `${API_BASE}${menuImages[menuSlide]}`}
+                alt={`Menu ${menuSlide + 1}`}
+                style={{ width: '100%', maxHeight: 480, objectFit: 'contain', display: 'block', borderRadius: 12 }}
+              />
+              {/* Counter badge */}
+              <span style={{
+                position: 'absolute', bottom: 12, right: 14,
+                background: 'rgba(0,0,0,0.6)', color: '#fff',
+                fontSize: '0.8rem', padding: '3px 10px', borderRadius: 999
+              }}>
+                {menuSlide + 1} / {menuImages.length}
+              </span>
+            </div>
+
+            {/* Prev / Next arrows */}
+            {menuImages.length > 1 && (<>
+              <button
+                onClick={() => setMenuSlide(i => (i - 1 + menuImages.length) % menuImages.length)}
+                style={{
+                  position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+                  background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff',
+                  width: 38, height: 38, borderRadius: '50%', fontSize: '1.25rem',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+              >‹</button>
+              <button
+                onClick={() => setMenuSlide(i => (i + 1) % menuImages.length)}
+                style={{
+                  position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                  background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff',
+                  width: 38, height: 38, borderRadius: '50%', fontSize: '1.25rem',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+              >›</button>
+            </>)}
           </div>
+
+          {/* ── Thumbnail strip ─────────────────────────────────────────── */}
+          {menuImages.length > 1 && (
+            <div style={{
+              display: 'flex', gap: 8, overflowX: 'auto', marginTop: 10,
+              paddingBottom: 4, scrollSnapType: 'x mandatory'
+            }}>
+              {menuImages.map((url, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => setMenuSlide(idx)}
+                  style={{
+                    flexShrink: 0, width: 72, height: 54,
+                    borderRadius: 8, overflow: 'hidden', cursor: 'pointer',
+                    border: idx === menuSlide ? '2px solid #5E17EB' : '2px solid transparent',
+                    opacity: idx === menuSlide ? 1 : 0.6,
+                    transition: 'opacity 0.15s, border-color 0.15s',
+                    scrollSnapAlign: 'start'
+                  }}
+                >
+                  <img
+                    src={url.startsWith('http') ? url : `${API_BASE}${url}`}
+                    alt={`Thumb ${idx + 1}`}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── Lightbox ──────────────────────────────────────────────────── */}
+          {menuLightbox !== null && (
+            <div
+              onClick={() => setMenuLightbox(null)}
+              style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.93)',
+                zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12
+              }}
+            >
+              {/* Close */}
+              <button
+                onClick={() => setMenuLightbox(null)}
+                style={{
+                  position: 'absolute', top: 16, right: 20, background: 'none',
+                  border: 'none', color: '#fff', fontSize: '2rem', cursor: 'pointer', opacity: 0.8
+                }}
+              >×</button>
+
+              {/* Prev */}
+              {menuImages.length > 1 && (
+                <button
+                  onClick={e => { e.stopPropagation(); setMenuLightbox(i => (i - 1 + menuImages.length) % menuImages.length); }}
+                  style={{
+                    background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff',
+                    fontSize: '2.25rem', width: 46, height: 64, borderRadius: 8, cursor: 'pointer', flexShrink: 0
+                  }}
+                >‹</button>
+              )}
+
+              {/* Image */}
+              <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: 'calc(100vw - 140px)' }}>
+                <img
+                  src={menuImages[menuLightbox].startsWith('http') ? menuImages[menuLightbox] : `${API_BASE}${menuImages[menuLightbox]}`}
+                  alt={`Menu ${menuLightbox + 1}`}
+                  style={{ maxWidth: '100%', maxHeight: '88vh', objectFit: 'contain', borderRadius: 10, boxShadow: '0 8px 40px rgba(0,0,0,0.7)' }}
+                />
+                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.85rem', marginTop: 10 }}>
+                  {menuLightbox + 1} / {menuImages.length}
+                </p>
+              </div>
+
+              {/* Next */}
+              {menuImages.length > 1 && (
+                <button
+                  onClick={e => { e.stopPropagation(); setMenuLightbox(i => (i + 1) % menuImages.length); }}
+                  style={{
+                    background: 'rgba(255,255,255,0.12)', border: 'none', color: '#fff',
+                    fontSize: '2.25rem', width: 46, height: 64, borderRadius: 8, cursor: 'pointer', flexShrink: 0
+                  }}
+                >›</button>
+              )}
+            </div>
+          )}
         </section>
       )}
 

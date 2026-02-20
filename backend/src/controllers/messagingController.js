@@ -1,10 +1,15 @@
 const messagingRepository = require('../repositories/messagingRepository');
 const { successResponse, errorResponse } = require('../../utils/response');
-const { logError } = require('../../utils/logger');
+const { logError, log } = require('../../utils/logger');
+const { emitToRoom } = require('../utils/realtimeEmitter');
 
 function sameId(a, b) {
   if (a == null || b == null) return false;
   return String(a).toLowerCase() === String(b).toLowerCase();
+}
+
+function getConversationId(req) {
+  return req.params.conversationId || req.params.id;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -55,7 +60,8 @@ async function listPartnerConversations(req, res) {
 
 async function getMessages(req, res) {
   try {
-    const { id: conversationId } = req.params;
+    const conversationId = getConversationId(req);
+    if (!conversationId) return errorResponse(res, 400, 'Conversation id required');
     const conv = await messagingRepository.getConversationById(conversationId);
     if (!conv) return errorResponse(res, 404, 'Conversation not found');
     const isUser = req.userId && sameId(conv.user_id, req.userId);
@@ -63,21 +69,30 @@ async function getMessages(req, res) {
     if (!isUser && !isPartner) return errorResponse(res, 403, 'Not authorized');
 
     const messages = await messagingRepository.listMessages(conversationId);
+    log(`[Messaging] getMessages conversationId=${conversationId} count=${messages.length}`);
 
     // Auto-mark messages as delivered when fetched
     const readerType = isPartner ? 'partner' : 'user';
     await messagingRepository.markAsDelivered(conversationId, readerType).catch(() => {});
 
-    successResponse(res, 200, 'Messages retrieved', { conversation: conv, messages: messages || [] });
+    // Stable contract for frontend + backward compatibility
+    return res.status(200).json({
+      success: true,
+      message: 'Messages retrieved',
+      conversation: conv,
+      messages: messages || [],
+      data: { conversation: conv, messages: messages || [] },
+    });
   } catch (err) {
     logError('Get messages error:', err);
-    errorResponse(res, err.statusCode || 500, err.message || 'Failed');
+    return errorResponse(res, err.statusCode || 500, err.message || 'Failed');
   }
 }
 
 async function sendMessage(req, res) {
   try {
-    const { id: conversationId } = req.params;
+    const conversationId = getConversationId(req);
+    if (!conversationId) return errorResponse(res, 400, 'Conversation id required');
     const { body } = req.body;
     if (!body || typeof body !== 'string' || !body.trim()) return errorResponse(res, 400, 'Message body required');
     if (body.trim().length > 2000) return errorResponse(res, 400, 'Message too long (max 2000 characters)');
@@ -88,6 +103,9 @@ async function sendMessage(req, res) {
     if (!isUser && !isPartner) return errorResponse(res, 403, 'Not authorized');
     const senderType = isPartner ? 'partner' : 'user';
     const msg = await messagingRepository.addMessage(conversationId, senderType, body.trim());
+    if (senderType === 'partner' && conv.user_id) {
+      emitToRoom(`users:${conv.user_id}`, 'message_received', { conversationId: conv.id, message: msg });
+    }
     successResponse(res, 201, 'Message sent', msg);
   } catch (err) {
     logError('Send message error:', err);
@@ -108,14 +126,22 @@ async function getMessagesForPartner(req, res) {
     if (!sameId(conv.partner_id, partnerId)) return errorResponse(res, 403, 'Not authorized');
 
     const messages = await messagingRepository.listMessages(conversationId);
+    log(`[Messaging] getMessagesForPartner partnerId=${partnerId} conversationId=${conversationId} count=${messages.length}`);
 
     // Auto-mark as delivered when partner fetches
     await messagingRepository.markAsDelivered(conversationId, 'partner').catch(() => {});
 
-    successResponse(res, 200, 'Messages retrieved', { conversation: conv, messages: messages || [] });
+    // Stable contract for frontend + backward compatibility
+    return res.status(200).json({
+      success: true,
+      message: 'Messages retrieved',
+      conversation: conv,
+      messages: messages || [],
+      data: { conversation: conv, messages: messages || [] },
+    });
   } catch (err) {
     logError('Get messages for partner error:', err);
-    errorResponse(res, err.statusCode || 500, err.message || 'Failed');
+    return errorResponse(res, err.statusCode || 500, err.message || 'Failed');
   }
 }
 
@@ -130,6 +156,9 @@ async function sendMessageForPartner(req, res) {
     if (!conv) return errorResponse(res, 404, 'Conversation not found');
     if (!sameId(conv.partner_id, partnerId)) return errorResponse(res, 403, 'Not authorized');
     const msg = await messagingRepository.addMessage(conversationId, 'partner', body.trim());
+    if (conv.user_id) {
+      emitToRoom(`users:${conv.user_id}`, 'message_received', { conversationId: conv.id, message: msg });
+    }
     successResponse(res, 201, 'Message sent', msg);
   } catch (err) {
     logError('Send message for partner error:', err);
@@ -143,7 +172,8 @@ async function sendMessageForPartner(req, res) {
 
 async function markRead(req, res) {
   try {
-    const { id: conversationId } = req.params;
+    const conversationId = getConversationId(req);
+    if (!conversationId) return errorResponse(res, 400, 'Conversation id required');
     const conv = await messagingRepository.getConversationById(conversationId);
     if (!conv) return errorResponse(res, 404, 'Conversation not found');
     const isUser = req.userId && sameId(conv.user_id, req.userId);
@@ -179,7 +209,9 @@ async function markReadForPartner(req, res) {
 
 async function deleteMessageHandler(req, res) {
   try {
-    const { id: conversationId, messageId } = req.params;
+    const conversationId = getConversationId(req);
+    const { messageId } = req.params;
+    if (!conversationId) return errorResponse(res, 400, 'Conversation id required');
     const conv = await messagingRepository.getConversationById(conversationId);
     if (!conv) return errorResponse(res, 404, 'Conversation not found');
     const isUser = req.userId && sameId(conv.user_id, req.userId);

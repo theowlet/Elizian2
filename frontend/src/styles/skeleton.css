@@ -1,0 +1,79 @@
+/* Skeleton loader — shimmer animation */
+.skeleton-loader {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--border, #e5e7eb);
+}
+
+.skeleton-loader__shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%
+  );
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.skeleton-loader__image {
+  height: 120px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 8px 8px 0 0;
+}
+
+.skeleton-loader__line {
+  height: 12px;
+  margin: 8px 12px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+}
+
+.skeleton-loader__line--title {
+  width: 70%;
+  height: 16px;
+  margin-top: 12px;
+}
+
+.skeleton-loader__line--short {
+  width: 40%;
+}
+
+.skeleton-loader__line--medium {
+  width: 55%;
+  margin-bottom: 12px;
+}
+
+.skeleton-loader__block {
+  height: 80px;
+  margin: 12px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 4px;
+}
+
+.skeleton-loader--card {
+  min-height: 200px;
+}
+
+.skeleton-loader--row {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.skeleton-loader--row .skeleton-loader__line--title {
+  flex: 1;
+  margin-top: 0;
+}
+
+.skeleton-loader--text .skeleton-loader__line {
+  margin: 4px 0;
+}

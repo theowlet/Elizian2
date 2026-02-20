@@ -7,11 +7,14 @@ function hashKey(key) {
 }
 
 async function authenticateApiKey(req, res, next) {
-  const rawKey = req.headers['x-api-key'] || req.query.api_key;
+  const rawKey = req.headers['x-api-key'];
   if (!rawKey || typeof rawKey !== 'string') {
-    return res.status(401).json({ success: false, error: 'API key required (X-API-Key header or api_key query)' });
+    return res.status(401).json({ success: false, error: 'API key required (X-API-Key header)' });
   }
   const key = rawKey.trim();
+  if (key.length < 16) {
+    return res.status(401).json({ success: false, error: 'Invalid API key' });
+  }
   const prefix = key.slice(0, 8);
   try {
     const row = await developerApiKeyRepository.findByPrefix(prefix);

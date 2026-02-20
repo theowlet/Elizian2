@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import '../styles/auth.css';
 
 const OTPScreen = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
   useEffect(() => {
     const phone = sessionStorage.getItem('phoneForOTP');
@@ -85,6 +87,7 @@ const OTPScreen = () => {
             localStorage.setItem('userToken', verifyResult.data.token); // Legacy support
             localStorage.setItem('userInfo', JSON.stringify(verifyResult.data.user));
             localStorage.setItem('user', JSON.stringify(verifyResult.data.user));
+            login(verifyResult.data.token, verifyResult.data.user);
             sessionStorage.removeItem('phoneForOTP');
             navigate('/mpin-setup');
           } else {

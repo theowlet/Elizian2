@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useNotifications } from '../context/NotificationContext';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const POLL_FALLBACK_MS = 30000;
 
 /* ------------------------------------------------------------------ */
 /* EAZY PASS Colour Palette                                             */
@@ -149,6 +151,7 @@ function formatConvTime(dateStr) {
 /* Chat View                                                           */
 /* ------------------------------------------------------------------ */
 const ChatView = ({ conversation, token, onBack, onMessagesRead }) => {
+  const { socketConnected } = useNotifications();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -187,12 +190,27 @@ const ChatView = ({ conversation, token, onBack, onMessagesRead }) => {
   useEffect(() => {
     loadMessages();
     markRead();
+  }, [conversation.id]);
+
+  useEffect(() => {
+    const onMessageReceived = (e) => {
+      const payload = e.detail || {};
+      if (payload.conversationId === conversation.id) {
+        loadMessages();
+      }
+    };
+    window.addEventListener('elizian-message-received', onMessageReceived);
+    return () => window.removeEventListener('elizian-message-received', onMessageReceived);
+  }, [conversation.id, loadMessages]);
+
+  useEffect(() => {
+    if (socketConnected) return;
     const interval = setInterval(() => {
       loadMessages();
       markRead();
-    }, 5000);
+    }, POLL_FALLBACK_MS);
     return () => clearInterval(interval);
-  }, [conversation.id, loadMessages, markRead]);
+  }, [conversation.id, loadMessages, markRead, socketConnected]);
 
   const prevMsgCount = useRef(0);
   useEffect(() => {
@@ -425,6 +443,7 @@ const ChatView = ({ conversation, token, onBack, onMessagesRead }) => {
 const MessagingPage = () => {
   const navigate = useNavigate();
   const { partnerId } = useParams();
+  const { socketConnected } = useNotifications();
   const token = localStorage.getItem('token');
   const [conversations, setConversations] = useState([]);
   const [selectedConv, setSelectedConv] = useState(null);
@@ -433,11 +452,24 @@ const MessagingPage = () => {
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
     loadConversations();
+  }, [token]);
+
+  useEffect(() => {
+    const onMessageReceived = () => {
+      if (!selectedConv) loadConversations();
+    };
+    window.addEventListener('elizian-message-received', onMessageReceived);
+    return () => window.removeEventListener('elizian-message-received', onMessageReceived);
+  }, [selectedConv]);
+
+  useEffect(() => {
+    if (!token) return;
+    if (socketConnected) return;
     const interval = setInterval(() => {
       if (!selectedConv) loadConversations();
     }, 15000);
     return () => clearInterval(interval);
-  }, [selectedConv]);
+  }, [token, selectedConv, socketConnected]);
 
   useEffect(() => {
     if (partnerId && token) openPartnerConversation(partnerId);

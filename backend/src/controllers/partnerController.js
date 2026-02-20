@@ -2,8 +2,8 @@ const partnerService = require('../services/partnerService');
 const { successResponse, errorResponse } = require('../../utils/response');
 const { logError } = require('../../utils/logger');
 const { getUserRoleById } = require('../utils/queries');
-const { writeAudit } = require('../utils/audit');
-const { log } = require('../utils/logger');
+const { uploadToS3, getS3FileUrl, s3, BUCKET_NAME } = require('../../utils/s3Bucket');
+const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
 // List partners
 async function listPartners(req, res) {
@@ -285,27 +285,31 @@ async function getMenuImages(req, res) {
   }
 }
 
-// Upload menu images (scrollable menu viewer)
+// Upload menu images (scrollable menu viewer) — stored in S3
 async function uploadMenuImages(req, res) {
   try {
     const { id } = req.params;
-    
+
     if (!req.files || req.files.length === 0) {
       return errorResponse(res, 400, "No images uploaded");
     }
-    
-    // Get partner's current menu images
+
+    // Upload all files to S3 in parallel
+    const s3Keys = await uploadToS3(req.files);
+    const keysArray = Array.isArray(s3Keys) ? s3Keys : [s3Keys];
+
+    // Convert S3 keys to full HTTPS URLs for storage
+    const newImageUrls = keysArray.map(key => getS3FileUrl(key));
+
+    // Get partner's current menu images and append
     const partner = await partnerService.getPartnerWithMenuImages(id);
     const currentImages = partner.menu_images || [];
-    
-    // Add new image paths
-    const newImagePaths = req.files.map(file => `/uploads/menu/${file.filename}`);
-    const updatedImages = [...currentImages, ...newImagePaths];
-    // Update partner record
+    const updatedImages = [...currentImages, ...newImageUrls];
+
     await partnerService.updatePartnerMenuImages(id, updatedImages);
-    
+
     successResponse(res, 200, "Menu images uploaded successfully", {
-      uploadedCount: newImagePaths.length,
+      uploadedCount: newImageUrls.length,
       totalImages: updatedImages.length,
       images: updatedImages
     });
@@ -334,17 +338,29 @@ async function deleteMenuImage(req, res) {
     }
     
     // Remove image from array
+    const imageUrl = currentImages[imageIndex];
     const updatedImages = currentImages.filter((_, idx) => idx !== imageIndex);
-    
-    // Delete physical file
-    const fs = require('fs');
-    const path = require('path');
-    const imagePath = path.join(__dirname, '../../', currentImages[imageIndex]);
-    
-    if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
+
+    // Delete from S3 if it's an S3 URL, otherwise try local disk cleanup
+    if (imageUrl && BUCKET_NAME && imageUrl.includes(BUCKET_NAME)) {
+      try {
+        // Extract S3 key from URL: https://bucket.s3.region.amazonaws.com/KEY
+        const urlObj = new URL(imageUrl);
+        const s3Key = urlObj.pathname.slice(1); // remove leading slash
+        await s3.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: s3Key }));
+      } catch (s3Err) {
+        logError('⚠️ S3 delete failed (continuing):', s3Err);
+      }
+    } else if (imageUrl && imageUrl.startsWith('/uploads/')) {
+      // Legacy local file — attempt cleanup
+      const fs = require('fs');
+      const path = require('path');
+      const localPath = path.join(__dirname, '../../', imageUrl);
+      if (fs.existsSync(localPath)) {
+        try { fs.unlinkSync(localPath); } catch (_) {}
+      }
     }
-    
+
     // Update partner record
     await partnerService.updatePartnerMenuImages(id, updatedImages);
     

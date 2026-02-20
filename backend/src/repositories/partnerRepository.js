@@ -38,27 +38,50 @@ async function listPartners({ category = null } = {}) {
 
 // Get partner by ID
 // If requireApproval is true (default), only return approved partners
-// This prevents unapproved partners from being visible to users
+// Works with or without partner_tiers table (migration not yet run).
 async function getPartnerById(partnerId, requireApproval = true) {
-  let query = `
-    SELECT p.*, c.name as category_name, c.slug as category_slug 
-     FROM partners p 
-     LEFT JOIN categories c ON p.category_id = c.id 
-     WHERE p.id = $1
-  `;
-  // Add approval filter for public access
-  if (requireApproval) {
-  //   query += `
-  //   AND p.is_active = true
-  //   AND p.status IN ('active', 'approved',)
-  // `;
-    query += `AND p.is_active = true
-               AND (p.status IS NULL OR p.status IN ('active', 'approved'))`;
+  const approvalClause = requireApproval
+    ? `AND p.is_active = true AND (p.status IS NULL OR p.status IN ('active', 'approved'))`
+    : "";
+
+  let result;
+  try {
+    result = await pool.query(
+      `SELECT p.*, c.name as category_name, c.slug as category_slug,
+              pt.name AS partner_tier
+       FROM partners p
+       LEFT JOIN categories c ON p.category_id = c.id
+       LEFT JOIN partner_tiers pt ON pt.id = p.tier_id
+       WHERE p.id = $1 ${approvalClause}`,
+      [partnerId]
+    );
+  } catch (e) {
+    if (e.code === "42P01" && (e.message || "").includes("partner_tiers")) {
+      try {
+        result = await pool.query(
+          `SELECT p.*, c.name as category_name, c.slug as category_slug,
+                  COALESCE(p.partner_tier, 'Bronze') AS partner_tier
+           FROM partners p
+           LEFT JOIN categories c ON p.category_id = c.id
+           WHERE p.id = $1 ${approvalClause}`,
+          [partnerId]
+        );
+      } catch (e2) {
+        if (e2.code === "42703") {
+          result = await pool.query(
+            `SELECT p.*, c.name as category_name, c.slug as category_slug,
+                    'Bronze' AS partner_tier
+             FROM partners p
+             LEFT JOIN categories c ON p.category_id = c.id
+             WHERE p.id = $1 ${approvalClause}`,
+            [partnerId]
+          );
+        } else throw e2;
+      }
+    } else throw e;
   }
 
-  const result = await pool.query(query, [partnerId]);
   const row = result.rows[0];
-  // Treat (0,0) as invalid so map never shows Null Island
   if (row && Number(row.latitude) === 0 && Number(row.longitude) === 0) {
     row.latitude = null;
     row.longitude = null;

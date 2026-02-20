@@ -1,4 +1,5 @@
 const { getPool } = require('../config/db');
+const { log, logError } = require('../../utils/logger');
 const pool = getPool();
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -37,6 +38,9 @@ async function getConversationById(conversationId) {
     `SELECT id, partner_id, user_id, created_at, updated_at FROM venue_conversations WHERE id = $1`,
     [conversationId]
   );
+  if (process.env.DEBUG_MESSAGING === 'true') {
+    log(`[MessagingRepo] getConversationById conversationId=${conversationId} found=${r.rowCount > 0}`);
+  }
   return r.rows[0];
 }
 
@@ -112,7 +116,18 @@ async function listMessages(conversationId, limit = 100, beforeId = null) {
   params.push(limit);
   query += ` ORDER BY created_at DESC LIMIT $${params.length}`;
   const r = await pool.query(query, params);
-  return r.rows.reverse();
+  if (process.env.DEBUG_MESSAGING === 'true') {
+    log(`[MessagingRepo] listMessages conversationId=${conversationId} rows=${r.rowCount} upgraded=${upgraded}`);
+  }
+
+  // Keep response shape stable even before whatsapp-upgrade migration
+  const normalized = r.rows.map((row) => ({
+    ...row,
+    status: row.status || 'sent',
+    delivered_at: row.delivered_at || null,
+    read_at: row.read_at || null,
+  }));
+  return normalized.reverse();
 }
 
 async function addMessage(conversationId, senderType, body) {
@@ -139,8 +154,17 @@ async function addMessage(conversationId, senderType, body) {
       [conversationId]
     );
     await client.query('COMMIT');
-    return msg.rows[0];
+    if (process.env.DEBUG_MESSAGING === 'true') {
+      log(`[MessagingRepo] addMessage conversationId=${conversationId} sender=${senderType} messageId=${msg.rows[0]?.id}`);
+    }
+    return {
+      ...msg.rows[0],
+      status: msg.rows[0]?.status || 'sent',
+      delivered_at: msg.rows[0]?.delivered_at || null,
+      read_at: msg.rows[0]?.read_at || null,
+    };
   } catch (e) {
+    logError('[MessagingRepo] addMessage failed', e);
     await client.query('ROLLBACK');
     throw e;
   } finally {

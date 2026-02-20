@@ -9,7 +9,7 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
   // Check for pending booking after successful login
   useEffect(() => {

@@ -8,8 +8,8 @@
 
 const { log, logError } = require('../../utils/logger');
 
-// Feature flag - can be disabled via environment variable
-const ENABLE_WEBSOCKET = process.env.ENABLE_WEBSOCKET === 'true';
+// Feature flag - enabled by default in development, set ENABLE_WEBSOCKET=false to disable
+const ENABLE_WEBSOCKET = process.env.ENABLE_WEBSOCKET === 'false' ? false : true;
 
 let socketIO = null;
 let io = null;

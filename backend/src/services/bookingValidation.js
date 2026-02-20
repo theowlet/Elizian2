@@ -13,7 +13,6 @@
 const operatingHoursService = require('./operatingHoursService');
 const reservationRepository = require('../repositories/reservationRepository');
 const slotCapacityService = require('./slotCapacityService');
-const { AppError } = require('../../utils/response');
 const { log, logError } = require('../../utils/logger');
 const { getPool } = require('../config/db');
 const { normalizeTierName } = require('../utils/tierNames');

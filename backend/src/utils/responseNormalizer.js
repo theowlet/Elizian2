@@ -16,7 +16,9 @@ function normalizeOffer(offer) {
   const trendingFlag = Boolean(offer.is_trending || offer.is_promoted);
   const originalPrice = parseFloat(offer.original_price) || null;
   const discountedPrice = parseFloat(offer.discounted_price) || null;
-  const coPayPercentage = parseFloat(offer.co_pay_percentage) || null;
+  // Use stored co_pay_percentage as-is, rounded to 2 decimals (50 stays 50; never derive from prices)
+  const rawCoPay = parseFloat(offer.co_pay_percentage);
+  const coPayPercentage = Number.isFinite(rawCoPay) ? Math.round(rawCoPay * 100) / 100 : null;
   const discountAmount = parseFloat(offer.discount_amount) || null;
 
   // Calculate discount summary

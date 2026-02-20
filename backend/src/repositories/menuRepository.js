@@ -55,10 +55,15 @@ async function listMenuItems(partnerId, { include_lifecycle = false } = {}) {
   await ensureMenuItemsTable();
   
   const result = await pool.query(`
-    SELECT mi.*, sc.name as service_category_name, sc.slug as service_category_slug, sc.icon as service_category_icon
+    SELECT mi.*,
+      sc.name as service_category_name, sc.slug as service_category_slug, sc.icon as service_category_icon,
+      mt.name as taxonomy_name, mt.slug as taxonomy_slug, mt.parent_id as taxonomy_parent_id,
+      pt.name as taxonomy_parent_name, pt.slug as taxonomy_parent_slug
     FROM menu_items mi
     LEFT JOIN service_categories sc ON mi.service_category_id = sc.id
-    WHERE mi.partner_id = $1 
+    LEFT JOIN menu_taxonomy mt ON mi.taxonomy_id = mt.id
+    LEFT JOIN menu_taxonomy pt ON mt.parent_id = pt.id
+    WHERE mi.partner_id = $1
     ORDER BY mi.created_at DESC
   `, [partnerId]);
 
@@ -94,16 +99,16 @@ async function createMenuItem(partnerId, menuItemData) {
     name, description, price, category, is_available = true, image_url,
     preparation_time = 15, service_category_id, duration_minutes, max_capacity,
     requires_booking = false, service_type = 'food', event_date, event_time,
-    organizer_name, venue_name, is_trending = false
+    organizer_name, venue_name, is_trending = false, taxonomy_id
   } = menuItemData;
 
   console.log('[menuRepository] Creating menu item with image_url:', image_url);
-  
+
   const result = await pool.query(
-    `INSERT INTO menu_items (partner_id, name, description, price, category, is_available, image_url, preparation_time, service_category_id, duration_minutes, max_capacity, requires_booking, service_type, event_date, event_time, organizer_name, venue_name, is_trending)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+    `INSERT INTO menu_items (partner_id, name, description, price, category, is_available, image_url, preparation_time, service_category_id, duration_minutes, max_capacity, requires_booking, service_type, event_date, event_time, organizer_name, venue_name, is_trending, taxonomy_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
      RETURNING *`,
-    [partnerId, name, description, price, category, is_available, image_url, preparation_time, service_category_id, duration_minutes, max_capacity, requires_booking, service_type, event_date, event_time, organizer_name, venue_name, is_trending]
+    [partnerId, name, description, price, category, is_available, image_url, preparation_time, service_category_id, duration_minutes, max_capacity, requires_booking, service_type, event_date, event_time, organizer_name, venue_name, is_trending, taxonomy_id || null]
   );
   
   console.log('[menuRepository] Menu item created, returned image_url:', result.rows[0]?.image_url);
@@ -116,7 +121,7 @@ async function updateMenuItem(partnerId, itemId, updates) {
     'name', 'description', 'price', 'category', 'is_available', 'image_url',
     'preparation_time', 'is_trending', 'service_type', 'duration_minutes',
     'max_capacity', 'requires_booking', 'event_date', 'event_time',
-    'organizer_name', 'venue_name'
+    'organizer_name', 'venue_name', 'taxonomy_id'
   ];
   
   const updateFields = [];

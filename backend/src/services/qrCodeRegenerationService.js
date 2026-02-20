@@ -5,7 +5,6 @@
 
 const { getPool } = require('../config/db');
 const { generateAndUploadQRCode } = require('../utils/qrCodeGenerator');
-const bookingRepository = require('../repositories/bookingRepository');
 const { AppError } = require('../utils/response');
 const { log, logError } = require('../utils/logger');
 

@@ -1,49 +1,63 @@
 /* ============================================
-   ELIZIAN UNIFIED THEME - Dark Violet + Gold
+   ELIZIAN — Midnight Blue + Soft Gold + Glass
+   Amex Platinum / Soho House / Tesla minimalism
    ============================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=DM+Serif+Display&family=Inter:wght@400;500;600&display=swap');
 
 :root {
-  /* Elizian Brand Colors - Primary */
-  --brand1: #5E17EB;
-  --brand2: #24105F;
+  /* Core theme — Midnight Blue + Soft Gold */
+  --elizian-bg: #0B0F1A;
+  --elizian-gold: #D4AF37;
+  --elizian-gold-dim: rgba(212, 175, 55, 0.25);
+  --elizian-cta: #5B4BB4;
+  --elizian-cta-hover: #6D5BC7;
   
   /* Background Colors */
-  --bg: #0b0b0e;
-  --card: #0f1720;
+  --bg: #0B0F1A;
+  --card: #111827;
   
-  /* Text Colors */
-  --text: #e6eef6;
-  --muted: #6b7280;
+  /* Text */
+  --text: #F3F4F6;
+  --muted: #9CA3AF;
+  --muted-strong: #6B7280;
   
-  /* Status Colors */
+  /* Status */
   --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
+  --warning: #D4AF37;
+  --error: #DC2626;
   
-  /* Legacy compatibility & aliases */
+  /* Legacy / aliases */
+  --brand1: var(--elizian-cta);
+  --brand2: #3D3580;
   --brand-bg: var(--bg);
   --brand-bg-light: var(--card);
-  --brand-primary: var(--brand1);
-  --brand-accent: #e0b56f;
-  /* --brand-text: var(--text); */
+  --brand-primary: var(--elizian-gold);
+  --brand-accent: var(--elizian-gold);
   --brand-muted: var(--muted);
   
-  /* Gradients */
-  --accent-gradient: linear-gradient(135deg, var(--brand1), var(--brand2));
-  --glass-bg: rgba(15, 23, 32, 0.85);
-  --glass-border: rgba(255, 255, 255, 0.1);
+  /* Glass */
+  --glass-bg: rgba(17, 24, 39, 0.75);
+  --glass-border: rgba(212, 175, 55, 0.15);
+  --glass-blur: 12px;
   
-  /* UI Colors */
-  --border: rgba(255, 255, 255, 0.08);
-  --shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 30px rgba(94, 23, 235, 0.3);
-  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.3);
+  /* UI */
+  --border: rgba(255, 255, 255, 0.06);
+  --shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 24px rgba(212, 175, 55, 0.12);
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4);
+  
+  /* Motion — luxury: slow and smooth */
+  --ease-luxury: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 250ms var(--ease-luxury);
+  --transition-smooth: 300ms var(--ease-luxury);
   
   /* Typography */
+  --font-serif: 'Playfair Display', 'DM Serif Display', Georgia, serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --radius: 12px;
   --radius-lg: 16px;
+  --radius-xl: 20px;
 }
 
 /* ============================================
@@ -61,9 +75,9 @@ html, body, #root {
   padding: 0 !important;
   width: 100% !important;
   min-height: 100vh !important;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   background: var(--bg);
-  color: var(--brand-text);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
   box-sizing: border-box;

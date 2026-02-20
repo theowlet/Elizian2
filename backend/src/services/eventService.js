@@ -1,9 +1,8 @@
 const eventRepository = require('../repositories/eventRepository');
 const { AppError } = require('../../utils/response');
-const { logError, log } = require('../../utils/logger');
+const { logError } = require('../../utils/logger');
 const tokenService = require('./tokenService');
-const { randomUUID } = require('crypto');
-const { handleImageUpload, deleteOldImage } = require('../utils/imageUpload');
+const { handleImageUpload } = require('../utils/imageUpload');
 
 // Helper: Handle image upload for events (delegates to shared utility)
 function handleEventImageUpload(image_base64, image_filename) {

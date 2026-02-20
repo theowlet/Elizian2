@@ -1,10 +1,20 @@
 const { getPool } = require('../config/db');
 const pool = getPool();
 
-async function create({ from_user_id, partner_id, booking_id, amount_decimal, currency = 'INR', payment_method = 'ezt', notes }) {
+async function create({ from_user_id, partner_id, booking_id, amount_decimal, currency = 'INR', payment_method = 'fiat', notes }) {
   const result = await pool.query(
-    `INSERT INTO tips (from_user_id, partner_id, booking_id, amount_decimal, currency, payment_method, status, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7)
+    `INSERT INTO tips (from_user_id, partner_id, booking_id, amount_decimal, currency, payment_method, status, notes, completed_at)
+     VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, NOW())
+     RETURNING *`,
+    [from_user_id, partner_id, booking_id || null, amount_decimal, currency, payment_method, notes || null]
+  );
+  return result.rows[0];
+}
+
+async function createWithClient(client, { from_user_id, partner_id, booking_id, amount_decimal, currency = 'INR', payment_method = 'ezt', notes }) {
+  const result = await client.query(
+    `INSERT INTO tips (from_user_id, partner_id, booking_id, amount_decimal, currency, payment_method, status, notes, completed_at)
+     VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, NOW())
      RETURNING *`,
     [from_user_id, partner_id, booking_id || null, amount_decimal, currency, payment_method, notes || null]
   );
@@ -39,6 +49,7 @@ async function listByUser(userId, limit = 50) {
 
 module.exports = {
   create,
+  createWithClient,
   listByPartner,
   listByUser,
 };

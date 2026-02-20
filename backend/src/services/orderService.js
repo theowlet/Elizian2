@@ -1,7 +1,7 @@
 const orderRepository = require('../repositories/orderRepository');
 const partnerRepository = require('../repositories/partnerRepository');
 const { AppError } = require('../../utils/response');
-const { logError, log } = require('../../utils/logger');
+const { logError } = require('../../utils/logger');
 const { handleImageUpload, deleteOldImage } = require('../utils/imageUpload');
 
 // List orders for a partner

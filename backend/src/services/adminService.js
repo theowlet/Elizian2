@@ -108,14 +108,14 @@ async function updatePartnerFeaturedEligibility(partnerId, approved_for_featured
   return { success: true };
 }
 
-// Update partner subscription tier (bronze, silver, gold)
-async function updatePartnerTier(partnerId, partnerTier, actorUserId, actorRole) {
-  const updated = await adminRepository.updatePartnerTier(partnerId, partnerTier);
+// Update partner subscription tier (tier_id UUID or tier name; dynamic tiers from partner_tiers)
+async function updatePartnerTier(partnerId, tierIdOrName, actorUserId, actorRole) {
+  const updated = await adminRepository.updatePartnerTier(partnerId, tierIdOrName);
   if (!updated) {
     throw new AppError(404, 'Partner not found');
   }
-  await writeAudit(actorUserId, actorRole, 'partner_tier', 'partner', partnerId, { partner_tier: updated.partner_tier });
-  return { success: true, partner_tier: updated.partner_tier };
+  await writeAudit(actorUserId, actorRole, 'partner_tier', 'partner', partnerId, { tier_id: updated.tier_id, tier_name: updated.tier_name });
+  return { success: true, tier_id: updated.tier_id, tier_name: updated.tier_name };
 }
 
 // List admin deals
@@ -1093,12 +1093,17 @@ async function getRewardsOverview() {
   }
 }
 
+async function getPlatformEarnings(filters = {}) {
+  return adminRepository.getPlatformEarnings(filters);
+}
+
 module.exports = {
   getDashboard,
   listPartners,
   updatePartnerStatus,
   updatePartnerFeaturedEligibility,
   updatePartnerTier,
+  getPlatformEarnings,
   listDeals,
   updateDealStatus,
   updateOfferFeaturedStatus,

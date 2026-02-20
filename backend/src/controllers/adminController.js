@@ -1,4 +1,5 @@
 const adminService = require('../services/adminService');
+const partnerTierService = require('../services/partnerTierService');
 const { successResponse, errorResponse } = require('../../utils/response');
 const { logError } = require('../../utils/logger');
 const { getUserRoleById } = require('../utils/queries');
@@ -60,17 +61,92 @@ async function updatePartnerFeaturedEligibility(req, res) {
   }
 }
 
-// Update partner subscription tier (bronze, silver, gold)
+// Update partner subscription tier (tier_id UUID or tier name; dynamic tiers)
 async function updatePartnerTier(req, res) {
   try {
     const { id } = req.params;
-    const { partner_tier } = req.body || {};
+    const { partner_tier, tier_id, tier_name } = req.body || {};
+    const tierIdOrName = tier_id ?? tier_name ?? partner_tier;
     const actorRole = await getUserRoleById(req.userId);
-    const result = await adminService.updatePartnerTier(id, partner_tier, req.userId, actorRole);
-    res.json({ success: true, partner_tier: result.partner_tier });
+    const result = await adminService.updatePartnerTier(id, tierIdOrName, req.userId, actorRole);
+    res.json({ success: true, tier_id: result.tier_id, tier_name: result.tier_name });
   } catch (err) {
     logError('admin partner-tier error', err);
     res.status(err.statusCode || 500).json({ success: false, error: err.message || 'Failed to update partner tier' });
+  }
+}
+
+// --- Partner tier management (CRUD for partner_tiers table) ---
+async function listPartnerTiers(req, res) {
+  try {
+    const { active_only } = req.query;
+    const tiers = await partnerTierService.listTiers({ activeOnly: active_only === 'true' || active_only === '1' });
+    successResponse(res, 200, 'Partner tiers retrieved', tiers);
+  } catch (err) {
+    logError('admin listPartnerTiers error', err);
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to list partner tiers');
+  }
+}
+
+async function getPartnerTier(req, res) {
+  try {
+    const tier = await partnerTierService.getTierById(req.params.id);
+    successResponse(res, 200, 'Partner tier retrieved', tier);
+  } catch (err) {
+    logError('admin getPartnerTier error', err);
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to get partner tier');
+  }
+}
+
+async function createPartnerTier(req, res) {
+  try {
+    const tier = await partnerTierService.createTier(req.body || {});
+    successResponse(res, 201, 'Partner tier created', tier);
+  } catch (err) {
+    logError('admin createPartnerTier error', err);
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to create partner tier');
+  }
+}
+
+async function updatePartnerTierById(req, res) {
+  try {
+    const tier = await partnerTierService.updateTier(req.params.id, req.body || {});
+    successResponse(res, 200, 'Partner tier updated', tier);
+  } catch (err) {
+    logError('admin updatePartnerTier error', err);
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to update partner tier');
+  }
+}
+
+async function setPartnerTierActive(req, res) {
+  try {
+    const { active } = req.body ?? {};
+    const tier = await partnerTierService.setTierActive(req.params.id, active !== false);
+    successResponse(res, 200, 'Partner tier active state updated', tier);
+  } catch (err) {
+    logError('admin setPartnerTierActive error', err);
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to update partner tier active state');
+  }
+}
+
+async function deletePartnerTier(req, res) {
+  try {
+    await partnerTierService.deleteTier(req.params.id);
+    successResponse(res, 200, 'Partner tier deleted');
+  } catch (err) {
+    logError('admin deletePartnerTier error', err);
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to delete partner tier');
+  }
+}
+
+async function getPlatformEarnings(req, res) {
+  try {
+    const { start_date, end_date, partner_id, tier_id } = req.query || {};
+    const data = await adminService.getPlatformEarnings({ start_date, end_date, partner_id, tier_id });
+    successResponse(res, 200, 'Platform earnings retrieved', data);
+  } catch (err) {
+    logError('admin getPlatformEarnings error', err);
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to get platform earnings');
   }
 }
 
@@ -436,6 +512,14 @@ module.exports = {
   reactivateArchive,
   getRewardsOverview,
   archiveExpired,
+  // Partner tier management (CRUD for partner_tiers)
+  listPartnerTiers,
+  getPartnerTier,
+  createPartnerTier,
+  updatePartnerTierById,
+  setPartnerTierActive,
+  deletePartnerTier,
+  getPlatformEarnings,
   // Booking management
   listBookings,
   getBookingDetails,

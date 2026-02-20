@@ -5,7 +5,7 @@
  */
 
 const { getPool } = require('../config/db');
-const { log, logError } = require('../../utils/logger');
+const { logError } = require('../../utils/logger');
 const triggerProcessor = require('./triggerProcessor');
 const actionExecutor = require('./actionExecutor');
 const attributionService = require('./attributionService');

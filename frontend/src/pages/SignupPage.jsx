@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import PasswordVisibilityToggle from '../components/PasswordVisibilityToggle';
 import '../styles/auth.css';
 import '../styles/password-toggle.css';
@@ -7,6 +8,7 @@ import '../styles/password-toggle.css';
 const SignupPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { login } = useAuth();
   const phoneFromOTP = location.state?.phone || '';
   
   // Check if OTP was already verified (from login screen)
@@ -33,7 +35,7 @@ const SignupPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
   // Auto-focus first OTP input when OTP fields appear
   useEffect(() => {
@@ -292,6 +294,7 @@ const SignupPage = () => {
         localStorage.setItem('userToken', token); // Legacy support
         localStorage.setItem('userInfo', JSON.stringify(user));
         localStorage.setItem('user', JSON.stringify(user));
+        login(token, user);
         // Clear loading state before navigation
         setLoading(false);
         // Redirect to M-PIN setup (mandatory for new users)

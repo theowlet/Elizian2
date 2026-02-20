@@ -1,5 +1,4 @@
 const { logError } = require('../utils/logger');
-const { AppError } = require('../utils/response');
 
 function errorHandler(err, req, res, next) {
   if (res.headersSent) {

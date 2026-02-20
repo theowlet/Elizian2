@@ -15,5 +15,9 @@ router.get('/membership-cards', authenticateToken, membershipCardController.getM
 // User's stats at a venue (visit count, EZT earned) for "You & this venue" block
 router.get('/venue-stats/:partnerId', authenticateToken, userVenueStatsController.getVenueStats);
 
+// User tip history
+const tipController = require('../controllers/tipController');
+router.get('/tips', authenticateToken, tipController.listByUser);
+
 module.exports = router;
 

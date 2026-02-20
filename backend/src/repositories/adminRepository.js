@@ -4,6 +4,22 @@ const { createAuditLogEntry } = require("../../utils/audit");
 
 const pool = getPool();
 
+async function tableExists(tableName) {
+  const r = await pool.query(
+    `SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1`,
+    [tableName]
+  );
+  return r.rowCount > 0;
+}
+
+async function columnExists(tableName, columnName) {
+  const r = await pool.query(
+    `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = $2`,
+    [tableName, columnName]
+  );
+  return r.rowCount > 0;
+}
+
 const OFFER_STATUS = {
   DRAFT: "draft",
   PENDING: "pending_approval",
@@ -40,7 +56,16 @@ async function checkDealEligibility(dealId, executor = pool, options = {}) {
     checkFeaturedEligibility = false,
     requireValidDates = false,
   } = options;
-  // Include partner_tier for tier-based trending flow (Gold/Silver/Bronze)
+  const usePartnerTiersTable = await tableExists("partner_tiers");
+  const hasPartnerTierCol = usePartnerTiersTable ? false : await columnExists("partners", "partner_tier");
+  const tierSelect = usePartnerTiersTable
+    ? "COALESCE(LOWER(TRIM(pt.name)), 'bronze') AS partner_tier"
+    : hasPartnerTierCol
+      ? "COALESCE(LOWER(TRIM(p.partner_tier)), 'bronze') AS partner_tier"
+      : "'bronze' AS partner_tier";
+  const tierJoin = usePartnerTiersTable
+    ? "LEFT JOIN partner_tiers pt ON pt.id = p.tier_id"
+    : "";
   const result = await executor.query(
     `SELECT 
         o.id,
@@ -59,11 +84,12 @@ async function checkDealEligibility(dealId, executor = pool, options = {}) {
         p.name AS partner_name,
         p.is_active,
         p.approved_for_featured,
-        COALESCE(LOWER(TRIM(p.partner_tier)), 'bronze') AS partner_tier
+        ${tierSelect}
      FROM partner_offers o
      JOIN partners p ON p.id = o.partner_id
+     ${tierJoin}
      WHERE o.id = $1
-     ${lock ? "FOR UPDATE" : ""}`,
+     ${lock ? "FOR UPDATE OF o" : ""}`,
     [dealId]
   );
 
@@ -414,17 +440,17 @@ async function listAdminPartners({ status = "all" } = {}) {
     ? `WHERE ${conditions.join(" AND ")}`
     : "";
 
-  // Partner tier (subscription: bronze/silver/gold) is on partners table; separate from user loyalty tiers (Ather/Nova/etc).
-  // Include partner_tier only if column exists (migration 2026-02-partner-subscription-tier.sql).
-  let hasPartnerTierColumn = false;
-  try {
-    const colCheck = await pool.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'partners' AND column_name = 'partner_tier'`
-    );
-    hasPartnerTierColumn = colCheck.rowCount > 0;
-  } catch (_) {}
+  const usePartnerTiersTable = await tableExists("partner_tiers");
+  const hasPartnerTierCol = usePartnerTiersTable ? false : await columnExists("partners", "partner_tier");
+  const tierSelect = usePartnerTiersTable
+    ? "COALESCE(pt.name, 'Bronze') AS partner_tier,\n      p.tier_id,"
+    : hasPartnerTierCol
+      ? "COALESCE(p.partner_tier, 'Bronze') AS partner_tier,"
+      : "'Bronze' AS partner_tier,";
+  const tierJoin = usePartnerTiersTable
+    ? "LEFT JOIN partner_tiers pt ON pt.id = p.tier_id\n    "
+    : "";
 
-  const partnerTierSelect = hasPartnerTierColumn ? "p.partner_tier," : "";
   const result = await pool.query(
     `
     SELECT
@@ -439,13 +465,14 @@ async function listAdminPartners({ status = "all" } = {}) {
       p.status,
       p.partner_category_type,
       p.approved_for_featured,
-      ${partnerTierSelect}
+      ${tierSelect}
       p.created_at,
       COALESCE(offer_stats.active_deals, 0)::int AS active_deals,
       COALESCE(offer_stats.trending_deals, 0)::int AS trending_deals,
       COALESCE(booking_stats.total_bookings, 0)::int AS total_bookings,
       COALESCE(booking_stats.revenue, 0)::numeric AS revenue
     FROM partners p
+    ${tierJoin}
     LEFT JOIN (
       SELECT 
         partner_id,
@@ -496,7 +523,8 @@ async function listAdminPartners({ status = "all" } = {}) {
       status: computedStatus,
       partner_category_type: row.partner_category_type || null,
       approved_for_featured: row.approved_for_featured,
-      partner_tier: hasPartnerTierColumn ? (row.partner_tier || 'bronze') : 'bronze',
+      partner_tier: (row.partner_tier || 'bronze').toLowerCase(),
+      tier_id: row.tier_id || null,
       active_deals: row.active_deals,
       trending_deals: row.trending_deals || 0,
       promoted_deals: row.trending_deals || 0, // Backward compatibility alias
@@ -658,43 +686,57 @@ async function updatePartnerFeaturedEligibility(
   };
 }
 
-// Update partner subscription tier (Elizian ↔ Partner: bronze, silver, gold). Not to be confused with user loyalty tiers (Ather, Nova, etc.).
-// Gold: all active deals auto-trending. On upgrade to Gold → set is_trending on all active offers. On downgrade → clear.
-async function updatePartnerTier(partnerId, partnerTier) {
-  const colCheck = await pool.query(
-    `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'partners' AND column_name = 'partner_tier'`
+// Update partner subscription tier by tier_id (UUID) or tier name. Dynamic tiers from partner_tiers table.
+// If tier name is "Gold" (case-insensitive), all active deals become trending; on downgrade from Gold, clear trending.
+async function updatePartnerTier(partnerId, tierIdOrName) {
+  const hasTierId = await pool.query(
+    `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'partners' AND column_name = 'tier_id'`
   );
-  if (colCheck.rowCount === 0) {
-    throw new Error('Partner tier is not available. Run migration 2026-02-partner-subscription-tier.sql to add the partner_tier column.');
+  if (hasTierId.rowCount === 0) {
+    throw new Error('Partner tier_id is not available. Run migration 2026-02-dynamic-partner-tiers.sql.');
   }
-  const valid = ['bronze', 'silver', 'gold'];
-  const tier = (partnerTier || 'bronze').toLowerCase();
-  if (!valid.includes(tier)) {
-    throw new Error('Invalid partner_tier; must be bronze, silver, or gold');
+
+  let newTierId = null;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(String(tierIdOrName || '').trim())) {
+    const t = await pool.query('SELECT id, name FROM partner_tiers WHERE id = $1', [tierIdOrName]);
+    if (t.rowCount === 0) throw new Error('Tier not found for given tier_id');
+    newTierId = t.rows[0].id;
+  } else {
+    const name = String(tierIdOrName || 'bronze').trim() || 'bronze';
+    const t = await pool.query('SELECT id, name FROM partner_tiers WHERE LOWER(TRIM(name)) = LOWER($1)', [name]);
+    if (t.rowCount === 0) throw new Error(`Tier not found: "${name}". Create it in Admin → Partner Tiers or use a valid tier_id.`);
+    newTierId = t.rows[0].id;
   }
 
   const before = await pool.query(
-    "SELECT partner_tier FROM partners WHERE id = $1",
+    'SELECT tier_id FROM partners WHERE id = $1',
     [partnerId]
   );
   if (before.rowCount === 0) return null;
-  const prevTier = (before.rows[0]?.partner_tier || "bronze").toLowerCase();
+  const prevTierId = before.rows[0]?.tier_id;
 
   const result = await pool.query(
-    'UPDATE partners SET partner_tier = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, partner_tier',
-    [tier, partnerId]
+    'UPDATE partners SET tier_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, tier_id',
+    [newTierId, partnerId]
   );
   const row = result.rows[0];
   if (!row) return null;
 
-  // Gold: all active deals become trending. Downgrade from Gold: clear trending.
-  if (tier === "gold") {
+  const [newTierRow, prevTierRow] = await Promise.all([
+    pool.query('SELECT name FROM partner_tiers WHERE id = $1', [newTierId]).then(r => r.rows[0] || {}),
+    prevTierId ? pool.query('SELECT name FROM partner_tiers WHERE id = $1', [prevTierId]).then(r => r.rows[0] || {}) : Promise.resolve({}),
+  ]);
+  const newTierName = (newTierRow.name || '').toLowerCase();
+  const prevTierName = (prevTierRow.name || '').toLowerCase();
+
+  if (newTierName === 'gold') {
     await pool.query(
       `UPDATE partner_offers SET is_trending = true, featured_request_pending = false, updated_at = NOW()
        WHERE partner_id = $1 AND status = 'active' AND (end_date IS NULL OR end_date >= NOW())`,
       [partnerId]
     );
-  } else if (prevTier === "gold") {
+  } else if (prevTierName === 'gold') {
     await pool.query(
       `UPDATE partner_offers SET is_trending = false, updated_at = NOW()
        WHERE partner_id = $1 AND forced_by_admin = false`,
@@ -702,7 +744,7 @@ async function updatePartnerTier(partnerId, partnerTier) {
     );
   }
 
-  return row;
+  return { id: row.id, tier_id: row.tier_id, tier_name: newTierRow.name || null };
 }
 
 // List admin deals
@@ -1576,15 +1618,24 @@ async function updateOfferFeaturedStatus(
   actorRole = null
 ) {
   const tx = await withTransaction(async (client) => {
+    const usePartnerTiersTable = await tableExists("partner_tiers");
+    const hasPartnerTierCol = usePartnerTiersTable ? false : await columnExists("partners", "partner_tier");
+    const tierSelect = usePartnerTiersTable
+      ? "COALESCE(LOWER(TRIM(pt.name)), 'bronze') AS partner_tier"
+      : hasPartnerTierCol
+        ? "COALESCE(LOWER(TRIM(p.partner_tier)), 'bronze') AS partner_tier"
+        : "'bronze' AS partner_tier";
+    const tierJoin = usePartnerTiersTable ? "LEFT JOIN partner_tiers pt ON pt.id = p.tier_id" : "";
     const offerResult = await client.query(
       `SELECT po.is_trending, po.featured_request_pending, po.forced_by_admin, po.partner_id,
               po.status, po.end_date,
               p.approved_for_featured, p.name as partner_name,
-              COALESCE(LOWER(TRIM(p.partner_tier)), 'bronze') AS partner_tier
+              ${tierSelect}
        FROM partner_offers po
        JOIN partners p ON po.partner_id = p.id
+       ${tierJoin}
        WHERE po.id = $1
-       FOR UPDATE`,
+       FOR UPDATE OF po`,
       [offerId]
     );
 
@@ -2078,4 +2129,92 @@ module.exports = {
   getAdminArchives,
   reactivateArchive,
   archiveExpiredItems,
+  getPlatformEarnings,
 };
+
+// Platform earnings from ledger (filters: start_date, end_date, partner_id, tier_id)
+async function getPlatformEarnings(filters = {}) {
+  const { start_date, end_date, partner_id, tier_id } = filters;
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+  if (start_date) {
+    conditions.push(`pel.created_at >= $${idx}::timestamptz`);
+    params.push(start_date);
+    idx += 1;
+  }
+  if (end_date) {
+    conditions.push(`pel.created_at <= $${idx}::timestamptz`);
+    params.push(end_date);
+    idx += 1;
+  }
+  if (partner_id) {
+    conditions.push(`pel.partner_id = $${idx}`);
+    params.push(partner_id);
+    idx += 1;
+  }
+  if (tier_id) {
+    conditions.push(`pel.tier_id = $${idx}`);
+    params.push(tier_id);
+    idx += 1;
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const baseQuery = `
+    FROM platform_earnings_ledger pel
+    ${where}
+  `;
+  const [totals, byTier, byPartner] = await Promise.all([
+    pool.query(
+      `SELECT
+        COALESCE(SUM(pel.platform_fee_total), 0)::DECIMAL(12,2) AS total_earnings,
+        COALESCE(SUM(pel.fiat_component), 0)::DECIMAL(12,2) AS total_fiat,
+        COALESCE(SUM(pel.ezt_component), 0)::DECIMAL(12,2) AS total_ezt
+       ${baseQuery}`,
+      params
+    ),
+    pool.query(
+      `SELECT pt.id AS tier_id, pt.name AS tier_name,
+        COALESCE(SUM(pel.platform_fee_total), 0)::DECIMAL(12,2) AS total_earnings,
+        COALESCE(SUM(pel.fiat_component), 0)::DECIMAL(12,2) AS total_fiat,
+        COALESCE(SUM(pel.ezt_component), 0)::DECIMAL(12,2) AS total_ezt
+       FROM platform_earnings_ledger pel
+       JOIN partner_tiers pt ON pt.id = pel.tier_id
+       ${where}
+       GROUP BY pt.id, pt.name
+       ORDER BY total_earnings DESC`,
+      params
+    ).catch(() => ({ rows: [] })),
+    pool.query(
+      `SELECT pel.partner_id, p.name AS partner_name,
+        COALESCE(SUM(pel.platform_fee_total), 0)::DECIMAL(12,2) AS total_earnings,
+        COALESCE(SUM(pel.fiat_component), 0)::DECIMAL(12,2) AS total_fiat,
+        COALESCE(SUM(pel.ezt_component), 0)::DECIMAL(12,2) AS total_ezt
+       FROM platform_earnings_ledger pel
+       JOIN partners p ON p.id = pel.partner_id
+       ${where}
+       GROUP BY pel.partner_id, p.name
+       ORDER BY total_earnings DESC`,
+      params
+    ).catch(() => ({ rows: [] })),
+  ]);
+  const row = totals.rows[0] || {};
+  return {
+    total_earnings: parseFloat(row.total_earnings || 0),
+    total_fiat: parseFloat(row.total_fiat || 0),
+    total_ezt: parseFloat(row.total_ezt || 0),
+    breakdown_by_tier: (byTier.rows || []).map(r => ({
+      tier_id: r.tier_id,
+      tier_name: r.tier_name,
+      total_earnings: parseFloat(r.total_earnings || 0),
+      total_fiat: parseFloat(r.total_fiat || 0),
+      total_ezt: parseFloat(r.total_ezt || 0),
+    })),
+    breakdown_by_partner: (byPartner.rows || []).map(r => ({
+      partner_id: r.partner_id,
+      partner_name: r.partner_name,
+      total_earnings: parseFloat(r.total_earnings || 0),
+      total_fiat: parseFloat(r.total_fiat || 0),
+      total_ezt: parseFloat(r.total_ezt || 0),
+    })),
+  };
+}

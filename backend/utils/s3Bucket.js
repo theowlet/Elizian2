@@ -1,6 +1,5 @@
 const { S3Client } = require("@aws-sdk/client-s3");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
-const { crypto } = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const sharp = require("sharp");
@@ -156,7 +155,18 @@ const uploadToS3 = async (files) => {
 };
 
 
+/**
+ * Returns a usable image URL for display.
+ * - If key is null/undefined or empty, returns null.
+ * - If key is already a full URL (http/https) or data URL, returns as-is so deal images display correctly.
+ * - Otherwise treats key as S3 key and returns the S3 object URL.
+ */
 const getS3FileUrl = (key) => {
+  if (key == null || String(key).trim() === "") return null;
+  const k = String(key);
+  if (k.startsWith("http://") || k.startsWith("https://") || k.startsWith("data:"))
+    return k;
+  if (!BUCKET_NAME) return null;
   return `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${key}`;
 };
 

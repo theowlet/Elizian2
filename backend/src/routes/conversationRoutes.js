@@ -10,15 +10,21 @@ router.get('/', authenticateToken, messagingController.listMyConversations);
 router.get('/unread', authenticateToken, messagingController.getUnreadCount);
 
 // Get messages in a conversation
-router.get('/:id/messages', authenticateToken, messagingController.getMessages);
+router.get('/:conversationId/messages', authenticateToken, messagingController.getMessages);
 
 // Send a message in a conversation
-router.post('/:id/messages', authenticateToken, messagingController.sendMessage);
+router.post('/:conversationId/messages', authenticateToken, messagingController.sendMessage);
 
 // Mark all messages in a conversation as read
-router.post('/:id/read', authenticateToken, messagingController.markRead);
+router.post('/:conversationId/read', authenticateToken, messagingController.markRead);
 
 // Delete a specific message (soft delete, sender only, before read)
-router.delete('/:id/messages/:messageId', authenticateToken, messagingController.deleteMessageHandler);
+router.delete('/:conversationId/messages/:messageId', authenticateToken, messagingController.deleteMessageHandler);
+
+// Legacy compatibility endpoint:
+// GET /api/messages/:conversationId
+const legacyMessagesRouter = express.Router();
+legacyMessagesRouter.get('/:conversationId', authenticateToken, messagingController.getMessages);
 
 module.exports = router;
+module.exports.legacyMessagesRouter = legacyMessagesRouter;

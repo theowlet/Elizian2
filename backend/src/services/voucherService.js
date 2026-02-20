@@ -2,7 +2,6 @@ const QRCode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
 const voucherRepository = require('../repositories/voucherRepository');
-const bookingRepository = require('../repositories/bookingRepository');
 const settingsRepository = require('../repositories/settingsRepository');
 const { AppError } = require('../../utils/response');
 const { logError } = require('../../utils/logger');

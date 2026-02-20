@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QRCodeModal from '../components/QRCodeModal';
+import EmptyState from '../components/EmptyState';
 import '../styles/auth.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 const BookingHistory = () => {
   const navigate = useNavigate();
@@ -243,33 +244,15 @@ const BookingHistory = () => {
 
         {/* Bookings List */}
         {filteredBookings.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '4rem 2rem',
-            color: '#9ca3af'
-          }}>
-            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📋</div>
-            <h2>No bookings found</h2>
-            <p>
-              {filter === 'all' 
-                ? "You haven't made any bookings yet. Start exploring deals!"
-                : `No ${filter} bookings found.`}
-            </p>
-            <button
-              onClick={() => navigate('/home')}
-              style={{
-                marginTop: '1rem',
-                padding: '0.75rem 1.5rem',
-                background: '#059669',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer'
-              }}
-            >
-              Browse Deals
-            </button>
-          </div>
+          <EmptyState
+            icon="📋"
+            title="No bookings found"
+            message={filter === 'all'
+              ? "You haven't made any bookings yet. Start exploring deals!"
+              : `No ${filter} bookings found.`}
+            actionLabel="Explore Deals"
+            onAction={() => navigate('/home')}
+          />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {filteredBookings.map((booking) => (

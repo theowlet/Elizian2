@@ -9,7 +9,7 @@ const LandingPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
   // First-time onboarding: send new users to walkthrough; logged-in users to home
   useEffect(() => {

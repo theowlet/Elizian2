@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import PasswordVisibilityToggle from '../components/PasswordVisibilityToggle';
 import '../styles/auth.css';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 /**
  * M-PIN Login Screen
@@ -13,6 +14,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
  */
 const MPinLoginScreen = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [mpin, setMpin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -63,6 +65,7 @@ const MPinLoginScreen = () => {
         // Login successful
         localStorage.setItem('token', result.token);
         localStorage.setItem('user', JSON.stringify(result.user));
+        login(result.token, result.user);
         sessionStorage.removeItem('phoneForMPin');
         sessionStorage.removeItem('phoneForOTP');
         

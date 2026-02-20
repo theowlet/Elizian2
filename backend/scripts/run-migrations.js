@@ -3,6 +3,9 @@
  * Run all SQL migrations from backend/db/migrations and backend/migrations.
  * Uses the same DB pool as the app (from src/config/db).
  * Migrations run in filename order; each file runs as a single batch.
+ *
+ * Skipped: 2026-02-tier-names-consistency — renames Nova→Beacon, Luminar→Crest, Valiant→Ascend.
+ * Canonical names are Ather, Nova, Luminar, Valiant, Echelon (see db/TIER_SYSTEM_TRUTH.md).
  */
 const path = require('path');
 const fs = require('fs');
@@ -33,8 +36,13 @@ async function run() {
   console.log(`Found ${files.length} migration file(s).`);
   let ok = 0;
   let fail = 0;
+  const SKIP_PATTERN = 'tier-names-consistency'; // Never run: overwrites Nova/Luminar/Valiant with Beacon/Crest/Ascend
   for (const { dir, name } of files) {
     const filePath = path.join(dir, name);
+    if (name.includes(SKIP_PATTERN)) {
+      console.log(`  SKIP ${path.relative(backendRoot, filePath)} (excluded: wrong tier names)`);
+      continue;
+    }
     const sql = fs.readFileSync(filePath, 'utf8');
     const relPath = path.relative(backendRoot, filePath);
     try {

@@ -339,6 +339,23 @@ async function incrementOfferRedemptions(offerId, executor = pool) {
   );
 }
 
+/**
+ * Atomic redemption limit: increment only if under max_redemptions.
+ * Returns updated row or null if limit reached (caller must throw).
+ * Use inside booking transaction to prevent over-redemption under concurrency.
+ */
+async function incrementOfferRedemptionsAtomic(offerId, executor = pool) {
+  const result = await executor.query(
+    `UPDATE partner_offers
+     SET current_redemptions = COALESCE(current_redemptions, 0) + 1
+     WHERE id = $1
+       AND (max_redemptions IS NULL OR (COALESCE(current_redemptions, 0) + 1) <= max_redemptions)
+     RETURNING *`,
+    [offerId]
+  );
+  return result.rows[0] || null;
+}
+
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
 
@@ -753,7 +770,7 @@ async function listPublicOffers(filters = {}) {
       max_redemptions: row.max_redemptions,
       current_redemptions: row.current_redemptions,
       service_type: row.service_type,
-      image_url: row.image_url ? getS3FileUrl(row.image_url) : getS3FileUrl(DEFAULT_OFFER_IMAGE_S3_KEY),
+      image_url: (row.image_url ? getS3FileUrl(row.image_url) : null) || getS3FileUrl(DEFAULT_OFFER_IMAGE_S3_KEY),
       terms_conditions: row.terms_conditions,
       perk_type: row.perk_type || 'discount',
       perk_description: row.perk_description || null,
@@ -854,7 +871,7 @@ async function getPublicOffersByIds(offerIds) {
     is_active: row.is_active,
     is_trending: row.is_trending,
     service_type: row.service_type,
-    image_url: row.image_url ? getS3FileUrl(row.image_url) : getS3FileUrl(DEFAULT_OFFER_IMAGE_S3_KEY),
+    image_url: (row.image_url ? getS3FileUrl(row.image_url) : null) || getS3FileUrl(DEFAULT_OFFER_IMAGE_S3_KEY),
     terms_conditions: row.terms_conditions,
     perk_type: row.perk_type || "discount",
     perk_description: row.perk_description || null,
@@ -879,6 +896,7 @@ module.exports = {
   deleteOffer,
   getOfferForUpdate,
   incrementOfferRedemptions,
+  incrementOfferRedemptionsAtomic,
   listPublicOffers,
   getPublicOffersByIds,
 };

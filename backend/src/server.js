@@ -11,6 +11,7 @@ const { startBookingAutoCancelJob } = require('./jobs/bookingAutoCancelJob');
 const { startEventCleanupJob } = require('./jobs/eventCleanupJob');
 const { startRedemptionExpirationJob } = require('./jobs/redemptionExpirationJob');
 const { startWaitlistPromotionJob } = require('./jobs/waitlistPromotionJob');
+const { startCampaignActivationJob } = require('./jobs/campaignActivationJob');
 
 // Validate environment before proceeding
 validateEnvironment();
@@ -53,6 +54,7 @@ startBookingAutoCancelJob();
 startEventCleanupJob();
 startRedemptionExpirationJob();
 startWaitlistPromotionJob();
+startCampaignActivationJob();
 
 // Import app after all initialization
 const app = require('./app');

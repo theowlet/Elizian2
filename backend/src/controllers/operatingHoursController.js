@@ -28,7 +28,7 @@ async function getHours(req, res) {
 /**
  * Update partner's operating hours
  * PUT /api/v1/partner/me/operating-hours
- * Body: { hours: [{ day_of_week: 0, opens_at: '09:00', closes_at: '21:00', is_closed: false, break_start: null, break_end: null }, ...] }
+ * Body: { hours: [{ day_of_week: 0, opens_at: '09:00', closes_at: '21:00', is_closed: false, breaks: [{start: '13:00', end: '14:00'}] }, ...] }
  */
 async function updateHours(req, res) {
   try {
@@ -65,12 +65,22 @@ async function updateHours(req, res) {
         if (!timeRegex.test(String(dayData.opens_at)) || !timeRegex.test(String(dayData.closes_at))) {
           return errorResponse(res, 400, 'Time must be in HH:MM format (24-hour).');
         }
-        if (dayData.break_start || dayData.break_end) {
-          if (!dayData.break_start || !dayData.break_end) {
-            return errorResponse(res, 400, 'Both break_start and break_end must be provided.');
+        // Validate breaks array (multiple break periods per day)
+        if (dayData.breaks != null) {
+          if (!Array.isArray(dayData.breaks)) {
+            return errorResponse(res, 400, `Day ${dayNum}: breaks must be an array.`);
           }
-          if (!timeRegex.test(String(dayData.break_start)) || !timeRegex.test(String(dayData.break_end))) {
-            return errorResponse(res, 400, 'Break times must be in HH:MM format.');
+          for (let i = 0; i < dayData.breaks.length; i++) {
+            const brk = dayData.breaks[i];
+            if (!brk || typeof brk !== 'object') {
+              return errorResponse(res, 400, `Day ${dayNum}, break ${i + 1}: must be an object with start and end.`);
+            }
+            if (!brk.start || !brk.end) {
+              return errorResponse(res, 400, `Day ${dayNum}, break ${i + 1}: both start and end are required.`);
+            }
+            if (!timeRegex.test(String(brk.start)) || !timeRegex.test(String(brk.end))) {
+              return errorResponse(res, 400, `Day ${dayNum}, break ${i + 1}: times must be in HH:MM format.`);
+            }
           }
         }
       }

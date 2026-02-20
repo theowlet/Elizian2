@@ -145,39 +145,51 @@ function requirePermission(permission) {
  */
 async function checkPartnerOwnership(req, res, next) {
   try {
-    const userId = req.userId || req.user?.id;
-    const partnerId = req.params.partnerId || req.params.id;
-    
-    if (!userId || !partnerId) {
+    const requestedPartnerId = req.params.partnerId || req.params.id;
+    if (!requestedPartnerId) {
       return res.status(400).json({
         success: false,
         error: 'missing_parameters',
-        message: 'User ID and Partner ID required'
+        message: 'Partner ID required'
       });
     }
-    
-    // Check if user is associated with this partner
+
+    // Partner JWT (login with email/password) has partnerId but no userId — allow if token partner matches requested partner
+    if (req.partnerId && req.partnerId === requestedPartnerId) {
+      return next();
+    }
+
+    const userId = req.userId || req.user?.id;
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'missing_parameters',
+        message: 'Authentication required (valid partner or user token)'
+      });
+    }
+
+    // Check if user is associated with this partner (owner_id or partner_auth)
     const result = await pool.query(
       `SELECT id FROM partners WHERE id = $1 AND (owner_id = $2 OR id IN (
         SELECT partner_id FROM partner_auth WHERE partner_id = $1 AND user_id = $2
       ))`,
-      [partnerId, userId]
+      [requestedPartnerId, userId]
     );
-    
+
     if (result.rows.length === 0) {
       // Allow super admin to access any partner
       const userRole = await getUserRole(userId);
       if (userRole && userRole.role_name === 'super_admin') {
         return next();
       }
-      
+
       return res.status(403).json({
         success: false,
         error: 'access_denied',
         message: 'You do not have access to this partner\'s data'
       });
     }
-    
+
     next();
   } catch (error) {
     console.error('Partner ownership check error:', error);
