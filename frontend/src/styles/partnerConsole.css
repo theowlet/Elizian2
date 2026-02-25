@@ -9,10 +9,13 @@
   --muted: #6b7280;
   --card: #0f1720;
   --text: #e6eef6;
+  /* Bright foreground on dark: readable labels, nav, table cells */
+  --text-on-dark: #e2e8f0;
+  --text-secondary-on-dark: #cbd5e1;
   --success: #10b981;
   --warning: #f59e0b;
   --error: #ef4444;
-  --border: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.08);
 }
 
 .pc-root {
@@ -45,7 +48,7 @@
   align-items: center;
   gap: 12px;
   font-weight: 700;
-  color: var(--brand1);
+  color: #a78bfa;
 }
 
 .pc-logo-icon {
@@ -88,7 +91,7 @@
 .pc-nav-item {
   padding: 10px 12px;
   border-radius: 8px;
-  color: var(--muted);
+  color: var(--text-on-dark);
   cursor: pointer;
   margin-bottom: 8px;
   transition: all 0.2s ease;
@@ -128,6 +131,8 @@
 .pc-content-header h1 {
   flex: 1 1 auto;
   min-width: 0;
+  color: var(--text);
+  font-weight: 700;
 }
 
 .pc-content-header > div {
@@ -154,11 +159,11 @@
 .pc-stat-value {
   font-weight: 700;
   font-size: 1.5rem;
-  color: var(--brand1);
+  color: #a78bfa;
 }
 
 .pc-stat-label {
-  color: var(--muted);
+  color: var(--text-secondary-on-dark);
   font-size: 0.875rem;
 }
 
@@ -188,7 +193,59 @@
 }
 
 .pc-table td {
-  color: var(--muted);
+  color: var(--text-secondary-on-dark);
+}
+
+/* Redemption detail panel (expandable row) – readable contrast */
+.redemption-detail-panel {
+  background: #1e293b !important;
+  padding: 16px !important;
+  border-top: 0 !important;
+  border-left: 4px solid var(--primary, var(--brand1)) !important;
+  vertical-align: top;
+}
+
+.redemption-detail-content {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.redemption-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px 20px;
+  margin-bottom: 12px;
+}
+
+.redemption-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.redemption-detail-label {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.redemption-detail-value {
+  color: #e2e8f0;
+  font-weight: 500;
+}
+
+.redemption-detail-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.redemption-detail-summary .redemption-detail-label {
+  margin-bottom: 2px;
 }
 
 .pc-form-group {

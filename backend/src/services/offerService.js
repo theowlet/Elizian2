@@ -13,6 +13,7 @@ const {
   toRelativeImagePath
 } = require('../utils/dealRules');
 const { normalizeOffers } = require('../utils/responseNormalizer');
+const { ensureOffersHaveImageUrl } = require('../utils/offerImageUrl');
 const { createAuditLogEntry } = require('../../utils/audit');
 
 const OFFER_STATUS = {
@@ -109,10 +110,14 @@ async function createOffer(partnerId, offerData, options = {}) {
       throw new AppError(400, 'End date must be after start date');
     }
 
-    const coPayPct = offerData.co_pay_percentage != null ? parseFloat(offerData.co_pay_percentage) : null;
-    if (coPayPct != null && !isNaN(coPayPct) && (coPayPct < 0 || coPayPct > 100)) {
-      throw new AppError(400, 'Co-pay percentage must be between 0 and 100');
+    const coPayInput = offerData.co_pay_percentage != null ? Number(offerData.co_pay_percentage) : null;
+    if (coPayInput != null && (Number.isNaN(coPayInput) || coPayInput < 0 || coPayInput > 100)) {
+      throw new AppError(400, 'Co-pay percentage must be a number between 0 and 100');
     }
+    const normalizedCoPay = coPayInput != null && Number.isFinite(coPayInput)
+      ? Math.round(coPayInput * 100) / 100
+      : null;
+    const offerDataWithNormalizedCoPay = { ...offerData, co_pay_percentage: normalizedCoPay };
 
     const scheduleStatus = determineScheduleStatus(startDate, endDate);
     if (scheduleStatus === 'expired') {
@@ -161,10 +166,10 @@ async function createOffer(partnerId, offerData, options = {}) {
     }
 
     const discountValues = deriveDiscountValues({
-      original_price: finalOriginalPrice || offerData.original_price,
-      co_pay_percentage: offerData.co_pay_percentage,
-      discount_amount: offerData.discount_amount,
-      discounted_price: offerData.discounted_price
+      original_price: finalOriginalPrice || offerDataWithNormalizedCoPay.original_price,
+      co_pay_percentage: offerDataWithNormalizedCoPay.co_pay_percentage,
+      discount_amount: offerDataWithNormalizedCoPay.discount_amount,
+      discounted_price: offerDataWithNormalizedCoPay.discounted_price
     });
 
     const normalizedDays = normalizeApplicableDays(offerData.applicable_days);
@@ -279,9 +284,15 @@ async function updateOffer(partnerId, offerId, updates, options = {}) {
       }
     }
 
-    const coPayPct = updates.co_pay_percentage != null ? parseFloat(updates.co_pay_percentage) : null;
-    if (coPayPct != null && !isNaN(coPayPct) && (coPayPct < 0 || coPayPct > 100)) {
-      throw new AppError(400, 'Co-pay percentage must be between 0 and 100');
+    const coPayInput = updates.co_pay_percentage != null ? Number(updates.co_pay_percentage) : null;
+    if (coPayInput != null && (Number.isNaN(coPayInput) || coPayInput < 0 || coPayInput > 100)) {
+      throw new AppError(400, 'Co-pay percentage must be a number between 0 and 100');
+    }
+    const normalizedCoPayUpdate = coPayInput != null && Number.isFinite(coPayInput)
+      ? Math.round(coPayInput * 100) / 100
+      : undefined;
+    if (normalizedCoPayUpdate !== undefined) {
+      updates = { ...updates, co_pay_percentage: normalizedCoPayUpdate };
     }
 
     let finalImageUrl = updates.image_url;
@@ -496,16 +507,17 @@ async function listPublicOffers(filters = {}) {
   try {
     const offers = await offerRepository.listPublicOffers(repoFilters);
     const normalizedOffers = normalizeOffers(offers);
+    const withImageUrl = ensureOffersHaveImageUrl(normalizedOffers);
     log('[offerService] listPublicOffers response', {
-      count: normalizedOffers.length,
-      sample: normalizedOffers.slice(0, 2).map((offer) => ({
+      count: withImageUrl.length,
+      sample: withImageUrl.slice(0, 2).map((offer) => ({
         id: offer.id,
         title: offer.title,
         status: offer.status,
         is_active: offer.is_active
       }))
     });
-    return normalizedOffers;
+    return withImageUrl;
   } catch (error) {
     logError('List public offers error:', error);
     throw new AppError(500, `Failed to list offers: ${error.message}`);
@@ -518,10 +530,10 @@ async function getPublicOfferById(offerId) {
   if (!offer) return null;
   const partnerStatus = offer.partner_status != null ? String(offer.partner_status).toLowerCase().trim() : '';
   if (['suspended', 'rejected'].includes(partnerStatus)) return null;
-  const { getS3FileUrl } = require('../../utils/s3Bucket');
+  const { resolveOfferImageUrl } = require('../utils/offerImageUrl');
   return {
     ...offer,
-    image_url: offer.image_url ? getS3FileUrl(offer.image_url) : null,
+    image_url: resolveOfferImageUrl(offer.image_url),
     perk_type: offer.perk_type || 'discount',
     perk_description: offer.perk_description || null
   };

@@ -3,14 +3,13 @@ const tokenService = require('./tokenService');
 const voucherStateMachine = require('./voucherStateMachine');
 const { AppError } = require('../utils/response');
 const { log } = require('../utils/logger');
+const { emitToRoom, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
 
 const pool = getPool();
 
 /**
- * Confirm a pending redemption (consumer). Runs in caller's transaction if executor provided.
- * @param {string} redemptionId - redemption_audit id
- * @param {string} userId - must be booking owner
- * @param {object} executor - pg client (required for atomic confirm; caller must BEGIN/COMMIT)
+ * Confirm a pending redemption (consumer). Legacy: only used for old pending_confirmation rows.
+ * Partner redeem is now final; new redemptions are already 'redeemed' and do not require confirm.
  */
 async function confirmRedemption(redemptionId, userId, executor) {
   if (!executor) throw new AppError(500, 'Transaction client required for confirmRedemption');
@@ -30,14 +29,13 @@ async function confirmRedemption(redemptionId, userId, executor) {
     throw new AppError(403, 'Not your redemption');
   }
   if (r.customer_confirmation_status !== 'pending' && r.redemption_status !== 'pending_confirmation') {
-    throw new AppError(400, 'Redemption is not pending confirmation');
+    throw new AppError(400, 'Redemption is not pending confirmation. Partner redemption is already final.');
   }
   const expiresAt = r.confirmation_expires_at ? new Date(r.confirmation_expires_at) : null;
   if (expiresAt && expiresAt < new Date()) {
     throw new AppError(400, 'Confirmation window has expired');
   }
   const eztRequired = parseFloat(r.ezt_tokens_required ?? (r.ezt_co_pay_amount / 100) ?? 0);
-  // Only deduct tokens if co-pay amount > 0 (some offers may be 0% co-pay)
   if (eztRequired > 0) {
     await tokenService.redeemTokens(
       r.booking_user_id,
@@ -72,12 +70,13 @@ async function confirmRedemption(redemptionId, userId, executor) {
   );
   const updated = await client.query('SELECT * FROM redemption_audit WHERE id = $1', [redemptionId]);
   log(`Redemption ${redemptionId} confirmed by user ${userId}`);
+  emitToRoom(`users:${userId}`, REALTIME_EVENTS.CUSTOMER_ECOSYSTEM_UPDATED, { reason: 'redemption_confirmed' });
   return updated.rows[0];
 }
 
 /**
- * Dispute a pending redemption (consumer).
- * @param {object} executor - pg client (optional; if omitted uses pool for single statements)
+ * Dispute a redemption (consumer). Allowed only for status 'redeemed' and within dispute window.
+ * Partner redeem is final; customer may dispute only within dispute_window_expires_at (e.g. 24h).
  */
 async function disputeRedemption(redemptionId, userId, reason, executor) {
   const client = executor || pool;
@@ -95,9 +94,19 @@ async function disputeRedemption(redemptionId, userId, reason, executor) {
   if (r.booking_user_id !== userId) {
     throw new AppError(403, 'Not your redemption');
   }
-  if (r.customer_confirmation_status !== 'pending' && r.redemption_status !== 'pending_confirmation') {
-    throw new AppError(400, 'Redemption is not pending confirmation');
+  // Allow dispute for: (1) legacy pending_confirmation, or (2) redeemed within dispute window
+  const isPendingLegacy = r.redemption_status === 'pending_confirmation' && (r.customer_confirmation_status === 'pending' || !r.customer_confirmation_status);
+  const isRedeemedInWindow = r.redemption_status === 'redeemed' && (
+    (r.dispute_window_expires_at && new Date(r.dispute_window_expires_at) > new Date()) ||
+    (!r.dispute_window_expires_at && r.redeemed_at && (Date.now() - new Date(r.redeemed_at).getTime() < 24 * 60 * 60 * 1000))
+  );
+  if (!isPendingLegacy && !isRedeemedInWindow) {
+    if (r.redemption_status === 'redeemed') {
+      throw new AppError(400, 'Dispute window has closed. You can only dispute a redemption within the allowed time after the visit.');
+    }
+    throw new AppError(400, 'Redemption cannot be disputed');
   }
+  const fromState = r.redemption_status === 'pending_confirmation' ? 'pending_confirmation' : 'redeemed';
   await client.query(
     `UPDATE redemption_audit SET
       customer_confirmation_status = 'disputed',
@@ -109,7 +118,7 @@ async function disputeRedemption(redemptionId, userId, reason, executor) {
   await voucherStateMachine.transitionState({
     bookingId: r.booking_id,
     voucherCode: r.voucher_code,
-    fromState: 'pending_confirmation',
+    fromState,
     toState: 'disputed',
     actorId: userId,
     actorRole: 'user',

@@ -68,7 +68,9 @@ const REALTIME_EVENTS = Object.freeze({
   BOOKING_REFUNDED: 'bookings:refunded',
   PARTNER_BOOKING_UPDATE: 'partners:booking_update',
   LOYALTY_UPDATED: 'loyalty:updated',
-  TOKENS_UPDATED: 'tokens:updated'
+  TOKENS_UPDATED: 'tokens:updated',
+  /** Emit to users:${userId} when tier/credits/EZT/visits change so customer chat header can refetch GET /customer/ecosystem-summary */
+  CUSTOMER_ECOSYSTEM_UPDATED: 'customer:ecosystem_updated',
 });
 
 function getRealtimeStatus() {

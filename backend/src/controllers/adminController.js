@@ -141,12 +141,78 @@ async function deletePartnerTier(req, res) {
 
 async function getPlatformEarnings(req, res) {
   try {
-    const { start_date, end_date, partner_id, tier_id } = req.query || {};
-    const data = await adminService.getPlatformEarnings({ start_date, end_date, partner_id, tier_id });
+    const { start_date, end_date, partner_id, tier_id, city } = req.query || {};
+    const data = await adminService.getPlatformEarnings({ start_date, end_date, partner_id, tier_id, city });
     successResponse(res, 200, 'Platform earnings retrieved', data);
   } catch (err) {
     logError('admin getPlatformEarnings error', err);
     errorResponse(res, err.statusCode || 500, err.message || 'Failed to get platform earnings');
+  }
+}
+
+async function getPlatformEarningsReport(req, res) {
+  try {
+    const {
+      startDate,
+      endDate,
+      city,
+      partnerId,
+      dealId,
+      tier,
+      page,
+      pageSize,
+      sortBy,
+      sortOrder
+    } = req.query || {};
+    const data = await adminService.getPlatformEarningsReport({
+      startDate,
+      endDate,
+      city,
+      partnerId,
+      dealId,
+      tier,
+      page,
+      pageSize,
+      sortBy,
+      sortOrder
+    });
+    successResponse(res, 200, 'Platform earnings report retrieved', data);
+  } catch (err) {
+    logError('admin getPlatformEarningsReport error', err);
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to get platform earnings report');
+  }
+}
+
+function escapeCsvCell(v) {
+  if (v == null) return '';
+  const s = String(v);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+async function getPlatformEarningsExport(req, res) {
+  try {
+    const { startDate, endDate, city, partnerId, dealId, tier } = req.query || {};
+    const rows = await adminService.getPlatformEarningsExportRows({
+      startDate,
+      endDate,
+      city,
+      partnerId,
+      dealId,
+      tier
+    });
+    const headers = ['id', 'booking_id', 'partner_id', 'created_at', 'tier_name', 'tier_percentage', 'partner_name', 'partner_address', 'deal_id', 'deal_title', 'bill_amount', 'platform_fee_total', 'fiat_component', 'ezt_component'];
+    const headerRow = headers.join(',');
+    const dataRows = rows.map(r =>
+      headers.map(h => escapeCsvCell(r[h])).join(',')
+    );
+    const csv = [headerRow, ...dataRows].join('\r\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="platform-earnings.csv"');
+    res.send(csv);
+  } catch (err) {
+    logError('admin getPlatformEarningsExport error', err);
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to export platform earnings');
   }
 }
 
@@ -520,6 +586,8 @@ module.exports = {
   setPartnerTierActive,
   deletePartnerTier,
   getPlatformEarnings,
+  getPlatformEarningsReport,
+  getPlatformEarningsExport,
   // Booking management
   listBookings,
   getBookingDetails,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/partnerConsole.css'; // Reuse partner console CSS framework
 import EnterpriseAnalyticsDashboard from '../components/analytics/EnterpriseAnalyticsDashboard';
@@ -65,6 +65,14 @@ export default function AdminDashboard() {
   const [usersError, setUsersError] = useState(null);
   const [rewards, setRewards] = useState(null);
   const [redemptions, setRedemptions] = useState([]);
+  const [redemptionsTotal, setRedemptionsTotal] = useState(0);
+  const [redemptionsLoading, setRedemptionsLoading] = useState(false);
+  const [redemptionFilters, setRedemptionFilters] = useState({ settlement_status: '', partner_id: '', start_date: '', end_date: '', redemption_status: '', is_frozen: '' });
+  const [redemptionSortBy, setRedemptionSortBy] = useState('redeemed_at');
+  const [redemptionSortOrder, setRedemptionSortOrder] = useState('desc');
+  const [redemptionsPage, setRedemptionsPage] = useState(0);
+  const [redemptionsLimit] = useState(25);
+  const [expandedRedemptionId, setExpandedRedemptionId] = useState(null);
   const [settings, setSettings] = useState([]);
   const [tiers, setTiers] = useState([]);
   const [tierEdits, setTierEdits] = useState({}); // { tierName: { ...editedFields } }
@@ -74,6 +82,21 @@ export default function AdminDashboard() {
   const [platformEarningsLoading, setPlatformEarningsLoading] = useState(false);
   const [earningsStartDate, setEarningsStartDate] = useState('');
   const [earningsEndDate, setEarningsEndDate] = useState('');
+  const [earningsCountryId, setEarningsCountryId] = useState('');
+  const [earningsStateId, setEarningsStateId] = useState('');
+  const [earningsCityId, setEarningsCityId] = useState('');
+  const [locationsCountries, setLocationsCountries] = useState([]);
+  const [locationsStates, setLocationsStates] = useState([]);
+  const [locationsCities, setLocationsCities] = useState([]);
+  const [earningsPartnerId, setEarningsPartnerId] = useState('');
+  const [earningsTier, setEarningsTier] = useState('');
+  const [platformEarningsReport, setPlatformEarningsReport] = useState(null);
+  const [platformEarningsReportLoading, setPlatformEarningsReportLoading] = useState(false);
+  const [reportPage, setReportPage] = useState(1);
+  const [reportPageSize] = useState(20);
+  const [reportSortBy, setReportSortBy] = useState('created_at');
+  const [reportSortOrder, setReportSortOrder] = useState('desc');
+  const [expandedReportRowId, setExpandedReportRowId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
 
@@ -111,6 +134,23 @@ export default function AdminDashboard() {
     'Content-Type': 'application/json',
     Authorization: token ? `Bearer ${token}` : ''
   }), [token]);
+
+  // Location filter: most specific selected (city > state > country) for report/export
+  const earningsLocationFilter = useMemo(() => {
+    if (earningsCityId && locationsCities.length) {
+      const c = locationsCities.find(x => x.id === earningsCityId);
+      if (c) return c.name;
+    }
+    if (earningsStateId && locationsStates.length) {
+      const s = locationsStates.find(x => x.id === earningsStateId);
+      if (s) return s.name;
+    }
+    if (earningsCountryId && locationsCountries.length) {
+      const c = locationsCountries.find(x => x.id === earningsCountryId);
+      if (c) return c.name;
+    }
+    return '';
+  }, [earningsCountryId, earningsStateId, earningsCityId, locationsCountries, locationsStates, locationsCities]);
 
   useEffect(() => {
     if (!token) {
@@ -311,6 +351,45 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection, campaignPage, campaignSearch, campaignStatusFilter, campaignTypeFilter]);
 
+  useEffect(() => {
+    if (activeSection === 'platform-earnings') {
+      loadPlatformEarnings();
+      loadLocationsCountries();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection, earningsStartDate, earningsEndDate, earningsLocationFilter, earningsPartnerId, earningsTier]);
+
+  useEffect(() => {
+    if (!earningsCountryId) {
+      setLocationsStates([]);
+      setLocationsCities([]);
+      setEarningsStateId('');
+      setEarningsCityId('');
+    } else {
+      loadLocationsStates(earningsCountryId);
+      setEarningsStateId('');
+      setEarningsCityId('');
+      setLocationsCities([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [earningsCountryId]);
+
+  useEffect(() => {
+    if (!earningsStateId) {
+      setLocationsCities([]);
+      setEarningsCityId('');
+    } else {
+      loadLocationsCities(earningsStateId);
+      setEarningsCityId('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [earningsStateId]);
+
+  useEffect(() => {
+    if (activeSection === 'platform-earnings') loadPlatformEarningsReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection, reportPage, reportSortBy, reportSortOrder, earningsStartDate, earningsEndDate, earningsLocationFilter, earningsPartnerId, earningsTier]);
+
   // When wizard opens: load schema, load campaign for Edit or reset form for New
   useEffect(() => {
     if (!campaignWizardOpen) return;
@@ -391,14 +470,34 @@ export default function AdminDashboard() {
     } catch (e) { console.error(e); }
   }
 
-  async function loadRedemptions() {
-    setLoading(true);
+  async function loadRedemptions(opts = {}) {
+    const filters = opts.filters ?? redemptionFilters;
+    const sortBy = opts.sort_by ?? redemptionSortBy;
+    const sortOrder = opts.sort_order ?? redemptionSortOrder;
+    const page = opts.page ?? redemptionsPage;
+    const limit = redemptionsLimit;
+    setRedemptionsLoading(true);
     try {
-      const r = await fetch(`${API_BASE}/api/v1/admin/redemptions`, { headers: headers() });
+      const q = new URLSearchParams();
+      if (filters.settlement_status) q.set('settlement_status', filters.settlement_status);
+      if (filters.partner_id) q.set('partner_id', filters.partner_id);
+      if (filters.start_date) q.set('start_date', filters.start_date);
+      if (filters.end_date) q.set('end_date', filters.end_date);
+      if (filters.redemption_status) q.set('redemption_status', filters.redemption_status);
+      if (filters.is_frozen !== '' && filters.is_frozen !== undefined) q.set('is_frozen', String(filters.is_frozen));
+      q.set('sort_by', sortBy);
+      q.set('sort_order', sortOrder);
+      q.set('limit', String(limit));
+      q.set('offset', String(page * limit));
+      const r = await fetch(`${API_BASE}/api/v1/admin/redemptions?${q.toString()}`, { headers: headers() });
       const j = await r.json();
-      if (j.success) setRedemptions(j.data || []);
+      if (j.success && j.data) {
+        setRedemptions(Array.isArray(j.data.redemptions) ? j.data.redemptions : []);
+        setRedemptionsTotal(Number(j.data.total) || 0);
+        if (opts.page !== undefined) setRedemptionsPage(opts.page);
+      }
     } catch (e) { console.error(e); }
-    setLoading(false);
+    setRedemptionsLoading(false);
   }
 
   async function loadTiers() {
@@ -494,10 +593,18 @@ export default function AdminDashboard() {
     if (section === 'bookings') loadBookings();
     if (section === 'users') loadUsers();
     if (section === 'rewards') loadRewards();
-    if (section === 'redemptions') loadRedemptions();
+    if (section === 'redemptions') {
+      loadRedemptions();
+      loadPartners(); // populate Partner filter dropdown
+    }
     if (section === 'tiers') loadTiers();
     if (section === 'partner-tiers') loadPartnerTiers();
-    if (section === 'platform-earnings') loadPlatformEarnings();
+    if (section === 'platform-earnings') {
+      loadPlatformEarnings();
+      loadPartners();
+      loadPartnerTiers();
+      loadPlatformEarningsReport();
+    }
     if (section === 'settings') loadSettings();
   }
 
@@ -512,18 +619,95 @@ export default function AdminDashboard() {
     setPartnerTiersLoading(false);
   }
 
+  async function loadLocationsCountries() {
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/admin/locations/countries`, { headers: headers() });
+      const j = await r.json();
+      if (j.success && Array.isArray(j.data)) setLocationsCountries(j.data);
+      else setLocationsCountries([]);
+    } catch (e) { setLocationsCountries([]); }
+  }
+
+  async function loadLocationsStates(countryId) {
+    if (!countryId) { setLocationsStates([]); return; }
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/admin/locations/states?country_id=${encodeURIComponent(countryId)}`, { headers: headers() });
+      const j = await r.json();
+      if (j.success && Array.isArray(j.data)) setLocationsStates(j.data);
+      else setLocationsStates([]);
+    } catch (e) { setLocationsStates([]); }
+  }
+
+  async function loadLocationsCities(stateId) {
+    if (!stateId) { setLocationsCities([]); return; }
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/admin/locations/cities?state_id=${encodeURIComponent(stateId)}`, { headers: headers() });
+      const j = await r.json();
+      if (j.success && Array.isArray(j.data)) setLocationsCities(j.data);
+      else setLocationsCities([]);
+    } catch (e) { setLocationsCities([]); }
+  }
+
   async function loadPlatformEarnings() {
     setPlatformEarningsLoading(true);
     try {
       const q = new URLSearchParams();
       if (earningsStartDate) q.set('start_date', earningsStartDate);
       if (earningsEndDate) q.set('end_date', earningsEndDate);
+      if (earningsLocationFilter) q.set('city', earningsLocationFilter);
+      if (earningsPartnerId) q.set('partner_id', earningsPartnerId);
+      if (earningsTier) {
+        const tierObj = (partnerTiers || []).find(t => (t.name || '').toLowerCase() === (earningsTier || '').toLowerCase());
+        if (tierObj?.id) q.set('tier_id', tierObj.id);
+      }
       const r = await fetch(`${API_BASE}/api/v1/admin/platform-earnings?${q}`, { headers: headers() });
       const j = await r.json();
       if (j.success && j.data) setPlatformEarnings(j.data);
       else setPlatformEarnings(null);
     } catch (e) { setPlatformEarnings(null); }
     setPlatformEarningsLoading(false);
+  }
+
+  async function loadPlatformEarningsReport() {
+    setPlatformEarningsReportLoading(true);
+    try {
+      const q = new URLSearchParams();
+      if (earningsStartDate) q.set('startDate', earningsStartDate);
+      if (earningsEndDate) q.set('endDate', earningsEndDate);
+      if (earningsLocationFilter) q.set('city', earningsLocationFilter);
+      if (earningsPartnerId) q.set('partnerId', earningsPartnerId);
+      if (earningsTier) q.set('tier', earningsTier);
+      q.set('page', String(reportPage));
+      q.set('pageSize', String(reportPageSize));
+      q.set('sortBy', reportSortBy);
+      q.set('sortOrder', reportSortOrder);
+      const r = await fetch(`${API_BASE}/api/v1/admin/platform-earnings/report?${q}`, { headers: headers() });
+      const j = await r.json();
+      if (j.success && j.data) setPlatformEarningsReport(j.data);
+      else setPlatformEarningsReport(null);
+    } catch (e) { setPlatformEarningsReport(null); }
+    setPlatformEarningsReportLoading(false);
+  }
+
+  async function handleExportPlatformEarnings() {
+    const q = new URLSearchParams();
+    if (earningsStartDate) q.set('startDate', earningsStartDate);
+    if (earningsEndDate) q.set('endDate', earningsEndDate);
+    if (earningsLocationFilter) q.set('city', earningsLocationFilter);
+    if (earningsPartnerId) q.set('partnerId', earningsPartnerId);
+    if (earningsTier) q.set('tier', earningsTier);
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/admin/platform-earnings/export?${q}`, { headers: headers() });
+      if (!r.ok) throw new Error(r.statusText);
+      const blob = await r.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'platform-earnings.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      showNotif(e.message || 'Export failed', 'error');
+    }
   }
 
   function logout() {
@@ -1045,28 +1229,221 @@ export default function AdminDashboard() {
     );
   }
 
+  const REDEMPTION_SORT_FIELDS = [
+    { key: 'redeemed_at', label: 'Redeemed at' },
+    { key: 'booking_reference', label: 'Booking ref' },
+    { key: 'partner_name', label: 'Partner' },
+    { key: 'total_bill_amount', label: 'Total bill' },
+    { key: 'ezt_co_pay_amount', label: 'EZT co-pay' },
+    { key: 'net_amount_from_user', label: 'Net amount' },
+    { key: 'settlement_status', label: 'Settlement' },
+    { key: 'redemption_status', label: 'Redemption status' },
+  ];
+
   function RedemptionsSection() {
+    const applyFilters = () => loadRedemptions({ page: 0 });
+    const setSort = (by) => {
+      const order = redemptionSortBy === by && redemptionSortOrder === 'desc' ? 'asc' : 'desc';
+      setRedemptionSortBy(by);
+      setRedemptionSortOrder(order);
+      loadRedemptions({ sort_by: by, sort_order: order });
+    };
+    const totalPages = Math.ceil(redemptionsTotal / redemptionsLimit) || 0;
+
     return (
       <div>
-        <div className="pc-content-header"><h1>Redemptions</h1><button className="btn btn-primary" onClick={loadRedemptions}>Refresh</button></div>
+        <div className="pc-content-header">
+          <h1>Redemptions</h1>
+          <button className="btn btn-primary" onClick={() => loadRedemptions()} disabled={redemptionsLoading}>
+            {redemptionsLoading ? 'Loading…' : 'Refresh'}
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16, alignItems: 'flex-end' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: '#9ca3af', marginBottom: 4 }}>Settlement</label>
+            <select
+              className="pc-form-input"
+              value={redemptionFilters.settlement_status}
+              onChange={(e) => setRedemptionFilters((f) => ({ ...f, settlement_status: e.target.value }))}
+              style={{ minWidth: 120 }}
+            >
+              <option value="">All</option>
+              <option value="pending">Pending</option>
+              <option value="settled">Settled</option>
+              <option value="disputed">Disputed</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: '#9ca3af', marginBottom: 4 }}>Redemption status</label>
+            <select
+              className="pc-form-input"
+              value={redemptionFilters.redemption_status}
+              onChange={(e) => setRedemptionFilters((f) => ({ ...f, redemption_status: e.target.value }))}
+              style={{ minWidth: 140 }}
+            >
+              <option value="">All</option>
+              <option value="pending_confirmation">Pending confirmation</option>
+              <option value="redeemed">Redeemed</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: '#9ca3af', marginBottom: 4 }}>Partner</label>
+            <select
+              className="pc-form-input"
+              value={redemptionFilters.partner_id}
+              onChange={(e) => setRedemptionFilters((f) => ({ ...f, partner_id: e.target.value }))}
+              style={{ minWidth: 160 }}
+            >
+              <option value="">All partners</option>
+              {partners.map((p) => (
+                <option key={p.id} value={p.id}>{p.name || p.id}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: '#9ca3af', marginBottom: 4 }}>From date</label>
+            <input
+              type="date"
+              className="pc-form-input"
+              value={redemptionFilters.start_date}
+              onChange={(e) => setRedemptionFilters((f) => ({ ...f, start_date: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: '#9ca3af', marginBottom: 4 }}>To date</label>
+            <input
+              type="date"
+              className="pc-form-input"
+              value={redemptionFilters.end_date}
+              onChange={(e) => setRedemptionFilters((f) => ({ ...f, end_date: e.target.value }))}
+            />
+          </div>
+          <button className="btn btn-primary" onClick={applyFilters}>Apply filters</button>
+        </div>
+
         <div className="pc-table-container">
           <table className="pc-table">
-            <thead><tr><th>Voucher</th><th>Partner</th><th>Total Bill</th><th>EZT Co-Pay</th><th>Net Amount</th><th>Status</th><th>Redeemed</th></tr></thead>
+            <thead>
+              <tr>
+                <th style={{ width: 28 }} />
+                {REDEMPTION_SORT_FIELDS.map(({ key, label }) => (
+                  <th
+                    key={key}
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => setSort(key)}
+                    title={`Sort by ${label}`}
+                  >
+                    {label} {redemptionSortBy === key ? (redemptionSortOrder === 'asc' ? '↑' : '↓') : ''}
+                  </th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
-              {redemptions.length === 0 ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24 }}>No redemptions</td></tr> : redemptions.map(r => (
-                <tr key={r.id}>
-                  <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{r.voucher_code?.slice(0, 8) || '—'}</td>
-                  <td>{r.partner_name || '—'}</td>
-                  <td>₹{parseFloat(r.total_bill_amount || 0).toFixed(2)}</td>
-                  <td>₹{parseFloat(r.ezt_co_pay_amount || 0).toFixed(2)}</td>
-                  <td>₹{parseFloat(r.net_amount_from_user || 0).toFixed(2)}</td>
-                  <td><span className={`pc-badge pc-badge-${r.settlement_status === 'settled' ? 'success' : r.settlement_status === 'disputed' ? 'error' : 'warning'}`}>{r.settlement_status || 'pending'}</span></td>
-                  <td>{r.redeemed_at ? new Date(r.redeemed_at).toLocaleString() : '—'}</td>
-                </tr>
-              ))}
+              {redemptionsLoading && redemptions.length === 0 ? (
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 24 }}>Loading redemptions…</td></tr>
+              ) : redemptions.length === 0 ? (
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 24 }}>No redemptions match the filters.</td></tr>
+              ) : (
+                redemptions.map((r) => (
+                  <React.Fragment key={r.id}>
+                    <tr
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => setExpandedRedemptionId((id) => (id === r.id ? null : r.id))}
+                    >
+                      <td>{expandedRedemptionId === r.id ? '▼' : '▶'}</td>
+                      <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{r.redeemed_at ? new Date(r.redeemed_at).toLocaleString() : '—'}</td>
+                      <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{r.booking_reference || '—'}</td>
+                      <td>{r.partner_name || '—'}</td>
+                      <td>₹{parseFloat(r.total_bill_amount || 0).toFixed(2)}</td>
+                      <td>₹{parseFloat(r.ezt_co_pay_amount || 0).toFixed(2)}</td>
+                      <td>₹{parseFloat(r.net_amount_from_user || 0).toFixed(2)}</td>
+                      <td><span className={`pc-badge pc-badge-${r.settlement_status === 'settled' ? 'success' : r.settlement_status === 'disputed' ? 'error' : 'warning'}`}>{r.settlement_status || 'pending'}</span></td>
+                      <td><span className={`pc-badge pc-badge-${r.redemption_status === 'redeemed' ? 'success' : 'warning'}`}>{r.redemption_status || '—'}</span></td>
+                    </tr>
+                    {expandedRedemptionId === r.id && (
+                      <tr>
+                        <td colSpan={9} className="redemption-detail-panel">
+                          <div className="redemption-detail-content">
+                            <div className="redemption-detail-grid">
+                              <div className="redemption-detail-item">
+                                <span className="redemption-detail-label">Booking reference</span>
+                                <span className="redemption-detail-value">{r.booking_reference || '—'}</span>
+                              </div>
+                              <div className="redemption-detail-item">
+                                <span className="redemption-detail-label">Customer</span>
+                                <span className="redemption-detail-value">{r.user_name || '—'}</span>
+                              </div>
+                              <div className="redemption-detail-item">
+                                <span className="redemption-detail-label">Deal</span>
+                                <span className="redemption-detail-value">{r.deal_title || '—'}</span>
+                              </div>
+                              <div className="redemption-detail-item">
+                                <span className="redemption-detail-label">Redeemed at</span>
+                                <span className="redemption-detail-value">{r.redeemed_at ? new Date(r.redeemed_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'}</span>
+                              </div>
+                              <div className="redemption-detail-item">
+                                <span className="redemption-detail-label">Total bill</span>
+                                <span className="redemption-detail-value">₹{parseFloat(r.total_bill_amount ?? r.metadata?.calculated?.discount_amount ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                              <div className="redemption-detail-item">
+                                <span className="redemption-detail-label">EZT co-pay</span>
+                                <span className="redemption-detail-value">₹{parseFloat(r.ezt_co_pay_amount ?? r.metadata?.calculated?.ezt_co_pay_amount ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                              <div className="redemption-detail-item">
+                                <span className="redemption-detail-label">Net from customer</span>
+                                <span className="redemption-detail-value">₹{parseFloat(r.net_amount_from_user ?? r.metadata?.calculated?.net_amount_from_user ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                              <div className="redemption-detail-item">
+                                <span className="redemption-detail-label">Settlement</span>
+                                <span className="redemption-detail-value">{r.settlement_status || 'pending'}</span>
+                              </div>
+                              <div className="redemption-detail-item">
+                                <span className="redemption-detail-label">Frozen</span>
+                                <span className="redemption-detail-value">{r.is_frozen ? 'Yes' : 'No'}</span>
+                              </div>
+                            </div>
+                            {r.metadata && typeof r.metadata === 'object' && (() => {
+                              const m = r.metadata;
+                              const calc = m.calculated || m;
+                              const coPayPct = calc?.co_pay_percentage;
+                              const wallet = m.customer_wallet_ezt_at_redemption ?? m.customer_wallet_at_redemption;
+                              const parts = [];
+                              if (typeof coPayPct === 'number') parts.push(`Co-pay ${coPayPct}%`);
+                              if (wallet != null) parts.push(`Customer wallet at redemption: ${Number(wallet).toFixed(1)} EZT`);
+                              if (m.validation_warnings?.length) parts.push(`${m.validation_warnings.length} validation warning(s)`);
+                              if (parts.length === 0) return null;
+                              return (
+                                <div className="redemption-detail-summary">
+                                  <span className="redemption-detail-label">Summary</span>
+                                  <span className="redemption-detail-value">{parts.join(' · ')}</span>
+                                </div>
+                              );
+                            })()}
+                            {r.redemption_notes && (
+                              <div className="redemption-detail-item" style={{ gridColumn: '1 / -1' }}>
+                                <span className="redemption-detail-label">Notes</span>
+                                <span className="redemption-detail-value">{r.redemption_notes}</span>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary" disabled={redemptionsPage === 0} onClick={() => loadRedemptions({ page: redemptionsPage - 1 })}>Previous</button>
+            <span style={{ color: '#9ca3af' }}>Page {redemptionsPage + 1} of {totalPages} ({redemptionsTotal} total)</span>
+            <button className="btn btn-secondary" disabled={redemptionsPage >= totalPages - 1} onClick={() => loadRedemptions({ page: redemptionsPage + 1 })}>Next</button>
+          </div>
+        )}
       </div>
     );
   }
@@ -1504,18 +1881,42 @@ export default function AdminDashboard() {
   }
 
   function PlatformEarningsSection() {
+    const report = platformEarningsReport || {};
+    const reportRows = report.rows || [];
+    const reportTotal = report.total ?? 0;
+    const totalPages = Math.ceil(reportTotal / reportPageSize) || 1;
+    const sortToggle = (col) => {
+      if (reportSortBy === col) setReportSortOrder(o => o === 'desc' ? 'asc' : 'desc');
+      else { setReportSortBy(col); setReportSortOrder('desc'); }
+    };
     return (
       <div>
         <div className="pc-content-header">
           <h1>Platform Earnings</h1>
-          <button className="btn btn-primary" onClick={loadPlatformEarnings}>Refresh</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-primary" onClick={() => { loadPlatformEarnings(); loadPlatformEarningsReport(); }}>Refresh</button>
+            <button className="btn btn-secondary" onClick={handleExportPlatformEarnings}>Export CSV</button>
+          </div>
         </div>
         <p style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: 16 }}>
-          Revenue from platform_earnings_ledger. Optional date range below.
+          <strong>Total</strong> = platform fee (from ledger). <strong>Fiat</strong> and <strong>EZT</strong> = reporting split of that fee (Fiat % and EZT % of fiat received; when equal %, amounts are equal). Older rows may show Fiat ≠ EZT until normalized. Drill down by clicking a tier or partner.
         </p>
-        <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div><label style={ts.label}>Start date</label><input type="date" className="pc-form-input" value={earningsStartDate} onChange={e => setEarningsStartDate(e.target.value)} /></div>
           <div><label style={ts.label}>End date</label><input type="date" className="pc-form-input" value={earningsEndDate} onChange={e => setEarningsEndDate(e.target.value)} /></div>
+          <div><label style={ts.label}>Country</label><select className="pc-form-input" value={earningsCountryId} onChange={e => setEarningsCountryId(e.target.value)} style={{ minWidth: 140 }}><option value="">All</option>{locationsCountries.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div><label style={ts.label}>State</label><select className="pc-form-input" value={earningsStateId} onChange={e => setEarningsStateId(e.target.value)} style={{ minWidth: 160 }} disabled={!earningsCountryId}><option value="">All</option>{locationsStates.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+          <div><label style={ts.label}>City</label><select className="pc-form-input" value={earningsCityId} onChange={e => setEarningsCityId(e.target.value)} style={{ minWidth: 140 }} disabled={!earningsStateId}><option value="">All</option>{locationsCities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          <div><label style={ts.label}>Partner</label><select className="pc-form-input" value={earningsPartnerId} onChange={e => {
+            const id = e.target.value;
+            setEarningsPartnerId(id);
+            if (id) {
+              const p = (partners || []).find(x => x.id === id);
+              const tierName = p?.partner_tier ? (partnerTiers || []).find(t => t.name && String(t.name).toLowerCase() === String(p.partner_tier).toLowerCase())?.name || String(p.partner_tier).replace(/^\w/, c => c.toUpperCase()) : '';
+              setEarningsTier(tierName);
+            } else setEarningsTier('');
+          }} style={{ minWidth: 160 }}><option value="">All</option>{(partners || []).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
+          <div><label style={ts.label}>Tier</label><select className="pc-form-input" value={earningsTier} onChange={e => setEarningsTier(e.target.value)} disabled={!!earningsPartnerId} style={{ minWidth: 120 }} title={earningsPartnerId ? 'Tier is set from selected partner' : ''}><option value="">All</option>{(partnerTiers || []).map(t => <option key={t.id} value={t.name}>{t.name}</option>)}</select></div>
         </div>
         {platformEarningsLoading ? <p style={{ padding: 24, textAlign: 'center' }}>Loading...</p> : platformEarnings && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1535,13 +1936,15 @@ export default function AdminDashboard() {
             </div>
             {(platformEarnings.breakdown_by_tier?.length > 0) && (
               <div>
-                <h3 style={{ marginBottom: 8 }}>By tier</h3>
+                <h3 style={{ marginBottom: 8 }}>By tier (click to drill down)</h3>
                 <div className="pc-table-container">
                   <table className="pc-table">
                     <thead><tr><th>Tier</th><th>Total</th><th>Fiat</th><th>EZT</th></tr></thead>
                     <tbody>
                       {platformEarnings.breakdown_by_tier.map(r => (
-                        <tr key={r.tier_id}><td>{r.tier_name}</td><td>₹{Number(r.total_earnings).toFixed(2)}</td><td>₹{Number(r.total_fiat).toFixed(2)}</td><td>₹{Number(r.total_ezt).toFixed(2)}</td></tr>
+                        <tr key={r.tier_id} style={{ cursor: 'pointer' }} onClick={() => { setEarningsTier(r.tier_name); setReportPage(1); }}>
+                          <td>{r.tier_name}</td><td>₹{Number(r.total_earnings).toFixed(2)}</td><td>₹{Number(r.total_fiat).toFixed(2)}</td><td>₹{Number(r.total_ezt).toFixed(2)}</td>
+                        </tr>
                       ))}</tbody>
                   </table>
                 </div>
@@ -1549,13 +1952,15 @@ export default function AdminDashboard() {
             )}
             {(platformEarnings.breakdown_by_partner?.length > 0) && (
               <div>
-                <h3 style={{ marginBottom: 8 }}>By partner</h3>
+                <h3 style={{ marginBottom: 8 }}>By partner (click to drill down)</h3>
                 <div className="pc-table-container">
                   <table className="pc-table">
                     <thead><tr><th>Partner</th><th>Total</th><th>Fiat</th><th>EZT</th></tr></thead>
                     <tbody>
                       {platformEarnings.breakdown_by_partner.map(r => (
-                        <tr key={r.partner_id}><td>{r.partner_name}</td><td>₹{Number(r.total_earnings).toFixed(2)}</td><td>₹{Number(r.total_fiat).toFixed(2)}</td><td>₹{Number(r.total_ezt).toFixed(2)}</td></tr>
+                        <tr key={r.partner_id} style={{ cursor: 'pointer' }} onClick={() => { setEarningsPartnerId(r.partner_id); setReportPage(1); }}>
+                          <td>{r.partner_name}</td><td>₹{Number(r.total_earnings).toFixed(2)}</td><td>₹{Number(r.total_fiat).toFixed(2)}</td><td>₹{Number(r.total_ezt).toFixed(2)}</td>
+                        </tr>
                       ))}</tbody>
                   </table>
                 </div>
@@ -1564,6 +1969,62 @@ export default function AdminDashboard() {
             {!platformEarnings.total_earnings && !platformEarnings.breakdown_by_tier?.length && !platformEarnings.breakdown_by_partner?.length && (
               <p style={{ padding: 24, textAlign: 'center', color: '#666' }}>No earnings in range. Run redemptions after migration to see data.</p>
             )}
+
+            <div>
+              <h3 style={{ marginBottom: 8 }}>Report (ledger rows)</h3>
+              {platformEarningsReportLoading ? <p style={{ padding: 24, textAlign: 'center' }}>Loading report...</p> : (
+                <>
+                  <div className="pc-table-container">
+                    <table className="pc-table">
+                      <thead>
+                        <tr>
+                          <th></th>
+                          <th style={{ cursor: 'pointer' }} onClick={() => sortToggle('created_at')}>Date {reportSortBy === 'created_at' && (reportSortOrder === 'asc' ? '↑' : '↓')}</th>
+                          <th style={{ cursor: 'pointer' }} onClick={() => sortToggle('tier_name')}>Tier {reportSortBy === 'tier_name' && (reportSortOrder === 'asc' ? '↑' : '↓')}</th>
+                          <th style={{ cursor: 'pointer' }} onClick={() => sortToggle('partner_name')}>Partner {reportSortBy === 'partner_name' && (reportSortOrder === 'asc' ? '↑' : '↓')}</th>
+                          <th>Deal</th>
+                          <th style={{ cursor: 'pointer' }} onClick={() => sortToggle('platform_fee_total')}>Platform fee {reportSortBy === 'platform_fee_total' && (reportSortOrder === 'asc' ? '↑' : '↓')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportRows.map(row => (
+                          <React.Fragment key={row.id}>
+                            <tr style={{ cursor: 'pointer' }} onClick={() => setExpandedReportRowId(expandedReportRowId === row.id ? null : row.id)}>
+                              <td>{expandedReportRowId === row.id ? '▼' : '▶'}</td>
+                              <td>{row.created_at ? new Date(row.created_at).toLocaleString() : '—'}</td>
+                              <td>{row.tier_name ?? '—'}</td>
+                              <td>{row.partner_name ?? '—'}</td>
+                              <td>{(row.deal_title || '').slice(0, 30)}{(row.deal_title || '').length > 30 ? '…' : ''}</td>
+                              <td>₹{Number(row.platform_fee_total ?? 0).toFixed(2)}</td>
+                            </tr>
+                            {expandedReportRowId === row.id && (
+                              <tr><td colSpan={6} style={{ background: 'var(--bg)', padding: 12, fontSize: '0.9rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, maxWidth: 560 }}>
+                                  <span>Booking ID</span><span>{row.booking_id ?? '—'}</span>
+                                  <span>Deal</span><span>{row.deal_title ?? '—'}</span>
+                                  <span>Timestamp</span><span>{row.created_at ? new Date(row.created_at).toLocaleString() : '—'}</span>
+                                  <span>Fiat component</span><span>₹{Number(row.fiat_component ?? 0).toFixed(2)}</span>
+                                  <span>EZT component</span><span>₹{Number(row.ezt_component ?? 0).toFixed(2)}</span>
+                                  <span>Platform fee</span><span>₹{Number(row.platform_fee_total ?? 0).toFixed(2)}</span>
+                                </div>
+                              </td></tr>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {reportTotal === 0 && <p style={{ padding: 16, textAlign: 'center', color: '#9ca3af' }}>No ledger rows match the filters.</p>}
+                  {totalPages > 1 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
+                      <button className="btn btn-sm btn-secondary" disabled={reportPage <= 1} onClick={() => setReportPage(p => Math.max(1, p - 1))}>Previous</button>
+                      <span style={{ color: '#9ca3af' }}>Page {reportPage} of {totalPages} ({reportTotal} rows)</span>
+                      <button className="btn btn-sm btn-secondary" disabled={reportPage >= totalPages} onClick={() => setReportPage(p => p + 1)}>Next</button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>

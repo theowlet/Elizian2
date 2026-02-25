@@ -1097,6 +1097,14 @@ async function getPlatformEarnings(filters = {}) {
   return adminRepository.getPlatformEarnings(filters);
 }
 
+async function getPlatformEarningsReport(filters = {}) {
+  return adminRepository.getPlatformEarningsReport(filters);
+}
+
+async function getPlatformEarningsExportRows(filters = {}) {
+  return adminRepository.getPlatformEarningsExportRows(filters);
+}
+
 module.exports = {
   getDashboard,
   listPartners,
@@ -1104,6 +1112,8 @@ module.exports = {
   updatePartnerFeaturedEligibility,
   updatePartnerTier,
   getPlatformEarnings,
+  getPlatformEarningsReport,
+  getPlatformEarningsExportRows,
   listDeals,
   updateDealStatus,
   updateOfferFeaturedStatus,

@@ -1,10 +1,11 @@
-// Discount calculation utility
+// Discount calculation utility.
+// Rule: percent (co_pay_percentage) is user input only. Never derive percent from discounted/original.
 function calculateDiscountMetrics({ original, percent, amount, discounted }) {
   const parsedOriginal = parseFloat(original);
   const originalValue = Number.isFinite(parsedOriginal) && parsedOriginal > 0 ? parsedOriginal : 0;
 
   const parsedPercent = parseFloat(percent);
-  const percentValue = Number.isFinite(parsedPercent) && parsedPercent > 0 ? parsedPercent : 0;
+  const percentValue = Number.isFinite(parsedPercent) && parsedPercent >= 0 ? parsedPercent : 0;
 
   const parsedAmount = parseFloat(amount);
   const amountValue = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : 0;
@@ -41,7 +42,8 @@ function calculateDiscountMetrics({ original, percent, amount, discounted }) {
 
   const finalDiscountedPrice = parseFloat(discountedValue.toFixed(2));
   const finalSavings = parseFloat(savingsValue.toFixed(2));
-  const finalEztEquivalent = parseFloat((finalSavings / 100).toFixed(2));
+  // EZT = savings (INR) / 100 (1 EZT = 100 INR). Derived from percent only; never reverse-derive percent from this.
+  const finalEztEquivalent = Math.round((finalSavings / 100) * 100) / 100;
 
   return {
     finalDiscountedPrice,

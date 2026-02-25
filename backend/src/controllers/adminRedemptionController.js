@@ -202,87 +202,122 @@ async function getAdminOverrides(req, res) {
   }
 }
 
+const LIST_REDEMPTIONS_SORT_COLUMNS = [
+  'redeemed_at',
+  'total_bill_amount',
+  'ezt_co_pay_amount',
+  'net_amount_from_user',
+  'settlement_status',
+  'redemption_status',
+  'partner_name',
+  'booking_reference',
+  'created_at'
+];
+
 /**
- * List redemptions with settlement filters
+ * List redemptions with settlement filters, sort, and pagination
  * GET /api/v1/admin/redemptions
+ * Query: settlement_status, is_frozen, partner_id, start_date, end_date, redemption_status, sort_by, sort_order, limit, offset
  */
 async function listRedemptions(req, res) {
   try {
-    const { 
-      settlement_status, 
-      is_frozen, 
-      partner_id, 
-      start_date, 
+    const {
+      settlement_status,
+      is_frozen,
+      partner_id,
+      start_date,
       end_date,
+      redemption_status,
+      sort_by = 'redeemed_at',
+      sort_order = 'desc',
       limit = 50,
       offset = 0
     } = req.query;
 
-    let query = `
-      SELECT 
-        ra.*,
-        b.booking_reference,
-        b.user_id,
-        b.partner_id,
-        po.title as deal_title,
-        p.name as partner_name,
-        u.first_name || ' ' || u.last_name as user_name
+    const safeSortColumn = LIST_REDEMPTIONS_SORT_COLUMNS.includes(String(sort_by).toLowerCase())
+      ? String(sort_by).toLowerCase()
+      : 'redeemed_at';
+    const safeOrder = String(sort_order).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+    const conditions = [];
+    const params = [];
+    let paramCount = 1;
+
+    if (settlement_status) {
+      params.push(settlement_status);
+      conditions.push(`ra.settlement_status = $${paramCount}`);
+      paramCount++;
+    }
+    if (is_frozen !== undefined && is_frozen !== '') {
+      params.push(is_frozen === 'true');
+      conditions.push(`ra.is_frozen = $${paramCount}`);
+      paramCount++;
+    }
+    if (partner_id) {
+      params.push(partner_id);
+      conditions.push(`b.partner_id = $${paramCount}`);
+      paramCount++;
+    }
+    if (start_date) {
+      params.push(start_date);
+      conditions.push(`ra.redeemed_at >= $${paramCount}`);
+      paramCount++;
+    }
+    if (end_date) {
+      params.push(end_date);
+      conditions.push(`ra.redeemed_at <= $${paramCount}`);
+      paramCount++;
+    }
+    if (redemption_status) {
+      params.push(redemption_status);
+      conditions.push(`ra.redemption_status = $${paramCount}`);
+      paramCount++;
+    }
+
+    const whereClause = conditions.length ? `AND ${conditions.join(' AND ')}` : '';
+    const baseFrom = `
       FROM redemption_audit ra
       JOIN bookings b ON ra.booking_id = b.id
       LEFT JOIN partner_offers po ON b.deal_id = po.id
       LEFT JOIN partners p ON b.partner_id = p.id
       LEFT JOIN users u ON b.user_id = u.id
-      WHERE 1=1
+      WHERE 1=1 ${whereClause}
     `;
 
-    const params = [];
-    let paramCount = 1;
+    const orderColumn = safeSortColumn === 'partner_name' ? 'p.name' : safeSortColumn === 'booking_reference' ? 'b.booking_reference' : `ra.${safeSortColumn}`;
+    const orderClause = `ORDER BY ${orderColumn} ${safeOrder} NULLS LAST`;
 
-    if (settlement_status) {
-      query += ` AND ra.settlement_status = $${paramCount}`;
-      params.push(settlement_status);
-      paramCount++;
-    }
+    const limitNum = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+    const offsetNum = Math.max(parseInt(offset, 10) || 0, 0);
+    const dataParams = [...params, limitNum, offsetNum];
+    const limitParamIndex = paramCount;
+    const offsetParamIndex = paramCount + 1;
 
-    if (is_frozen !== undefined) {
-      query += ` AND ra.is_frozen = $${paramCount}`;
-      params.push(is_frozen === 'true');
-      paramCount++;
-    }
+    const dataQuery = `
+      SELECT
+        ra.id, ra.booking_id, ra.voucher_code, ra.redeemed_by_partner_id,
+        ra.total_bill_amount, ra.ezt_co_pay_amount, ra.net_amount_from_user,
+        ra.redeemed_at, ra.redemption_status, ra.settlement_status, ra.is_frozen,
+        ra.redemption_notes, ra.metadata, ra.created_at,
+        b.booking_reference, b.user_id, b.partner_id,
+        po.title as deal_title,
+        p.name as partner_name,
+        u.first_name || ' ' || COALESCE(u.last_name, '') as user_name
+      ${baseFrom}
+      ${orderClause}
+      LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
+    `;
+    const result = await pool.query(dataQuery, dataParams);
 
-    if (partner_id) {
-      query += ` AND b.partner_id = $${paramCount}`;
-      params.push(partner_id);
-      paramCount++;
-    }
-
-    if (start_date) {
-      query += ` AND ra.redeemed_at >= $${paramCount}`;
-      params.push(start_date);
-      paramCount++;
-    }
-
-    if (end_date) {
-      query += ` AND ra.redeemed_at <= $${paramCount}`;
-      params.push(end_date);
-      paramCount++;
-    }
-
-    query += ` ORDER BY ra.redeemed_at DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
-    params.push(parseInt(limit), parseInt(offset));
-
-    const result = await pool.query(query, params);
-
-    // Get total count
-    const countQuery = query.replace(/SELECT.*FROM/, 'SELECT COUNT(*) FROM').replace(/ORDER BY.*$/, '');
-    const countResult = await pool.query(countQuery, params.slice(0, -2));
-    const total = parseInt(countResult.rows[0].count);
+    const countQuery = `SELECT COUNT(*)::int AS total ${baseFrom}`;
+    const countResult = await pool.query(countQuery, params);
+    const total = countResult.rows[0]?.total ?? 0;
 
     successResponse(res, 200, 'Redemptions retrieved successfully', {
       redemptions: result.rows,
       total,
-      limit: parseInt(limit),
-      offset: parseInt(offset)
+      limit: limitNum,
+      offset: offsetNum
     });
   } catch (error) {
     logError('❌ List redemptions error:', error);

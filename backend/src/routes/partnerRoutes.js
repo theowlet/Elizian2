@@ -39,6 +39,8 @@ router.get('/:id/check-ins-today', partnerController.getCheckInsToday);
 const reviewController = require('../controllers/reviewController');
 router.get('/:id/reviews', reviewController.listReviews);
 router.post('/:id/reviews', authenticateToken, reviewController.submitReview);
+router.post('/:id/reviews/:reviewId/request-dispute', authenticateToken, checkPartnerOwnership, reviewController.requestDispute);
+router.get('/:id/reviews/:reviewId/moderation-reason', authenticateToken, checkPartnerOwnership, reviewController.getModerationReason);
 
 // In-app tips: submit requires auth; list for partner only
 const tipController = require('../controllers/tipController');

@@ -2130,14 +2130,29 @@ module.exports = {
   reactivateArchive,
   archiveExpiredItems,
   getPlatformEarnings,
+  getPlatformEarningsReport,
+  getPlatformEarningsExportRows,
 };
 
-// Platform earnings from ledger (filters: start_date, end_date, partner_id, tier_id)
+/** City filter: return search terms so e.g. Gurugram also matches Gurgaon in partner address. */
+function getPlatformEarningsCitySearchTerms(city) {
+  if (!city || typeof city !== 'string') return [];
+  const c = String(city).trim();
+  if (!c) return [];
+  const lower = c.toLowerCase();
+  if (lower === 'gurugram' || lower === 'gurgaon') return ['Gurugram', 'Gurgaon'];
+  return [c];
+}
+
+// Platform earnings from ledger (filters: start_date, end_date, partner_id, tier_id, city)
 async function getPlatformEarnings(filters = {}) {
-  const { start_date, end_date, partner_id, tier_id } = filters;
+  const { start_date, end_date, partner_id, tier_id, city } = filters;
   const conditions = [];
   const params = [];
   let idx = 1;
+  const cityTerms = getPlatformEarningsCitySearchTerms(city);
+  const needPartnerJoin = cityTerms.length > 0;
+
   if (start_date) {
     conditions.push(`pel.created_at >= $${idx}::timestamptz`);
     params.push(start_date);
@@ -2158,18 +2173,22 @@ async function getPlatformEarnings(filters = {}) {
     params.push(tier_id);
     idx += 1;
   }
+  if (needPartnerJoin) {
+    const placeholders = cityTerms.map(() => `p.address ILIKE $${idx++}`).join(' OR ');
+    conditions.push(`(p.address IS NOT NULL AND (${placeholders}))`);
+    cityTerms.forEach(t => params.push(`%${t}%`));
+  }
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const baseQuery = `
-    FROM platform_earnings_ledger pel
-    ${where}
-  `;
+  const baseFrom = needPartnerJoin
+    ? `FROM platform_earnings_ledger pel JOIN partners p ON p.id = pel.partner_id ${where}`
+    : `FROM platform_earnings_ledger pel ${where}`;
   const [totals, byTier, byPartner] = await Promise.all([
     pool.query(
       `SELECT
         COALESCE(SUM(pel.platform_fee_total), 0)::DECIMAL(12,2) AS total_earnings,
         COALESCE(SUM(pel.fiat_component), 0)::DECIMAL(12,2) AS total_fiat,
         COALESCE(SUM(pel.ezt_component), 0)::DECIMAL(12,2) AS total_ezt
-       ${baseQuery}`,
+       ${baseFrom}`,
       params
     ),
     pool.query(
@@ -2179,6 +2198,7 @@ async function getPlatformEarnings(filters = {}) {
         COALESCE(SUM(pel.ezt_component), 0)::DECIMAL(12,2) AS total_ezt
        FROM platform_earnings_ledger pel
        JOIN partner_tiers pt ON pt.id = pel.tier_id
+       ${needPartnerJoin ? 'JOIN partners p ON p.id = pel.partner_id' : ''}
        ${where}
        GROUP BY pt.id, pt.name
        ORDER BY total_earnings DESC`,
@@ -2217,4 +2237,161 @@ async function getPlatformEarnings(filters = {}) {
       total_ezt: parseFloat(r.total_ezt || 0),
     })),
   };
+}
+
+const REPORT_SORT_WHITELIST = new Set([
+  'id', 'booking_id', 'partner_id', 'created_at', 'partner_name', 'deal_title',
+  'platform_fee_total', 'fiat_component', 'ezt_component', 'tier_name', 'bill_amount'
+]);
+
+/** Read-only drill-down report from admin_platform_earnings_view. Parameterized only; no recalculation. */
+async function getPlatformEarningsReport(filters = {}) {
+  const {
+    startDate,
+    endDate,
+    city,
+    partnerId,
+    dealId,
+    tier,
+    page = 1,
+    pageSize = 20,
+    sortBy = 'created_at',
+    sortOrder = 'desc'
+  } = filters;
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+  if (startDate) {
+    conditions.push(`created_at >= $${idx}::timestamptz`);
+    params.push(startDate);
+    idx += 1;
+  }
+  if (endDate) {
+    conditions.push(`created_at <= $${idx}::timestamptz`);
+    params.push(endDate);
+    idx += 1;
+  }
+  if (partnerId) {
+    conditions.push(`partner_id = $${idx}`);
+    params.push(partnerId);
+    idx += 1;
+  }
+  if (dealId) {
+    conditions.push(`deal_id = $${idx}`);
+    params.push(dealId);
+    idx += 1;
+  }
+  if (tier) {
+    conditions.push(`(tier_name = $${idx} OR tier_name ILIKE $${idx})`);
+    params.push(String(tier).trim());
+    idx += 1;
+  }
+  const cityTermsReport = getPlatformEarningsCitySearchTerms(city);
+  if (cityTermsReport.length > 0) {
+    const placeholders = cityTermsReport.map(() => `partner_address ILIKE $${idx++}`).join(' OR ');
+    conditions.push(`(partner_address IS NOT NULL AND (${placeholders}))`);
+    cityTermsReport.forEach(t => params.push(`%${t}%`));
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const orderCol = REPORT_SORT_WHITELIST.has(sortBy) ? sortBy : 'created_at';
+  const orderDir = sortOrder === 'asc' ? 'ASC' : 'DESC';
+  const limit = Math.min(Math.max(parseInt(pageSize, 10) || 20, 1), 500);
+  const offset = Math.max(parseInt(page, 10) || 1, 1) - 1;
+  const whereParams = [...params];
+  params.push(limit, offset);
+
+  try {
+    const [countRes, rowsRes] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*)::int AS total FROM admin_platform_earnings_view ${where}`,
+        whereParams
+      ),
+      pool.query(
+        `SELECT id, booking_id, partner_id, tier_id, redemption_id, bill_amount, platform_fee_total, fiat_component, ezt_component, created_at, tier_name, tier_percentage, partner_name, partner_address, deal_id, deal_title
+         FROM admin_platform_earnings_view
+         ${where}
+         ORDER BY ${orderCol} ${orderDir}
+         LIMIT $${idx} OFFSET $${idx + 1}`,
+        params
+      )
+    ]);
+    const total = countRes.rows[0]?.total ?? 0;
+    const rows = (rowsRes.rows || []).map(r => ({
+      id: r.id,
+      booking_id: r.booking_id,
+      partner_id: r.partner_id,
+      tier_id: r.tier_id,
+      redemption_id: r.redemption_id,
+      bill_amount: parseFloat(r.bill_amount || 0),
+      platform_fee_total: parseFloat(r.platform_fee_total || 0),
+      fiat_component: parseFloat(r.fiat_component || 0),
+      ezt_component: parseFloat(r.ezt_component || 0),
+      created_at: r.created_at,
+      tier_name: r.tier_name,
+      tier_percentage: r.tier_percentage != null ? parseFloat(r.tier_percentage) : null,
+      partner_name: r.partner_name,
+      partner_address: r.partner_address,
+      deal_id: r.deal_id,
+      deal_title: r.deal_title,
+    }));
+    return { rows, total, page: offset + 1, pageSize: limit };
+  } catch (err) {
+    if (err.code === '42P01' && (err.message || '').includes('admin_platform_earnings_view')) {
+      return { rows: [], total: 0, page: 1, pageSize: limit };
+    }
+    throw err;
+  }
+}
+
+/** Same filters as report; returns rows for CSV export. No recalculation. */
+async function getPlatformEarningsExportRows(filters = {}) {
+  const { startDate, endDate, city, partnerId, dealId, tier } = filters;
+  const conditions = [];
+  const params = [];
+  let idx = 1;
+  if (startDate) {
+    conditions.push(`created_at >= $${idx}::timestamptz`);
+    params.push(startDate);
+    idx += 1;
+  }
+  if (endDate) {
+    conditions.push(`created_at <= $${idx}::timestamptz`);
+    params.push(endDate);
+    idx += 1;
+  }
+  if (partnerId) {
+    conditions.push(`partner_id = $${idx}`);
+    params.push(partnerId);
+    idx += 1;
+  }
+  if (dealId) {
+    conditions.push(`deal_id = $${idx}`);
+    params.push(dealId);
+    idx += 1;
+  }
+  if (tier) {
+    conditions.push(`(tier_name = $${idx} OR tier_name ILIKE $${idx})`);
+    params.push(String(tier).trim());
+    idx += 1;
+  }
+  const cityTermsExport = getPlatformEarningsCitySearchTerms(city);
+  if (cityTermsExport.length > 0) {
+    const placeholders = cityTermsExport.map(() => `partner_address ILIKE $${idx++}`).join(' OR ');
+    conditions.push(`(partner_address IS NOT NULL AND (${placeholders}))`);
+    cityTermsExport.forEach(t => params.push(`%${t}%`));
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  try {
+    const res = await pool.query(
+      `SELECT id, booking_id, partner_id, bill_amount, platform_fee_total, fiat_component, ezt_component, created_at, tier_name, tier_percentage, partner_name, partner_address, deal_id, deal_title
+       FROM admin_platform_earnings_view ${where} ORDER BY created_at DESC LIMIT 10000`,
+      params
+    );
+    return res.rows || [];
+  } catch (err) {
+    if (err.code === '42P01' && (err.message || '').includes('admin_platform_earnings_view')) {
+      return [];
+    }
+    throw err;
+  }
 }

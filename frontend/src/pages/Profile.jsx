@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/auth.css";
 import "../styles/profile.css";
 import EazyPassModal from "../components/EazyPassModal";
+import VenueMemeCard from "../components/VenueMemeCard";
+import AvatarEditModal from "../components/AvatarEditModal";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
@@ -19,8 +21,23 @@ const Profile = () => {
   const [referralCode, setReferralCode] = useState(null);
   const [referralStats, setReferralStats] = useState(null);
   const [referralCopyFeedback, setReferralCopyFeedback] = useState("");
+  const [showEztHistoryModal, setShowEztHistoryModal] = useState(false);
+  const [eztModalView, setEztModalView] = useState(null); // 'balance' | 'credits' | 'debits'
+  const [eztTransactions, setEztTransactions] = useState([]);
+  const [eztHistoryLoading, setEztHistoryLoading] = useState(false);
+  const [membershipCardsExpanded, setMembershipCardsExpanded] = useState(false);
+  const [membershipCardsTotal, setMembershipCardsTotal] = useState(0);
+  const [membershipCardsLoadingMore, setMembershipCardsLoadingMore] = useState(false);
+  const [profilePhotoUploading, setProfilePhotoUploading] = useState(false);
+  const [brandImgFailed, setBrandImgFailed] = useState(false);
+  const [editingCardAvatar, setEditingCardAvatar] = useState(null);
+  const [avatarError, setAvatarError] = useState("");
+  const profilePhotoInputRef = useRef(null);
+  const editingCardRef = useRef(null);
 
   const token = localStorage.getItem("token");
+
+  const BRAND_AVATAR_URL = "/img/z.png";
 
   useEffect(() => {
     console.log("navigation done");
@@ -35,16 +52,82 @@ const Profile = () => {
     loadReferralStats();
   }, [token, navigate]);
 
-  const loadMembershipCards = async () => {
+  useEffect(() => {
+    if (!avatarError) return;
+    const t = setTimeout(() => setAvatarError(""), 8000);
+    return () => clearTimeout(t);
+  }, [avatarError]);
+
+  const MEMBERSHIP_CARDS_PAGE_SIZE = 6;
+
+  const loadMembershipCards = async (append = false) => {
+    const offset = append ? membershipCards.length : 0;
+    if (append) setMembershipCardsLoadingMore(true);
     try {
-      const res = await fetch(`${API_BASE}/api/v1/user/membership-cards`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `${API_BASE}/api/v1/user/membership-cards?limit=${MEMBERSHIP_CARDS_PAGE_SIZE}&offset=${offset}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       if (res.ok) {
         const data = await res.json();
-        if (data.success && Array.isArray(data.data)) setMembershipCards(data.data);
+        const payload = data.data;
+        const items = Array.isArray(payload?.items) ? payload.items : [];
+        const total = typeof payload?.total === "number" ? payload.total : items.length;
+        if (append) {
+          setMembershipCards((prev) => (offset === 0 ? items : [...prev, ...items]));
+        } else {
+          setMembershipCards(items);
+        }
+        setMembershipCardsTotal(total);
       }
     } catch (_) {}
+    finally {
+      if (append) setMembershipCardsLoadingMore(false);
+    }
+  };
+
+  const handleProfilePhotoClick = () => {
+    if (profilePhotoInputRef.current) profilePhotoInputRef.current.click();
+  };
+
+  const handleCardAvatarEdit = (card) => {
+    setAvatarError("");
+    editingCardRef.current = card;
+    setEditingCardAvatar(card);
+  };
+
+  const handleAvatarEditSaved = (updatedCard) => {
+    setMembershipCards((prev) =>
+      prev.map((c) => (c.id === updatedCard.id ? { ...c, ...updatedCard } : c))
+    );
+    setEditingCardAvatar(null);
+    editingCardRef.current = null;
+  };
+
+  const handleProfilePhotoChange = async (e) => {
+    const file = e.target?.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    setProfilePhotoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("photo", file);
+      const res = await fetch(`${API_BASE}/api/v1/user/profile-photo`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success && data.data?.photo_url) {
+        setProfile((prev) => (prev ? { ...prev, profile_photo_url: data.data.photo_url } : null));
+      } else {
+        setError(data?.message || "Failed to update photo");
+      }
+    } catch (err) {
+      setError("Failed to upload photo");
+    } finally {
+      setProfilePhotoUploading(false);
+      e.target.value = "";
+    }
   };
 
   const loadProfile = async () => {
@@ -198,6 +281,47 @@ const Profile = () => {
     });
   };
 
+  const formatDateTime = (d) => {
+    if (!d) return "—";
+    const date = new Date(d);
+    return date.toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const loadEztTransactions = async () => {
+    if (!token) return;
+    setEztHistoryLoading(true);
+    setEztTransactions([]);
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/rewards/ezt/transactions?limit=50`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data?.transactions)) {
+        setEztTransactions(data.data.transactions);
+      }
+    } catch (_) {
+      setEztTransactions([]);
+    } finally {
+      setEztHistoryLoading(false);
+    }
+  };
+
+  const openEztModal = (view) => {
+    setEztModalView(view);
+    setShowEztHistoryModal(true);
+    if (view !== "balance") loadEztTransactions();
+  };
+  const closeEztModal = () => {
+    setShowEztHistoryModal(false);
+    setEztModalView(null);
+  };
+
   if (loading) {
     return (
       <div className="profile-page" style={{ minHeight: "100vh", paddingBottom: 80 }}>
@@ -250,6 +374,15 @@ const Profile = () => {
   const spent = Number(profile?.ezt_total_spent ?? 0);
   const tierName = profile?.tier_name || tierInfo?.current?.name || "—";
   const photoUrl = profile?.profile_photo_url;
+  const initials =
+    name && name !== "—"
+      ? name
+          .split(" ")
+          .filter(Boolean)
+          .map((part) => part[0].toUpperCase())
+          .join("")
+          .slice(0, 2)
+      : "U";
   const address = profile?.address;
   const dob = profile?.date_of_birth;
   const gender = profile?.gender;
@@ -272,12 +405,42 @@ const Profile = () => {
       </header>
 
       <main className="profile-main">
-        {/* Optional: Profile photo */}
-        {photoUrl && (
-          <section className="profile-section profile-photo-section">
-            <img src={photoUrl} alt="Profile" className="profile-photo" />
-          </section>
-        )}
+        {/* Profile photo: brand (z.png) when no photo; tap to choose camera or gallery */}
+        <section className="profile-section profile-photo-section">
+          <input
+            ref={profilePhotoInputRef}
+            type="file"
+            accept="image/*"
+            capture="user"
+            aria-label="Upload profile photo"
+            style={{ display: "none" }}
+            onChange={handleProfilePhotoChange}
+            disabled={profilePhotoUploading}
+          />
+          <button
+            type="button"
+            className="profile-photo-button"
+            onClick={handleProfilePhotoClick}
+            disabled={profilePhotoUploading}
+            aria-label="Change profile photo"
+          >
+            {photoUrl ? (
+              <img src={photoUrl} alt="Profile" className="profile-photo" />
+            ) : brandImgFailed ? (
+              <div className="profile-photo profile-photo-placeholder">
+                <span>{initials}</span>
+              </div>
+            ) : (
+              <img
+                src={BRAND_AVATAR_URL}
+                alt="Profile"
+                className="profile-photo profile-photo-brand"
+                onError={() => setBrandImgFailed(true)}
+              />
+            )}
+            {profilePhotoUploading && <span className="profile-photo-uploading">Updating…</span>}
+          </button>
+        </section>
 
         {/* Must: Name, email, phone */}
         <section className="profile-section">
@@ -325,28 +488,43 @@ const Profile = () => {
           </section>
         )}
 
-        {/* Must: EZT token balance */}
+        {/* Must: EZT token balance — tap to see credits & debits */}
         <section className="profile-section">
           <h2 className="profile-section-title">EZT token balance</h2>
-          <div className="profile-tokens">
-            <div className="profile-token-item">
+          <div className="profile-tokens" style={{ width: "100%", textAlign: "left" }}>
+            <button
+              type="button"
+              className="profile-token-item profile-tokens-tappable"
+              onClick={() => openEztModal("balance")}
+              style={{ width: "100%", border: "none", background: "transparent", cursor: "pointer", padding: "8px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+              aria-label="View net EZT balance"
+            >
               <span className="profile-token-label">Available</span>
-              <span className="profile-token-value">
-                {available.toLocaleString("en-IN")}
-              </span>
-            </div>
-            <div className="profile-token-item">
+              <span className="profile-token-value">{Number(available).toFixed(5)}</span>
+            </button>
+            <button
+              type="button"
+              className="profile-token-item profile-tokens-tappable"
+              onClick={() => openEztModal("credits")}
+              style={{ width: "100%", border: "none", background: "transparent", cursor: "pointer", padding: "8px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+              aria-label="View EZT credited"
+            >
               <span className="profile-token-label">Earned</span>
-              <span className="profile-token-value">
-                {earned.toLocaleString("en-IN")}
-              </span>
-            </div>
-            <div className="profile-token-item">
+              <span className="profile-token-value">{Number(earned).toFixed(5)}</span>
+            </button>
+            <button
+              type="button"
+              className="profile-token-item profile-tokens-tappable"
+              onClick={() => openEztModal("debits")}
+              style={{ width: "100%", border: "none", background: "transparent", cursor: "pointer", padding: "8px 0", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+              aria-label="View EZT debited"
+            >
               <span className="profile-token-label">Spent</span>
-              <span className="profile-token-value">
-                {spent.toLocaleString("en-IN")}
-              </span>
-            </div>
+              <span className="profile-token-value">{Number(spent).toFixed(5)}</span>
+            </button>
+            <p className="profile-hint" style={{ marginTop: 8, marginBottom: 0, fontSize: "0.8rem", color: "#94a3b8" }}>
+              Tap each row to see details
+            </p>
           </div>
         </section>
 
@@ -362,39 +540,113 @@ const Profile = () => {
           </button>
         </section>
 
-        {/* Venue membership cards (Phase 3 #17) */}
-        {membershipCards.length > 0 && (
+        {/* Venue membership cards (Phase 3 #17) – collapsible, paginated for 100s of cards */}
+        {membershipCardsTotal > 0 && (
           <section className="profile-section">
-            <h2 className="profile-section-title">Venue membership cards</h2>
-            <p className="profile-hint" style={{ marginBottom: 12, color: "#888", fontSize: "0.9rem" }}>
-              Digital collectibles earned by visiting venues. Tap to view venue.
-            </p>
-            <div className="profile-membership-cards" style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-              {membershipCards.map((card) => (
-                <button
-                  key={card.id}
-                  type="button"
-                  className="profile-card-tile"
+            <button
+              type="button"
+              className="profile-section-title"
+              onClick={() => {
+                setMembershipCardsExpanded((e) => {
+                  if (e) setAvatarError("");
+                  return !e;
+                });
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                textAlign: "left",
+                color: "inherit",
+                fontSize: "inherit",
+              }}
+              aria-expanded={membershipCardsExpanded}
+            >
+              <span>Venue membership cards</span>
+              <span style={{ fontSize: "0.85rem", color: "#94a3b8", fontWeight: 400 }}>
+                {membershipCardsTotal} {membershipCardsTotal === 1 ? "card" : "cards"}
+              </span>
+            </button>
+            {membershipCardsExpanded && (
+              <>
+                <p className="profile-hint" style={{ marginBottom: 10, color: "#888", fontSize: "0.85rem" }}>
+                  Swipe left or right. Tap a card to open venue. Tap ✎ on a card to change its avatar.
+                </p>
+                {avatarError && (
+                  <p className="profile-hint" style={{ marginBottom: 8, color: "#b91c1c", fontSize: "0.85rem" }}>
+                    {avatarError}
+                    <button
+                      type="button"
+                      onClick={() => setAvatarError("")}
+                      style={{ marginLeft: 8, background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: "0.85rem", textDecoration: "underline" }}
+                    >
+                      Dismiss
+                    </button>
+                  </p>
+                )}
+                <div
+                  className="profile-membership-cards-row"
                   style={{
-                    padding: "14px 16px",
-                    background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
-                    border: "1px solid #3d3d5c",
-                    borderRadius: 12,
-                    textAlign: "left",
-                    cursor: "pointer",
-                    minWidth: 160,
+                    display: "flex",
+                    flexWrap: "nowrap",
+                    gap: 12,
+                    overflowX: "auto",
+                    overflowY: "hidden",
+                    scrollSnapType: "x mandatory",
+                    WebkitOverflowScrolling: "touch",
+                    scrollbarWidth: "none",
+                    msOverflowStyle: "none",
+                    paddingBottom: 4,
+                    marginLeft: -4,
+                    marginRight: -4,
                   }}
-                  onClick={() => navigate(`/venue/${card.partner_id}`)}
                 >
-                  <div style={{ fontWeight: 600, color: "#e2e8f0", marginBottom: 4 }}>
-                    {card.partner_name || "Venue"}
-                  </div>
-                  <div style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
-                    Earned {formatDate(card.earned_at)}
-                  </div>
-                </button>
-              ))}
-            </div>
+                  {membershipCards.map((card) => (
+                    <VenueMemeCard
+                      key={card.id}
+                      card={card}
+                      formatDate={formatDate}
+                      avatarUrl={photoUrl}
+                      avatarInitials={initials}
+                      brandAvatarUrl={BRAND_AVATAR_URL}
+                      onTap={(c) => navigate(`/venue/${c.partner_id}`)}
+                      onEditAvatar={handleCardAvatarEdit}
+                    />
+                  ))}
+                  {membershipCards.length < membershipCardsTotal && (
+                    <button
+                      type="button"
+                      onClick={() => loadMembershipCards(true)}
+                      disabled={membershipCardsLoadingMore}
+                      style={{
+                        flex: "0 0 auto",
+                        width: "min(85vw, 320px)",
+                        minWidth: "min(85vw, 320px)",
+                        padding: "18px 16px",
+                        background: "rgba(26,26,46,0.6)",
+                        border: "1px dashed #3d3d5c",
+                        borderRadius: 12,
+                        color: "#94a3b8",
+                        fontSize: "0.9rem",
+                        cursor: membershipCardsLoadingMore ? "wait" : "pointer",
+                        scrollSnapAlign: "center",
+                        scrollSnapStop: "always",
+                      }}
+                    >
+                      {membershipCardsLoadingMore ? "Loading…" : `Load more (${membershipCards.length} of ${membershipCardsTotal})`}
+                    </button>
+                  )}
+                </div>
+                <style>{`
+                  .profile-membership-cards-row::-webkit-scrollbar { display: none; }
+                `}</style>
+              </>
+            )}
           </section>
         )}
 
@@ -645,6 +897,134 @@ const Profile = () => {
       </main>
 
       <EazyPassModal isOpen={showEazyPass} onClose={() => setShowEazyPass(false)} />
+      {editingCardAvatar && (
+        <AvatarEditModal
+          card={editingCardAvatar}
+          token={token}
+          currentAvatarUrl={editingCardAvatar.avatar_display_url || photoUrl}
+          onClose={() => {
+            setEditingCardAvatar(null);
+            editingCardRef.current = null;
+          }}
+          onSaved={handleAvatarEditSaved}
+        />
+      )}
+
+      {/* EZT modal: balance | credits only | debits only */}
+      {showEztHistoryModal && eztModalView && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ezt-history-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            boxSizing: "border-box",
+          }}
+          onClick={closeEztModal}
+        >
+          <div
+            style={{
+              background: "#1e293b",
+              borderRadius: 16,
+              maxWidth: 440,
+              width: "100%",
+              maxHeight: "80vh",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.4)",
+              border: "1px solid #334155",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: "1rem 1.25rem", borderBottom: "1px solid #334155", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 id="ezt-history-title" style={{ margin: 0, fontSize: "1.25rem", color: "#f1f5f9" }}>
+                {eztModalView === "balance" ? "EZT balance" : eztModalView === "credits" ? "EZT credited" : "EZT debited"}
+              </h2>
+              <button
+                type="button"
+                onClick={closeEztModal}
+                style={{ background: "transparent", border: "none", color: "#94a3b8", fontSize: "1.5rem", cursor: "pointer", lineHeight: 1, padding: 4 }}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            {eztModalView === "balance" && (
+              <div style={{ padding: "1.5rem 1.25rem" }}>
+                <p style={{ margin: 0, fontSize: "0.9rem", color: "#94a3b8" }}>Net present balance (Earned − Spent)</p>
+                <p style={{ margin: "0.75rem 0 0", fontSize: "1.75rem", fontWeight: 700, color: "#22c55e" }}>{Number(available).toFixed(5)} EZT</p>
+              </div>
+            )}
+            {(eztModalView === "credits" || eztModalView === "debits") && (
+              <>
+                <p style={{ margin: 0, padding: "0.75rem 1.25rem", fontSize: "0.8rem", color: "#94a3b8", background: "rgba(0,0,0,0.2)", borderBottom: "1px solid #334155" }}>
+                  {eztModalView === "credits"
+                    ? "EZT is earned as loyalty when you spend (fiat). The % is based on your tier (Ather, Echelon, etc.)."
+                    : "EZT debited when you use tokens for voucher redemptions (co-pay)."}
+                </p>
+                <div style={{ overflow: "auto", flex: 1, padding: "1rem 1.25rem" }}>
+                  {eztHistoryLoading ? (
+                    <p style={{ color: "#94a3b8", margin: 0 }}>Loading…</p>
+                  ) : (() => {
+                    const filtered = eztModalView === "credits"
+                      ? eztTransactions.filter((tx) => ["earned", "bonus", "airdrop"].includes(tx.type))
+                      : eztTransactions.filter((tx) => tx.type === "spent");
+                    if (filtered.length === 0) return <p style={{ color: "#94a3b8", margin: 0 }}>{eztModalView === "credits" ? "No credits yet." : "No debits yet."}</p>;
+                    return (
+                      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                        {filtered.map((tx) => {
+                          const isCredit = ["earned", "bonus", "airdrop"].includes(tx.type);
+                          const amount = Number(tx.amount) || 0;
+                          return (
+                            <li
+                              key={tx.id}
+                              style={{
+                                padding: "12px 0",
+                                borderBottom: "1px solid #334155",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "flex-start",
+                                gap: 12,
+                              }}
+                            >
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ color: "#f1f5f9", fontSize: "0.9rem" }}>
+                                  {tx.type === "airdrop"
+                                    ? "Credited through Airdrop"
+                                    : tx.type === "earned"
+                                      ? "Loyalty (earned from fiat spent)"
+                                      : tx.type === "bonus"
+                                        ? "Bonus"
+                                        : (tx.description || (isCredit ? "Credit" : "Debit"))}
+                                </div>
+                                {tx.type === "earned" && tx.description && (
+                                  <div style={{ color: "#94a3b8", fontSize: "0.8rem", marginTop: 2 }}>{tx.description}</div>
+                                )}
+                                <div style={{ color: "#64748b", fontSize: "0.8rem", marginTop: 4 }}>{formatDateTime(tx.createdAt)}</div>
+                              </div>
+                              <div style={{ fontWeight: 700, fontSize: "1rem", color: isCredit ? "#22c55e" : "#f87171", whiteSpace: "nowrap" }}>
+                                {isCredit ? "+" : "−"}{amount.toFixed(5)} EZT
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

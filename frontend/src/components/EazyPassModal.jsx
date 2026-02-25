@@ -254,11 +254,11 @@ const EazyPassModal = ({ isOpen, onClose }) => {
 
             {/* ── Wallet Stats ── */}
             <div style={S.statsRow}>
-              <StatItem label="EZT BALANCE" value={(cardData.wallet?.available || 0).toFixed(2)} />
+              <StatItem label="EZT BALANCE" value={(cardData.wallet?.available || 0).toFixed(5)} />
               <div style={S.statDivider} />
               <StatItem label="REWARD RATE" value={`${cardData.tier?.rewardPercentage || 1}%`} />
               <div style={S.statDivider} />
-              <StatItem label="TOTAL EARNED" value={(cardData.wallet?.totalEarned || 0).toFixed(2)} />
+              <StatItem label="TOTAL EARNED" value={(cardData.wallet?.totalEarned || 0).toFixed(5)} />
             </div>
 
             {/* ── Next Tier Progress ── */}

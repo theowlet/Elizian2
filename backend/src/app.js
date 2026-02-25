@@ -233,6 +233,10 @@ app.use('/api/v1/admin', adminRoutes);
 const userRoutes = require('./routes/userRoutes');
 app.use('/api/v1/user', userRoutes);
 
+// Customer-facing endpoints (ecosystem summary for chat header; JWT-only auth)
+const customerRoutes = require('./routes/customerRoutes');
+app.use('/api/v1/customer', customerRoutes);
+
 // Import and mount category routes
 const categoryRoutes = require('./routes/categoryRoutes');
 app.use('/api/v1/categories', categoryRoutes);
@@ -277,6 +281,10 @@ app.use('/api/v1/notifications', notificationRoutes);
 // Import and mount achievement routes (gamification system)
 const achievementRoutes = require('./routes/achievementRoutes');
 app.use('/api/v1/achievements', achievementRoutes);
+
+// Reputation & Intelligence: isolated /api/v1/reviews namespace
+const reviewRoutes = require('./routes/reviewRoutes');
+app.use('/api/v1/reviews', reviewRoutes);
 
 // Import and mount referral routes (referral program)
 const referralRoutes = require('./routes/referralRoutes');

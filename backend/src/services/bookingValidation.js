@@ -18,6 +18,20 @@ const { getPool } = require('../config/db');
 const { normalizeTierName } = require('../utils/tierNames');
 
 const pool = getPool();
+// No grace: reject any booking time that is already in the past (prevents "booked at 12:10 for 12:09")
+const PAST_BOOKING_GRACE_MINUTES = 0;
+
+function parseBookingDateTime(bookingDate, bookingTime) {
+  const dateStr = String(bookingDate || '').trim();
+  const timeStr = String(bookingTime || '').trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || !/^\d{2}:\d{2}$/.test(timeStr)) {
+    return null;
+  }
+
+  const parsed = new Date(`${dateStr}T${timeStr}:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 /**
  * Main validation function - call this FIRST in createBooking()
@@ -43,6 +57,29 @@ async function validateBookingRequest({ partner_id, user_id, booking_date, booki
       // No date/time provided - skip hours validation (backward compatibility for non-time-based bookings)
       log(`⚠️ No booking date/time provided - skipping hours validation`);
       return { allowed: true };
+    }
+
+    const requestedDateTime = parseBookingDateTime(booking_date, booking_time);
+    if (!requestedDateTime) {
+      return {
+        allowed: false,
+        reason: 'INVALID_BOOKING_DATETIME',
+        message: 'Please select a valid booking date and time.',
+        can_waitlist: false
+      };
+    }
+
+    const now = new Date();
+    const graceMs = PAST_BOOKING_GRACE_MINUTES * 60 * 1000;
+    // Reject if booking datetime is in the past (after optional grace). Use current minute so 12:10:00 allows 12:10.
+    const cutoff = now.getTime() - graceMs;
+    if (requestedDateTime.getTime() < cutoff) {
+      return {
+        allowed: false,
+        reason: 'BOOKING_TIME_IN_PAST',
+        message: 'Selected booking time has already passed. Please choose a current or future time slot.',
+        can_waitlist: false
+      };
     }
 
     const hoursValidation = await operatingHoursService.validateBookingTime(

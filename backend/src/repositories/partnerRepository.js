@@ -510,17 +510,39 @@ async function getVenueDetail(partnerId, requireApproval = true) {
 
   let reviewStats = { review_count: 0, average_rating: null };
   try {
-    const reviewResult = await pool.query(
-      `SELECT COUNT(*)::int AS review_count, ROUND(AVG(rating)::numeric, 2) AS average_rating
-       FROM venue_reviews WHERE partner_id = $1`,
+    const fromReputation = await pool.query(
+      `SELECT review_count, rolling_avg_rating AS average_rating
+       FROM review_analytics WHERE partner_id = $1`,
       [partnerId]
     );
-    if (reviewResult.rows[0]?.review_count > 0) {
-      reviewStats.review_count = reviewResult.rows[0].review_count;
-      reviewStats.average_rating = parseFloat(reviewResult.rows[0].average_rating);
+    if (fromReputation.rows[0]?.review_count > 0) {
+      reviewStats.review_count = fromReputation.rows[0].review_count;
+      reviewStats.average_rating = fromReputation.rows[0].average_rating != null ? parseFloat(fromReputation.rows[0].average_rating) : null;
+    }
+    if (reviewStats.review_count === 0) {
+      const fromReviews = await pool.query(
+        `SELECT COUNT(*)::int AS review_count, ROUND(AVG(rating)::numeric, 2) AS average_rating
+         FROM reputation_reviews WHERE partner_id = $1 AND deleted_at IS NULL AND is_visible = true AND moderation_status = 'APPROVED'`,
+        [partnerId]
+      );
+      if (fromReviews.rows[0]?.review_count > 0) {
+        reviewStats.review_count = fromReviews.rows[0].review_count;
+        reviewStats.average_rating = parseFloat(fromReviews.rows[0].average_rating);
+      }
+    }
+    if (reviewStats.review_count === 0) {
+      const legacyResult = await pool.query(
+        `SELECT COUNT(*)::int AS review_count, ROUND(AVG(rating)::numeric, 2) AS average_rating
+         FROM venue_reviews WHERE partner_id = $1`,
+        [partnerId]
+      );
+      if (legacyResult.rows[0]?.review_count > 0) {
+        reviewStats.review_count = legacyResult.rows[0].review_count;
+        reviewStats.average_rating = parseFloat(legacyResult.rows[0].average_rating);
+      }
     }
   } catch (_) {
-    // venue_reviews table may not exist yet
+    // reputation_reviews / review_analytics / venue_reviews may not exist yet
   }
 
   // Partner operating hours (from partner_hours if present)

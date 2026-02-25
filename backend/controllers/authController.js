@@ -1,5 +1,6 @@
 const authService = require('../services/authService');
-const { successResponse } = require('../utils/response');
+const { successResponse, errorResponse } = require('../utils/response');
+const { uploadToS3, getS3FileUrl } = require('../utils/s3Bucket');
 
 const sendOtp = async (req, res, next) => {
   try {
@@ -107,6 +108,28 @@ const getProfile = async (req, res, next) => {
   }
 };
 
+const uploadProfilePhoto = async (req, res, next) => {
+  try {
+    const userId = req.userId || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'authentication_required',
+        message: 'Authentication required'
+      });
+    }
+    if (!req.file || !req.file.buffer) {
+      return errorResponse(res, 400, 'No image file provided. Choose a photo from camera or gallery.');
+    }
+    const key = await uploadToS3(req.file);
+    const photoUrl = getS3FileUrl(key);
+    await authService.updateProfilePhoto(userId, photoUrl);
+    successResponse(res, 200, 'Profile photo updated', { photo_url: photoUrl });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // M-PIN endpoints
 const setMpin = async (req, res, next) => {
   try {
@@ -181,6 +204,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   getProfile,
+  uploadProfilePhoto,
   setMpin,
   verifyMpin,
   checkMpinExists,

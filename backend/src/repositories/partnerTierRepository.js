@@ -118,11 +118,15 @@ async function getTierForRedemption(tierId, executor) {
   return result.rows[0] || null;
 }
 
-/** Insert one row into platform_earnings_ledger (call within redemption transaction). */
+/** Insert one row into platform_earnings_ledger (call within redemption transaction).
+ * Stores tier snapshot (tier_name, tier_percentage) when provided so historical data is immune to tier changes.
+ */
 async function insertLedgerEntry(entry, executor) {
   const {
     partner_id,
     tier_id,
+    tier_name,
+    tier_percentage,
     booking_id,
     redemption_id,
     bill_amount,
@@ -130,10 +134,28 @@ async function insertLedgerEntry(entry, executor) {
     fiat_component,
     ezt_component
   } = entry;
+  const baseParams = [partner_id, tier_id, booking_id, redemption_id, bill_amount, platform_fee_total, fiat_component, ezt_component];
+  const hasTierSnapshot = tier_name != null && tier_percentage != null;
+  if (hasTierSnapshot) {
+    try {
+      await executor.query(
+        `INSERT INTO platform_earnings_ledger (partner_id, tier_id, tier_name, tier_percentage, booking_id, redemption_id, bill_amount, platform_fee_total, fiat_component, ezt_component)
+         VALUES ($1, $2, $3, $4::DECIMAL(5,2), $5, $6, $7::DECIMAL(12,2), $8::DECIMAL(12,2), $9::DECIMAL(12,2), $10::DECIMAL(12,2))`,
+        [partner_id, tier_id, tier_name, tier_percentage, ...baseParams.slice(2)]
+      );
+      return;
+    } catch (err) {
+      if (err.code === '42703' || (err.message && err.message.includes('tier_name'))) {
+        // Columns not yet added by migration; fall back to insert without snapshot
+      } else {
+        throw err;
+      }
+    }
+  }
   await executor.query(
     `INSERT INTO platform_earnings_ledger (partner_id, tier_id, booking_id, redemption_id, bill_amount, platform_fee_total, fiat_component, ezt_component)
      VALUES ($1, $2, $3, $4, $5::DECIMAL(12,2), $6::DECIMAL(12,2), $7::DECIMAL(12,2), $8::DECIMAL(12,2))`,
-    [partner_id, tier_id, booking_id, redemption_id, bill_amount, platform_fee_total, fiat_component, ezt_component]
+    baseParams
   );
 }
 

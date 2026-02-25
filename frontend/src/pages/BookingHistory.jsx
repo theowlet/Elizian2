@@ -123,15 +123,17 @@ const BookingHistory = () => {
     return `₹${parseFloat(price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (booking) => {
+    const displayStatus = (booking.voucher_state === 'pending_confirmation') ? 'pending_confirmation' : booking.status;
     const statusMap = {
       'confirmed': { label: 'Confirmed', class: 'status-confirmed' },
       'pending': { label: 'Pending', class: 'status-pending' },
+      'pending_confirmation': { label: 'Awaiting Your Confirmation', class: 'status-pending' },
       'cancelled': { label: 'Cancelled', class: 'status-cancelled' },
       'redeemed': { label: 'Redeemed', class: 'status-redeemed' },
       'completed': { label: 'Completed', class: 'status-completed' }
     };
-    const statusInfo = statusMap[status] || { label: status, class: 'status-default' };
+    const statusInfo = statusMap[displayStatus] || { label: displayStatus, class: 'status-default' };
     return (
       <span className={`status-badge ${statusInfo.class}`}>
         {statusInfo.label}
@@ -281,7 +283,7 @@ const BookingHistory = () => {
                       </p>
                     )}
                   </div>
-                  {getStatusBadge(booking.status)}
+                  {getStatusBadge(booking)}
                 </div>
 
                 <div style={{
@@ -349,7 +351,7 @@ const BookingHistory = () => {
                   </div>
                 )}
 
-                {/* QR Code Preview (if available) */}
+                {/* QR Code Preview – tap opens full voucher (same as after booking); "Show QR popup" for modal only */}
                 {booking.qr_code_url && (
                   <div style={{
                     marginBottom: '1rem',
@@ -360,14 +362,11 @@ const BookingHistory = () => {
                     cursor: 'pointer',
                     transition: 'background 0.2s'
                   }}
-                  onClick={() => {
-                    setSelectedBooking(booking);
-                    setQrModalOpen(true);
-                  }}
+                  onClick={() => handleViewDetails(booking)}
                   onMouseEnter={(e) => e.currentTarget.style.background = '#1a1f2e'}
                   onMouseLeave={(e) => e.currentTarget.style.background = '#111827'}
                   >
-                    <div style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: '0.5rem' }}>Voucher QR Code (Click to view)</div>
+                    <div style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: '0.5rem' }}>Voucher (tap to open full view)</div>
                     <img
                       src={booking.qr_code_url}
                       alt="Booking QR Code"
@@ -403,6 +402,26 @@ const BookingHistory = () => {
                         Code: {booking.voucher_code.substring(0, 8)}...
                       </div>
                     )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedBooking(booking);
+                        setQrModalOpen(true);
+                      }}
+                      style={{
+                        marginTop: '0.5rem',
+                        padding: '0.25rem 0.5rem',
+                        fontSize: '0.75rem',
+                        background: 'transparent',
+                        color: '#9ca3af',
+                        border: '1px solid #374151',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Show QR popup
+                    </button>
                   </div>
                 )}
 

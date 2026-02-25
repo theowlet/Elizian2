@@ -4,6 +4,7 @@ import DealMenuPane from "../components/DealMenuPane";
 import ExperienceCard from "../components/ExperienceCard";
 import SkeletonLoader from "../components/SkeletonLoader";
 import { getFiltersForCategory } from "../config/filterSchema";
+import { getDealImageUrl, DEFAULT_DEAL_IMAGE_URL } from "../utils/dealImage";
 
 // STABILIZATION FIX: Gate debug logging behind development mode
 // Prevents performance degradation and information leakage in production.
@@ -114,16 +115,12 @@ const HomePage = () => {
   /**
    * Get trending deals filtered by category
    * ONLY affects Trending Experiences section
-   * TRENDING = High-engagement offers with is_trending flag set
+   * Prefer deals with is_trending flag; if none, show first N deals so section is never empty when we have deals
    */
   const getTrendingDeals = (deals, selectedCategory) => {
     if (!deals || deals.length === 0) return [];
 
-    // Filter by is_trending flag ONLY
-    // Note: 'featured' doesn't exist in partner_offers table
-    let trending = deals.filter(
-      (deal) => deal.is_trending === true
-    );
+    let trending = deals.filter((deal) => deal.is_trending === true);
 
     // Apply category filter if not "all"
     if (selectedCategory !== "all") {
@@ -133,6 +130,18 @@ const HomePage = () => {
           (deal) => deal.service_type === expectedServiceType,
         );
       }
+    }
+
+    // Fallback: if no trending-flagged deals, show first 10 from all deals (same category) so the section isn't empty
+    if (trending.length === 0) {
+      let pool = [...deals];
+      if (selectedCategory !== "all") {
+        const expectedServiceType = categoryToServiceType[selectedCategory];
+        if (expectedServiceType) {
+          pool = pool.filter((deal) => deal.service_type === expectedServiceType);
+        }
+      }
+      trending = pool.slice(0, 10);
     }
 
     return trending;
@@ -530,29 +539,32 @@ const HomePage = () => {
         return;
       }
 
-      // Support common response shapes: { data: [] }, { data: { items: [] } }, or array at top level
+      // Support common response shapes: { data: [] }, { data: { items: [] } }, { data: { data: [] } }, or array at top level
       const rawList = Array.isArray(result?.data)
         ? result.data
         : Array.isArray(result?.data?.items)
           ? result.data.items
-          : Array.isArray(result?.items)
-            ? result.items
-            : Array.isArray(result) ? result : [];
+          : Array.isArray(result?.data?.data)
+            ? result.data.data
+            : Array.isArray(result?.items)
+              ? result.items
+              : Array.isArray(result) ? result : [];
       if (rawList.length > 0) {
         // Format deals with consistent structure
-        const formattedDeals = rawList.map((item) => ({
+        const formattedDeals = rawList.map((item) => {
+          const img = getDealImageUrl(item, API_BASE);
+          return {
           id: item.id,
           title: item.title || item.name,
           description: item.description,
           price: item.discounted_price || item.original_price || 0,
           originalPrice: item.original_price,
-          image:
-            item.image_url ||
-            "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+          image: img,
+          image_url: item.image_url ?? img,
           service_type: item.service_type || "others",
           is_trending: item.is_trending || false, // Offer-level trending flag
           partner_approved_for_featured: Boolean(item.partner_approved_for_featured), // Venue-level premium status
-          rating: item.rating || item.partner_rating || 4.5,
+          rating: item.rating ?? item.partner_rating ?? null,
           location: item.partner_name || item.location,
           latitude: item.latitude || item.partner_latitude,
           longitude: item.longitude || item.partner_longitude,
@@ -571,7 +583,8 @@ const HomePage = () => {
           partner_address: item.partner_address || null,
           co_pay_percentage: item.co_pay_percentage != null ? Number(item.co_pay_percentage) : null,
           current_redemptions: item.current_redemptions != null ? Number(item.current_redemptions) : 0,
-        }));
+        };
+        });
 
         setAllDeals(formattedDeals);
         console.log(`✅ Loaded ${formattedDeals.length} deals`);
@@ -597,11 +610,11 @@ const HomePage = () => {
     description: item.description,
     price: item.discounted_price || item.original_price || 0,
     originalPrice: item.original_price,
-    image: item.image_url || "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+    image: getDealImageUrl(item, API_BASE),
     service_type: item.service_type || "others",
     is_trending: item.is_trending || false,
     partner_approved_for_featured: Boolean(item.partner_approved_for_featured),
-    rating: (item.rating || item.partner_rating) ?? 4.5,
+    rating: item.rating ?? item.partner_rating ?? null,
     location: item.partner_name || item.location,
     latitude: item.latitude || item.partner_latitude,
     longitude: item.longitude || item.partner_longitude,
@@ -1019,15 +1032,18 @@ const HomePage = () => {
                   <div className="trending-grid">
                     {filtered.map((item) => (
                       <div key={item.id} className="trending-card" onClick={(e) => handleDealCardClick(formatDealFromApi(item), e)}>
-                        <div className="card-image" style={{ backgroundImage: `url(${item.image_url || item.image || "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80"})` }} role="img" aria-label={item.title}>
+                        <div className="card-image" role="img" aria-label={item.title}>
+                          <img src={getDealImageUrl(item, API_BASE)} alt="" className="card-image-img" onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_DEAL_IMAGE_URL; }} />
                           <div className="card-badge trending">🔥 Trending</div>
                           {item.min_tier_name && (
                             <div className="card-badge" style={{ background: "rgba(167, 139, 250, 0.9)", color: "#fff" }} title={`Unlock at ${item.min_tier_name} tier`}>Unlock at {item.min_tier_name}</div>
                           )}
-                          <div className="card-rating">
-                            <span className="rating-star">⭐</span>
-                            <span>{Number(item.rating || item.partner_rating || 4.5).toFixed(1)}</span>
-                          </div>
+                          {(item.rating != null || item.partner_rating != null) && (
+                            <div className="card-rating">
+                              <span className="rating-star">⭐</span>
+                              <span>{Number(item.rating ?? item.partner_rating).toFixed(1)}</span>
+                            </div>
+                          )}
                         </div>
                         <div className="card-content">
                           <div className="card-meta-row">
@@ -1135,12 +1151,13 @@ const HomePage = () => {
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleDealCardClick(item, e); } }}
                     aria-label={`View details for ${item.title}`}
                   >
-                    <div
-                      className="card-image"
-                      style={{ backgroundImage: `url(${item.image || item.image_url})` }}
-                      role="img"
-                      aria-label={item.title}
-                    >
+                    <div className="card-image" role="img" aria-label={item.title}>
+                      <img
+                        src={getDealImageUrl(item, API_BASE)}
+                        alt=""
+                        className="card-image-img"
+                        onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_DEAL_IMAGE_URL; }}
+                      />
                       <div className="card-badge trending">🔥 Trending</div>
                       {item.min_tier_name && (
                         <div className="card-badge" style={{ background: "rgba(167, 139, 250, 0.9)", color: "#fff" }} title={`Unlock at ${item.min_tier_name} tier`}>Unlock at {item.min_tier_name}</div>
@@ -1237,12 +1254,13 @@ const HomePage = () => {
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleDealCardClick(restaurant, e); } }}
                     aria-label={`View ${restaurant.title}`}
                   >
-                    <div
-                      className="home-card-image"
-                      style={{ backgroundImage: `url(${restaurant.image})` }}
-                      role="img"
-                      aria-label={restaurant.title}
-                    >
+                    <div className="home-card-image" role="img" aria-label={restaurant.title}>
+                      <img
+                        src={restaurant.image || getDealImageUrl(restaurant, API_BASE)}
+                        alt=""
+                        className="home-card-image-img"
+                        onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_DEAL_IMAGE_URL; }}
+                      />
                       <div className="home-card-badge rating">⭐ {Number(restaurant.rating).toFixed(1)}</div>
                     </div>
                     <div className="home-card-body">
@@ -1301,7 +1319,7 @@ const HomePage = () => {
                   >
                     <div
                       className="home-card-image"
-                      style={{ backgroundImage: `url(${event.image})` }}
+                      style={{ backgroundImage: `url(${getDealImageUrl(event, API_BASE)})` }}
                       role="img"
                       aria-label={event.title}
                     >
@@ -1370,7 +1388,7 @@ const HomePage = () => {
                   >
                     <div
                       className="home-card-image"
-                      style={{ backgroundImage: `url(${event.image})` }}
+                      style={{ backgroundImage: `url(${getDealImageUrl(event, API_BASE)})` }}
                       role="img"
                       aria-label={event.title}
                     />
@@ -1414,17 +1432,25 @@ const HomePage = () => {
               </div>
             ) : (
               <div className="deals-scroll-container">
-                {searchFilteredPartnerDealsWithDistance.map((deal) => (
-                  <div key={deal.id} className="deals-scroll-card">
-                    <ExperienceCard
-                      deal={deal}
-                      onBook={handleBookDeal}
-                      formatPrice={formatPrice}
-                      formatPriceLabel={formatPriceLabel}
-                      formatDistance={formatDistance}
-                    />
-                  </div>
-                ))}
+                {searchFilteredPartnerDealsWithDistance.map((deal) => {
+                  const imageUrl = getDealImageUrl(deal, API_BASE);
+                  const dealWithImage = {
+                    ...deal,
+                    image: imageUrl,
+                    image_url: deal.image_url ?? deal.image ?? imageUrl,
+                  };
+                  return (
+                    <div key={deal.id} className="deals-scroll-card">
+                      <ExperienceCard
+                        deal={dealWithImage}
+                        onBook={handleBookDeal}
+                        formatPrice={formatPrice}
+                        formatPriceLabel={formatPriceLabel}
+                        formatDistance={formatDistance}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -2070,6 +2096,15 @@ const HomePage = () => {
         .trending-scroll-container .card-image {
           height: 180px;
           position: relative;
+          overflow: hidden;
+        }
+        .trending-scroll-container .card-image .card-image-img {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center;
         }
         .trending-scroll-container .card-image::after {
           content: "";
@@ -2140,6 +2175,15 @@ const HomePage = () => {
           background-size: cover;
           background-position: center;
           position: relative;
+          overflow: hidden;
+        }
+        .card-image .card-image-img {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center;
         }
 
         .card-badge {
@@ -2526,6 +2570,15 @@ const HomePage = () => {
           background-size: cover;
           background-position: center;
           position: relative;
+          overflow: hidden;
+        }
+        .home-card-image .home-card-image-img {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          object-position: center;
         }
         .home-card-badge {
           position: absolute;

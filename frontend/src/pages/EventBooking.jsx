@@ -147,6 +147,16 @@ const EventBooking = () => {
         return;
       }
 
+      const needsDateAndTime = deal?.service_type === "dining" || deal?.service_type === "events";
+      if (needsDateAndTime && bookingDate && bookingTime) {
+        const bookingDt = new Date(`${bookingDate}T${bookingTime}:00`);
+        if (!Number.isNaN(bookingDt.getTime()) && bookingDt.getTime() < Date.now()) {
+          setError("Selected date and time have already passed. Please choose a current or future time.");
+          setLoading(false);
+          return;
+        }
+      }
+
       // Prepare booking data
       const bookingData = {
         offer_id: deal.id,
@@ -187,9 +197,15 @@ const EventBooking = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
+        console.log("✅ Booking created:", result.data);
+        // Always show the same voucher view as after reschedule (BookingDetails: map, QR, Booking Time, etc.)
+        const bookingId = result.data?.id ?? result.data?.booking_id;
+        if (bookingId) {
+          navigate(`/booking/${bookingId}`, { state: { booking: result.data }, replace: true });
+          return;
+        }
         setBookingResult(result.data);
         setCurrentScreen(SCREEN_CONFIRMATION);
-        console.log("✅ Booking created:", result.data);
       } else {
         const errorMsg =
           result?.message ?? result?.error ?? "Failed to create booking";

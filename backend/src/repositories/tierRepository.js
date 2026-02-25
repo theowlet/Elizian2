@@ -262,7 +262,8 @@ async function resetAnnualSpendForNewYear() {
   }
 }
 
-// Calculate EZT reward for booking
+// Loyalty EZT = tier % of Fiat Spent. Fiat Spent = Total Bill − Co-pay by EZT.
+// Formula: loyalty_ezt = (fiat_spent × tier_percentage) / 1000 (e.g. Ather 1%, ₹2800 fiat → 2.8 EZT).
 async function calculateEZTReward(userId, cashAmount) {
   try {
     // CRITICAL: Ensure cashAmount is a proper number (DECIMAL) to avoid PostgreSQL type inference errors
@@ -279,11 +280,10 @@ async function calculateEZTReward(userId, cashAmount) {
     }
 
     const percentage = parseFloat(tierInfo.ezt_reward_percentage) || 1.0;
-    const eztValue = 100; // 1 EZT = ₹100
-    const eztAmount = (amount * percentage / 100) / eztValue;
+    const eztAmount = (amount * percentage) / 1000;
 
     return {
-      eztAmount: parseFloat(eztAmount.toFixed(4)),
+      eztAmount: parseFloat(eztAmount.toFixed(5)),
       percentage,
       tierName: tierInfo.current_tier_name,
       tierLevel: tierInfo.tier_level

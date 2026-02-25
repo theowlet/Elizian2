@@ -16,7 +16,7 @@ const formatDealFromApi = (item) => ({
   image: item.image_url || "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
   service_type: item.service_type || "others",
   is_trending: item.is_trending || false,
-  rating: (item.rating || item.partner_rating) ?? 4.5,
+  rating: item.rating ?? item.partner_rating ?? null,
   latitude: item.latitude || item.partner_latitude,
   longitude: item.longitude || item.partner_longitude,
   partner_id: item.partner_id,

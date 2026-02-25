@@ -15,6 +15,7 @@ const BookingDetails = () => {
   const [checkInStatus, setCheckInStatus] = useState(null); // null | 'locating' | 'success' | 'too_far' | 'error'
   const [checkInMessage, setCheckInMessage] = useState('');
   const [pendingRedemption, setPendingRedemption] = useState(null);
+  const [disputableRedemption, setDisputableRedemption] = useState(null); // redeemed but within dispute window
   const [customerEztBalance, setCustomerEztBalance] = useState(null);
   const [disputeReason, setDisputeReason] = useState('');
   const [showDisputeInput, setShowDisputeInput] = useState(false);
@@ -31,7 +32,18 @@ const BookingDetails = () => {
 
   // When opened from list, booking may lack venue/deal – fetch once to get full voucher details
   useEffect(() => {
-    if (booking && id && (booking.partner_name == null) && (booking.deal_title == null)) {
+    if (
+      booking &&
+      id &&
+      (
+        booking.partner_name == null ||
+        booking.deal_title == null ||
+        booking.partner_address == null ||
+        booking.partner_phone == null ||
+        booking.partner_latitude == null ||
+        booking.partner_longitude == null
+      )
+    ) {
       loadBookingDetails();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,7 +128,8 @@ const BookingDetails = () => {
   };
 
   const handleDisputeRedemption = async () => {
-    if (!pendingRedemption) return;
+    const redemptionId = pendingRedemption?.redemption_id || disputableRedemption?.redemption_id;
+    if (!redemptionId) return;
     if (!showDisputeInput) {
       setShowDisputeInput(true);
       return;
@@ -125,7 +138,7 @@ const BookingDetails = () => {
     setConfirmLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const r = await fetch(`${API_BASE}/api/v1/redemptions/${pendingRedemption.redemption_id}/dispute`, {
+      const r = await fetch(`${API_BASE}/api/v1/redemptions/${redemptionId}/dispute`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })
@@ -133,8 +146,9 @@ const BookingDetails = () => {
       const j = await r.json();
       if (j.success) {
         setConfirmResult('disputed');
-        setConfirmMessage('Redemption disputed. No tokens were deducted.');
+        setConfirmMessage('Redemption disputed. Our team will review.');
         setPendingRedemption(null);
+        setDisputableRedemption(null);
         setShowDisputeInput(false);
         setDisputeReason('');
         loadBookingDetails();
@@ -208,6 +222,7 @@ const BookingDetails = () => {
             deal_title: result.data.deal_title ?? prev?.deal_title,
             partner_name: result.data.partner_name ?? prev?.partner_name
           }));
+          setDisputableRedemption(result.data.disputable_redemption || null);
           setQrCodeLoading(false);
           // If QR code was just generated, it will be in the response
           if (result.data.qr_code_url) {
@@ -441,15 +456,54 @@ const BookingDetails = () => {
     fontSerif: "'Playfair Display', 'DM Serif Display', Georgia, serif",
   };
 
+  // When partner has redeemed but customer has not confirmed, voucher_state is pending_confirmation — show that instead of "Redeemed"
+  const displayStatus = (booking.voucher_state === 'pending_confirmation')
+    ? 'pending_confirmation'
+    : booking.status;
+  const statusText = {
+    confirmed: 'Voucher Confirmed',
+    pending: 'Booking Pending',
+    pending_confirmation: 'Awaiting Your Confirmation',
+    cancelled: 'Booking Cancelled',
+    redeemed: 'Voucher Redeemed',
+    completed: 'Booking Completed',
+  }[displayStatus] || (displayStatus ? String(displayStatus).replace(/_/g, ' ') : 'Booking Status');
+
+  const statusColor = displayStatus === 'confirmed'
+    ? '#16a34a'
+    : (displayStatus === 'pending_confirmation' ? '#f59e0b' : displayStatus === 'cancelled' ? '#dc2626' : '#f59e0b');
+
+  const bookingDateText = booking.booking_date
+    ? `${formatDate(booking.booking_date)}${booking.booking_time ? `, ${formatTime(booking.booking_time)}` : ''}`
+    : formatDate(booking.created_at);
+
+  const partnerLat = booking.partner_latitude != null ? Number(booking.partner_latitude) : null;
+  const partnerLng = booking.partner_longitude != null ? Number(booking.partner_longitude) : null;
+  const hasMapLocation = Number.isFinite(partnerLat) && Number.isFinite(partnerLng);
+  const mapDelta = 0.005;
+  const mapEmbedUrl = hasMapLocation
+    ? `https://www.openstreetmap.org/export/embed.html?bbox=${partnerLng - mapDelta},${partnerLat - mapDelta},${partnerLng + mapDelta},${partnerLat + mapDelta}&layer=mapnik&marker=${partnerLat},${partnerLng}`
+    : null;
+
+  const partnerAddress = booking.partner_address || 'Address not available';
+  const destinationValue = hasMapLocation
+    ? `${partnerLat},${partnerLng}`
+    : [booking.partner_name, partnerAddress].filter(Boolean).join(', ');
+  const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destinationValue)}`;
+  const partnerPhoneRaw = booking.partner_phone ? String(booking.partner_phone) : '';
+  const partnerPhoneDial = partnerPhoneRaw.replace(/[^\d+]/g, '');
+  const canCallVenue = partnerPhoneDial.length > 0;
+  const bookedFor = booking.customer_name || 'You';
+  const venueAvatarLabel = (booking.partner_name || booking.deal_title || 'V').slice(0, 1).toUpperCase();
+
   return (
     <div style={{ minHeight: '100vh', background: theme.bg, color: '#F3F4F6', padding: '1rem 1rem 2rem' }}>
       <div style={{ maxWidth: '480px', margin: '0 auto' }}>
-        {/* Header: back | Booking (gold) | CONFIRMED badge */}
+        {/* Confirmation Header */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '1.5rem',
+          marginBottom: '1rem',
           gap: '0.5rem',
         }}>
           <button
@@ -459,9 +513,9 @@ const BookingDetails = () => {
               padding: '0.5rem',
               background: 'transparent',
               border: 'none',
-              color: theme.gold,
+              color: '#e5e7eb',
               cursor: 'pointer',
-              fontSize: '1.25rem',
+              fontSize: '1.4rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -470,73 +524,148 @@ const BookingDetails = () => {
           >
             ←
           </button>
-          <h1 style={{
-            margin: 0,
-            fontSize: '1.35rem',
-            fontWeight: 600,
-            color: theme.gold,
-            fontFamily: theme.fontSerif,
-            flex: 1,
-            textAlign: 'center',
-          }}>
-            Booking
-          </h1>
           <div style={{
-            padding: '0.35rem 0.65rem',
-            borderRadius: '8px',
-            background: theme.confirmedBadge,
-            color: theme.confirmedText,
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            letterSpacing: '0.03em',
-            minWidth: '80px',
-            textAlign: 'center',
+            flex: 1,
+            minWidth: 0,
           }}>
-            {booking.status === 'confirmed' && 'CONFIRMED'}
-            {booking.status === 'pending' || booking.status === 'pending_confirmation' ? 'PENDING' : null}
-            {booking.status === 'cancelled' && 'CANCELLED'}
-            {booking.status === 'redeemed' && 'REDEEMED'}
-            {booking.status === 'completed' && 'COMPLETED'}
-            {!['confirmed', 'pending', 'pending_confirmation', 'cancelled', 'redeemed', 'completed'].includes(booking.status) && (booking.status || '—').toUpperCase()}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.15rem' }}>
+              <div style={{ fontSize: '1.5rem', lineHeight: 1 }}>✅</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: statusColor, lineHeight: 1.2 }}>
+                {statusText}
+              </div>
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#9ca3af', paddingLeft: '2rem' }}>
+              Booking ID: {booking.booking_reference || `BK${booking.id}`}
+            </div>
           </div>
         </div>
 
-        {/* Info list: Booking ID, Date & Time, Guests/Tickets, Amount */}
+        {/* Voucher Confirmation Card */}
         <div style={{
-          background: theme.card,
-          borderRadius: '12px',
-          padding: '1rem 1.25rem',
+          background: '#f8fafc',
+          borderRadius: '16px',
+          border: '1px solid #e2e8f0',
+          overflow: 'hidden',
           marginBottom: '1.25rem',
-          border: `1px solid ${theme.border}`,
+          color: '#0f172a',
+          boxShadow: '0 8px 26px rgba(0,0,0,0.2)',
         }}>
-          <div style={{ marginBottom: '0.85rem' }}>
-            <div style={{ color: theme.muted, fontSize: '0.8rem', marginBottom: '0.2rem' }}>Booking ID</div>
-            <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>
-              {booking.booking_reference || `BK${booking.id}`}
+          <div style={{ padding: '1.1rem 1.1rem 0.8rem' }}>
+            <div style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '0.15rem' }}>
+              Upcoming Booking
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>
+              {booking.deal_title || 'Voucher Confirmation'}
             </div>
           </div>
-          <div style={{ marginBottom: '0.85rem' }}>
-            <div style={{ color: theme.muted, fontSize: '0.8rem', marginBottom: '0.2rem' }}>Date & Time</div>
-            <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>
-              {booking.booking_date ? (
-                <>
-                  {formatDate(booking.booking_date)}
-                  {booking.booking_time ? `, ${formatTime(booking.booking_time)}` : ''}
-                </>
-              ) : (
-                formatDate(booking.created_at)
-              )}
+
+          <div style={{ height: '190px', background: '#e2e8f0', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
+            {mapEmbedUrl ? (
+              <iframe
+                title="Venue Map"
+                src={mapEmbedUrl}
+                style={{ width: '100%', height: '100%', border: 0 }}
+                loading="lazy"
+              />
+            ) : (
+              <div style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#475569',
+                fontWeight: 600,
+                padding: '0 1rem',
+                textAlign: 'center',
+              }}>
+                Venue location preview will appear when coordinates are available.
+              </div>
+            )}
+          </div>
+
+          <div style={{ padding: '1rem 1.1rem 1.1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.8rem', marginBottom: '0.8rem' }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '0.2rem' }}>Booking Time</div>
+                <div style={{ fontSize: '1.45rem', fontWeight: 800, lineHeight: 1.25, color: '#111827' }}>
+                  {bookingDateText}
+                </div>
+                <div style={{ marginTop: '0.35rem', fontSize: '0.95rem', color: '#334155', fontWeight: 600 }}>
+                  {booking.partner_name || 'Partner Venue'}
+                </div>
+                <div style={{ fontSize: '0.9rem', color: '#64748b' }}>
+                  Booked for - {bookedFor}
+                </div>
+                <div style={{ marginTop: '0.45rem', display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#0f172a', background: '#e2e8f0', borderRadius: '999px', padding: '0.22rem 0.6rem', fontWeight: 700 }}>
+                    {booking.num_tickets || booking.num_guests || 1} {booking.deal_title ? 'Guests' : 'Tickets'}
+                  </span>
+                  <span style={{ fontSize: '0.78rem', color: '#0f172a', background: '#dcfce7', borderRadius: '999px', padding: '0.22rem 0.6rem', fontWeight: 700 }}>
+                    {formatPrice(booking.total_price || booking.fiat_amount)}
+                  </span>
+                </div>
+              </div>
+              <div style={{
+                width: '58px',
+                height: '58px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #0f172a, #334155)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: '1.1rem',
+                flexShrink: 0,
+                marginTop: '0.15rem',
+              }}>
+                {venueAvatarLabel}
+              </div>
             </div>
-          </div>
-          <div style={{ marginBottom: '0.85rem' }}>
-            <div style={{ color: theme.muted, fontSize: '0.8rem', marginBottom: '0.2rem' }}>Guests/Tickets</div>
-            <div style={{ fontSize: '0.95rem', fontWeight: 600 }}>{booking.num_tickets || booking.num_guests || 1}</div>
-          </div>
-          <div>
-            <div style={{ color: theme.muted, fontSize: '0.8rem', marginBottom: '0.2rem' }}>Amount</div>
-            <div style={{ fontSize: '0.95rem', fontWeight: 600, color: theme.gold }}>
-              {formatPrice(booking.total_price || booking.fiat_amount)}
+
+            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.8rem' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.3rem', color: '#1e293b' }}>
+                {booking.partner_name || 'Venue'}
+              </div>
+              <div style={{ fontSize: '0.95rem', color: '#475569', lineHeight: 1.45 }}>
+                {partnerAddress}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.85rem' }}>
+                <button
+                  type="button"
+                  onClick={() => { if (canCallVenue) window.location.href = `tel:${partnerPhoneDial}`; }}
+                  disabled={!canCallVenue}
+                  style={{
+                    padding: '0.68rem 0.75rem',
+                    borderRadius: '10px',
+                    border: '2px solid #0ea5e9',
+                    background: '#fff',
+                    color: canCallVenue ? '#0284c7' : '#94a3b8',
+                    fontWeight: 700,
+                    cursor: canCallVenue ? 'pointer' : 'not-allowed',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  📞 Call Venue
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.open(directionsUrl, '_blank', 'noopener,noreferrer')}
+                  style={{
+                    padding: '0.68rem 0.75rem',
+                    borderRadius: '10px',
+                    border: '2px solid #0ea5e9',
+                    background: '#fff',
+                    color: '#0284c7',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  🧭 Directions
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -843,7 +972,60 @@ const BookingDetails = () => {
           </div>
         )}
 
-        {/* Pending Redemption Confirmation */}
+        {/* Redeemed: dispute within window (no confirm step; partner redeem is final) */}
+        {disputableRedemption && !pendingRedemption && !confirmResult && (
+          <div style={{
+            background: 'linear-gradient(135deg, #422006, #78350f)',
+            borderRadius: '12px',
+            padding: '1.5rem',
+            marginBottom: '1.5rem',
+            border: '2px solid #f59e0b'
+          }}>
+            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', color: '#fcd34d' }}>🔔 Voucher was redeemed</h3>
+            <p style={{ color: '#fde68a', fontSize: '0.9rem', marginBottom: '1rem' }}>
+              Your voucher was redeemed at the venue. If this wasn&apos;t you or something went wrong, you can raise a dispute before the time limit.
+            </p>
+            {showDisputeInput && (
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', color: '#fde68a', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Reason for disputing (required)</label>
+                <textarea
+                  value={disputeReason}
+                  onChange={(e) => setDisputeReason(e.target.value)}
+                  placeholder="e.g. I was not at the venue / Wrong amount charged"
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #f59e0b',
+                    background: 'rgba(0,0,0,0.2)',
+                    color: '#fef3c7',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            )}
+            <button
+              onClick={handleDisputeRedemption}
+              disabled={confirmLoading || (showDisputeInput && !(disputeReason && String(disputeReason).trim()))}
+              style={{
+                padding: '0.85rem 1.25rem',
+                background: showDisputeInput ? '#dc2626' : 'transparent',
+                color: '#fca5a5',
+                border: '2px solid #ef4444',
+                borderRadius: '10px',
+                cursor: confirmLoading ? 'wait' : 'pointer',
+                fontSize: '1rem',
+                fontWeight: 700
+              }}
+            >
+              {confirmLoading ? 'Processing...' : showDisputeInput ? 'Submit dispute' : '❌ Dispute this redemption'}
+            </button>
+          </div>
+        )}
+
+        {/* Pending Redemption Confirmation (legacy: pending_confirmation flow) */}
         {pendingRedemption && !confirmResult && (
           <div style={{
             background: 'linear-gradient(135deg, #1e1b4b, #312e81)',
@@ -873,10 +1055,10 @@ const BookingDetails = () => {
             {customerEztBalance != null && (
               <div style={{ marginBottom: '1rem', padding: '0.75rem', background: 'rgba(255,255,255,0.06)', borderRadius: '8px', fontSize: '0.9rem' }}>
                 <div style={{ color: '#a5b4fc' }}>Current EZT balance</div>
-                <div style={{ fontWeight: 700 }}>{Number(customerEztBalance).toFixed(2)} EZT</div>
+                <div style={{ fontWeight: 700 }}>{Number(customerEztBalance).toFixed(5)} EZT</div>
                 <div style={{ color: '#a5b4fc', marginTop: '0.5rem' }}>After this redemption</div>
                 <div style={{ fontWeight: 700, color: '#34d399' }}>
-                  {Math.max(0, customerEztBalance - parseFloat(pendingRedemption.ezt_tokens_required || (pendingRedemption.ezt_co_pay_amount / 100) || 0)).toFixed(2)} EZT
+                  {Math.max(0, customerEztBalance - parseFloat(pendingRedemption.ezt_tokens_required || (pendingRedemption.ezt_co_pay_amount / 100) || 0)).toFixed(5)} EZT
                 </div>
               </div>
             )}
@@ -912,7 +1094,7 @@ const BookingDetails = () => {
               </div>
               <div>
                 <div style={{ color: '#a5b4fc', fontSize: '0.8rem' }}>EZT to deduct</div>
-                <div style={{ fontWeight: 700 }}>{parseFloat(pendingRedemption.ezt_tokens_required || (pendingRedemption.ezt_co_pay_amount / 100) || 0).toFixed(2)} EZT</div>
+                <div style={{ fontWeight: 700 }}>{parseFloat(pendingRedemption.ezt_tokens_required || (pendingRedemption.ezt_co_pay_amount / 100) || 0).toFixed(5)} EZT</div>
               </div>
               <div>
                 <div style={{ color: '#a5b4fc', fontSize: '0.8rem' }}>You Paid (Cash/Card)</div>
@@ -1004,5 +1186,3 @@ const BookingDetails = () => {
 };
 
 export default BookingDetails;
-
-

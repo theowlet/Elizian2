@@ -278,7 +278,7 @@ const NfcTapPage = () => {
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={styles.eztLabel}>EZT Balance</div>
-                <div style={styles.eztValue}>{eztEarned != null ? eztEarned.toFixed(2) : '—'}</div>
+                <div style={styles.eztValue}>{eztEarned != null ? eztEarned.toFixed(5) : '—'}</div>
               </div>
             </div>
             <div style={styles.eztEarnRate}>

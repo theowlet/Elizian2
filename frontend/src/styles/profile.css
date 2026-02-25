@@ -74,6 +74,46 @@
   object-fit: cover;
 }
 
+.profile-photo-button {
+  position: relative;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-photo-button:disabled {
+  cursor: wait;
+  opacity: 0.8;
+}
+
+.profile-photo-brand {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+.profile-photo-uploading {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.7rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.profile-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #020617 100%);
+  color: #e5e7eb;
+  font-weight: 700;
+  font-size: 1.5rem;
+}
+
 .profile-section-title {
   font-size: 0.875rem;
   font-weight: 600;
@@ -118,6 +158,14 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
+}
+
+.profile-tokens-tappable:hover {
+  opacity: 0.95;
+}
+
+.profile-tokens-tappable:active {
+  opacity: 0.9;
 }
 
 .profile-token-item {

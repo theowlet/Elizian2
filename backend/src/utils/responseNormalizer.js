@@ -2,6 +2,7 @@
  * Response Normalizer Utility
  * Ensures all API responses have consistent, safe shapes with fallbacks
  */
+const { FALLBACK_IMAGE_URL } = require('./offerImageUrl');
 
 /**
  * Normalizes an offer/deal object to ensure all fields are present with safe defaults
@@ -16,8 +17,8 @@ function normalizeOffer(offer) {
   const trendingFlag = Boolean(offer.is_trending || offer.is_promoted);
   const originalPrice = parseFloat(offer.original_price) || null;
   const discountedPrice = parseFloat(offer.discounted_price) || null;
-  // Use stored co_pay_percentage as-is, rounded to 2 decimals (50 stays 50; never derive from prices)
-  const rawCoPay = parseFloat(offer.co_pay_percentage);
+  // Single source of truth: co_pay_percentage from DB only; never derive from prices or ezt_equivalent
+  const rawCoPay = offer.co_pay_percentage != null ? Number(offer.co_pay_percentage) : NaN;
   const coPayPercentage = Number.isFinite(rawCoPay) ? Math.round(rawCoPay * 100) / 100 : null;
   const discountAmount = parseFloat(offer.discount_amount) || null;
 
@@ -44,10 +45,17 @@ function normalizeOffer(offer) {
 
   const hasDiscount = originalPrice > 0 && calculatedDiscounted < originalPrice;
 
-  // Normalize image URL
+  // Normalize image URL — keep full URLs; only prefix relative keys; never use a path that 404s on the frontend
   let imageUrl = offer.image_url || null;
-  if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
-    imageUrl = `/${imageUrl}`;
+  if (imageUrl && typeof imageUrl === 'string') {
+    const t = imageUrl.trim();
+    if (t.startsWith('http://') || t.startsWith('https://') || t.startsWith('data:')) {
+      imageUrl = t;
+    } else if (t.startsWith('/')) {
+      imageUrl = t;
+    } else {
+      imageUrl = `/${t}`;
+    }
   }
 
   return {
@@ -58,9 +66,9 @@ function normalizeOffer(offer) {
     partner_name: offer.partner_name || offer.name || 'Unknown Partner',
     service_type: offer.service_type || 'others',
     category_name: offer.category_name || null,
-    
-    // Image with fallback
-    image_url: imageUrl || '/assets/default-offer.jpg',
+
+    // Image: preserve repo URL or use shared fallback (single source: offerImageUrl.FALLBACK_IMAGE_URL)
+    image_url: imageUrl || FALLBACK_IMAGE_URL,
     
     // Discount object with all fields
     discount: {
@@ -126,7 +134,7 @@ function getEmptyOffer() {
     partner_name: 'Unknown Partner',
     service_type: 'others',
     category_name: null,
-    image_url: '/assets/default-offer.jpg',
+    image_url: FALLBACK_IMAGE_URL,
     discount: {
       original: null,
       discounted: null,

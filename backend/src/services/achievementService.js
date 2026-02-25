@@ -108,16 +108,16 @@ class AchievementService {
           'SELECT COUNT(*) as count FROM referrals WHERE referrer_id = $1 AND status = $2',
           [userId, 'completed']
         ).catch(() => ({ rows: [{ count: 0 }] })),
-        // Current tier
+        // Current tier (users.current_tier_name)
         pool.query(
-          'SELECT tier FROM users WHERE id = $1',
+          'SELECT current_tier_name AS tier FROM users WHERE id = $1',
           [userId]
         ),
-        // Total spending
+        // Total spending (lifetime_spend or annual_spend_current from tier schema; fallback 0)
         pool.query(
-          'SELECT total_spend FROM users WHERE id = $1',
+          'SELECT COALESCE(lifetime_spend, annual_spend_current, 0) AS total_spend FROM users WHERE id = $1',
           [userId]
-        )
+        ).catch(() => ({ rows: [{ total_spend: 0 }] }))
       ]);
 
       return {

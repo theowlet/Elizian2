@@ -1,0 +1,178 @@
+/* Venue Meme Card – collectible / NFT-style */
+
+.venue-meme-card {
+  flex: 0 0 auto;
+  width: min(85vw, 320px);
+  min-width: min(85vw, 320px);
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  text-align: left;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(255, 255, 255, 0.06);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.venue-meme-card:active {
+  transform: scale(0.98);
+}
+
+.venue-meme-card__frame {
+  position: relative;
+  height: 200px;
+  min-height: 200px;
+  padding: 20px 18px;
+  background: linear-gradient(165deg, #0f0f1a 0%, #1a1a2e 35%, #16213e 70%, #0f3460 100%);
+  border: 3px solid #3d3d5c;
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Header: avatar (fixed width) + title block — no overlap */
+.venue-meme-card__header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.venue-meme-card__title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.venue-meme-card__badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(0, 0, 0, 0.35);
+  padding: 4px 8px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-bottom: 4px;
+}
+
+.venue-meme-card__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #f1f5f9;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.venue-meme-card__subtitle {
+  margin: 0 0 12px 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  color: #94a3b8;
+}
+
+.venue-meme-card__footer {
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.venue-meme-card__earned {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* Avatar circle — fixed size, no overlap with text */
+.venue-meme-card__avatar-wrap {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 2px solid rgba(248, 250, 252, 0.8);
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.7);
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.venue-meme-card__edit-avatar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.5);
+  background: rgba(30, 41, 59, 0.95);
+  color: #e2e8f0;
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 1;
+}
+
+.venue-meme-card__avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.venue-meme-card__avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 30% 20%, #facc15 0%, #0f172a 55%, #020617 100%);
+  color: #f9fafb;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.venue-meme-card__avatar-placeholder-hidden {
+  display: none;
+}
+
+/* Color variants for more colourful/snobbish feel */
+.venue-meme-card--v0 .venue-meme-card__frame {
+  background: radial-gradient(circle at top left, #f97316 0%, #0f172a 45%, #020617 100%);
+  border-color: #fb923c;
+}
+
+.venue-meme-card--v1 .venue-meme-card__frame {
+  background: radial-gradient(circle at top, #eab308 0%, #1e293b 45%, #020617 100%);
+  border-color: #facc15;
+}
+
+.venue-meme-card--v2 .venue-meme-card__frame {
+  background: radial-gradient(circle at center, #22c55e 0%, #0f172a 45%, #020617 100%);
+  border-color: #4ade80;
+}
+
+.venue-meme-card--v3 .venue-meme-card__frame {
+  background: radial-gradient(circle at top right, #38bdf8 0%, #0f172a 45%, #020617 100%);
+  border-color: #7dd3fc;
+}
+
+@media (prefers-color-scheme: light) {
+  .venue-meme-card__frame {
+    background: linear-gradient(165deg, #1e293b 0%, #334155 40%, #475569 100%);
+    border-color: #64748b;
+  }
+  .venue-meme-card__title { color: #f8fafc; }
+}

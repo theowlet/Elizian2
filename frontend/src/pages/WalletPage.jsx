@@ -95,12 +95,12 @@ const WalletPage = () => {
           <div style={s.balanceTop}>
             <div>
               <div style={s.balLabel}>EZT Balance</div>
-              <div style={s.balValue}>{eztBalance.toFixed(2)}</div>
-              <div style={s.balSub}>≈ ₹{(eztBalance * 100).toLocaleString('en-IN')}</div>
+              <div style={s.balValue}>{eztBalance.toFixed(5)}</div>
+              <div style={s.balSub}>₹{(eztBalance * 100).toLocaleString('en-IN')} (1 EZT = ₹100)</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={s.balLabel}>Total Earned</div>
-              <div style={{ ...s.balValue, fontSize: '1.2rem' }}>{eztTotal.toFixed(2)}</div>
+              <div style={{ ...s.balValue, fontSize: '1.2rem' }}>{eztTotal.toFixed(5)}</div>
             </div>
           </div>
 
@@ -196,7 +196,7 @@ const WalletPage = () => {
                     ...s.txnAmount,
                     color: tx.ledger_type === 'earned' ? '#059669' : '#d97706',
                   }}>
-                    {tx.ledger_type === 'earned' ? '+' : '-'}{Number(tx.amount).toFixed(2)} EZT
+                    {tx.ledger_type === 'earned' ? '+' : '-'}{Number(tx.amount).toFixed(5)} EZT
                   </div>
                 </div>
               ))

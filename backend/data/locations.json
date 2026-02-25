@@ -1,0 +1,5586 @@
+{
+  "countries": [
+    {
+      "id": "AF",
+      "name": "Afghanistan"
+    },
+    {
+      "id": "AL",
+      "name": "Albania"
+    },
+    {
+      "id": "DZ",
+      "name": "Algeria"
+    },
+    {
+      "id": "AD",
+      "name": "Andorra"
+    },
+    {
+      "id": "AO",
+      "name": "Angola"
+    },
+    {
+      "id": "AG",
+      "name": "Antigua and Barbuda"
+    },
+    {
+      "id": "AR",
+      "name": "Argentina"
+    },
+    {
+      "id": "AM",
+      "name": "Armenia"
+    },
+    {
+      "id": "AU",
+      "name": "Australia"
+    },
+    {
+      "id": "AT",
+      "name": "Austria"
+    },
+    {
+      "id": "AZ",
+      "name": "Azerbaijan"
+    },
+    {
+      "id": "BS",
+      "name": "Bahamas"
+    },
+    {
+      "id": "BH",
+      "name": "Bahrain"
+    },
+    {
+      "id": "BD",
+      "name": "Bangladesh"
+    },
+    {
+      "id": "BB",
+      "name": "Barbados"
+    },
+    {
+      "id": "BY",
+      "name": "Belarus"
+    },
+    {
+      "id": "BE",
+      "name": "Belgium"
+    },
+    {
+      "id": "BZ",
+      "name": "Belize"
+    },
+    {
+      "id": "BJ",
+      "name": "Benin"
+    },
+    {
+      "id": "BT",
+      "name": "Bhutan"
+    },
+    {
+      "id": "BO",
+      "name": "Bolivia"
+    },
+    {
+      "id": "BA",
+      "name": "Bosnia and Herzegovina"
+    },
+    {
+      "id": "BW",
+      "name": "Botswana"
+    },
+    {
+      "id": "BR",
+      "name": "Brazil"
+    },
+    {
+      "id": "BN",
+      "name": "Brunei"
+    },
+    {
+      "id": "BG",
+      "name": "Bulgaria"
+    },
+    {
+      "id": "BF",
+      "name": "Burkina Faso"
+    },
+    {
+      "id": "BI",
+      "name": "Burundi"
+    },
+    {
+      "id": "CV",
+      "name": "Cabo Verde"
+    },
+    {
+      "id": "KH",
+      "name": "Cambodia"
+    },
+    {
+      "id": "CM",
+      "name": "Cameroon"
+    },
+    {
+      "id": "CA",
+      "name": "Canada"
+    },
+    {
+      "id": "CF",
+      "name": "Central African Republic"
+    },
+    {
+      "id": "TD",
+      "name": "Chad"
+    },
+    {
+      "id": "CL",
+      "name": "Chile"
+    },
+    {
+      "id": "CN",
+      "name": "China"
+    },
+    {
+      "id": "CO",
+      "name": "Colombia"
+    },
+    {
+      "id": "KM",
+      "name": "Comoros"
+    },
+    {
+      "id": "CG",
+      "name": "Congo"
+    },
+    {
+      "id": "CD",
+      "name": "Congo, Democratic Republic of"
+    },
+    {
+      "id": "CR",
+      "name": "Costa Rica"
+    },
+    {
+      "id": "HR",
+      "name": "Croatia"
+    },
+    {
+      "id": "CU",
+      "name": "Cuba"
+    },
+    {
+      "id": "CY",
+      "name": "Cyprus"
+    },
+    {
+      "id": "CZ",
+      "name": "Czechia"
+    },
+    {
+      "id": "DK",
+      "name": "Denmark"
+    },
+    {
+      "id": "DJ",
+      "name": "Djibouti"
+    },
+    {
+      "id": "DM",
+      "name": "Dominica"
+    },
+    {
+      "id": "DO",
+      "name": "Dominican Republic"
+    },
+    {
+      "id": "EC",
+      "name": "Ecuador"
+    },
+    {
+      "id": "EG",
+      "name": "Egypt"
+    },
+    {
+      "id": "SV",
+      "name": "El Salvador"
+    },
+    {
+      "id": "GQ",
+      "name": "Equatorial Guinea"
+    },
+    {
+      "id": "ER",
+      "name": "Eritrea"
+    },
+    {
+      "id": "EE",
+      "name": "Estonia"
+    },
+    {
+      "id": "SZ",
+      "name": "Eswatini"
+    },
+    {
+      "id": "ET",
+      "name": "Ethiopia"
+    },
+    {
+      "id": "FJ",
+      "name": "Fiji"
+    },
+    {
+      "id": "FI",
+      "name": "Finland"
+    },
+    {
+      "id": "FR",
+      "name": "France"
+    },
+    {
+      "id": "GA",
+      "name": "Gabon"
+    },
+    {
+      "id": "GM",
+      "name": "Gambia"
+    },
+    {
+      "id": "GE",
+      "name": "Georgia"
+    },
+    {
+      "id": "DE",
+      "name": "Germany"
+    },
+    {
+      "id": "GH",
+      "name": "Ghana"
+    },
+    {
+      "id": "GR",
+      "name": "Greece"
+    },
+    {
+      "id": "GD",
+      "name": "Grenada"
+    },
+    {
+      "id": "GT",
+      "name": "Guatemala"
+    },
+    {
+      "id": "GN",
+      "name": "Guinea"
+    },
+    {
+      "id": "GW",
+      "name": "Guinea-Bissau"
+    },
+    {
+      "id": "GY",
+      "name": "Guyana"
+    },
+    {
+      "id": "HT",
+      "name": "Haiti"
+    },
+    {
+      "id": "HN",
+      "name": "Honduras"
+    },
+    {
+      "id": "HK",
+      "name": "Hong Kong"
+    },
+    {
+      "id": "HU",
+      "name": "Hungary"
+    },
+    {
+      "id": "IS",
+      "name": "Iceland"
+    },
+    {
+      "id": "IN",
+      "name": "India"
+    },
+    {
+      "id": "ID",
+      "name": "Indonesia"
+    },
+    {
+      "id": "IR",
+      "name": "Iran"
+    },
+    {
+      "id": "IQ",
+      "name": "Iraq"
+    },
+    {
+      "id": "IE",
+      "name": "Ireland"
+    },
+    {
+      "id": "IL",
+      "name": "Israel"
+    },
+    {
+      "id": "IT",
+      "name": "Italy"
+    },
+    {
+      "id": "JM",
+      "name": "Jamaica"
+    },
+    {
+      "id": "JP",
+      "name": "Japan"
+    },
+    {
+      "id": "JO",
+      "name": "Jordan"
+    },
+    {
+      "id": "KZ",
+      "name": "Kazakhstan"
+    },
+    {
+      "id": "KE",
+      "name": "Kenya"
+    },
+    {
+      "id": "KI",
+      "name": "Kiribati"
+    },
+    {
+      "id": "KP",
+      "name": "Korea, North"
+    },
+    {
+      "id": "KR",
+      "name": "Korea, South"
+    },
+    {
+      "id": "KW",
+      "name": "Kuwait"
+    },
+    {
+      "id": "KG",
+      "name": "Kyrgyzstan"
+    },
+    {
+      "id": "LA",
+      "name": "Laos"
+    },
+    {
+      "id": "LV",
+      "name": "Latvia"
+    },
+    {
+      "id": "LB",
+      "name": "Lebanon"
+    },
+    {
+      "id": "LS",
+      "name": "Lesotho"
+    },
+    {
+      "id": "LR",
+      "name": "Liberia"
+    },
+    {
+      "id": "LY",
+      "name": "Libya"
+    },
+    {
+      "id": "LI",
+      "name": "Liechtenstein"
+    },
+    {
+      "id": "LT",
+      "name": "Lithuania"
+    },
+    {
+      "id": "LU",
+      "name": "Luxembourg"
+    },
+    {
+      "id": "MO",
+      "name": "Macao"
+    },
+    {
+      "id": "MG",
+      "name": "Madagascar"
+    },
+    {
+      "id": "MW",
+      "name": "Malawi"
+    },
+    {
+      "id": "MY",
+      "name": "Malaysia"
+    },
+    {
+      "id": "MV",
+      "name": "Maldives"
+    },
+    {
+      "id": "ML",
+      "name": "Mali"
+    },
+    {
+      "id": "MT",
+      "name": "Malta"
+    },
+    {
+      "id": "MH",
+      "name": "Marshall Islands"
+    },
+    {
+      "id": "MR",
+      "name": "Mauritania"
+    },
+    {
+      "id": "MU",
+      "name": "Mauritius"
+    },
+    {
+      "id": "MX",
+      "name": "Mexico"
+    },
+    {
+      "id": "FM",
+      "name": "Micronesia"
+    },
+    {
+      "id": "MD",
+      "name": "Moldova"
+    },
+    {
+      "id": "MC",
+      "name": "Monaco"
+    },
+    {
+      "id": "MN",
+      "name": "Mongolia"
+    },
+    {
+      "id": "ME",
+      "name": "Montenegro"
+    },
+    {
+      "id": "MA",
+      "name": "Morocco"
+    },
+    {
+      "id": "MZ",
+      "name": "Mozambique"
+    },
+    {
+      "id": "MM",
+      "name": "Myanmar"
+    },
+    {
+      "id": "NA",
+      "name": "Namibia"
+    },
+    {
+      "id": "NR",
+      "name": "Nauru"
+    },
+    {
+      "id": "NP",
+      "name": "Nepal"
+    },
+    {
+      "id": "NL",
+      "name": "Netherlands"
+    },
+    {
+      "id": "NZ",
+      "name": "New Zealand"
+    },
+    {
+      "id": "NI",
+      "name": "Nicaragua"
+    },
+    {
+      "id": "NE",
+      "name": "Niger"
+    },
+    {
+      "id": "NG",
+      "name": "Nigeria"
+    },
+    {
+      "id": "MK",
+      "name": "North Macedonia"
+    },
+    {
+      "id": "NO",
+      "name": "Norway"
+    },
+    {
+      "id": "OM",
+      "name": "Oman"
+    },
+    {
+      "id": "PK",
+      "name": "Pakistan"
+    },
+    {
+      "id": "PW",
+      "name": "Palau"
+    },
+    {
+      "id": "PS",
+      "name": "Palestine"
+    },
+    {
+      "id": "PA",
+      "name": "Panama"
+    },
+    {
+      "id": "PG",
+      "name": "Papua New Guinea"
+    },
+    {
+      "id": "PY",
+      "name": "Paraguay"
+    },
+    {
+      "id": "PE",
+      "name": "Peru"
+    },
+    {
+      "id": "PH",
+      "name": "Philippines"
+    },
+    {
+      "id": "PL",
+      "name": "Poland"
+    },
+    {
+      "id": "PT",
+      "name": "Portugal"
+    },
+    {
+      "id": "PR",
+      "name": "Puerto Rico"
+    },
+    {
+      "id": "QA",
+      "name": "Qatar"
+    },
+    {
+      "id": "RO",
+      "name": "Romania"
+    },
+    {
+      "id": "RU",
+      "name": "Russia"
+    },
+    {
+      "id": "RW",
+      "name": "Rwanda"
+    },
+    {
+      "id": "KN",
+      "name": "Saint Kitts and Nevis"
+    },
+    {
+      "id": "LC",
+      "name": "Saint Lucia"
+    },
+    {
+      "id": "VC",
+      "name": "Saint Vincent and the Grenadines"
+    },
+    {
+      "id": "WS",
+      "name": "Samoa"
+    },
+    {
+      "id": "SM",
+      "name": "San Marino"
+    },
+    {
+      "id": "ST",
+      "name": "Sao Tome and Principe"
+    },
+    {
+      "id": "SA",
+      "name": "Saudi Arabia"
+    },
+    {
+      "id": "SN",
+      "name": "Senegal"
+    },
+    {
+      "id": "RS",
+      "name": "Serbia"
+    },
+    {
+      "id": "SC",
+      "name": "Seychelles"
+    },
+    {
+      "id": "SL",
+      "name": "Sierra Leone"
+    },
+    {
+      "id": "SG",
+      "name": "Singapore"
+    },
+    {
+      "id": "SK",
+      "name": "Slovakia"
+    },
+    {
+      "id": "SI",
+      "name": "Slovenia"
+    },
+    {
+      "id": "SB",
+      "name": "Solomon Islands"
+    },
+    {
+      "id": "SO",
+      "name": "Somalia"
+    },
+    {
+      "id": "ZA",
+      "name": "South Africa"
+    },
+    {
+      "id": "SS",
+      "name": "South Sudan"
+    },
+    {
+      "id": "ES",
+      "name": "Spain"
+    },
+    {
+      "id": "LK",
+      "name": "Sri Lanka"
+    },
+    {
+      "id": "SD",
+      "name": "Sudan"
+    },
+    {
+      "id": "SR",
+      "name": "Suriname"
+    },
+    {
+      "id": "SE",
+      "name": "Sweden"
+    },
+    {
+      "id": "CH",
+      "name": "Switzerland"
+    },
+    {
+      "id": "SY",
+      "name": "Syria"
+    },
+    {
+      "id": "TW",
+      "name": "Taiwan"
+    },
+    {
+      "id": "TJ",
+      "name": "Tajikistan"
+    },
+    {
+      "id": "TZ",
+      "name": "Tanzania"
+    },
+    {
+      "id": "TH",
+      "name": "Thailand"
+    },
+    {
+      "id": "TL",
+      "name": "Timor-Leste"
+    },
+    {
+      "id": "TG",
+      "name": "Togo"
+    },
+    {
+      "id": "TO",
+      "name": "Tonga"
+    },
+    {
+      "id": "TT",
+      "name": "Trinidad and Tobago"
+    },
+    {
+      "id": "TN",
+      "name": "Tunisia"
+    },
+    {
+      "id": "TR",
+      "name": "Türkiye"
+    },
+    {
+      "id": "TM",
+      "name": "Turkmenistan"
+    },
+    {
+      "id": "TV",
+      "name": "Tuvalu"
+    },
+    {
+      "id": "UG",
+      "name": "Uganda"
+    },
+    {
+      "id": "UA",
+      "name": "Ukraine"
+    },
+    {
+      "id": "AE",
+      "name": "United Arab Emirates"
+    },
+    {
+      "id": "GB",
+      "name": "United Kingdom"
+    },
+    {
+      "id": "US",
+      "name": "United States"
+    },
+    {
+      "id": "UY",
+      "name": "Uruguay"
+    },
+    {
+      "id": "UZ",
+      "name": "Uzbekistan"
+    },
+    {
+      "id": "VU",
+      "name": "Vanuatu"
+    },
+    {
+      "id": "VE",
+      "name": "Venezuela"
+    },
+    {
+      "id": "VN",
+      "name": "Vietnam"
+    },
+    {
+      "id": "YE",
+      "name": "Yemen"
+    },
+    {
+      "id": "ZM",
+      "name": "Zambia"
+    },
+    {
+      "id": "ZW",
+      "name": "Zimbabwe"
+    }
+  ],
+  "states": [
+    {
+      "id": "AN",
+      "country_id": "IN",
+      "name": "Andaman and Nicobar Islands"
+    },
+    {
+      "id": "AP",
+      "country_id": "IN",
+      "name": "Andhra Pradesh"
+    },
+    {
+      "id": "AR",
+      "country_id": "IN",
+      "name": "Arunachal Pradesh"
+    },
+    {
+      "id": "AS",
+      "country_id": "IN",
+      "name": "Assam"
+    },
+    {
+      "id": "BR",
+      "country_id": "IN",
+      "name": "Bihar"
+    },
+    {
+      "id": "CH",
+      "country_id": "IN",
+      "name": "Chandigarh"
+    },
+    {
+      "id": "CT",
+      "country_id": "IN",
+      "name": "Chhattisgarh"
+    },
+    {
+      "id": "DN",
+      "country_id": "IN",
+      "name": "Dadra and Nagar Haveli and Daman and Diu"
+    },
+    {
+      "id": "DL",
+      "country_id": "IN",
+      "name": "Delhi"
+    },
+    {
+      "id": "GA",
+      "country_id": "IN",
+      "name": "Goa"
+    },
+    {
+      "id": "GJ",
+      "country_id": "IN",
+      "name": "Gujarat"
+    },
+    {
+      "id": "HR",
+      "country_id": "IN",
+      "name": "Haryana"
+    },
+    {
+      "id": "HP",
+      "country_id": "IN",
+      "name": "Himachal Pradesh"
+    },
+    {
+      "id": "JK",
+      "country_id": "IN",
+      "name": "Jammu and Kashmir"
+    },
+    {
+      "id": "JH",
+      "country_id": "IN",
+      "name": "Jharkhand"
+    },
+    {
+      "id": "KA",
+      "country_id": "IN",
+      "name": "Karnataka"
+    },
+    {
+      "id": "KL",
+      "country_id": "IN",
+      "name": "Kerala"
+    },
+    {
+      "id": "LA",
+      "country_id": "IN",
+      "name": "Ladakh"
+    },
+    {
+      "id": "LD",
+      "country_id": "IN",
+      "name": "Lakshadweep"
+    },
+    {
+      "id": "MP",
+      "country_id": "IN",
+      "name": "Madhya Pradesh"
+    },
+    {
+      "id": "MH",
+      "country_id": "IN",
+      "name": "Maharashtra"
+    },
+    {
+      "id": "MN",
+      "country_id": "IN",
+      "name": "Manipur"
+    },
+    {
+      "id": "ML",
+      "country_id": "IN",
+      "name": "Meghalaya"
+    },
+    {
+      "id": "MZ",
+      "country_id": "IN",
+      "name": "Mizoram"
+    },
+    {
+      "id": "NL",
+      "country_id": "IN",
+      "name": "Nagaland"
+    },
+    {
+      "id": "OR",
+      "country_id": "IN",
+      "name": "Odisha"
+    },
+    {
+      "id": "PY",
+      "country_id": "IN",
+      "name": "Puducherry"
+    },
+    {
+      "id": "PB",
+      "country_id": "IN",
+      "name": "Punjab"
+    },
+    {
+      "id": "RJ",
+      "country_id": "IN",
+      "name": "Rajasthan"
+    },
+    {
+      "id": "SK",
+      "country_id": "IN",
+      "name": "Sikkim"
+    },
+    {
+      "id": "TN",
+      "country_id": "IN",
+      "name": "Tamil Nadu"
+    },
+    {
+      "id": "TG",
+      "country_id": "IN",
+      "name": "Telangana"
+    },
+    {
+      "id": "TR",
+      "country_id": "IN",
+      "name": "Tripura"
+    },
+    {
+      "id": "UP",
+      "country_id": "IN",
+      "name": "Uttar Pradesh"
+    },
+    {
+      "id": "UT",
+      "country_id": "IN",
+      "name": "Uttarakhand"
+    },
+    {
+      "id": "WB",
+      "country_id": "IN",
+      "name": "West Bengal"
+    },
+    {
+      "id": "AL",
+      "country_id": "US",
+      "name": "Alabama"
+    },
+    {
+      "id": "AK",
+      "country_id": "US",
+      "name": "Alaska"
+    },
+    {
+      "id": "AZ",
+      "country_id": "US",
+      "name": "Arizona"
+    },
+    {
+      "id": "AR",
+      "country_id": "US",
+      "name": "Arkansas"
+    },
+    {
+      "id": "CA",
+      "country_id": "US",
+      "name": "California"
+    },
+    {
+      "id": "CO",
+      "country_id": "US",
+      "name": "Colorado"
+    },
+    {
+      "id": "CT",
+      "country_id": "US",
+      "name": "Connecticut"
+    },
+    {
+      "id": "DE",
+      "country_id": "US",
+      "name": "Delaware"
+    },
+    {
+      "id": "FL",
+      "country_id": "US",
+      "name": "Florida"
+    },
+    {
+      "id": "GA",
+      "country_id": "US",
+      "name": "Georgia"
+    },
+    {
+      "id": "HI",
+      "country_id": "US",
+      "name": "Hawaii"
+    },
+    {
+      "id": "ID",
+      "country_id": "US",
+      "name": "Idaho"
+    },
+    {
+      "id": "IL",
+      "country_id": "US",
+      "name": "Illinois"
+    },
+    {
+      "id": "IN",
+      "country_id": "US",
+      "name": "Indiana"
+    },
+    {
+      "id": "IA",
+      "country_id": "US",
+      "name": "Iowa"
+    },
+    {
+      "id": "KS",
+      "country_id": "US",
+      "name": "Kansas"
+    },
+    {
+      "id": "KY",
+      "country_id": "US",
+      "name": "Kentucky"
+    },
+    {
+      "id": "LA",
+      "country_id": "US",
+      "name": "Louisiana"
+    },
+    {
+      "id": "ME",
+      "country_id": "US",
+      "name": "Maine"
+    },
+    {
+      "id": "MD",
+      "country_id": "US",
+      "name": "Maryland"
+    },
+    {
+      "id": "MA",
+      "country_id": "US",
+      "name": "Massachusetts"
+    },
+    {
+      "id": "MI",
+      "country_id": "US",
+      "name": "Michigan"
+    },
+    {
+      "id": "MN",
+      "country_id": "US",
+      "name": "Minnesota"
+    },
+    {
+      "id": "MS",
+      "country_id": "US",
+      "name": "Mississippi"
+    },
+    {
+      "id": "MO",
+      "country_id": "US",
+      "name": "Missouri"
+    },
+    {
+      "id": "MT",
+      "country_id": "US",
+      "name": "Montana"
+    },
+    {
+      "id": "NE",
+      "country_id": "US",
+      "name": "Nebraska"
+    },
+    {
+      "id": "NV",
+      "country_id": "US",
+      "name": "Nevada"
+    },
+    {
+      "id": "NH",
+      "country_id": "US",
+      "name": "New Hampshire"
+    },
+    {
+      "id": "NJ",
+      "country_id": "US",
+      "name": "New Jersey"
+    },
+    {
+      "id": "NM",
+      "country_id": "US",
+      "name": "New Mexico"
+    },
+    {
+      "id": "NY",
+      "country_id": "US",
+      "name": "New York"
+    },
+    {
+      "id": "NC",
+      "country_id": "US",
+      "name": "North Carolina"
+    },
+    {
+      "id": "ND",
+      "country_id": "US",
+      "name": "North Dakota"
+    },
+    {
+      "id": "OH",
+      "country_id": "US",
+      "name": "Ohio"
+    },
+    {
+      "id": "OK",
+      "country_id": "US",
+      "name": "Oklahoma"
+    },
+    {
+      "id": "OR",
+      "country_id": "US",
+      "name": "Oregon"
+    },
+    {
+      "id": "PA",
+      "country_id": "US",
+      "name": "Pennsylvania"
+    },
+    {
+      "id": "RI",
+      "country_id": "US",
+      "name": "Rhode Island"
+    },
+    {
+      "id": "SC",
+      "country_id": "US",
+      "name": "South Carolina"
+    },
+    {
+      "id": "SD",
+      "country_id": "US",
+      "name": "South Dakota"
+    },
+    {
+      "id": "TN",
+      "country_id": "US",
+      "name": "Tennessee"
+    },
+    {
+      "id": "TX",
+      "country_id": "US",
+      "name": "Texas"
+    },
+    {
+      "id": "UT",
+      "country_id": "US",
+      "name": "Utah"
+    },
+    {
+      "id": "VT",
+      "country_id": "US",
+      "name": "Vermont"
+    },
+    {
+      "id": "VA",
+      "country_id": "US",
+      "name": "Virginia"
+    },
+    {
+      "id": "WA",
+      "country_id": "US",
+      "name": "Washington"
+    },
+    {
+      "id": "WV",
+      "country_id": "US",
+      "name": "West Virginia"
+    },
+    {
+      "id": "WI",
+      "country_id": "US",
+      "name": "Wisconsin"
+    },
+    {
+      "id": "WY",
+      "country_id": "US",
+      "name": "Wyoming"
+    },
+    {
+      "id": "DC",
+      "country_id": "US",
+      "name": "District of Columbia"
+    },
+    {
+      "id": "ENG",
+      "country_id": "GB",
+      "name": "England"
+    },
+    {
+      "id": "SCT",
+      "country_id": "GB",
+      "name": "Scotland"
+    },
+    {
+      "id": "WLS",
+      "country_id": "GB",
+      "name": "Wales"
+    },
+    {
+      "id": "NIR",
+      "country_id": "GB",
+      "name": "Northern Ireland"
+    },
+    {
+      "id": "AB",
+      "country_id": "CA",
+      "name": "Alberta"
+    },
+    {
+      "id": "BC",
+      "country_id": "CA",
+      "name": "British Columbia"
+    },
+    {
+      "id": "MB",
+      "country_id": "CA",
+      "name": "Manitoba"
+    },
+    {
+      "id": "NB",
+      "country_id": "CA",
+      "name": "New Brunswick"
+    },
+    {
+      "id": "NL",
+      "country_id": "CA",
+      "name": "Newfoundland and Labrador"
+    },
+    {
+      "id": "NS",
+      "country_id": "CA",
+      "name": "Nova Scotia"
+    },
+    {
+      "id": "NT",
+      "country_id": "CA",
+      "name": "Northwest Territories"
+    },
+    {
+      "id": "NU",
+      "country_id": "CA",
+      "name": "Nunavut"
+    },
+    {
+      "id": "ON",
+      "country_id": "CA",
+      "name": "Ontario"
+    },
+    {
+      "id": "PE",
+      "country_id": "CA",
+      "name": "Prince Edward Island"
+    },
+    {
+      "id": "QC",
+      "country_id": "CA",
+      "name": "Quebec"
+    },
+    {
+      "id": "SK",
+      "country_id": "CA",
+      "name": "Saskatchewan"
+    },
+    {
+      "id": "YT",
+      "country_id": "CA",
+      "name": "Yukon"
+    },
+    {
+      "id": "ACT",
+      "country_id": "AU",
+      "name": "Australian Capital Territory"
+    },
+    {
+      "id": "NSW",
+      "country_id": "AU",
+      "name": "New South Wales"
+    },
+    {
+      "id": "NT",
+      "country_id": "AU",
+      "name": "Northern Territory"
+    },
+    {
+      "id": "QLD",
+      "country_id": "AU",
+      "name": "Queensland"
+    },
+    {
+      "id": "SA",
+      "country_id": "AU",
+      "name": "South Australia"
+    },
+    {
+      "id": "TAS",
+      "country_id": "AU",
+      "name": "Tasmania"
+    },
+    {
+      "id": "VIC",
+      "country_id": "AU",
+      "name": "Victoria"
+    },
+    {
+      "id": "WA",
+      "country_id": "AU",
+      "name": "Western Australia"
+    },
+    {
+      "id": "AE-AZ",
+      "country_id": "AE",
+      "name": "Abu Dhabi"
+    },
+    {
+      "id": "AE-DU",
+      "country_id": "AE",
+      "name": "Dubai"
+    },
+    {
+      "id": "AE-SH",
+      "country_id": "AE",
+      "name": "Sharjah"
+    },
+    {
+      "id": "AE-AJ",
+      "country_id": "AE",
+      "name": "Ajman"
+    },
+    {
+      "id": "AE-UQ",
+      "country_id": "AE",
+      "name": "Umm Al Quwain"
+    },
+    {
+      "id": "AE-RK",
+      "country_id": "AE",
+      "name": "Ras Al Khaimah"
+    },
+    {
+      "id": "AE-FU",
+      "country_id": "AE",
+      "name": "Fujairah"
+    },
+    {
+      "id": "PK-PB",
+      "country_id": "PK",
+      "name": "Punjab"
+    },
+    {
+      "id": "PK-SD",
+      "country_id": "PK",
+      "name": "Sindh"
+    },
+    {
+      "id": "PK-KP",
+      "country_id": "PK",
+      "name": "Khyber Pakhtunkhwa"
+    },
+    {
+      "id": "PK-BL",
+      "country_id": "PK",
+      "name": "Balochistan"
+    },
+    {
+      "id": "PK-GB",
+      "country_id": "PK",
+      "name": "Gilgit-Baltistan"
+    },
+    {
+      "id": "PK-AJ",
+      "country_id": "PK",
+      "name": "Azad Jammu and Kashmir"
+    },
+    {
+      "id": "PK-IS",
+      "country_id": "PK",
+      "name": "Islamabad Capital Territory"
+    },
+    {
+      "id": "BD-DH",
+      "country_id": "BD",
+      "name": "Dhaka"
+    },
+    {
+      "id": "BD-CT",
+      "country_id": "BD",
+      "name": "Chittagong"
+    },
+    {
+      "id": "BD-RS",
+      "country_id": "BD",
+      "name": "Rajshahi"
+    },
+    {
+      "id": "BD-KH",
+      "country_id": "BD",
+      "name": "Khulna"
+    },
+    {
+      "id": "BD-BR",
+      "country_id": "BD",
+      "name": "Barisal"
+    },
+    {
+      "id": "BD-SY",
+      "country_id": "BD",
+      "name": "Sylhet"
+    },
+    {
+      "id": "BD-RP",
+      "country_id": "BD",
+      "name": "Rangpur"
+    },
+    {
+      "id": "BD-MM",
+      "country_id": "BD",
+      "name": "Mymensingh"
+    },
+    {
+      "id": "LK-WP",
+      "country_id": "LK",
+      "name": "Western"
+    },
+    {
+      "id": "LK-CP",
+      "country_id": "LK",
+      "name": "Central"
+    },
+    {
+      "id": "LK-SP",
+      "country_id": "LK",
+      "name": "Southern"
+    },
+    {
+      "id": "LK-NP",
+      "country_id": "LK",
+      "name": "Northern"
+    },
+    {
+      "id": "LK-EP",
+      "country_id": "LK",
+      "name": "Eastern"
+    },
+    {
+      "id": "LK-NW",
+      "country_id": "LK",
+      "name": "North Western"
+    },
+    {
+      "id": "LK-NC",
+      "country_id": "LK",
+      "name": "North Central"
+    },
+    {
+      "id": "LK-UP",
+      "country_id": "LK",
+      "name": "Uva"
+    },
+    {
+      "id": "LK-SB",
+      "country_id": "LK",
+      "name": "Sabaragamuwa"
+    },
+    {
+      "id": "NP-1",
+      "country_id": "NP",
+      "name": "Koshi"
+    },
+    {
+      "id": "NP-2",
+      "country_id": "NP",
+      "name": "Madhesh"
+    },
+    {
+      "id": "NP-3",
+      "country_id": "NP",
+      "name": "Bagmati"
+    },
+    {
+      "id": "NP-4",
+      "country_id": "NP",
+      "name": "Gandaki"
+    },
+    {
+      "id": "NP-5",
+      "country_id": "NP",
+      "name": "Lumbini"
+    },
+    {
+      "id": "NP-6",
+      "country_id": "NP",
+      "name": "Karnali"
+    },
+    {
+      "id": "NP-7",
+      "country_id": "NP",
+      "name": "Sudurpashchim"
+    },
+    {
+      "id": "BW",
+      "country_id": "DE",
+      "name": "Baden-Württemberg"
+    },
+    {
+      "id": "BY",
+      "country_id": "DE",
+      "name": "Bavaria"
+    },
+    {
+      "id": "BE",
+      "country_id": "DE",
+      "name": "Berlin"
+    },
+    {
+      "id": "BB",
+      "country_id": "DE",
+      "name": "Brandenburg"
+    },
+    {
+      "id": "HB",
+      "country_id": "DE",
+      "name": "Bremen"
+    },
+    {
+      "id": "HH",
+      "country_id": "DE",
+      "name": "Hamburg"
+    },
+    {
+      "id": "HE",
+      "country_id": "DE",
+      "name": "Hesse"
+    },
+    {
+      "id": "MV",
+      "country_id": "DE",
+      "name": "Mecklenburg-Vorpommern"
+    },
+    {
+      "id": "NI",
+      "country_id": "DE",
+      "name": "Lower Saxony"
+    },
+    {
+      "id": "NW",
+      "country_id": "DE",
+      "name": "North Rhine-Westphalia"
+    },
+    {
+      "id": "RP",
+      "country_id": "DE",
+      "name": "Rhineland-Palatinate"
+    },
+    {
+      "id": "SL",
+      "country_id": "DE",
+      "name": "Saarland"
+    },
+    {
+      "id": "SN",
+      "country_id": "DE",
+      "name": "Saxony"
+    },
+    {
+      "id": "ST",
+      "country_id": "DE",
+      "name": "Saxony-Anhalt"
+    },
+    {
+      "id": "SH",
+      "country_id": "DE",
+      "name": "Schleswig-Holstein"
+    },
+    {
+      "id": "TH",
+      "country_id": "DE",
+      "name": "Thuringia"
+    },
+    {
+      "id": "FR-IDF",
+      "country_id": "FR",
+      "name": "Île-de-France"
+    },
+    {
+      "id": "FR-NAQ",
+      "country_id": "FR",
+      "name": "Nouvelle-Aquitaine"
+    },
+    {
+      "id": "FR-ARA",
+      "country_id": "FR",
+      "name": "Auvergne-Rhône-Alpes"
+    },
+    {
+      "id": "FR-OCC",
+      "country_id": "FR",
+      "name": "Occitanie"
+    },
+    {
+      "id": "FR-PAC",
+      "country_id": "FR",
+      "name": "Provence-Alpes-Côte d'Azur"
+    },
+    {
+      "id": "FR-GES",
+      "country_id": "FR",
+      "name": "Grand Est"
+    },
+    {
+      "id": "FR-HDF",
+      "country_id": "FR",
+      "name": "Hauts-de-France"
+    },
+    {
+      "id": "FR-BRE",
+      "country_id": "FR",
+      "name": "Brittany"
+    },
+    {
+      "id": "FR-PDL",
+      "country_id": "FR",
+      "name": "Pays de la Loire"
+    },
+    {
+      "id": "FR-NOR",
+      "country_id": "FR",
+      "name": "Normandy"
+    },
+    {
+      "id": "FR-CVL",
+      "country_id": "FR",
+      "name": "Centre-Val de Loire"
+    },
+    {
+      "id": "FR-BFC",
+      "country_id": "FR",
+      "name": "Bourgogne-Franche-Comté"
+    },
+    {
+      "id": "FR-COR",
+      "country_id": "FR",
+      "name": "Corsica"
+    },
+    {
+      "id": "ES-AN",
+      "country_id": "ES",
+      "name": "Andalusia"
+    },
+    {
+      "id": "ES-AR",
+      "country_id": "ES",
+      "name": "Aragon"
+    },
+    {
+      "id": "ES-AS",
+      "country_id": "ES",
+      "name": "Asturias"
+    },
+    {
+      "id": "ES-CB",
+      "country_id": "ES",
+      "name": "Cantabria"
+    },
+    {
+      "id": "ES-CL",
+      "country_id": "ES",
+      "name": "Castile and León"
+    },
+    {
+      "id": "ES-CM",
+      "country_id": "ES",
+      "name": "Castilla-La Mancha"
+    },
+    {
+      "id": "ES-CT",
+      "country_id": "ES",
+      "name": "Catalonia"
+    },
+    {
+      "id": "ES-CE",
+      "country_id": "ES",
+      "name": "Ceuta"
+    },
+    {
+      "id": "ES-MD",
+      "country_id": "ES",
+      "name": "Madrid"
+    },
+    {
+      "id": "ES-ML",
+      "country_id": "ES",
+      "name": "Melilla"
+    },
+    {
+      "id": "ES-VC",
+      "country_id": "ES",
+      "name": "Valencian Community"
+    },
+    {
+      "id": "ES-EX",
+      "country_id": "ES",
+      "name": "Extremadura"
+    },
+    {
+      "id": "ES-GA",
+      "country_id": "ES",
+      "name": "Galicia"
+    },
+    {
+      "id": "ES-IB",
+      "country_id": "ES",
+      "name": "Balearic Islands"
+    },
+    {
+      "id": "ES-CN",
+      "country_id": "ES",
+      "name": "Canary Islands"
+    },
+    {
+      "id": "ES-RI",
+      "country_id": "ES",
+      "name": "La Rioja"
+    },
+    {
+      "id": "ES-PV",
+      "country_id": "ES",
+      "name": "Basque Country"
+    },
+    {
+      "id": "ES-NC",
+      "country_id": "ES",
+      "name": "Navarre"
+    },
+    {
+      "id": "ES-MU",
+      "country_id": "ES",
+      "name": "Region of Murcia"
+    },
+    {
+      "id": "IT-ABR",
+      "country_id": "IT",
+      "name": "Abruzzo"
+    },
+    {
+      "id": "IT-BAS",
+      "country_id": "IT",
+      "name": "Basilicata"
+    },
+    {
+      "id": "IT-CAL",
+      "country_id": "IT",
+      "name": "Calabria"
+    },
+    {
+      "id": "IT-CAM",
+      "country_id": "IT",
+      "name": "Campania"
+    },
+    {
+      "id": "IT-EMR",
+      "country_id": "IT",
+      "name": "Emilia-Romagna"
+    },
+    {
+      "id": "IT-FVG",
+      "country_id": "IT",
+      "name": "Friuli-Venezia Giulia"
+    },
+    {
+      "id": "IT-LAZ",
+      "country_id": "IT",
+      "name": "Lazio"
+    },
+    {
+      "id": "IT-LIG",
+      "country_id": "IT",
+      "name": "Liguria"
+    },
+    {
+      "id": "IT-LOM",
+      "country_id": "IT",
+      "name": "Lombardy"
+    },
+    {
+      "id": "IT-MAR",
+      "country_id": "IT",
+      "name": "Marche"
+    },
+    {
+      "id": "IT-MOL",
+      "country_id": "IT",
+      "name": "Molise"
+    },
+    {
+      "id": "IT-PIE",
+      "country_id": "IT",
+      "name": "Piedmont"
+    },
+    {
+      "id": "IT-PUG",
+      "country_id": "IT",
+      "name": "Apulia"
+    },
+    {
+      "id": "IT-SAR",
+      "country_id": "IT",
+      "name": "Sardinia"
+    },
+    {
+      "id": "IT-SIC",
+      "country_id": "IT",
+      "name": "Sicily"
+    },
+    {
+      "id": "IT-TOS",
+      "country_id": "IT",
+      "name": "Tuscany"
+    },
+    {
+      "id": "IT-TAA",
+      "country_id": "IT",
+      "name": "Trentino-Alto Adige"
+    },
+    {
+      "id": "IT-UMB",
+      "country_id": "IT",
+      "name": "Umbria"
+    },
+    {
+      "id": "IT-VEN",
+      "country_id": "IT",
+      "name": "Veneto"
+    },
+    {
+      "id": "IT-VDA",
+      "country_id": "IT",
+      "name": "Aosta Valley"
+    },
+    {
+      "id": "AG",
+      "country_id": "MX",
+      "name": "Aguascalientes"
+    },
+    {
+      "id": "BC",
+      "country_id": "MX",
+      "name": "Baja California"
+    },
+    {
+      "id": "BS",
+      "country_id": "MX",
+      "name": "Baja California Sur"
+    },
+    {
+      "id": "CM",
+      "country_id": "MX",
+      "name": "Campeche"
+    },
+    {
+      "id": "CS",
+      "country_id": "MX",
+      "name": "Chiapas"
+    },
+    {
+      "id": "CH",
+      "country_id": "MX",
+      "name": "Chihuahua"
+    },
+    {
+      "id": "CO",
+      "country_id": "MX",
+      "name": "Coahuila"
+    },
+    {
+      "id": "CL",
+      "country_id": "MX",
+      "name": "Colima"
+    },
+    {
+      "id": "DG",
+      "country_id": "MX",
+      "name": "Durango"
+    },
+    {
+      "id": "GT",
+      "country_id": "MX",
+      "name": "Guanajuato"
+    },
+    {
+      "id": "GR",
+      "country_id": "MX",
+      "name": "Guerrero"
+    },
+    {
+      "id": "HG",
+      "country_id": "MX",
+      "name": "Hidalgo"
+    },
+    {
+      "id": "JA",
+      "country_id": "MX",
+      "name": "Jalisco"
+    },
+    {
+      "id": "MX",
+      "country_id": "MX",
+      "name": "México"
+    },
+    {
+      "id": "MI",
+      "country_id": "MX",
+      "name": "Michoacán"
+    },
+    {
+      "id": "MO",
+      "country_id": "MX",
+      "name": "Morelos"
+    },
+    {
+      "id": "NE",
+      "country_id": "MX",
+      "name": "Nayarit"
+    },
+    {
+      "id": "NL",
+      "country_id": "MX",
+      "name": "Nuevo León"
+    },
+    {
+      "id": "OA",
+      "country_id": "MX",
+      "name": "Oaxaca"
+    },
+    {
+      "id": "PU",
+      "country_id": "MX",
+      "name": "Puebla"
+    },
+    {
+      "id": "QT",
+      "country_id": "MX",
+      "name": "Querétaro"
+    },
+    {
+      "id": "QR",
+      "country_id": "MX",
+      "name": "Quintana Roo"
+    },
+    {
+      "id": "SL",
+      "country_id": "MX",
+      "name": "San Luis Potosí"
+    },
+    {
+      "id": "SI",
+      "country_id": "MX",
+      "name": "Sinaloa"
+    },
+    {
+      "id": "SO",
+      "country_id": "MX",
+      "name": "Sonora"
+    },
+    {
+      "id": "TB",
+      "country_id": "MX",
+      "name": "Tabasco"
+    },
+    {
+      "id": "TM",
+      "country_id": "MX",
+      "name": "Tamaulipas"
+    },
+    {
+      "id": "TL",
+      "country_id": "MX",
+      "name": "Tlaxcala"
+    },
+    {
+      "id": "VE",
+      "country_id": "MX",
+      "name": "Veracruz"
+    },
+    {
+      "id": "YU",
+      "country_id": "MX",
+      "name": "Yucatán"
+    },
+    {
+      "id": "ZA",
+      "country_id": "MX",
+      "name": "Zacatecas"
+    },
+    {
+      "id": "AC",
+      "country_id": "BR",
+      "name": "Acre"
+    },
+    {
+      "id": "AL",
+      "country_id": "BR",
+      "name": "Alagoas"
+    },
+    {
+      "id": "AP",
+      "country_id": "BR",
+      "name": "Amapá"
+    },
+    {
+      "id": "AM",
+      "country_id": "BR",
+      "name": "Amazonas"
+    },
+    {
+      "id": "BA",
+      "country_id": "BR",
+      "name": "Bahia"
+    },
+    {
+      "id": "CE",
+      "country_id": "BR",
+      "name": "Ceará"
+    },
+    {
+      "id": "DF",
+      "country_id": "BR",
+      "name": "Distrito Federal"
+    },
+    {
+      "id": "ES",
+      "country_id": "BR",
+      "name": "Espírito Santo"
+    },
+    {
+      "id": "GO",
+      "country_id": "BR",
+      "name": "Goiás"
+    },
+    {
+      "id": "MA",
+      "country_id": "BR",
+      "name": "Maranhão"
+    },
+    {
+      "id": "MT",
+      "country_id": "BR",
+      "name": "Mato Grosso"
+    },
+    {
+      "id": "MS",
+      "country_id": "BR",
+      "name": "Mato Grosso do Sul"
+    },
+    {
+      "id": "MG",
+      "country_id": "BR",
+      "name": "Minas Gerais"
+    },
+    {
+      "id": "PA",
+      "country_id": "BR",
+      "name": "Pará"
+    },
+    {
+      "id": "PB",
+      "country_id": "BR",
+      "name": "Paraíba"
+    },
+    {
+      "id": "PR",
+      "country_id": "BR",
+      "name": "Paraná"
+    },
+    {
+      "id": "PE",
+      "country_id": "BR",
+      "name": "Pernambuco"
+    },
+    {
+      "id": "PI",
+      "country_id": "BR",
+      "name": "Piauí"
+    },
+    {
+      "id": "RJ",
+      "country_id": "BR",
+      "name": "Rio de Janeiro"
+    },
+    {
+      "id": "RN",
+      "country_id": "BR",
+      "name": "Rio Grande do Norte"
+    },
+    {
+      "id": "RS",
+      "country_id": "BR",
+      "name": "Rio Grande do Sul"
+    },
+    {
+      "id": "RO",
+      "country_id": "BR",
+      "name": "Rondônia"
+    },
+    {
+      "id": "RR",
+      "country_id": "BR",
+      "name": "Roraima"
+    },
+    {
+      "id": "SC",
+      "country_id": "BR",
+      "name": "Santa Catarina"
+    },
+    {
+      "id": "SP",
+      "country_id": "BR",
+      "name": "São Paulo"
+    },
+    {
+      "id": "SE",
+      "country_id": "BR",
+      "name": "Sergipe"
+    },
+    {
+      "id": "TO",
+      "country_id": "BR",
+      "name": "Tocantins"
+    },
+    {
+      "id": "ZA-EC",
+      "country_id": "ZA",
+      "name": "Eastern Cape"
+    },
+    {
+      "id": "ZA-FS",
+      "country_id": "ZA",
+      "name": "Free State"
+    },
+    {
+      "id": "ZA-GP",
+      "country_id": "ZA",
+      "name": "Gauteng"
+    },
+    {
+      "id": "ZA-KZN",
+      "country_id": "ZA",
+      "name": "KwaZulu-Natal"
+    },
+    {
+      "id": "ZA-LP",
+      "country_id": "ZA",
+      "name": "Limpopo"
+    },
+    {
+      "id": "ZA-MP",
+      "country_id": "ZA",
+      "name": "Mpumalanga"
+    },
+    {
+      "id": "ZA-NC",
+      "country_id": "ZA",
+      "name": "Northern Cape"
+    },
+    {
+      "id": "ZA-NW",
+      "country_id": "ZA",
+      "name": "North West"
+    },
+    {
+      "id": "ZA-WC",
+      "country_id": "ZA",
+      "name": "Western Cape"
+    },
+    {
+      "id": "SA-01",
+      "country_id": "SA",
+      "name": "Riyadh"
+    },
+    {
+      "id": "SA-02",
+      "country_id": "SA",
+      "name": "Makkah"
+    },
+    {
+      "id": "SA-03",
+      "country_id": "SA",
+      "name": "Madinah"
+    },
+    {
+      "id": "SA-04",
+      "country_id": "SA",
+      "name": "Eastern Province"
+    },
+    {
+      "id": "SA-05",
+      "country_id": "SA",
+      "name": "Qassim"
+    },
+    {
+      "id": "SA-06",
+      "country_id": "SA",
+      "name": "Asir"
+    },
+    {
+      "id": "SA-07",
+      "country_id": "SA",
+      "name": "Tabuk"
+    },
+    {
+      "id": "SA-08",
+      "country_id": "SA",
+      "name": "Northern Borders"
+    },
+    {
+      "id": "SA-09",
+      "country_id": "SA",
+      "name": "Jazan"
+    },
+    {
+      "id": "SA-10",
+      "country_id": "SA",
+      "name": "Najran"
+    },
+    {
+      "id": "SA-11",
+      "country_id": "SA",
+      "name": "Al Bahah"
+    },
+    {
+      "id": "SA-12",
+      "country_id": "SA",
+      "name": "Al Jawf"
+    },
+    {
+      "id": "SA-14",
+      "country_id": "SA",
+      "name": "Ha'il"
+    },
+    {
+      "id": "MY-JH",
+      "country_id": "MY",
+      "name": "Johor"
+    },
+    {
+      "id": "MY-KD",
+      "country_id": "MY",
+      "name": "Kedah"
+    },
+    {
+      "id": "MY-KT",
+      "country_id": "MY",
+      "name": "Kelantan"
+    },
+    {
+      "id": "MY-KL",
+      "country_id": "MY",
+      "name": "Kuala Lumpur"
+    },
+    {
+      "id": "MY-LB",
+      "country_id": "MY",
+      "name": "Labuan"
+    },
+    {
+      "id": "MY-ML",
+      "country_id": "MY",
+      "name": "Malacca"
+    },
+    {
+      "id": "MY-NS",
+      "country_id": "MY",
+      "name": "Negeri Sembilan"
+    },
+    {
+      "id": "MY-PH",
+      "country_id": "MY",
+      "name": "Penang"
+    },
+    {
+      "id": "MY-PJ",
+      "country_id": "MY",
+      "name": "Putrajaya"
+    },
+    {
+      "id": "MY-PK",
+      "country_id": "MY",
+      "name": "Perak"
+    },
+    {
+      "id": "MY-PS",
+      "country_id": "MY",
+      "name": "Perlis"
+    },
+    {
+      "id": "MY-SB",
+      "country_id": "MY",
+      "name": "Sabah"
+    },
+    {
+      "id": "MY-SR",
+      "country_id": "MY",
+      "name": "Sarawak"
+    },
+    {
+      "id": "MY-SG",
+      "country_id": "MY",
+      "name": "Selangor"
+    },
+    {
+      "id": "MY-TR",
+      "country_id": "MY",
+      "name": "Terengganu"
+    },
+    {
+      "id": "PH-NCR",
+      "country_id": "PH",
+      "name": "National Capital Region"
+    },
+    {
+      "id": "PH-01",
+      "country_id": "PH",
+      "name": "Ilocos"
+    },
+    {
+      "id": "PH-02",
+      "country_id": "PH",
+      "name": "Cagayan Valley"
+    },
+    {
+      "id": "PH-03",
+      "country_id": "PH",
+      "name": "Central Luzon"
+    },
+    {
+      "id": "PH-4A",
+      "country_id": "PH",
+      "name": "Calabarzon"
+    },
+    {
+      "id": "PH-4B",
+      "country_id": "PH",
+      "name": "Mimaropa"
+    },
+    {
+      "id": "PH-05",
+      "country_id": "PH",
+      "name": "Bicol"
+    },
+    {
+      "id": "PH-06",
+      "country_id": "PH",
+      "name": "Western Visayas"
+    },
+    {
+      "id": "PH-07",
+      "country_id": "PH",
+      "name": "Central Visayas"
+    },
+    {
+      "id": "PH-08",
+      "country_id": "PH",
+      "name": "Eastern Visayas"
+    },
+    {
+      "id": "PH-09",
+      "country_id": "PH",
+      "name": "Zamboanga Peninsula"
+    },
+    {
+      "id": "PH-10",
+      "country_id": "PH",
+      "name": "Northern Mindanao"
+    },
+    {
+      "id": "PH-11",
+      "country_id": "PH",
+      "name": "Davao"
+    },
+    {
+      "id": "PH-12",
+      "country_id": "PH",
+      "name": "Soccsksargen"
+    },
+    {
+      "id": "PH-13",
+      "country_id": "PH",
+      "name": "Caraga"
+    },
+    {
+      "id": "PH-14",
+      "country_id": "PH",
+      "name": "Bangsamoro"
+    },
+    {
+      "id": "PH-15",
+      "country_id": "PH",
+      "name": "Cordillera"
+    },
+    {
+      "id": "TH-01",
+      "country_id": "TH",
+      "name": "Bangkok"
+    },
+    {
+      "id": "TH-02",
+      "country_id": "TH",
+      "name": "Central Thailand"
+    },
+    {
+      "id": "TH-03",
+      "country_id": "TH",
+      "name": "Northern Thailand"
+    },
+    {
+      "id": "TH-04",
+      "country_id": "TH",
+      "name": "Northeastern Thailand"
+    },
+    {
+      "id": "TH-05",
+      "country_id": "TH",
+      "name": "Southern Thailand"
+    },
+    {
+      "id": "TH-06",
+      "country_id": "TH",
+      "name": "Eastern Thailand"
+    },
+    {
+      "id": "TH-07",
+      "country_id": "TH",
+      "name": "Western Thailand"
+    },
+    {
+      "id": "VN-NB",
+      "country_id": "VN",
+      "name": "Northern Vietnam"
+    },
+    {
+      "id": "VN-NC",
+      "country_id": "VN",
+      "name": "North Central Coast"
+    },
+    {
+      "id": "VN-SC",
+      "country_id": "VN",
+      "name": "South Central Coast"
+    },
+    {
+      "id": "VN-CB",
+      "country_id": "VN",
+      "name": "Central Highlands"
+    },
+    {
+      "id": "VN-SE",
+      "country_id": "VN",
+      "name": "Southeast"
+    },
+    {
+      "id": "VN-MK",
+      "country_id": "VN",
+      "name": "Mekong Delta"
+    },
+    {
+      "id": "NZ-AUK",
+      "country_id": "NZ",
+      "name": "Auckland"
+    },
+    {
+      "id": "NZ-BOP",
+      "country_id": "NZ",
+      "name": "Bay of Plenty"
+    },
+    {
+      "id": "NZ-CAN",
+      "country_id": "NZ",
+      "name": "Canterbury"
+    },
+    {
+      "id": "NZ-GIS",
+      "country_id": "NZ",
+      "name": "Gisborne"
+    },
+    {
+      "id": "NZ-HKB",
+      "country_id": "NZ",
+      "name": "Hawke's Bay"
+    },
+    {
+      "id": "NZ-MWT",
+      "country_id": "NZ",
+      "name": "Manawatū-Whanganui"
+    },
+    {
+      "id": "NZ-MBK",
+      "country_id": "NZ",
+      "name": "Marlborough"
+    },
+    {
+      "id": "NZ-NSN",
+      "country_id": "NZ",
+      "name": "Nelson"
+    },
+    {
+      "id": "NZ-NTL",
+      "country_id": "NZ",
+      "name": "Northland"
+    },
+    {
+      "id": "NZ-OTA",
+      "country_id": "NZ",
+      "name": "Otago"
+    },
+    {
+      "id": "NZ-STL",
+      "country_id": "NZ",
+      "name": "Southland"
+    },
+    {
+      "id": "NZ-TKI",
+      "country_id": "NZ",
+      "name": "Taranaki"
+    },
+    {
+      "id": "NZ-TAS",
+      "country_id": "NZ",
+      "name": "Tasman"
+    },
+    {
+      "id": "NZ-WKO",
+      "country_id": "NZ",
+      "name": "Waikato"
+    },
+    {
+      "id": "NZ-WGN",
+      "country_id": "NZ",
+      "name": "Wellington"
+    },
+    {
+      "id": "NZ-WTC",
+      "country_id": "NZ",
+      "name": "West Coast"
+    },
+    {
+      "id": "NL-DR",
+      "country_id": "NL",
+      "name": "Drenthe"
+    },
+    {
+      "id": "NL-FL",
+      "country_id": "NL",
+      "name": "Flevoland"
+    },
+    {
+      "id": "NL-FR",
+      "country_id": "NL",
+      "name": "Friesland"
+    },
+    {
+      "id": "NL-GE",
+      "country_id": "NL",
+      "name": "Gelderland"
+    },
+    {
+      "id": "NL-GR",
+      "country_id": "NL",
+      "name": "Groningen"
+    },
+    {
+      "id": "NL-LI",
+      "country_id": "NL",
+      "name": "Limburg"
+    },
+    {
+      "id": "NL-NB",
+      "country_id": "NL",
+      "name": "North Brabant"
+    },
+    {
+      "id": "NL-NH",
+      "country_id": "NL",
+      "name": "North Holland"
+    },
+    {
+      "id": "NL-OV",
+      "country_id": "NL",
+      "name": "Overijssel"
+    },
+    {
+      "id": "NL-UT",
+      "country_id": "NL",
+      "name": "Utrecht"
+    },
+    {
+      "id": "NL-ZH",
+      "country_id": "NL",
+      "name": "South Holland"
+    },
+    {
+      "id": "NL-ZE",
+      "country_id": "NL",
+      "name": "Zeeland"
+    },
+    {
+      "id": "JP-HKD",
+      "country_id": "JP",
+      "name": "Hokkaido"
+    },
+    {
+      "id": "JP-TOH",
+      "country_id": "JP",
+      "name": "Tohoku"
+    },
+    {
+      "id": "JP-KTU",
+      "country_id": "JP",
+      "name": "Kanto"
+    },
+    {
+      "id": "JP-CHB",
+      "country_id": "JP",
+      "name": "Chubu"
+    },
+    {
+      "id": "JP-KNK",
+      "country_id": "JP",
+      "name": "Kansai"
+    },
+    {
+      "id": "JP-CHG",
+      "country_id": "JP",
+      "name": "Chugoku"
+    },
+    {
+      "id": "JP-SIK",
+      "country_id": "JP",
+      "name": "Shikoku"
+    },
+    {
+      "id": "JP-KYU",
+      "country_id": "JP",
+      "name": "Kyushu"
+    },
+    {
+      "id": "CN-BJ",
+      "country_id": "CN",
+      "name": "Beijing"
+    },
+    {
+      "id": "CN-TJ",
+      "country_id": "CN",
+      "name": "Tianjin"
+    },
+    {
+      "id": "CN-HE",
+      "country_id": "CN",
+      "name": "Hebei"
+    },
+    {
+      "id": "CN-SX",
+      "country_id": "CN",
+      "name": "Shanxi"
+    },
+    {
+      "id": "CN-NM",
+      "country_id": "CN",
+      "name": "Inner Mongolia"
+    },
+    {
+      "id": "CN-LN",
+      "country_id": "CN",
+      "name": "Liaoning"
+    },
+    {
+      "id": "CN-JL",
+      "country_id": "CN",
+      "name": "Jilin"
+    },
+    {
+      "id": "CN-HL",
+      "country_id": "CN",
+      "name": "Heilongjiang"
+    },
+    {
+      "id": "CN-SH",
+      "country_id": "CN",
+      "name": "Shanghai"
+    },
+    {
+      "id": "CN-JS",
+      "country_id": "CN",
+      "name": "Jiangsu"
+    },
+    {
+      "id": "CN-ZJ",
+      "country_id": "CN",
+      "name": "Zhejiang"
+    },
+    {
+      "id": "CN-AH",
+      "country_id": "CN",
+      "name": "Anhui"
+    },
+    {
+      "id": "CN-FJ",
+      "country_id": "CN",
+      "name": "Fujian"
+    },
+    {
+      "id": "CN-JX",
+      "country_id": "CN",
+      "name": "Jiangxi"
+    },
+    {
+      "id": "CN-SD",
+      "country_id": "CN",
+      "name": "Shandong"
+    },
+    {
+      "id": "CN-HA",
+      "country_id": "CN",
+      "name": "Henan"
+    },
+    {
+      "id": "CN-HB",
+      "country_id": "CN",
+      "name": "Hubei"
+    },
+    {
+      "id": "CN-HN",
+      "country_id": "CN",
+      "name": "Hunan"
+    },
+    {
+      "id": "CN-GD",
+      "country_id": "CN",
+      "name": "Guangdong"
+    },
+    {
+      "id": "CN-GX",
+      "country_id": "CN",
+      "name": "Guangxi"
+    },
+    {
+      "id": "CN-HI",
+      "country_id": "CN",
+      "name": "Hainan"
+    },
+    {
+      "id": "CN-CQ",
+      "country_id": "CN",
+      "name": "Chongqing"
+    },
+    {
+      "id": "CN-SC",
+      "country_id": "CN",
+      "name": "Sichuan"
+    },
+    {
+      "id": "CN-GZ",
+      "country_id": "CN",
+      "name": "Guizhou"
+    },
+    {
+      "id": "CN-YN",
+      "country_id": "CN",
+      "name": "Yunnan"
+    },
+    {
+      "id": "CN-XZ",
+      "country_id": "CN",
+      "name": "Tibet"
+    },
+    {
+      "id": "CN-SN",
+      "country_id": "CN",
+      "name": "Shaanxi"
+    },
+    {
+      "id": "CN-GS",
+      "country_id": "CN",
+      "name": "Gansu"
+    },
+    {
+      "id": "CN-QH",
+      "country_id": "CN",
+      "name": "Qinghai"
+    },
+    {
+      "id": "CN-NX",
+      "country_id": "CN",
+      "name": "Ningxia"
+    },
+    {
+      "id": "CN-XJ",
+      "country_id": "CN",
+      "name": "Xinjiang"
+    },
+    {
+      "id": "CN-TW",
+      "country_id": "CN",
+      "name": "Taiwan"
+    },
+    {
+      "id": "CN-HK",
+      "country_id": "CN",
+      "name": "Hong Kong"
+    },
+    {
+      "id": "CN-MO",
+      "country_id": "CN",
+      "name": "Macau"
+    },
+    {
+      "id": "KR-11",
+      "country_id": "KR",
+      "name": "Seoul"
+    },
+    {
+      "id": "KR-26",
+      "country_id": "KR",
+      "name": "Busan"
+    },
+    {
+      "id": "KR-27",
+      "country_id": "KR",
+      "name": "Daegu"
+    },
+    {
+      "id": "KR-28",
+      "country_id": "KR",
+      "name": "Incheon"
+    },
+    {
+      "id": "KR-29",
+      "country_id": "KR",
+      "name": "Gwangju"
+    },
+    {
+      "id": "KR-30",
+      "country_id": "KR",
+      "name": "Daejeon"
+    },
+    {
+      "id": "KR-31",
+      "country_id": "KR",
+      "name": "Ulsan"
+    },
+    {
+      "id": "KR-41",
+      "country_id": "KR",
+      "name": "Gyeonggi"
+    },
+    {
+      "id": "KR-42",
+      "country_id": "KR",
+      "name": "Gangwon"
+    },
+    {
+      "id": "KR-43",
+      "country_id": "KR",
+      "name": "North Chungcheong"
+    },
+    {
+      "id": "KR-44",
+      "country_id": "KR",
+      "name": "South Chungcheong"
+    },
+    {
+      "id": "KR-45",
+      "country_id": "KR",
+      "name": "North Jeolla"
+    },
+    {
+      "id": "KR-46",
+      "country_id": "KR",
+      "name": "South Jeolla"
+    },
+    {
+      "id": "KR-47",
+      "country_id": "KR",
+      "name": "North Gyeongsang"
+    },
+    {
+      "id": "KR-48",
+      "country_id": "KR",
+      "name": "South Gyeongsang"
+    },
+    {
+      "id": "KR-49",
+      "country_id": "KR",
+      "name": "Jeju"
+    },
+    {
+      "id": "ID-JK",
+      "country_id": "ID",
+      "name": "Jakarta"
+    },
+    {
+      "id": "ID-JB",
+      "country_id": "ID",
+      "name": "West Java"
+    },
+    {
+      "id": "ID-JT",
+      "country_id": "ID",
+      "name": "Central Java"
+    },
+    {
+      "id": "ID-JI",
+      "country_id": "ID",
+      "name": "East Java"
+    },
+    {
+      "id": "ID-BT",
+      "country_id": "ID",
+      "name": "Banten"
+    },
+    {
+      "id": "ID-BA",
+      "country_id": "ID",
+      "name": "Bali"
+    },
+    {
+      "id": "ID-SU",
+      "country_id": "ID",
+      "name": "North Sumatra"
+    },
+    {
+      "id": "ID-SB",
+      "country_id": "ID",
+      "name": "West Sumatra"
+    },
+    {
+      "id": "ID-SS",
+      "country_id": "ID",
+      "name": "South Sumatra"
+    },
+    {
+      "id": "ID-KR",
+      "country_id": "ID",
+      "name": "Riau Islands"
+    },
+    {
+      "id": "ID-KB",
+      "country_id": "ID",
+      "name": "West Kalimantan"
+    },
+    {
+      "id": "ID-KS",
+      "country_id": "ID",
+      "name": "South Kalimantan"
+    },
+    {
+      "id": "ID-KI",
+      "country_id": "ID",
+      "name": "East Kalimantan"
+    },
+    {
+      "id": "ID-SN",
+      "country_id": "ID",
+      "name": "South Sulawesi"
+    },
+    {
+      "id": "ID-NT",
+      "country_id": "ID",
+      "name": "East Nusa Tenggara"
+    },
+    {
+      "id": "ID-PB",
+      "country_id": "ID",
+      "name": "Papua"
+    },
+    {
+      "id": "EG-CAI",
+      "country_id": "EG",
+      "name": "Cairo"
+    },
+    {
+      "id": "EG-ALX",
+      "country_id": "EG",
+      "name": "Alexandria"
+    },
+    {
+      "id": "EG-GIZ",
+      "country_id": "EG",
+      "name": "Giza"
+    },
+    {
+      "id": "EG-SHR",
+      "country_id": "EG",
+      "name": "Sharqia"
+    },
+    {
+      "id": "EG-DAK",
+      "country_id": "EG",
+      "name": "Dakahlia"
+    },
+    {
+      "id": "EG-BHS",
+      "country_id": "EG",
+      "name": "Beheira"
+    },
+    {
+      "id": "EG-MNF",
+      "country_id": "EG",
+      "name": "Monufia"
+    },
+    {
+      "id": "EG-QHR",
+      "country_id": "EG",
+      "name": "Qalyubia"
+    },
+    {
+      "id": "EG-GHR",
+      "country_id": "EG",
+      "name": "Gharbia"
+    },
+    {
+      "id": "EG-KFS",
+      "country_id": "EG",
+      "name": "Kafr El Sheikh"
+    },
+    {
+      "id": "EG-DMY",
+      "country_id": "EG",
+      "name": "Damietta"
+    },
+    {
+      "id": "EG-PTS",
+      "country_id": "EG",
+      "name": "Port Said"
+    },
+    {
+      "id": "EG-SIN",
+      "country_id": "EG",
+      "name": "North Sinai"
+    },
+    {
+      "id": "EG-SUZ",
+      "country_id": "EG",
+      "name": "Suez"
+    },
+    {
+      "id": "EG-ASN",
+      "country_id": "EG",
+      "name": "Aswan"
+    },
+    {
+      "id": "EG-LXR",
+      "country_id": "EG",
+      "name": "Luxor"
+    },
+    {
+      "id": "KE-01",
+      "country_id": "KE",
+      "name": "Nairobi"
+    },
+    {
+      "id": "KE-02",
+      "country_id": "KE",
+      "name": "Mombasa"
+    },
+    {
+      "id": "KE-03",
+      "country_id": "KE",
+      "name": "Kisumu"
+    },
+    {
+      "id": "KE-04",
+      "country_id": "KE",
+      "name": "Nakuru"
+    },
+    {
+      "id": "KE-05",
+      "country_id": "KE",
+      "name": "Eldoret (Uasin Gishu)"
+    },
+    {
+      "id": "KE-06",
+      "country_id": "KE",
+      "name": "Kiambu"
+    },
+    {
+      "id": "KE-07",
+      "country_id": "KE",
+      "name": "Meru"
+    },
+    {
+      "id": "KE-08",
+      "country_id": "KE",
+      "name": "Kakamega"
+    },
+    {
+      "id": "KE-09",
+      "country_id": "KE",
+      "name": "Kisii"
+    },
+    {
+      "id": "KE-10",
+      "country_id": "KE",
+      "name": "Garissa"
+    },
+    {
+      "id": "AB",
+      "country_id": "NG",
+      "name": "Abia"
+    },
+    {
+      "id": "AD",
+      "country_id": "NG",
+      "name": "Adamawa"
+    },
+    {
+      "id": "AK",
+      "country_id": "NG",
+      "name": "Akwa Ibom"
+    },
+    {
+      "id": "AN",
+      "country_id": "NG",
+      "name": "Anambra"
+    },
+    {
+      "id": "BA",
+      "country_id": "NG",
+      "name": "Bauchi"
+    },
+    {
+      "id": "BY",
+      "country_id": "NG",
+      "name": "Bayelsa"
+    },
+    {
+      "id": "BE",
+      "country_id": "NG",
+      "name": "Benue"
+    },
+    {
+      "id": "BO",
+      "country_id": "NG",
+      "name": "Borno"
+    },
+    {
+      "id": "CR",
+      "country_id": "NG",
+      "name": "Cross River"
+    },
+    {
+      "id": "DE",
+      "country_id": "NG",
+      "name": "Delta"
+    },
+    {
+      "id": "EB",
+      "country_id": "NG",
+      "name": "Ebonyi"
+    },
+    {
+      "id": "ED",
+      "country_id": "NG",
+      "name": "Edo"
+    },
+    {
+      "id": "EK",
+      "country_id": "NG",
+      "name": "Ekiti"
+    },
+    {
+      "id": "EN",
+      "country_id": "NG",
+      "name": "Enugu"
+    },
+    {
+      "id": "FC",
+      "country_id": "NG",
+      "name": "FCT Abuja"
+    },
+    {
+      "id": "GO",
+      "country_id": "NG",
+      "name": "Gombe"
+    },
+    {
+      "id": "IM",
+      "country_id": "NG",
+      "name": "Imo"
+    },
+    {
+      "id": "JI",
+      "country_id": "NG",
+      "name": "Jigawa"
+    },
+    {
+      "id": "KD",
+      "country_id": "NG",
+      "name": "Kaduna"
+    },
+    {
+      "id": "KN",
+      "country_id": "NG",
+      "name": "Kano"
+    },
+    {
+      "id": "KT",
+      "country_id": "NG",
+      "name": "Katsina"
+    },
+    {
+      "id": "KE",
+      "country_id": "NG",
+      "name": "Kebbi"
+    },
+    {
+      "id": "KO",
+      "country_id": "NG",
+      "name": "Kogi"
+    },
+    {
+      "id": "KW",
+      "country_id": "NG",
+      "name": "Kwara"
+    },
+    {
+      "id": "LA",
+      "country_id": "NG",
+      "name": "Lagos"
+    },
+    {
+      "id": "NA",
+      "country_id": "NG",
+      "name": "Nasarawa"
+    },
+    {
+      "id": "NI",
+      "country_id": "NG",
+      "name": "Niger"
+    },
+    {
+      "id": "OG",
+      "country_id": "NG",
+      "name": "Ogun"
+    },
+    {
+      "id": "ON",
+      "country_id": "NG",
+      "name": "Ondo"
+    },
+    {
+      "id": "OS",
+      "country_id": "NG",
+      "name": "Osun"
+    },
+    {
+      "id": "OY",
+      "country_id": "NG",
+      "name": "Oyo"
+    },
+    {
+      "id": "PL",
+      "country_id": "NG",
+      "name": "Plateau"
+    },
+    {
+      "id": "RI",
+      "country_id": "NG",
+      "name": "Rivers"
+    },
+    {
+      "id": "SO",
+      "country_id": "NG",
+      "name": "Sokoto"
+    },
+    {
+      "id": "TA",
+      "country_id": "NG",
+      "name": "Taraba"
+    },
+    {
+      "id": "YO",
+      "country_id": "NG",
+      "name": "Yobe"
+    },
+    {
+      "id": "ZA",
+      "country_id": "NG",
+      "name": "Zamfara"
+    },
+    {
+      "id": "AR-A",
+      "country_id": "AR",
+      "name": "Salta"
+    },
+    {
+      "id": "AR-B",
+      "country_id": "AR",
+      "name": "Buenos Aires"
+    },
+    {
+      "id": "AR-C",
+      "country_id": "AR",
+      "name": "Ciudad Autónoma de Buenos Aires"
+    },
+    {
+      "id": "AR-D",
+      "country_id": "AR",
+      "name": "San Luis"
+    },
+    {
+      "id": "AR-E",
+      "country_id": "AR",
+      "name": "Entre Ríos"
+    },
+    {
+      "id": "AR-F",
+      "country_id": "AR",
+      "name": "La Rioja"
+    },
+    {
+      "id": "AR-G",
+      "country_id": "AR",
+      "name": "Santiago del Estero"
+    },
+    {
+      "id": "AR-H",
+      "country_id": "AR",
+      "name": "Chaco"
+    },
+    {
+      "id": "AR-J",
+      "country_id": "AR",
+      "name": "San Juan"
+    },
+    {
+      "id": "AR-K",
+      "country_id": "AR",
+      "name": "Catamarca"
+    },
+    {
+      "id": "AR-L",
+      "country_id": "AR",
+      "name": "La Pampa"
+    },
+    {
+      "id": "AR-M",
+      "country_id": "AR",
+      "name": "Mendoza"
+    },
+    {
+      "id": "AR-N",
+      "country_id": "AR",
+      "name": "Misiones"
+    },
+    {
+      "id": "AR-P",
+      "country_id": "AR",
+      "name": "Formosa"
+    },
+    {
+      "id": "AR-Q",
+      "country_id": "AR",
+      "name": "Neuquén"
+    },
+    {
+      "id": "AR-R",
+      "country_id": "AR",
+      "name": "Río Negro"
+    },
+    {
+      "id": "AR-S",
+      "country_id": "AR",
+      "name": "Santa Fe"
+    },
+    {
+      "id": "AR-T",
+      "country_id": "AR",
+      "name": "Tucumán"
+    },
+    {
+      "id": "AR-U",
+      "country_id": "AR",
+      "name": "Chubut"
+    },
+    {
+      "id": "AR-V",
+      "country_id": "AR",
+      "name": "Tierra del Fuego"
+    },
+    {
+      "id": "AR-W",
+      "country_id": "AR",
+      "name": "Corrientes"
+    },
+    {
+      "id": "AR-X",
+      "country_id": "AR",
+      "name": "Córdoba"
+    },
+    {
+      "id": "AR-Y",
+      "country_id": "AR",
+      "name": "Jujuy"
+    },
+    {
+      "id": "AR-Z",
+      "country_id": "AR",
+      "name": "Santa Cruz"
+    },
+    {
+      "id": "AG",
+      "country_id": "CH",
+      "name": "Aargau"
+    },
+    {
+      "id": "AR",
+      "country_id": "CH",
+      "name": "Appenzell Ausserrhoden"
+    },
+    {
+      "id": "AI",
+      "country_id": "CH",
+      "name": "Appenzell Innerrhoden"
+    },
+    {
+      "id": "BL",
+      "country_id": "CH",
+      "name": "Basel-Landschaft"
+    },
+    {
+      "id": "BS",
+      "country_id": "CH",
+      "name": "Basel-Stadt"
+    },
+    {
+      "id": "BE",
+      "country_id": "CH",
+      "name": "Bern"
+    },
+    {
+      "id": "FR",
+      "country_id": "CH",
+      "name": "Fribourg"
+    },
+    {
+      "id": "GE",
+      "country_id": "CH",
+      "name": "Geneva"
+    },
+    {
+      "id": "GL",
+      "country_id": "CH",
+      "name": "Glarus"
+    },
+    {
+      "id": "GR",
+      "country_id": "CH",
+      "name": "Graubünden"
+    },
+    {
+      "id": "JU",
+      "country_id": "CH",
+      "name": "Jura"
+    },
+    {
+      "id": "LU",
+      "country_id": "CH",
+      "name": "Lucerne"
+    },
+    {
+      "id": "NE",
+      "country_id": "CH",
+      "name": "Neuchâtel"
+    },
+    {
+      "id": "NW",
+      "country_id": "CH",
+      "name": "Nidwalden"
+    },
+    {
+      "id": "OW",
+      "country_id": "CH",
+      "name": "Obwalden"
+    },
+    {
+      "id": "SG",
+      "country_id": "CH",
+      "name": "St. Gallen"
+    },
+    {
+      "id": "SH",
+      "country_id": "CH",
+      "name": "Schaffhausen"
+    },
+    {
+      "id": "SO",
+      "country_id": "CH",
+      "name": "Solothurn"
+    },
+    {
+      "id": "SZ",
+      "country_id": "CH",
+      "name": "Schwyz"
+    },
+    {
+      "id": "TG",
+      "country_id": "CH",
+      "name": "Thurgau"
+    },
+    {
+      "id": "TI",
+      "country_id": "CH",
+      "name": "Ticino"
+    },
+    {
+      "id": "UR",
+      "country_id": "CH",
+      "name": "Uri"
+    },
+    {
+      "id": "VS",
+      "country_id": "CH",
+      "name": "Valais"
+    },
+    {
+      "id": "VD",
+      "country_id": "CH",
+      "name": "Vaud"
+    },
+    {
+      "id": "ZG",
+      "country_id": "CH",
+      "name": "Zug"
+    },
+    {
+      "id": "ZH",
+      "country_id": "CH",
+      "name": "Zurich"
+    },
+    {
+      "id": "QA-DA",
+      "country_id": "QA",
+      "name": "Doha"
+    },
+    {
+      "id": "QA-KH",
+      "country_id": "QA",
+      "name": "Al Khor"
+    },
+    {
+      "id": "QA-WA",
+      "country_id": "QA",
+      "name": "Al Wakrah"
+    },
+    {
+      "id": "QA-RA",
+      "country_id": "QA",
+      "name": "Al Rayyan"
+    },
+    {
+      "id": "QA-MS",
+      "country_id": "QA",
+      "name": "Al Shamal"
+    },
+    {
+      "id": "QA-US",
+      "country_id": "QA",
+      "name": "Umm Salal"
+    },
+    {
+      "id": "KW-AH",
+      "country_id": "KW",
+      "name": "Ahmadi"
+    },
+    {
+      "id": "KW-FA",
+      "country_id": "KW",
+      "name": "Farwaniya"
+    },
+    {
+      "id": "KW-HA",
+      "country_id": "KW",
+      "name": "Hawalli"
+    },
+    {
+      "id": "KW-JA",
+      "country_id": "KW",
+      "name": "Jahra"
+    },
+    {
+      "id": "KW-KU",
+      "country_id": "KW",
+      "name": "Kuwait City"
+    },
+    {
+      "id": "KW-MU",
+      "country_id": "KW",
+      "name": "Mubarak Al-Kabeer"
+    },
+    {
+      "id": "BH-CA",
+      "country_id": "BH",
+      "name": "Capital"
+    },
+    {
+      "id": "BH-MU",
+      "country_id": "BH",
+      "name": "Muharraq"
+    },
+    {
+      "id": "BH-NO",
+      "country_id": "BH",
+      "name": "Northern"
+    },
+    {
+      "id": "BH-SO",
+      "country_id": "BH",
+      "name": "Southern"
+    },
+    {
+      "id": "OM-DQ",
+      "country_id": "OM",
+      "name": "Ad Dakhiliyah"
+    },
+    {
+      "id": "OM-BA",
+      "country_id": "OM",
+      "name": "Al Batinah North"
+    },
+    {
+      "id": "OM-BS",
+      "country_id": "OM",
+      "name": "Al Batinah South"
+    },
+    {
+      "id": "OM-BU",
+      "country_id": "OM",
+      "name": "Al Buraimi"
+    },
+    {
+      "id": "OM-DA",
+      "country_id": "OM",
+      "name": "Dhofar"
+    },
+    {
+      "id": "OM-MA",
+      "country_id": "OM",
+      "name": "Muscat"
+    },
+    {
+      "id": "OM-MU",
+      "country_id": "OM",
+      "name": "Musandam"
+    },
+    {
+      "id": "OM-SH",
+      "country_id": "OM",
+      "name": "Ash Sharqiyah North"
+    },
+    {
+      "id": "OM-SS",
+      "country_id": "OM",
+      "name": "Ash Sharqiyah South"
+    },
+    {
+      "id": "OM-ZH",
+      "country_id": "OM",
+      "name": "Ad Dhahirah"
+    },
+    {
+      "id": "OM-WU",
+      "country_id": "OM",
+      "name": "Al Wusta"
+    }
+  ],
+  "cities": [
+    {
+      "id": "DL-NEWDELHI",
+      "state_id": "DL",
+      "name": "New Delhi"
+    },
+    {
+      "id": "DL-DELHI",
+      "state_id": "DL",
+      "name": "Delhi"
+    },
+    {
+      "id": "MH-MUMBAI",
+      "state_id": "MH",
+      "name": "Mumbai"
+    },
+    {
+      "id": "MH-PUNE",
+      "state_id": "MH",
+      "name": "Pune"
+    },
+    {
+      "id": "MH-NAGPUR",
+      "state_id": "MH",
+      "name": "Nagpur"
+    },
+    {
+      "id": "MH-THANE",
+      "state_id": "MH",
+      "name": "Thane"
+    },
+    {
+      "id": "MH-NASHIK",
+      "state_id": "MH",
+      "name": "Nashik"
+    },
+    {
+      "id": "MH-AURANGABAD",
+      "state_id": "MH",
+      "name": "Aurangabad"
+    },
+    {
+      "id": "MH-NAVI MUMBAI",
+      "state_id": "MH",
+      "name": "Navi Mumbai"
+    },
+    {
+      "id": "MH-SOLAPUR",
+      "state_id": "MH",
+      "name": "Solapur"
+    },
+    {
+      "id": "MH-KOLHAPUR",
+      "state_id": "MH",
+      "name": "Kolhapur"
+    },
+    {
+      "id": "MH-AMRAVATI",
+      "state_id": "MH",
+      "name": "Amravati"
+    },
+    {
+      "id": "KA-BANGALORE",
+      "state_id": "KA",
+      "name": "Bengaluru"
+    },
+    {
+      "id": "KA-MYSORE",
+      "state_id": "KA",
+      "name": "Mysuru"
+    },
+    {
+      "id": "KA-HUBLI",
+      "state_id": "KA",
+      "name": "Hubballi"
+    },
+    {
+      "id": "KA-MANGALURU",
+      "state_id": "KA",
+      "name": "Mangaluru"
+    },
+    {
+      "id": "KA-BELGAUM",
+      "state_id": "KA",
+      "name": "Belagavi"
+    },
+    {
+      "id": "KA-GULBARGA",
+      "state_id": "KA",
+      "name": "Kalaburagi"
+    },
+    {
+      "id": "KA-DHARWAD",
+      "state_id": "KA",
+      "name": "Dharwad"
+    },
+    {
+      "id": "KA-BIDAR",
+      "state_id": "KA",
+      "name": "Bidar"
+    },
+    {
+      "id": "TN-CHENNAI",
+      "state_id": "TN",
+      "name": "Chennai"
+    },
+    {
+      "id": "TN-COIMBATORE",
+      "state_id": "TN",
+      "name": "Coimbatore"
+    },
+    {
+      "id": "TN-MADURAI",
+      "state_id": "TN",
+      "name": "Madurai"
+    },
+    {
+      "id": "TN-TIRUCHIRAPPALLI",
+      "state_id": "TN",
+      "name": "Tiruchirappalli"
+    },
+    {
+      "id": "TN-SALEM",
+      "state_id": "TN",
+      "name": "Salem"
+    },
+    {
+      "id": "TN-TIRUNELVELI",
+      "state_id": "TN",
+      "name": "Tirunelveli"
+    },
+    {
+      "id": "TN-TIRUPPUR",
+      "state_id": "TN",
+      "name": "Tiruppur"
+    },
+    {
+      "id": "TN-RANIPET",
+      "state_id": "TN",
+      "name": "Ranipet"
+    },
+    {
+      "id": "TN-NAGERCOIL",
+      "state_id": "TN",
+      "name": "Nagercoil"
+    },
+    {
+      "id": "TN-THANJAVUR",
+      "state_id": "TN",
+      "name": "Thanjavur"
+    },
+    {
+      "id": "TG-HYDERABAD",
+      "state_id": "TG",
+      "name": "Hyderabad"
+    },
+    {
+      "id": "TG-SECUNDERABAD",
+      "state_id": "TG",
+      "name": "Secunderabad"
+    },
+    {
+      "id": "TG-WARANGAL",
+      "state_id": "TG",
+      "name": "Warangal"
+    },
+    {
+      "id": "TG-NIZAMABAD",
+      "state_id": "TG",
+      "name": "Nizamabad"
+    },
+    {
+      "id": "TG-KARIMNAGAR",
+      "state_id": "TG",
+      "name": "Karimnagar"
+    },
+    {
+      "id": "TG-RAMAGUNDAM",
+      "state_id": "TG",
+      "name": "Ramagundam"
+    },
+    {
+      "id": "TG-KHAMMAM",
+      "state_id": "TG",
+      "name": "Khammam"
+    },
+    {
+      "id": "TG-MAHBUBNAGAR",
+      "state_id": "TG",
+      "name": "Mahabubnagar"
+    },
+    {
+      "id": "KL-TRIVANDRUM",
+      "state_id": "KL",
+      "name": "Thiruvananthapuram"
+    },
+    {
+      "id": "KL-KOCHI",
+      "state_id": "KL",
+      "name": "Kochi"
+    },
+    {
+      "id": "KL-KOZHIKODE",
+      "state_id": "KL",
+      "name": "Kozhikode"
+    },
+    {
+      "id": "KL-THRISSUR",
+      "state_id": "KL",
+      "name": "Thrissur"
+    },
+    {
+      "id": "KL-KOLLAM",
+      "state_id": "KL",
+      "name": "Kollam"
+    },
+    {
+      "id": "KL-ALAPPUZHA",
+      "state_id": "KL",
+      "name": "Alappuzha"
+    },
+    {
+      "id": "KL-PALAKKAD",
+      "state_id": "KL",
+      "name": "Palakkad"
+    },
+    {
+      "id": "KL-KANNUR",
+      "state_id": "KL",
+      "name": "Kannur"
+    },
+    {
+      "id": "KL-KASARAGOD",
+      "state_id": "KL",
+      "name": "Kasaragod"
+    },
+    {
+      "id": "KL-IDUKKI",
+      "state_id": "KL",
+      "name": "Idukki"
+    },
+    {
+      "id": "GJ-AHMEDABAD",
+      "state_id": "GJ",
+      "name": "Ahmedabad"
+    },
+    {
+      "id": "GJ-SURAT",
+      "state_id": "GJ",
+      "name": "Surat"
+    },
+    {
+      "id": "GJ-VADODARA",
+      "state_id": "GJ",
+      "name": "Vadodara"
+    },
+    {
+      "id": "GJ-RAJKOT",
+      "state_id": "GJ",
+      "name": "Rajkot"
+    },
+    {
+      "id": "GJ-BHAVNAGAR",
+      "state_id": "GJ",
+      "name": "Bhavnagar"
+    },
+    {
+      "id": "GJ-JAMNAGAR",
+      "state_id": "GJ",
+      "name": "Jamnagar"
+    },
+    {
+      "id": "GJ-JUNAGADH",
+      "state_id": "GJ",
+      "name": "Junagadh"
+    },
+    {
+      "id": "GJ-GANDHINAGAR",
+      "state_id": "GJ",
+      "name": "Gandhinagar"
+    },
+    {
+      "id": "GJ-ANAND",
+      "state_id": "GJ",
+      "name": "Anand"
+    },
+    {
+      "id": "GJ-NAVSARI",
+      "state_id": "GJ",
+      "name": "Navsari"
+    },
+    {
+      "id": "GJ-MORBI",
+      "state_id": "GJ",
+      "name": "Morbi"
+    },
+    {
+      "id": "GJ-NADIAD",
+      "state_id": "GJ",
+      "name": "Nadiad"
+    },
+    {
+      "id": "GJ-BHARUCH",
+      "state_id": "GJ",
+      "name": "Bharuch"
+    },
+    {
+      "id": "GJ-PORBANDAR",
+      "state_id": "GJ",
+      "name": "Porbandar"
+    },
+    {
+      "id": "GJ-GANDHIDHAM",
+      "state_id": "GJ",
+      "name": "Gandhidham"
+    },
+    {
+      "id": "RJ-JAIPUR",
+      "state_id": "RJ",
+      "name": "Jaipur"
+    },
+    {
+      "id": "RJ-JODHPUR",
+      "state_id": "RJ",
+      "name": "Jodhpur"
+    },
+    {
+      "id": "RJ-UDAIPUR",
+      "state_id": "RJ",
+      "name": "Udaipur"
+    },
+    {
+      "id": "RJ-KOTA",
+      "state_id": "RJ",
+      "name": "Kota"
+    },
+    {
+      "id": "RJ-BIKANER",
+      "state_id": "RJ",
+      "name": "Bikaner"
+    },
+    {
+      "id": "RJ-AJMER",
+      "state_id": "RJ",
+      "name": "Ajmer"
+    },
+    {
+      "id": "RJ-BHILWARA",
+      "state_id": "RJ",
+      "name": "Bhilwara"
+    },
+    {
+      "id": "RJ-ALWAR",
+      "state_id": "RJ",
+      "name": "Alwar"
+    },
+    {
+      "id": "RJ-BHARATPUR",
+      "state_id": "RJ",
+      "name": "Bharatpur"
+    },
+    {
+      "id": "RJ-SIKAR",
+      "state_id": "RJ",
+      "name": "Sikar"
+    },
+    {
+      "id": "RJ-PALI",
+      "state_id": "RJ",
+      "name": "Pali"
+    },
+    {
+      "id": "RJ-SRI GANGANAGAR",
+      "state_id": "RJ",
+      "name": "Sri Ganganagar"
+    },
+    {
+      "id": "RJ-TONK",
+      "state_id": "RJ",
+      "name": "Tonk"
+    },
+    {
+      "id": "RJ-JHUNJHUNU",
+      "state_id": "RJ",
+      "name": "Jhunjhunu"
+    },
+    {
+      "id": "RJ-HANUMANGARH",
+      "state_id": "RJ",
+      "name": "Hanumangarh"
+    },
+    {
+      "id": "UP-LUCKNOW",
+      "state_id": "UP",
+      "name": "Lucknow"
+    },
+    {
+      "id": "UP-KANPUR",
+      "state_id": "UP",
+      "name": "Kanpur"
+    },
+    {
+      "id": "UP-AGRA",
+      "state_id": "UP",
+      "name": "Agra"
+    },
+    {
+      "id": "UP-NOIDA",
+      "state_id": "UP",
+      "name": "Noida"
+    },
+    {
+      "id": "UP-GHAZIABAD",
+      "state_id": "UP",
+      "name": "Ghaziabad"
+    },
+    {
+      "id": "UP-VARANASI",
+      "state_id": "UP",
+      "name": "Varanasi"
+    },
+    {
+      "id": "UP-MEERUT",
+      "state_id": "UP",
+      "name": "Meerut"
+    },
+    {
+      "id": "UP-ALLAHABAD",
+      "state_id": "UP",
+      "name": "Prayagraj"
+    },
+    {
+      "id": "UP-BAREILLY",
+      "state_id": "UP",
+      "name": "Bareilly"
+    },
+    {
+      "id": "UP-ALIGARH",
+      "state_id": "UP",
+      "name": "Aligarh"
+    },
+    {
+      "id": "UP-MORADABAD",
+      "state_id": "UP",
+      "name": "Moradabad"
+    },
+    {
+      "id": "UP-SAHARANPUR",
+      "state_id": "UP",
+      "name": "Saharanpur"
+    },
+    {
+      "id": "UP-GORAKHPUR",
+      "state_id": "UP",
+      "name": "Gorakhpur"
+    },
+    {
+      "id": "UP-FIROZABAD",
+      "state_id": "UP",
+      "name": "Firozabad"
+    },
+    {
+      "id": "UP-JHANSI",
+      "state_id": "UP",
+      "name": "Jhansi"
+    },
+    {
+      "id": "UP-MUZAFFARNAGAR",
+      "state_id": "UP",
+      "name": "Muzaffarnagar"
+    },
+    {
+      "id": "UP-MATHURA",
+      "state_id": "UP",
+      "name": "Mathura"
+    },
+    {
+      "id": "UP-RAMPUR",
+      "state_id": "UP",
+      "name": "Rampur"
+    },
+    {
+      "id": "UP-SHAHJAHANPUR",
+      "state_id": "UP",
+      "name": "Shahjahanpur"
+    },
+    {
+      "id": "UP-FARRUKHABAD",
+      "state_id": "UP",
+      "name": "Farrukhabad"
+    },
+    {
+      "id": "WB-KOLKATA",
+      "state_id": "WB",
+      "name": "Kolkata"
+    },
+    {
+      "id": "WB-HOWRAH",
+      "state_id": "WB",
+      "name": "Howrah"
+    },
+    {
+      "id": "WB-DURGAPUR",
+      "state_id": "WB",
+      "name": "Durgapur"
+    },
+    {
+      "id": "WB-ASANSOL",
+      "state_id": "WB",
+      "name": "Asansol"
+    },
+    {
+      "id": "WB-SILIGURI",
+      "state_id": "WB",
+      "name": "Siliguri"
+    },
+    {
+      "id": "WB-BARDHAMAN",
+      "state_id": "WB",
+      "name": "Bardhaman"
+    },
+    {
+      "id": "WB-MALDA",
+      "state_id": "WB",
+      "name": "Malda"
+    },
+    {
+      "id": "WB-BAHARAMPUR",
+      "state_id": "WB",
+      "name": "Berhampore"
+    },
+    {
+      "id": "WB-HALDIYA",
+      "state_id": "WB",
+      "name": "Haldia"
+    },
+    {
+      "id": "WB-RANAGHAT",
+      "state_id": "WB",
+      "name": "Ranaghat"
+    },
+    {
+      "id": "WB-JALPAIGURI",
+      "state_id": "WB",
+      "name": "Jalpaiguri"
+    },
+    {
+      "id": "WB-KHARAGPUR",
+      "state_id": "WB",
+      "name": "Kharagpur"
+    },
+    {
+      "id": "WB-NAIHATI",
+      "state_id": "WB",
+      "name": "Naihati"
+    },
+    {
+      "id": "WB-SERAMPORE",
+      "state_id": "WB",
+      "name": "Serampore"
+    },
+    {
+      "id": "WB-BONGAON",
+      "state_id": "WB",
+      "name": "Bongaon"
+    },
+    {
+      "id": "PB-CHANDIGARH",
+      "state_id": "PB",
+      "name": "Chandigarh"
+    },
+    {
+      "id": "PB-LUDHIANA",
+      "state_id": "PB",
+      "name": "Ludhiana"
+    },
+    {
+      "id": "PB-AMRITSAR",
+      "state_id": "PB",
+      "name": "Amritsar"
+    },
+    {
+      "id": "PB-JALANDHAR",
+      "state_id": "PB",
+      "name": "Jalandhar"
+    },
+    {
+      "id": "PB-PATIALA",
+      "state_id": "PB",
+      "name": "Patiala"
+    },
+    {
+      "id": "PB-BATHINDA",
+      "state_id": "PB",
+      "name": "Bathinda"
+    },
+    {
+      "id": "PB-MOHALI",
+      "state_id": "PB",
+      "name": "Mohali"
+    },
+    {
+      "id": "PB-HOSHIARPUR",
+      "state_id": "PB",
+      "name": "Hoshiarpur"
+    },
+    {
+      "id": "PB-BARNALA",
+      "state_id": "PB",
+      "name": "Barnala"
+    },
+    {
+      "id": "PB-MUKTSAR",
+      "state_id": "PB",
+      "name": "Muktsar"
+    },
+    {
+      "id": "PB-MALERKOTLA",
+      "state_id": "PB",
+      "name": "Malerkotla"
+    },
+    {
+      "id": "PB-PATHANKOT",
+      "state_id": "PB",
+      "name": "Pathankot"
+    },
+    {
+      "id": "PB-MANSA",
+      "state_id": "PB",
+      "name": "Mansa"
+    },
+    {
+      "id": "PB-FEROZPUR",
+      "state_id": "PB",
+      "name": "Firozpur"
+    },
+    {
+      "id": "PB-MALOUT",
+      "state_id": "PB",
+      "name": "Malout"
+    },
+    {
+      "id": "HR-GURUGRAM",
+      "state_id": "HR",
+      "name": "Gurugram"
+    },
+    {
+      "id": "HR-FARIDABAD",
+      "state_id": "HR",
+      "name": "Faridabad"
+    },
+    {
+      "id": "HR-PANIPAT",
+      "state_id": "HR",
+      "name": "Panipat"
+    },
+    {
+      "id": "HR-ROHTAK",
+      "state_id": "HR",
+      "name": "Rohtak"
+    },
+    {
+      "id": "HR-HISAR",
+      "state_id": "HR",
+      "name": "Hisar"
+    },
+    {
+      "id": "HR-KARNAL",
+      "state_id": "HR",
+      "name": "Karnal"
+    },
+    {
+      "id": "HR-SONIPAT",
+      "state_id": "HR",
+      "name": "Sonipat"
+    },
+    {
+      "id": "HR-PANCHKULA",
+      "state_id": "HR",
+      "name": "Panchkula"
+    },
+    {
+      "id": "HR-BHIWANI",
+      "state_id": "HR",
+      "name": "Bhiwani"
+    },
+    {
+      "id": "HR-AMBALA",
+      "state_id": "HR",
+      "name": "Ambala"
+    },
+    {
+      "id": "HR-YAMUNANAGAR",
+      "state_id": "HR",
+      "name": "Yamunanagar"
+    },
+    {
+      "id": "HR-BAHADURGARH",
+      "state_id": "HR",
+      "name": "Bahadurgarh"
+    },
+    {
+      "id": "HR-JIND",
+      "state_id": "HR",
+      "name": "Jind"
+    },
+    {
+      "id": "HR-KURUKSHETRA",
+      "state_id": "HR",
+      "name": "Kurukshetra"
+    },
+    {
+      "id": "HR-SIRSA",
+      "state_id": "HR",
+      "name": "Sirsa"
+    },
+    {
+      "id": "HR-REWARI",
+      "state_id": "HR",
+      "name": "Rewari"
+    },
+    {
+      "id": "HR-PALWAL",
+      "state_id": "HR",
+      "name": "Palwal"
+    },
+    {
+      "id": "HR-NUH",
+      "state_id": "HR",
+      "name": "Nuh"
+    },
+    {
+      "id": "HR-MAHENDRAGARH",
+      "state_id": "HR",
+      "name": "Mahendragarh"
+    },
+    {
+      "id": "HR-FATEHABAD",
+      "state_id": "HR",
+      "name": "Fatehabad"
+    },
+    {
+      "id": "MP-BHOPAL",
+      "state_id": "MP",
+      "name": "Bhopal"
+    },
+    {
+      "id": "MP-INDORE",
+      "state_id": "MP",
+      "name": "Indore"
+    },
+    {
+      "id": "MP-JABALPUR",
+      "state_id": "MP",
+      "name": "Jabalpur"
+    },
+    {
+      "id": "MP-GWALIOR",
+      "state_id": "MP",
+      "name": "Gwalior"
+    },
+    {
+      "id": "MP-UJJAIN",
+      "state_id": "MP",
+      "name": "Ujjain"
+    },
+    {
+      "id": "MP-SAGAR",
+      "state_id": "MP",
+      "name": "Sagar"
+    },
+    {
+      "id": "MP-DEWAS",
+      "state_id": "MP",
+      "name": "Dewas"
+    },
+    {
+      "id": "MP-SATNA",
+      "state_id": "MP",
+      "name": "Satna"
+    },
+    {
+      "id": "MP-RATLAM",
+      "state_id": "MP",
+      "name": "Ratlam"
+    },
+    {
+      "id": "MP-REWA",
+      "state_id": "MP",
+      "name": "Rewa"
+    },
+    {
+      "id": "MP-MURENA",
+      "state_id": "MP",
+      "name": "Morena"
+    },
+    {
+      "id": "MP-SINGRAULI",
+      "state_id": "MP",
+      "name": "Singrauli"
+    },
+    {
+      "id": "MP-BURHANPUR",
+      "state_id": "MP",
+      "name": "Burhanpur"
+    },
+    {
+      "id": "MP-KHANDWA",
+      "state_id": "MP",
+      "name": "Khandwa"
+    },
+    {
+      "id": "MP-BHIND",
+      "state_id": "MP",
+      "name": "Bhind"
+    },
+    {
+      "id": "AP-VISAKHAPATNAM",
+      "state_id": "AP",
+      "name": "Visakhapatnam"
+    },
+    {
+      "id": "AP-VIJAYAWADA",
+      "state_id": "AP",
+      "name": "Vijayawada"
+    },
+    {
+      "id": "AP-GUNTUR",
+      "state_id": "AP",
+      "name": "Guntur"
+    },
+    {
+      "id": "AP-NELLORE",
+      "state_id": "AP",
+      "name": "Nellore"
+    },
+    {
+      "id": "AP-KURNOOL",
+      "state_id": "AP",
+      "name": "Kurnool"
+    },
+    {
+      "id": "AP-KAKINADA",
+      "state_id": "AP",
+      "name": "Kakinada"
+    },
+    {
+      "id": "AP-KADAPA",
+      "state_id": "AP",
+      "name": "Kadapa"
+    },
+    {
+      "id": "AP-RAJAMAHENDRAVARAM",
+      "state_id": "AP",
+      "name": "Rajamahendravaram"
+    },
+    {
+      "id": "AP-TIRUPATI",
+      "state_id": "AP",
+      "name": "Tirupati"
+    },
+    {
+      "id": "AP-ANANTAPUR",
+      "state_id": "AP",
+      "name": "Anantapur"
+    },
+    {
+      "id": "AP-ELURU",
+      "state_id": "AP",
+      "name": "Eluru"
+    },
+    {
+      "id": "AP-ONGole",
+      "state_id": "AP",
+      "name": "Ongole"
+    },
+    {
+      "id": "AP-CHITTOR",
+      "state_id": "AP",
+      "name": "Chittoor"
+    },
+    {
+      "id": "AP-NANDYAL",
+      "state_id": "AP",
+      "name": "Nandyal"
+    },
+    {
+      "id": "AP-MACHILIPATNAM",
+      "state_id": "AP",
+      "name": "Machilipatnam"
+    },
+    {
+      "id": "GA-PANJIM",
+      "state_id": "GA",
+      "name": "Panaji"
+    },
+    {
+      "id": "GA-MARGAO",
+      "state_id": "GA",
+      "name": "Margao"
+    },
+    {
+      "id": "GA-VASCO",
+      "state_id": "GA",
+      "name": "Vasco da Gama"
+    },
+    {
+      "id": "GA-MAPUSA",
+      "state_id": "GA",
+      "name": "Mapusa"
+    },
+    {
+      "id": "GA-PONDA",
+      "state_id": "GA",
+      "name": "Ponda"
+    },
+    {
+      "id": "GA-BICHOLIM",
+      "state_id": "GA",
+      "name": "Bicholim"
+    },
+    {
+      "id": "GA-CUNCOLIM",
+      "state_id": "GA",
+      "name": "Cuncolim"
+    },
+    {
+      "id": "GA-CURCHOREM",
+      "state_id": "GA",
+      "name": "Curchorem"
+    },
+    {
+      "id": "GA-SANQUELIM",
+      "state_id": "GA",
+      "name": "Sanquelim"
+    },
+    {
+      "id": "GA-QUEPEM",
+      "state_id": "GA",
+      "name": "Quepem"
+    },
+    {
+      "id": "CH-CHANDIGARH",
+      "state_id": "CH",
+      "name": "Chandigarh"
+    },
+    {
+      "id": "AS-GUWAHATI",
+      "state_id": "AS",
+      "name": "Guwahati"
+    },
+    {
+      "id": "AS-SILCHAR",
+      "state_id": "AS",
+      "name": "Silchar"
+    },
+    {
+      "id": "AS-DIBRUGARH",
+      "state_id": "AS",
+      "name": "Dibrugarh"
+    },
+    {
+      "id": "AS-JORHAT",
+      "state_id": "AS",
+      "name": "Jorhat"
+    },
+    {
+      "id": "AS-NAGAON",
+      "state_id": "AS",
+      "name": "Nagaon"
+    },
+    {
+      "id": "AS-TEZPUR",
+      "state_id": "AS",
+      "name": "Tezpur"
+    },
+    {
+      "id": "AS-BONGAIGAON",
+      "state_id": "AS",
+      "name": "Bongaigaon"
+    },
+    {
+      "id": "AS-DHUBRI",
+      "state_id": "AS",
+      "name": "Dhubri"
+    },
+    {
+      "id": "AS-DIPHU",
+      "state_id": "AS",
+      "name": "Diphu"
+    },
+    {
+      "id": "AS-NALBARI",
+      "state_id": "AS",
+      "name": "Nalbari"
+    },
+    {
+      "id": "AS-GOLAGHAT",
+      "state_id": "AS",
+      "name": "Golaghat"
+    },
+    {
+      "id": "AS-BARPETA",
+      "state_id": "AS",
+      "name": "Barpeta"
+    },
+    {
+      "id": "AS-SIVASAGAR",
+      "state_id": "AS",
+      "name": "Sivasagar"
+    },
+    {
+      "id": "AS-KARIMGANJ",
+      "state_id": "AS",
+      "name": "Karimganj"
+    },
+    {
+      "id": "BR-PATNA",
+      "state_id": "BR",
+      "name": "Patna"
+    },
+    {
+      "id": "BR-GAYA",
+      "state_id": "BR",
+      "name": "Gaya"
+    },
+    {
+      "id": "BR-BHAGALPUR",
+      "state_id": "BR",
+      "name": "Bhagalpur"
+    },
+    {
+      "id": "BR-MUZAFFARPUR",
+      "state_id": "BR",
+      "name": "Muzaffarpur"
+    },
+    {
+      "id": "BR-PURNIA",
+      "state_id": "BR",
+      "name": "Purnia"
+    },
+    {
+      "id": "BR-DARBHANGA",
+      "state_id": "BR",
+      "name": "Darbhanga"
+    },
+    {
+      "id": "BR-BEGUSARAI",
+      "state_id": "BR",
+      "name": "Begusarai"
+    },
+    {
+      "id": "BR-KATIHAR",
+      "state_id": "BR",
+      "name": "Katihar"
+    },
+    {
+      "id": "BR-MUNGER",
+      "state_id": "BR",
+      "name": "Munger"
+    },
+    {
+      "id": "BR-ARRAH",
+      "state_id": "BR",
+      "name": "Arrah"
+    },
+    {
+      "id": "BR-SAHARSA",
+      "state_id": "BR",
+      "name": "Saharsa"
+    },
+    {
+      "id": "BR-SIWAN",
+      "state_id": "BR",
+      "name": "Siwan"
+    },
+    {
+      "id": "BR-SAMASTIPUR",
+      "state_id": "BR",
+      "name": "Samastipur"
+    },
+    {
+      "id": "BR-HAJIPUR",
+      "state_id": "BR",
+      "name": "Hajipur"
+    },
+    {
+      "id": "BR-DEOGHAR",
+      "state_id": "BR",
+      "name": "Dehri"
+    },
+    {
+      "id": "CT-RAIPUR",
+      "state_id": "CT",
+      "name": "Raipur"
+    },
+    {
+      "id": "CT-BILASPUR",
+      "state_id": "CT",
+      "name": "Bilaspur"
+    },
+    {
+      "id": "CT-DURG",
+      "state_id": "CT",
+      "name": "Durg"
+    },
+    {
+      "id": "CT-BHILAI",
+      "state_id": "CT",
+      "name": "Bhilai"
+    },
+    {
+      "id": "CT-KORBA",
+      "state_id": "CT",
+      "name": "Korba"
+    },
+    {
+      "id": "CT-RAIGARH",
+      "state_id": "CT",
+      "name": "Raigarh"
+    },
+    {
+      "id": "CT-JAGDALPUR",
+      "state_id": "CT",
+      "name": "Jagdalpur"
+    },
+    {
+      "id": "CT-AMBIKAPUR",
+      "state_id": "CT",
+      "name": "Ambikapur"
+    },
+    {
+      "id": "CT-DHAMTARI",
+      "state_id": "CT",
+      "name": "Dhamtari"
+    },
+    {
+      "id": "CT-DURG2",
+      "state_id": "CT",
+      "name": "Rajnandgaon"
+    },
+    {
+      "id": "CT-MAHASAMUND",
+      "state_id": "CT",
+      "name": "Mahasamund"
+    },
+    {
+      "id": "CT-KANKER",
+      "state_id": "CT",
+      "name": "Kanker"
+    },
+    {
+      "id": "CT-BASTAR",
+      "state_id": "CT",
+      "name": "Bastar"
+    },
+    {
+      "id": "CT-KORIYA",
+      "state_id": "CT",
+      "name": "Koriya"
+    },
+    {
+      "id": "CT-SURGUJA",
+      "state_id": "CT",
+      "name": "Surguja"
+    },
+    {
+      "id": "HP-SHIMLA",
+      "state_id": "HP",
+      "name": "Shimla"
+    },
+    {
+      "id": "HP-DHARAMSALA",
+      "state_id": "HP",
+      "name": "Dharamshala"
+    },
+    {
+      "id": "HP-SOLAN",
+      "state_id": "HP",
+      "name": "Solan"
+    },
+    {
+      "id": "HP-MANDI",
+      "state_id": "HP",
+      "name": "Mandi"
+    },
+    {
+      "id": "HP-PALAMPUR",
+      "state_id": "HP",
+      "name": "Palampur"
+    },
+    {
+      "id": "HP-BADDI",
+      "state_id": "HP",
+      "name": "Baddi"
+    },
+    {
+      "id": "HP-NAHAN",
+      "state_id": "HP",
+      "name": "Nahan"
+    },
+    {
+      "id": "HP-KULLU",
+      "state_id": "HP",
+      "name": "Kullu"
+    },
+    {
+      "id": "HP-MANALI",
+      "state_id": "HP",
+      "name": "Manali"
+    },
+    {
+      "id": "HP-CHAMBA",
+      "state_id": "HP",
+      "name": "Chamba"
+    },
+    {
+      "id": "HP-NADAUN",
+      "state_id": "HP",
+      "name": "Nadaun"
+    },
+    {
+      "id": "HP-AMB",
+      "state_id": "HP",
+      "name": "Amb"
+    },
+    {
+      "id": "HP-ROHRU",
+      "state_id": "HP",
+      "name": "Rohru"
+    },
+    {
+      "id": "HP-SUNDARNAGAR",
+      "state_id": "HP",
+      "name": "Sundarnagar"
+    },
+    {
+      "id": "HP-UNA",
+      "state_id": "HP",
+      "name": "Una"
+    },
+    {
+      "id": "JH-RANCHI",
+      "state_id": "JH",
+      "name": "Ranchi"
+    },
+    {
+      "id": "JH-JAMSHEDPUR",
+      "state_id": "JH",
+      "name": "Jamshedpur"
+    },
+    {
+      "id": "JH-DHANBAD",
+      "state_id": "JH",
+      "name": "Dhanbad"
+    },
+    {
+      "id": "JH-BOKARO",
+      "state_id": "JH",
+      "name": "Bokaro"
+    },
+    {
+      "id": "JH-DEOGHAR",
+      "state_id": "JH",
+      "name": "Deoghar"
+    },
+    {
+      "id": "JH-HAZARIBAGH",
+      "state_id": "JH",
+      "name": "Hazaribagh"
+    },
+    {
+      "id": "JH-GIRIDIH",
+      "state_id": "JH",
+      "name": "Giridih"
+    },
+    {
+      "id": "JH-RAMGARH",
+      "state_id": "JH",
+      "name": "Ramgarh"
+    },
+    {
+      "id": "JH-PHUSRO",
+      "state_id": "JH",
+      "name": "Phusro"
+    },
+    {
+      "id": "JH-CHAS",
+      "state_id": "JH",
+      "name": "Chas"
+    },
+    {
+      "id": "JH-MEDININAGAR",
+      "state_id": "JH",
+      "name": "Medininagar"
+    },
+    {
+      "id": "JH-SAHEBGANJ",
+      "state_id": "JH",
+      "name": "Sahebganj"
+    },
+    {
+      "id": "JH-CHAKRADHARPUR",
+      "state_id": "JH",
+      "name": "Chakradharpur"
+    },
+    {
+      "id": "JH-DUMKA",
+      "state_id": "JH",
+      "name": "Dumka"
+    },
+    {
+      "id": "JH-GHATSILA",
+      "state_id": "JH",
+      "name": "Ghatshila"
+    },
+    {
+      "id": "OR-BHUBANESWAR",
+      "state_id": "OR",
+      "name": "Bhubaneswar"
+    },
+    {
+      "id": "OR-CUTTACK",
+      "state_id": "OR",
+      "name": "Cuttack"
+    },
+    {
+      "id": "OR-ROURKELA",
+      "state_id": "OR",
+      "name": "Rourkela"
+    },
+    {
+      "id": "OR-BERHAMPUR",
+      "state_id": "OR",
+      "name": "Berhampur"
+    },
+    {
+      "id": "OR-SAMBALPUR",
+      "state_id": "OR",
+      "name": "Sambalpur"
+    },
+    {
+      "id": "OR-PURI",
+      "state_id": "OR",
+      "name": "Puri"
+    },
+    {
+      "id": "OR-BALASORE",
+      "state_id": "OR",
+      "name": "Balasore"
+    },
+    {
+      "id": "OR-BARIPADA",
+      "state_id": "OR",
+      "name": "Baripada"
+    },
+    {
+      "id": "OR-JHARSUGUDA",
+      "state_id": "OR",
+      "name": "Jharsuguda"
+    },
+    {
+      "id": "OR-BARGARH",
+      "state_id": "OR",
+      "name": "Bargarh"
+    },
+    {
+      "id": "OR-JEYPORE",
+      "state_id": "OR",
+      "name": "Jeypore"
+    },
+    {
+      "id": "OR-BHADRAK",
+      "state_id": "OR",
+      "name": "Bhadrak"
+    },
+    {
+      "id": "OR-BALANGIR",
+      "state_id": "OR",
+      "name": "Balangir"
+    },
+    {
+      "id": "OR-ANGUL",
+      "state_id": "OR",
+      "name": "Angul"
+    },
+    {
+      "id": "OR-DHENKANAL",
+      "state_id": "OR",
+      "name": "Dhenkanal"
+    },
+    {
+      "id": "UT-DEHRADUN",
+      "state_id": "UT",
+      "name": "Dehradun"
+    },
+    {
+      "id": "UT-HARIDWAR",
+      "state_id": "UT",
+      "name": "Haridwar"
+    },
+    {
+      "id": "UT-RISHIKESH",
+      "state_id": "UT",
+      "name": "Rishikesh"
+    },
+    {
+      "id": "UT-HALDWANI",
+      "state_id": "UT",
+      "name": "Haldwani"
+    },
+    {
+      "id": "UT-ROORKEE",
+      "state_id": "UT",
+      "name": "Roorkee"
+    },
+    {
+      "id": "UT-KASHIPUR",
+      "state_id": "UT",
+      "name": "Kashipur"
+    },
+    {
+      "id": "UT-RUDRAPUR",
+      "state_id": "UT",
+      "name": "Rudrapur"
+    },
+    {
+      "id": "UT-PITHORAGARH",
+      "state_id": "UT",
+      "name": "Pithoragarh"
+    },
+    {
+      "id": "UT-RAMNAGAR",
+      "state_id": "UT",
+      "name": "Ramnagar"
+    },
+    {
+      "id": "UT-MUSSOORIE",
+      "state_id": "UT",
+      "name": "Mussoorie"
+    },
+    {
+      "id": "UT-NAINITAL",
+      "state_id": "UT",
+      "name": "Nainital"
+    },
+    {
+      "id": "UT-ALMORA",
+      "state_id": "UT",
+      "name": "Almora"
+    },
+    {
+      "id": "UT-PAURI",
+      "state_id": "UT",
+      "name": "Pauri"
+    },
+    {
+      "id": "UT-TEHRI",
+      "state_id": "UT",
+      "name": "Tehri"
+    },
+    {
+      "id": "UT-CHAMOLI",
+      "state_id": "UT",
+      "name": "Chamoli"
+    },
+    {
+      "id": "SK-GANGTOK",
+      "state_id": "SK",
+      "name": "Gangtok"
+    },
+    {
+      "id": "SK-NAMCHI",
+      "state_id": "SK",
+      "name": "Namchi"
+    },
+    {
+      "id": "SK-GEYZING",
+      "state_id": "SK",
+      "name": "Geyzing"
+    },
+    {
+      "id": "SK-RANGPO",
+      "state_id": "SK",
+      "name": "Rangpo"
+    },
+    {
+      "id": "SK-MELLI",
+      "state_id": "SK",
+      "name": "Melli"
+    },
+    {
+      "id": "SK-JORTHANG",
+      "state_id": "SK",
+      "name": "Jorethang"
+    },
+    {
+      "id": "SK-RAVANGLA",
+      "state_id": "SK",
+      "name": "Ravangla"
+    },
+    {
+      "id": "SK-YUKSOM",
+      "state_id": "SK",
+      "name": "Yuksom"
+    },
+    {
+      "id": "SK-SINGTAM",
+      "state_id": "SK",
+      "name": "Singtam"
+    },
+    {
+      "id": "SK-RONGPO",
+      "state_id": "SK",
+      "name": "Rongli"
+    },
+    {
+      "id": "AN-PORT BLAIR",
+      "state_id": "AN",
+      "name": "Port Blair"
+    },
+    {
+      "id": "AN-DIGLIPUR",
+      "state_id": "AN",
+      "name": "Diglipur"
+    },
+    {
+      "id": "AN-RANGAT",
+      "state_id": "AN",
+      "name": "Rangat"
+    },
+    {
+      "id": "AR-ITANAGAR",
+      "state_id": "AR",
+      "name": "Itanagar"
+    },
+    {
+      "id": "AR-NAHARLAGUN",
+      "state_id": "AR",
+      "name": "Naharlagun"
+    },
+    {
+      "id": "AR-PASIGHAT",
+      "state_id": "AR",
+      "name": "Pasighat"
+    },
+    {
+      "id": "MN-IMPHAL",
+      "state_id": "MN",
+      "name": "Imphal"
+    },
+    {
+      "id": "MN-THOUBAL",
+      "state_id": "MN",
+      "name": "Thoubal"
+    },
+    {
+      "id": "ML-SHILLONG",
+      "state_id": "ML",
+      "name": "Shillong"
+    },
+    {
+      "id": "ML-TURA",
+      "state_id": "ML",
+      "name": "Tura"
+    },
+    {
+      "id": "MZ-AIZAWL",
+      "state_id": "MZ",
+      "name": "Aizawl"
+    },
+    {
+      "id": "MZ-LUNGLEI",
+      "state_id": "MZ",
+      "name": "Lunglei"
+    },
+    {
+      "id": "NL-KOHIMA",
+      "state_id": "NL",
+      "name": "Kohima"
+    },
+    {
+      "id": "NL-DIMAPUR",
+      "state_id": "NL",
+      "name": "Dimapur"
+    },
+    {
+      "id": "TR-AGARTALA",
+      "state_id": "TR",
+      "name": "Agartala"
+    },
+    {
+      "id": "TR-UDHAYPUR",
+      "state_id": "TR",
+      "name": "Udaipur"
+    },
+    {
+      "id": "DN-SILVASSA",
+      "state_id": "DN",
+      "name": "Silvassa"
+    },
+    {
+      "id": "DN-DAMAN",
+      "state_id": "DN",
+      "name": "Daman"
+    },
+    {
+      "id": "LD-KAVARATTI",
+      "state_id": "LD",
+      "name": "Kavaratti"
+    },
+    {
+      "id": "JK-SRINAGAR",
+      "state_id": "JK",
+      "name": "Srinagar"
+    },
+    {
+      "id": "JK-JAMMU",
+      "state_id": "JK",
+      "name": "Jammu"
+    },
+    {
+      "id": "LA-LEH",
+      "state_id": "LA",
+      "name": "Leh"
+    },
+    {
+      "id": "LA-KARGIL",
+      "state_id": "LA",
+      "name": "Kargil"
+    },
+    {
+      "id": "PY-PUDUCHERRY",
+      "state_id": "PY",
+      "name": "Puducherry"
+    },
+    {
+      "id": "PY-KARAIKAL",
+      "state_id": "PY",
+      "name": "Karaikal"
+    },
+    {
+      "id": "PY-YANAM",
+      "state_id": "PY",
+      "name": "Yanam"
+    },
+    {
+      "id": "PY-MAHÉ",
+      "state_id": "PY",
+      "name": "Mahé"
+    },
+    {
+      "id": "US-CA-LA",
+      "state_id": "CA",
+      "name": "Los Angeles"
+    },
+    {
+      "id": "US-CA-SF",
+      "state_id": "CA",
+      "name": "San Francisco"
+    },
+    {
+      "id": "US-CA-SD",
+      "state_id": "CA",
+      "name": "San Diego"
+    },
+    {
+      "id": "US-CA-SJ",
+      "state_id": "CA",
+      "name": "San Jose"
+    },
+    {
+      "id": "US-NY-NYC",
+      "state_id": "NY",
+      "name": "New York City"
+    },
+    {
+      "id": "US-NY-BUF",
+      "state_id": "NY",
+      "name": "Buffalo"
+    },
+    {
+      "id": "US-NY-ROCH",
+      "state_id": "NY",
+      "name": "Rochester"
+    },
+    {
+      "id": "US-TX-HOU",
+      "state_id": "TX",
+      "name": "Houston"
+    },
+    {
+      "id": "US-TX-DAL",
+      "state_id": "TX",
+      "name": "Dallas"
+    },
+    {
+      "id": "US-TX-AUS",
+      "state_id": "TX",
+      "name": "Austin"
+    },
+    {
+      "id": "US-TX-SAN",
+      "state_id": "TX",
+      "name": "San Antonio"
+    },
+    {
+      "id": "US-FL-MIA",
+      "state_id": "FL",
+      "name": "Miami"
+    },
+    {
+      "id": "US-FL-ORL",
+      "state_id": "FL",
+      "name": "Orlando"
+    },
+    {
+      "id": "US-FL-TPA",
+      "state_id": "FL",
+      "name": "Tampa"
+    },
+    {
+      "id": "US-IL-CHI",
+      "state_id": "IL",
+      "name": "Chicago"
+    },
+    {
+      "id": "US-WA-SEA",
+      "state_id": "WA",
+      "name": "Seattle"
+    },
+    {
+      "id": "US-DC-DC",
+      "state_id": "DC",
+      "name": "Washington"
+    },
+    {
+      "id": "US-MA-BOS",
+      "state_id": "MA",
+      "name": "Boston"
+    },
+    {
+      "id": "US-GA-ATL",
+      "state_id": "GA",
+      "name": "Atlanta"
+    },
+    {
+      "id": "US-NV-LV",
+      "state_id": "NV",
+      "name": "Las Vegas"
+    },
+    {
+      "id": "US-AZ-PHX",
+      "state_id": "AZ",
+      "name": "Phoenix"
+    },
+    {
+      "id": "US-CO-DEN",
+      "state_id": "CO",
+      "name": "Denver"
+    },
+    {
+      "id": "US-PA-PHI",
+      "state_id": "PA",
+      "name": "Philadelphia"
+    },
+    {
+      "id": "US-MI-DET",
+      "state_id": "MI",
+      "name": "Detroit"
+    },
+    {
+      "id": "US-MN-MSP",
+      "state_id": "MN",
+      "name": "Minneapolis"
+    },
+    {
+      "id": "US-OH-CLE",
+      "state_id": "OH",
+      "name": "Cleveland"
+    },
+    {
+      "id": "US-NC-CLT",
+      "state_id": "NC",
+      "name": "Charlotte"
+    },
+    {
+      "id": "US-OR-PDX",
+      "state_id": "OR",
+      "name": "Portland"
+    },
+    {
+      "id": "GB-ENG-LON",
+      "state_id": "ENG",
+      "name": "London"
+    },
+    {
+      "id": "GB-ENG-BIR",
+      "state_id": "ENG",
+      "name": "Birmingham"
+    },
+    {
+      "id": "GB-ENG-MAN",
+      "state_id": "ENG",
+      "name": "Manchester"
+    },
+    {
+      "id": "GB-ENG-LEE",
+      "state_id": "ENG",
+      "name": "Leeds"
+    },
+    {
+      "id": "GB-ENG-LIV",
+      "state_id": "ENG",
+      "name": "Liverpool"
+    },
+    {
+      "id": "GB-ENG-SHE",
+      "state_id": "ENG",
+      "name": "Sheffield"
+    },
+    {
+      "id": "GB-ENG-BRI",
+      "state_id": "ENG",
+      "name": "Bristol"
+    },
+    {
+      "id": "GB-ENG-NEW",
+      "state_id": "ENG",
+      "name": "Newcastle upon Tyne"
+    },
+    {
+      "id": "GB-SCT-GLA",
+      "state_id": "SCT",
+      "name": "Glasgow"
+    },
+    {
+      "id": "GB-SCT-EDI",
+      "state_id": "SCT",
+      "name": "Edinburgh"
+    },
+    {
+      "id": "GB-SCT-ABE",
+      "state_id": "SCT",
+      "name": "Aberdeen"
+    },
+    {
+      "id": "GB-WLS-CAR",
+      "state_id": "WLS",
+      "name": "Cardiff"
+    },
+    {
+      "id": "GB-WLS-SWA",
+      "state_id": "WLS",
+      "name": "Swansea"
+    },
+    {
+      "id": "GB-NIR-BEL",
+      "state_id": "NIR",
+      "name": "Belfast"
+    },
+    {
+      "id": "GB-NIR-DER",
+      "state_id": "NIR",
+      "name": "Derry"
+    }
+  ]
+}

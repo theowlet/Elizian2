@@ -14,6 +14,7 @@ function baseJoin(scope) {
     FROM bookings b
     INNER JOIN partners p ON p.id = b.partner_id
     LEFT JOIN partner_offers po ON po.id = b.deal_id
+    LEFT JOIN redemption_audit ra ON ra.booking_id = b.id AND ra.redemption_status = 'redeemed'
     LEFT JOIN categories c ON c.id = p.category_id
   `;
 }

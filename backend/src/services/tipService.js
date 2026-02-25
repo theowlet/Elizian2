@@ -22,10 +22,11 @@ async function createTip(userId, partnerId, { amount_decimal, currency, payment_
     // 1 EZT = ₹100 → convert INR tip to EZT
     const eztAmount = amount / 100;
 
-    // Fast-fail balance check (authoritative check is inside redeemTokens with FOR UPDATE)
+    // Fast-fail balance check (authoritative check is inside redeemTokens with FOR UPDATE). Allow overdraft up to -10 EZT.
     const balance = await tokenService.getBalance(userId);
-    if (balance < eztAmount) {
-      throw new AppError(400, `Insufficient EZT balance. Available: ${balance.toFixed(2)} EZT (₹${(balance * 100).toFixed(0)}), Required: ${eztAmount.toFixed(2)} EZT (₹${amount.toFixed(0)})`);
+    const overdraftLimit = tokenService.getOverdraftLimit();
+    if (balance - eztAmount < -overdraftLimit) {
+      throw new AppError(400, `Insufficient EZT balance. Available: ${balance.toFixed(5)} EZT (balance can go down to -${overdraftLimit} EZT), Required: ${eztAmount.toFixed(5)} EZT (₹${amount.toFixed(0)})`);
     }
 
     // Atomic transaction: deduct EZT + record tip

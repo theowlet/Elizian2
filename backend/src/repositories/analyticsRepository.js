@@ -11,12 +11,11 @@ const { buildWhereFromFilter, revenueSelect } = require('../services/analyticsFi
 const pool = getPool();
 
 function baseJoin(scope) {
-  const hasPartner = scope.partnerId || (scope.partnerIds && scope.partnerIds.length > 0);
   return `
     FROM bookings b
     INNER JOIN partners p ON p.id = b.partner_id
     LEFT JOIN partner_offers po ON po.id = b.deal_id
-    ${hasPartner ? '' : ''}
+    LEFT JOIN redemption_audit ra ON ra.booking_id = b.id AND ra.redemption_status = 'redeemed'
   `;
 }
 
@@ -201,8 +200,8 @@ async function getRevenueSplit(filter, scope) {
   const { whereSql, params } = applyFilter(filter, scope);
   const sql = `
     SELECT
-      SUM(COALESCE(b.fiat_amount, 0))::numeric AS fiat_total,
-      SUM(COALESCE(b.ezt_redeemed, 0))::numeric AS ezt_total
+      SUM(COALESCE(ra.net_amount_from_user, b.fiat_amount, 0))::numeric AS fiat_total,
+      SUM(COALESCE(ra.ezt_co_pay_amount, 0))::numeric AS ezt_total
     ${baseJoin(scope)}
     ${whereSql}
   `;

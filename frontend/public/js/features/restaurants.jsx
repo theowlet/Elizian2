@@ -150,7 +150,7 @@ export function renderRestaurantsList(restaurants) {
         <p>${escapeHtml(restaurant.description || 'Premium dining experience')}</p>
         <div class="restaurant-meta">
           <span class="distance">${restaurant.distance || 'N/A'}</span>
-          <span class="rating">⭐ ${restaurant.rating || '4.5'}</span>
+          ${restaurant.rating != null ? `<span class="rating">⭐ ${restaurant.rating}</span>` : ''}
         </div>
         <div class="restaurant-features">
           <span class="cuisine">${restaurant.category || 'Dining'}</span>

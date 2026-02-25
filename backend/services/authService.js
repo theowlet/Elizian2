@@ -985,6 +985,20 @@ async function getUserProfile(userId) {
   };
 }
 
+async function updateProfilePhoto(userId, photoUrl) {
+  if (!userId) {
+    throw new AppError(400, "User ID required");
+  }
+  if (!photoUrl || String(photoUrl).trim() === "") {
+    throw new AppError(400, "Photo URL required");
+  }
+  await pool.query(
+    "UPDATE users SET profile_photo_url = $2 WHERE id = $1",
+    [userId, photoUrl]
+  );
+  return { photo_url: photoUrl };
+}
+
 // ==========================================
 // M-PIN FUNCTIONS
 // ==========================================
@@ -1227,5 +1241,6 @@ module.exports = {
   setMpin,
   verifyMpin,
   checkMpinExists,
-  resetMpin
+  resetMpin,
+  updateProfilePhoto,
 };

@@ -2,6 +2,7 @@ const bookingService = require("../services/bookingService");
 const { successResponse, errorResponse } = require("../utils/response");
 const { logError } = require("../utils/logger");
 const { getS3FileUrl } = require("../../utils/s3Bucket");
+const { getPool } = require("../config/db");
 
 // Create a new booking
 async function createBooking(req, res) {
@@ -161,6 +162,28 @@ async function getBooking(req, res) {
       booking.qr_code_url = getS3FileUrl(booking.qr_code_url) || booking.qr_code_url;
     }
 
+    // If booking is redeemed and the requester is the owner, attach disputable_redemption when within dispute window
+    if (req.userId && String(booking.user_id) === String(req.userId) && booking.status === "redeemed") {
+      try {
+        const pool = getPool();
+        const ra = await pool.query(
+          `SELECT id, dispute_window_expires_at FROM redemption_audit
+           WHERE booking_id = $1 AND redemption_status = 'redeemed'
+             AND dispute_window_expires_at IS NOT NULL AND dispute_window_expires_at > NOW()
+           ORDER BY redeemed_at DESC LIMIT 1`,
+          [id]
+        );
+        if (ra.rows.length > 0) {
+          booking.disputable_redemption = {
+            redemption_id: ra.rows[0].id,
+            dispute_window_expires_at: ra.rows[0].dispute_window_expires_at,
+          };
+        }
+      } catch (e) {
+        logError("Disputable redemption lookup (non-fatal):", e);
+      }
+    }
+
     successResponse(res, 200, "Booking retrieved successfully", booking);
   } catch (err) {
     logError("❌ Get booking error:", err);
@@ -191,7 +214,6 @@ async function confirmPayment(req, res) {
 }
 
 const visitSessionService = require('../services/visitSessionService');
-const { getPool } = require('../config/db');
 
 // Consumer check-in at venue (visit session + 100m geofence)
 async function checkInAtVenue(req, res) {

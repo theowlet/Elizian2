@@ -2,12 +2,9 @@ const { getPool } = require("../config/db");
 const { normalizeApplicableDays } = require("../utils/dealRules");
 const { buildDynamicFilters, needsMetadataJoin } = require("../utils/dynamicFilterBuilder");
 const { log, logError } = require("../../utils/logger");
-const { getS3FileUrl } = require("../../utils/s3Bucket");
+const { resolveOfferImageUrl } = require("../utils/offerImageUrl");
 
 const pool = getPool();
-
-/** S3 key for default offer image when offer has no image_url (same storage pattern as other deals). */
-const DEFAULT_OFFER_IMAGE_S3_KEY = "uploads/default-offer.jpg";
 
 const STATUS = {
   DRAFT: "draft",
@@ -133,12 +130,15 @@ async function createOffer(partnerId, offerData) {
     "menu_item_id", "applicable_menu_items", "discount_applies_to",
     "is_active",
   ];
+  const coPayForDb = co_pay_percentage != null && Number.isFinite(Number(co_pay_percentage))
+    ? Math.round(Number(co_pay_percentage) * 100) / 100
+    : null;
   const insertVals = [
     partnerId,
     title,
     description,
     service_type,
-    co_pay_percentage != null ? co_pay_percentage : null,
+    coPayForDb,
     discount_amount,
     original_price,
     discounted_price,
@@ -264,8 +264,14 @@ async function updateOffer(partnerId, offerId, updates) {
         values.push(normalizedStatus);
       } else if (numericFields.has(key)) {
         const num = value === "" || value === null ? null : Number(value);
-        updateFields.push(`${key} = $${paramCount}`);
-        values.push(num === undefined || Number.isNaN(num) ? null : num);
+        const dbVal = num === undefined || Number.isNaN(num) ? null : num;
+        if (key === 'co_pay_percentage' && dbVal != null) {
+          updateFields.push(`${key} = $${paramCount}`);
+          values.push(Math.round(dbVal * 100) / 100);
+        } else {
+          updateFields.push(`${key} = $${paramCount}`);
+          values.push(dbVal);
+        }
       } else {
         updateFields.push(`${key} = $${paramCount}`);
         values.push(value);
@@ -743,7 +749,31 @@ async function listPublicOffers(filters = {}) {
       count: result.rows.length,
     });
 
-    return result.rows.map((row) => ({
+    let reputationRatingByPartner = {};
+    if (result.rows.length > 0) {
+      try {
+        const partnerIds = [...new Set(result.rows.map((r) => r.partner_id))];
+        const raRes = await pool.query(
+          `SELECT partner_id, rolling_avg_rating FROM review_analytics WHERE partner_id = ANY($1)`,
+          [partnerIds]
+        );
+        raRes.rows.forEach((r) => {
+          if (r.rolling_avg_rating != null) reputationRatingByPartner[r.partner_id] = Number(r.rolling_avg_rating);
+        });
+      } catch (_) {
+        // review_analytics may not exist
+      }
+    }
+
+    return result.rows.map((row) => {
+      const partnerRatingFromReputation = reputationRatingByPartner[row.partner_id];
+      const partner_rating =
+        partnerRatingFromReputation != null
+          ? partnerRatingFromReputation
+          : row.partner_rating != null && !Number.isNaN(Number(row.partner_rating))
+            ? Number(row.partner_rating)
+            : null;
+      return ({
       id: row.id,
       partner_id: row.partner_id,
       partner_name: row.partner_name,
@@ -770,15 +800,14 @@ async function listPublicOffers(filters = {}) {
       max_redemptions: row.max_redemptions,
       current_redemptions: row.current_redemptions,
       service_type: row.service_type,
-      image_url: (row.image_url ? getS3FileUrl(row.image_url) : null) || getS3FileUrl(DEFAULT_OFFER_IMAGE_S3_KEY),
+      image_url: resolveOfferImageUrl(row.image_url),
       terms_conditions: row.terms_conditions,
       perk_type: row.perk_type || 'discount',
       perk_description: row.perk_description || null,
       min_tier_name: row.min_tier_name ?? null,
       created_at: row.created_at,
       partner_cuisine_types: row.partner_cuisine_types || [],
-      partner_rating:
-        row.partner_rating != null && !Number.isNaN(Number(row.partner_rating)) ? Number(row.partner_rating) : null,
+      partner_rating,
       partner_latitude:
         row.partner_latitude != null ? Number(row.partner_latitude) : null,
       partner_longitude:
@@ -809,7 +838,8 @@ async function listPublicOffers(filters = {}) {
         verified: row.em_verified != null ? Boolean(row.em_verified) : null,
         tags: row.em_tags || null,
       } : undefined,
-    }));
+    });
+    });
   } catch (error) {
     if (useMetadataJoin && (error.message || "").includes("experience_metadata")) {
       log("[offerRepository] experience_metadata table missing; retrying without dynamic filters");
@@ -871,7 +901,7 @@ async function getPublicOffersByIds(offerIds) {
     is_active: row.is_active,
     is_trending: row.is_trending,
     service_type: row.service_type,
-    image_url: (row.image_url ? getS3FileUrl(row.image_url) : null) || getS3FileUrl(DEFAULT_OFFER_IMAGE_S3_KEY),
+    image_url: resolveOfferImageUrl(row.image_url),
     terms_conditions: row.terms_conditions,
     perk_type: row.perk_type || "discount",
     perk_description: row.perk_description || null,

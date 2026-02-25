@@ -1,12 +1,16 @@
 const { getPool } = require('../config/db');
 const { log, logError } = require('../utils/logger');
-const { emitRealtimeEvent, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
+const { emitRealtimeEvent, emitToRoom, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
 
 const pool = getPool();
 
-// Award EZT tokens to user based on transaction (supports 5 decimal places)
-// Formula: EZT earned = (amount_spent * tier_percentage) / 100 / 100
-// Where 100 is the EZT value (₹100 = 1 EZT)
+/** EZT balance can go down to -10 (app loans up to 10 EZT). No redemption blocked for insufficient EZT within this limit. */
+const EZT_OVERDRAFT_LIMIT = 10;
+
+/** Get overdraft limit (for wallet-cap calculations in redemption/tip). */
+const getOverdraftLimit = () => EZT_OVERDRAFT_LIMIT;
+
+// Award EZT tokens: loyalty = tier % of fiat spent → EZT = (fiat × tier_pct) / 1000 (e.g. 1% of ₹2800 = 2.8 EZT)
 // ENTERPRISE FIX: Reward percentage is ALWAYS fetched from loyalty_tiers DB table (never hardcoded)
 const awardTokens = async (userId, amountSpent, transactionId = null, description = '') => {
   try {
@@ -53,9 +57,8 @@ const awardTokens = async (userId, amountSpent, transactionId = null, descriptio
       tokenPercentage = 1.0;
     }
 
-    // Calculate EZT earned: (amount_spent * tier_percentage) / 100 / 100
-    // Example: ₹1000 spent at 2% tier = (1000 * 2) / 100 / 100 = 0.2 EZT
-    const eztEarned = parseFloat((amountSpent * tokenPercentage) / 100 / 100).toFixed(5);
+    // Loyalty EZT = (fiat_spent × tier_pct) / 1000. E.g. 1% of ₹2800 = 2.8 EZT; 2% of ₹2800 = 5.6 EZT
+    const eztEarned = parseFloat(((amountSpent * tokenPercentage) / 1000).toFixed(5));
     const eztEarnedDecimal = parseFloat(eztEarned);
 
     if (eztEarnedDecimal > 0) {
@@ -98,6 +101,7 @@ const awardTokens = async (userId, amountSpent, transactionId = null, descriptio
         totalEarned: (parseFloat(user.total_tokens_earned || 0) + eztEarnedDecimal),
         timestamp: new Date().toISOString()
       });
+      emitToRoom(`users:${userId}`, REALTIME_EVENTS.CUSTOMER_ECOSYSTEM_UPDATED, { reason: 'tokens_earned' });
     }
 
     return eztEarnedDecimal;
@@ -141,14 +145,15 @@ const redeemTokens = async (userId, eztAmount, transactionId = null, description
     }
 
     const availableTokens = parseFloat(userResult.rows[0].available_tokens || 0);
-    const eztToRedeem = parseFloat(eztAmount);
+    const eztToRedeem = parseFloat(parseFloat(eztAmount).toFixed(5));
+    const minAllowedBalance = -EZT_OVERDRAFT_LIMIT;
 
-    if (eztToRedeem > availableTokens) {
-      throw new Error(`Insufficient EZT balance. Available: ${availableTokens.toFixed(5)}, Required: ${eztToRedeem.toFixed(5)}`);
+    if (availableTokens - eztToRedeem < minAllowedBalance) {
+      throw new Error(`Insufficient EZT balance. Available: ${availableTokens.toFixed(5)} EZT (balance can go down to ${minAllowedBalance} EZT). Required: ${eztToRedeem.toFixed(5)}`);
     }
 
-    // Calculate discount amount (1 EZT = ₹100)
-    const discountAmount = eztToRedeem * 100;
+    // Calculate discount amount (1 EZT = ₹100), INR to 2 decimals
+    const discountAmount = Math.round(eztToRedeem * 100 * 100) / 100;
 
     // Update user's token balance
     const balanceBefore = availableTokens;
@@ -182,6 +187,7 @@ const redeemTokens = async (userId, eztAmount, transactionId = null, description
       totalSpent: parseFloat(userResult.rows[0].total_tokens_spent || 0) + eztToRedeem,
       timestamp: new Date().toISOString()
     });
+    emitToRoom(`users:${userId}`, REALTIME_EVENTS.CUSTOMER_ECOSYSTEM_UPDATED, { reason: 'tokens_redeemed' });
 
     return {
       eztRedeemed: eztToRedeem,
@@ -231,11 +237,58 @@ const creditFixed = async (userId, amount, description = '') => {
   return amt;
 };
 
+/**
+ * Credit a precomputed EZT amount (e.g. loyalty from redemption) with idempotency.
+ * Use when tier + multiplier have already been applied (e.g. in enhancedRedemptionService).
+ * @param {string} userId
+ * @param {number} eztAmount - EZT to credit (already computed from fiat paid × tier % × multiplier), 5 decimals
+ * @param {string} referenceId - Idempotency key (e.g. booking.id); if already credited for this ref, no-op
+ * @param {string} description
+ * @param {object} executor - Optional pg client for transaction
+ */
+const creditEarned = async (userId, eztAmount, referenceId = null, description = '', executor = null) => {
+  const db = executor || pool;
+  const amt = parseFloat(parseFloat(eztAmount).toFixed(5));
+  if (!userId || amt <= 0) return 0;
+  if (referenceId) {
+    const existing = await db.query(
+      `SELECT id, amount FROM token_ledger WHERE user_id = $1 AND reference_id = $2 AND ledger_type = 'earned'`,
+      [userId, String(referenceId)]
+    );
+    if (existing.rows.length > 0) {
+      log(`⚠️ Idempotency: EZT already credited for ref ${referenceId}, skipping`);
+      return parseFloat(existing.rows[0].amount);
+    }
+  }
+  const userResult = await db.query('SELECT available_tokens FROM users WHERE id = $1', [userId]);
+  if (userResult.rows.length === 0) return 0;
+  const balanceBefore = parseFloat(userResult.rows[0].available_tokens || 0);
+  const balanceAfter = balanceBefore + amt;
+  await db.query(
+    `UPDATE users SET available_tokens = available_tokens + $1, total_tokens_earned = COALESCE(total_tokens_earned, 0) + $1 WHERE id = $2`,
+    [amt, userId]
+  );
+  // transaction_id must reference transactions(id); use NULL for loyalty/redemption credits. reference_id is for idempotency.
+  await db.query(
+    `INSERT INTO token_ledger (user_id, transaction_id, reference_id, amount, ledger_type, balance_before, balance_after, description)
+     VALUES ($1, NULL, $2, $3, 'earned', $4, $5, $6)`,
+    [userId, referenceId ? String(referenceId) : null, amt, balanceBefore, balanceAfter, description || 'Loyalty earned']
+  );
+  log(`✅ Credited ${amt} EZT to user ${userId} (ref ${referenceId || 'none'}): ${description || 'Loyalty earned'}`);
+  try {
+    emitRealtimeEvent(REALTIME_EVENTS.TOKENS_UPDATED, { action: 'earned', userId, delta: amt });
+    emitToRoom(`users:${userId}`, REALTIME_EVENTS.CUSTOMER_ECOSYSTEM_UPDATED, { reason: 'tokens_earned' });
+  } catch (_) {}
+  return amt;
+};
+
 module.exports = {
   awardTokens,
   updateTierProgress,
   redeemTokens,
   getBalance,
-  creditFixed
+  getOverdraftLimit,
+  creditFixed,
+  creditEarned
 };
 

@@ -189,6 +189,10 @@ async function getBookingById(bookingId) {
       b.booking_date::text AS booking_date,
       COALESCE(b.booking_time::text, '') AS booking_time,
       p.name AS partner_name,
+      p.phone_number AS partner_phone,
+      p.address AS partner_address,
+      p.latitude AS partner_latitude,
+      p.longitude AS partner_longitude,
       po.title AS deal_title
      FROM bookings b
      LEFT JOIN partners p ON b.partner_id = p.id
@@ -395,4 +399,3 @@ module.exports = {
   generateBookingReference,
   isValidBookingReference
 };
-

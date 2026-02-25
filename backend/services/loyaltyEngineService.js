@@ -1,7 +1,7 @@
 const { getPool } = require('../src/config/db');
 const { log, logError } = require('../utils/logger');
 const { getSystemSetting } = require('./settingsService');
-const { emitRealtimeEvent, REALTIME_EVENTS } = require('../src/utils/realtimeEmitter');
+const { emitRealtimeEvent, emitToRoom, REALTIME_EVENTS } = require('../src/utils/realtimeEmitter');
 
 const pool = getPool();
 
@@ -123,6 +123,7 @@ async function recordActivity({
       referenceId: referenceId || null,
       timestamp: new Date().toISOString()
     });
+    emitToRoom(`users:${userId}`, REALTIME_EVENTS.CUSTOMER_ECOSYSTEM_UPDATED, { reason: 'loyalty_updated' });
 
     return { balanceAfter };
   } catch (err) {

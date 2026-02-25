@@ -168,6 +168,8 @@ export default function PartnerConsole() {
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showRedemptionModal, setShowRedemptionModal] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [viewBookingDetails, setViewBookingDetails] = useState(null);
+  const [showViewBookingModal, setShowViewBookingModal] = useState(false);
   const [redemptionForm, setRedemptionForm] = useState({
     total_bill_amount: '',
     ezt_co_pay_amount: '',
@@ -177,7 +179,7 @@ export default function PartnerConsole() {
   const [calculationPreview, setCalculationPreview] = useState(null);
   const [calculationLoading, setCalculationLoading] = useState(false);
   const [overrideCalculation, setOverrideCalculation] = useState(false);
-  const [walletInfo, setWalletInfo] = useState({ max_allowed_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
+  const [walletInfo, setWalletInfo] = useState({ max_allowed_co_pay: null, standard_deal_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
   const [offerEditId, setOfferEditId] = useState(null);
   const [menuEditId, setMenuEditId] = useState(null);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
@@ -889,7 +891,8 @@ export default function PartnerConsole() {
     };
     const populateForm = (o2) => {
       const raw = o2?.co_pay_percentage;
-      const coPay = (raw != null && raw !== '' && !Number.isNaN(Number(raw))) ? String(Number(raw)) : (parseCoPayFromText(o2?.title) ?? parseCoPayFromText(o2?.description) ?? '');
+      const num = raw != null && raw !== '' && !Number.isNaN(Number(raw)) ? Number(raw) : null;
+      const coPay = num != null ? String(Math.round(num * 100) / 100) : (parseCoPayFromText(o2?.title) ?? parseCoPayFromText(o2?.description) ?? '');
       return {
         ...o2,
         title: o2?.title ?? '',
@@ -938,6 +941,8 @@ export default function PartnerConsole() {
     if (payload.request_trending) payload.request_trending = true;
     const numericOptionals = ['co_pay_percentage', 'discount_amount', 'original_price', 'discounted_price', 'min_purchase_amount'];
     numericOptionals.forEach((k) => { if (payload[k] === '' || payload[k] === undefined) payload[k] = null; });
+    if (payload.co_pay_percentage != null && typeof payload.co_pay_percentage !== 'number') payload.co_pay_percentage = Number(payload.co_pay_percentage);
+    if (typeof payload.co_pay_percentage === 'number' && !Number.isNaN(payload.co_pay_percentage)) payload.co_pay_percentage = Math.round(payload.co_pay_percentage * 100) / 100;
     try {
       const r = await authFetch(url, { method: offerEditId ? 'PUT' : 'POST', headers: headers(), body: JSON.stringify(payload) });
       const j = await r.json();
@@ -2368,10 +2373,21 @@ export default function PartnerConsole() {
     } catch (e) { console.error(e); }
   }
 
-  function viewBooking(id) {
-    const b = bookings.find(x => x.id === id);
-    if (!b) return;
-    alert(`Booking Details:\n\nReference: ${b.booking_reference}\nCustomer: ${b.customer_name}\nDeal: ${b.deal_title}\nStatus: ${b.status}\nAmount: ₹${b.total_price || b.fiat_amount}\nVoucher Code: ${b.voucher_code || 'N/A'}`);
+  async function viewBooking(id) {
+    if (!partner?.id) return;
+    try {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/bookings/${id}`, { headers: headers() });
+      const j = await r.json();
+      if (j.success && j.data) {
+        setViewBookingDetails(j.data);
+        setShowViewBookingModal(true);
+      } else {
+        showNotification(j.message || 'Could not load booking details', 'error');
+      }
+    } catch (e) {
+      console.error(e);
+      showNotification('Failed to load booking details', 'error');
+    }
   }
 
   function AnalyticsSection() {
@@ -2718,28 +2734,30 @@ export default function PartnerConsole() {
       const j = await r.json();
       if (j.success && j.data) {
         setCalculationPreview(j.data);
-        const maxAllowed = j.data.max_allowed_co_pay != null ? parseFloat(j.data.max_allowed_co_pay) : (j.data.effective_max_ezt_co_pay_inr != null ? parseFloat(j.data.effective_max_ezt_co_pay_inr) : (j.data.ezt_co_pay_amount != null ? parseFloat(j.data.ezt_co_pay_amount) : 0));
+        const standardDealCoPay = j.data.standard_co_pay != null ? parseFloat(j.data.standard_co_pay) : (j.data.ezt_co_pay_amount != null ? parseFloat(j.data.ezt_co_pay_amount) : 0);
+        const maxAllowed = j.data.max_allowed_co_pay != null ? parseFloat(j.data.max_allowed_co_pay) : (j.data.effective_max_ezt_co_pay_inr != null ? parseFloat(j.data.effective_max_ezt_co_pay_inr) : standardDealCoPay);
         setWalletInfo({
           max_allowed_co_pay: maxAllowed,
+          standard_deal_co_pay: standardDealCoPay,
           wallet_shortfall: j.data.wallet_shortfall != null ? parseFloat(j.data.wallet_shortfall) : null,
           customer_fully_funded: j.data.customer_fully_funded !== false
         });
         const total = parseFloat(totalBillAmount) || 0;
-        const eztToUse = Math.min(maxAllowed, total);
+        const eztToUse = standardDealCoPay;
         const net = Math.max(0, total - eztToUse);
         setRedemptionForm((prev) => ({
           ...prev,
-          ezt_co_pay_amount: String(eztToUse),
+          ezt_co_pay_amount: String(eztToUse.toFixed(2)),
           net_amount_from_user: String(net.toFixed(2)),
         }));
       } else {
         setCalculationPreview(null);
-        setWalletInfo({ max_allowed_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
+        setWalletInfo({ max_allowed_co_pay: null, standard_deal_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
       }
     } catch (err) {
       console.error('Calculate preview error:', err);
       setCalculationPreview(null);
-      setWalletInfo({ max_allowed_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
+      setWalletInfo({ max_allowed_co_pay: null, standard_deal_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
     } finally {
       setCalculationLoading(false);
     }
@@ -2753,7 +2771,8 @@ export default function PartnerConsole() {
     }
 
     // Validate financial amounts
-    const totalBill = parseFloat(redemptionForm.total_bill_amount);
+    // Round to 2 decimals so we never send float-drift (e.g. 1234 not 1233.98)
+    const totalBill = Math.round((parseFloat(redemptionForm.total_bill_amount) || 0) * 100) / 100;
     const eztCoPay = parseFloat(redemptionForm.ezt_co_pay_amount);
     const netAmount = parseFloat(redemptionForm.net_amount_from_user);
 
@@ -2770,9 +2789,9 @@ export default function PartnerConsole() {
       showNotification('Net amount must equal Total Bill - EZT Co-Pay', 'error');
       return;
     }
-    const maxAllowed = walletInfo.max_allowed_co_pay ?? calculationPreview?.max_allowed_co_pay ?? calculationPreview?.effective_max_ezt_co_pay_inr;
-    if (maxAllowed != null && eztCoPay < maxAllowed - 0.01 && !(redemptionForm.redemption_notes && String(redemptionForm.redemption_notes).trim())) {
-      showNotification('A reason is required in Redemption Notes when reducing EZT co-pay below the max applicable.', 'error');
+    const dealCoPay = walletInfo.standard_deal_co_pay ?? calculationPreview?.standard_co_pay ?? calculationPreview?.ezt_co_pay_amount;
+    if (dealCoPay != null && eztCoPay < parseFloat(dealCoPay) - 0.01 && !(redemptionForm.redemption_notes && String(redemptionForm.redemption_notes).trim())) {
+      showNotification('A reason is required in Redemption Notes when reducing EZT co-pay below the deal amount.', 'error');
       return;
     }
 
@@ -2814,7 +2833,7 @@ export default function PartnerConsole() {
         });
         setCalculationPreview(null);
         setOverrideCalculation(false);
-        setWalletInfo({ max_allowed_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
+        setWalletInfo({ max_allowed_co_pay: null, standard_deal_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
         loadBookings();
         loadDashboard();
       } else {
@@ -2897,7 +2916,22 @@ export default function PartnerConsole() {
               step={0.01}
               className="pc-form-input"
               value={offerForm.co_pay_percentage ?? ''}
-              onChange={e=>setOfferForm({...offerForm, co_pay_percentage: e.target.value === '' ? '' : parseFloat(e.target.value)})}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setOfferForm({ ...offerForm, co_pay_percentage: '' });
+                  return;
+                }
+                const parsed = Number(val);
+                if (!Number.isNaN(parsed)) setOfferForm({ ...offerForm, co_pay_percentage: val });
+              }}
+              onBlur={() => {
+                const v = offerForm.co_pay_percentage;
+                if (v !== '' && v != null) {
+                  const n = Number(v);
+                  if (!Number.isNaN(n)) setOfferForm((prev) => ({ ...prev, co_pay_percentage: String(Math.round(n * 100) / 100) }));
+                }
+              }}
               placeholder={offerForm.perk_type === 'discount' ? 'e.g. 30 (required for Discount)' : 'e.g. 30'}
             />
           </div>
@@ -3360,7 +3394,7 @@ export default function PartnerConsole() {
           setCalculationPreview(null);
           setCalculationLoading(false);
           setOverrideCalculation(false);
-          setWalletInfo({ max_allowed_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
+          setWalletInfo({ max_allowed_co_pay: null, standard_deal_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
         }} 
         width={600}
       >
@@ -3448,25 +3482,20 @@ export default function PartnerConsole() {
                   marginBottom: '1rem',
                   fontSize: '0.9rem'
                 }}>
-                  <div style={{marginBottom:'0.25rem'}}><strong>Deal:</strong> {calculationPreview.co_pay_percentage ?? 0}% Co-Pay Discount</div>
-                  <div style={{marginBottom:'0.25rem'}}><strong>Discount:</strong> ₹{calculationPreview.discount_amount ?? 0}</div>
-                  <div style={{marginBottom:'0.25rem'}}><strong>EZT tokens required (full co-pay):</strong> {calculationPreview.ezt_tokens_required ?? 0} EZT</div>
+                  <div style={{marginBottom:'0.25rem'}}><strong>Deal:</strong> {Number(calculationPreview.co_pay_percentage ?? 0)}% Co-Pay Discount</div>
+                  <div style={{marginBottom:'0.25rem'}}><strong>Deal co-pay amount:</strong> ₹{Number(calculationPreview.ezt_co_pay_amount ?? calculationPreview.discount_amount ?? 0).toFixed(2)}</div>
+                  <div style={{marginBottom:'0.25rem'}}><strong>EZT tokens required:</strong> {Number(calculationPreview.ezt_tokens_required ?? 0)} EZT</div>
                   {calculationPreview.user_ezt_balance != null && (
                     <div style={{marginBottom:'0.25rem'}}>
-                      <strong>Customer EZT balance:</strong> {calculationPreview.user_ezt_balance} EZT
-                      {(calculationPreview.ezt_tokens_required ?? 0) > (calculationPreview.user_ezt_balance ?? 0) && (
-                        <span style={{color:'#b91c1c', marginLeft:'0.5rem'}}>⚠️ Insufficient balance</span>
+                      <strong>Customer EZT balance:</strong> {Number(calculationPreview.user_ezt_balance).toFixed(5)} EZT (balance can go to -10 EZT)
+                      {walletInfo.wallet_shortfall != null && walletInfo.wallet_shortfall > 0 && (
+                        <span style={{color:'#b91c1c', marginLeft:'0.5rem'}}>Insufficient balance; reduce co-pay and add notes, or customer must top up.</span>
                       )}
-                    </div>
-                  )}
-                  {(walletInfo.max_allowed_co_pay ?? calculationPreview?.max_allowed_co_pay ?? calculationPreview?.effective_max_ezt_co_pay_inr) != null && (
-                    <div style={{marginTop:'0.25rem', fontSize:'0.85rem', opacity:0.95}}>
-                      Max applicable (capped by balance): ₹{(walletInfo.max_allowed_co_pay ?? calculationPreview?.max_allowed_co_pay ?? calculationPreview?.effective_max_ezt_co_pay_inr)}
                     </div>
                   )}
                   {walletInfo.wallet_shortfall != null && walletInfo.wallet_shortfall > 0 && (
                     <div style={{marginTop:'0.25rem', fontSize:'0.85rem', color:'#b91c1c'}}>
-                      Customer shortfall: ₹{walletInfo.wallet_shortfall.toFixed(2)} of standard co-pay
+                      Shortfall: ₹{walletInfo.wallet_shortfall.toFixed(2)} (customer balance below deal co-pay)
                     </div>
                   )}
                 </div>
@@ -3515,13 +3544,13 @@ export default function PartnerConsole() {
               </div>
 
               <div className="pc-form-group">
-                <label>Redemption Notes {calculationPreview?.effective_max_ezt_co_pay_inr != null ? '(Required if reducing EZT below max applicable)' : '(Optional)'}</label>
+                <label>Redemption Notes {calculationPreview?.ezt_co_pay_amount != null ? '(Required if reducing EZT below deal co-pay)' : '(Optional)'}</label>
                 <textarea 
                   className="pc-form-input" 
                   rows={3}
                   value={redemptionForm.redemption_notes} 
                   onChange={(e) => setRedemptionForm({...redemptionForm, redemption_notes: e.target.value})}
-                  placeholder={calculationPreview?.effective_max_ezt_co_pay_inr != null ? "e.g. Customer requested partial EZT use; required when co-pay is below customer's available balance" : "Any additional notes about this redemption"}
+                  placeholder={calculationPreview?.ezt_co_pay_amount != null ? "e.g. Customer requested partial EZT use; required when co-pay is below deal amount" : "Any additional notes about this redemption"}
                 />
               </div>
             </div>
@@ -3549,7 +3578,7 @@ export default function PartnerConsole() {
                   });
                   setCalculationPreview(null);
                   setOverrideCalculation(false);
-                  setWalletInfo({ max_allowed_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
+                  setWalletInfo({ max_allowed_co_pay: null, standard_deal_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
                 }}
               >
                 Cancel
@@ -3568,6 +3597,47 @@ export default function PartnerConsole() {
               </button>
             </div>
           </form>
+        )}
+      </Modal>
+
+      {/* Booking Details modal (View button) */}
+      <Modal show={showViewBookingModal} onClose={() => { setShowViewBookingModal(false); setViewBookingDetails(null); }} title="Booking Details">
+        {viewBookingDetails && (
+          <div style={{ padding: '0 0 1rem 0' }}>
+            <div style={{ marginBottom: 8 }}><strong>Reference:</strong> {viewBookingDetails.booking_reference}</div>
+            <div style={{ marginBottom: 8 }}><strong>Customer:</strong> {viewBookingDetails.customer_name}</div>
+            <div style={{ marginBottom: 8 }}><strong>Deal:</strong> {viewBookingDetails.deal_title}</div>
+            <div style={{ marginBottom: 8 }}><strong>Status:</strong> {viewBookingDetails.status}</div>
+            {viewBookingDetails.status === 'redeemed' && (viewBookingDetails.redemption_total_bill != null || viewBookingDetails.redemption_ezt_co_pay != null || viewBookingDetails.redemption_net_from_user != null) ? (
+              <>
+                {/* Total bill = net + ezt; if within 2 paise of a whole rupee, show the rupee (e.g. 1233.98 → ₹1234) */}
+                {(() => {
+                  const net = Number(viewBookingDetails.redemption_net_from_user ?? 0);
+                  const ezt = Number(viewBookingDetails.redemption_ezt_co_pay ?? 0);
+                  const totalFromSum = Math.round((net + ezt) * 100) / 100;
+                  const storedTotal = Number(viewBookingDetails.redemption_total_bill ?? 0);
+                  let totalToShow = (net !== 0 || ezt !== 0) ? totalFromSum : Math.round(storedTotal * 100) / 100;
+                  const nearestRupee = Math.round(totalToShow);
+                  if (Math.abs(totalToShow - nearestRupee) <= 0.02) totalToShow = nearestRupee;
+                  const fmt = (n) => {
+                    const r = Math.round(n * 100) / 100;
+                    return r === Math.floor(r) ? String(r) : r.toFixed(2);
+                  };
+                  return (
+                    <>
+                      <div style={{ marginBottom: 8 }}><strong>Total bill:</strong> ₹{fmt(totalToShow)}</div>
+                      <div style={{ marginBottom: 8 }}><strong>Fiat paid (net from customer):</strong> ₹{fmt(net)}</div>
+                      <div style={{ marginBottom: 8 }}><strong>Co-pay by EZT:</strong> ₹{fmt(ezt)}</div>
+                    </>
+                  );
+                })()}
+              </>
+            ) : (
+              <div style={{ marginBottom: 8 }}><strong>Amount:</strong> {(viewBookingDetails.total_price != null && viewBookingDetails.total_price > 0) || (viewBookingDetails.fiat_amount != null && viewBookingDetails.fiat_amount > 0) ? `₹${Number(viewBookingDetails.total_price ?? viewBookingDetails.fiat_amount ?? 0).toFixed(2)}` : '—'}</div>
+            )}
+            <div style={{ marginBottom: 8 }}><strong>Voucher code:</strong> <span style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{viewBookingDetails.voucher_code || 'N/A'}</span></div>
+            <button type="button" className="btn btn-primary" onClick={() => { setShowViewBookingModal(false); setViewBookingDetails(null); }}>OK</button>
+          </div>
         )}
       </Modal>
 

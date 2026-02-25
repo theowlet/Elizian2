@@ -31,26 +31,29 @@ function normalizeApplicableDays(input) {
   return cleaned.length ? cleaned : [...VALID_WEEK_DAYS];
 }
 
+/**
+ * Single source of truth: co_pay_percentage = user input only.
+ * ezt_equivalent = derived from (discounted_price * co_pay_percentage / 100) / EZT_TO_INR.
+ * NEVER reverse-derive co_pay_percentage from ezt_equivalent, discounted_price, or original_price.
+ */
 function deriveDiscountValues({ original_price, co_pay_percentage, discount_amount, discounted_price }) {
-  const metrics = calculateDiscountMetrics({
-    original: original_price,
-    percent: co_pay_percentage,
-    amount: discount_amount,
-    discounted: discounted_price
-  });
-
-  // original_price is optional - return null if not provided or invalid
-  const original = (original_price !== null && original_price !== undefined && Number(original_price) > 0)
-    ? Number(original_price)
-    : null;
-  
-  const discounted = Math.max(0, metrics.finalDiscountedPrice || 0);
-
-  // Store co_pay_percentage exactly as entered, rounded to 2 decimals (50 stays 50, never derived from prices)
+  // Normalize co_pay ONCE from user input; never from prices or ezt
   const rawCoPay = co_pay_percentage != null && co_pay_percentage !== '' && !Number.isNaN(Number(co_pay_percentage))
     ? Number(co_pay_percentage)
     : null;
   const co_pay_percentage_normalized = rawCoPay != null ? Math.round(rawCoPay * 100) / 100 : null;
+
+  const metrics = calculateDiscountMetrics({
+    original: original_price,
+    percent: co_pay_percentage_normalized,
+    amount: discount_amount,
+    discounted: discounted_price
+  });
+
+  const original = (original_price !== null && original_price !== undefined && Number(original_price) > 0)
+    ? Number(original_price)
+    : null;
+  const discounted = Math.max(0, metrics.finalDiscountedPrice || 0);
 
   return {
     original_price: original,

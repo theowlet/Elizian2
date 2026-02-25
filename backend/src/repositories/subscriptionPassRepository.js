@@ -34,11 +34,20 @@ async function listUserPasses(userId) {
 }
 
 async function claimPass(userId, subscriptionPassId, code) {
+  const trimmed = code.trim();
   const r = await pool.query(
-    `INSERT INTO user_subscription_passes (user_id, subscription_pass_id, code) VALUES ($1, $2, $3) RETURNING *`,
-    [userId, subscriptionPassId, code.trim()]
+    `INSERT INTO user_subscription_passes (user_id, subscription_pass_id, code)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (code) DO NOTHING
+     RETURNING *`,
+    [userId, subscriptionPassId, trimmed]
   );
-  return r.rows[0];
+  if (r.rows[0]) return r.rows[0];
+  const existing = await pool.query(
+    `SELECT * FROM user_subscription_passes WHERE code = $1`,
+    [trimmed]
+  );
+  return existing.rows[0] || null;
 }
 
 async function findByCode(code) {

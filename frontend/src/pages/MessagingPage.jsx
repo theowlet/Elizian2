@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useNotifications } from '../context/NotificationContext';
+import CustomerChatHeader from '../components/CustomerChatHeader';
 
 const API_BASE = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -191,7 +192,12 @@ function formatConvTime(dateStr) {
 /* Chat View                                                           */
 /* ------------------------------------------------------------------ */
 const ChatView = ({ conversation, token, onBack, onMessagesRead }) => {
+  const navigate = useNavigate();
   const { socketConnected } = useNotifications();
+  const partnerId = conversation?.partner_id;
+  const openVenueDetails = () => {
+    if (partnerId) navigate(`/venue/${partnerId}`);
+  };
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -373,18 +379,39 @@ const ChatView = ({ conversation, token, onBack, onMessagesRead }) => {
 
   return (
     <div style={s.chatWrap}>
-      {/* Chat header */}
+      {/* Customer ecosystem header (Tier • Credits); expandable overview */}
+      <CustomerChatHeader token={token} />
+      {/* Chat header: back; venue row (tappable → venue detail) */}
       <div style={s.chatHeader}>
         <button onClick={onBack} style={s.chatBackBtn} aria-label="Back">←</button>
-        <div style={s.chatHeaderAvatar}>
-          {conversation.partner_name?.charAt(0)?.toUpperCase() || '🏪'}
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={s.chatHeaderName}>{conversation.partner_name || 'Venue'}</div>
-          <div style={s.chatHeaderSub}>
-            {loading ? 'loading...' : 'tap for venue info'}
+        <button
+          type="button"
+          onClick={openVenueDetails}
+          disabled={!partnerId}
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.6rem',
+            background: 'none',
+            border: 'none',
+            padding: 0,
+            cursor: partnerId ? 'pointer' : 'default',
+            textAlign: 'left',
+            minWidth: 0,
+          }}
+          aria-label="View venue details"
+        >
+          <div style={s.chatHeaderAvatar}>
+            {conversation.partner_name?.charAt(0)?.toUpperCase() || '🏪'}
           </div>
-        </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={s.chatHeaderName}>{conversation.partner_name || 'Venue'}</div>
+            <div style={s.chatHeaderSub}>
+              {loading ? 'loading...' : 'tap for venue info'}
+            </div>
+          </div>
+        </button>
       </div>
 
       {/* Messages */}

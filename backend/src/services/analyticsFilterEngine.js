@@ -178,14 +178,14 @@ function buildWhereFromFilter(filter, scope = {}) {
   const params = [];
   let paramIndex = 1;
 
-  // Date range (created_at in UTC)
+  // Date range — prefer redemption date when available, otherwise booking creation (both stored in UTC)
   if (filter.start_date) {
-    whereClauses.push(`b.created_at >= $${paramIndex}::date`);
+    whereClauses.push(`COALESCE(ra.redeemed_at, b.created_at) >= $${paramIndex}::date`);
     params.push(filter.start_date);
     paramIndex++;
   }
   if (filter.end_date) {
-    whereClauses.push(`b.created_at < ($${paramIndex}::date + interval '1 day')`);
+    whereClauses.push(`COALESCE(ra.redeemed_at, b.created_at) < ($${paramIndex}::date + interval '1 day')`);
     params.push(filter.end_date);
     paramIndex++;
   }
@@ -264,11 +264,14 @@ function buildWhereFromFilter(filter, scope = {}) {
 function revenueSelect(filter) {
   switch (filter.revenue_type) {
     case 'ezt':
-      return 'COALESCE(b.ezt_redeemed, 0)::numeric';
+      // EZT revenue is the INR value of EZT co-pay for redeemed vouchers
+      return 'COALESCE(ra.ezt_co_pay_amount, 0)::numeric';
     case 'fiat':
-      return 'COALESCE(b.fiat_amount, 0)::numeric';
+      // Fiat revenue comes from net_amount_from_user when redemption_audit exists, otherwise fall back to bookings.fiat_amount
+      return 'COALESCE(ra.net_amount_from_user, b.fiat_amount, 0)::numeric';
     default:
-      return '(COALESCE(b.fiat_amount, 0) + COALESCE(b.ezt_redeemed, 0))::numeric';
+      // Total bill amount for redeemed vouchers; fall back to legacy approximation when audit row is missing
+      return 'COALESCE(ra.total_bill_amount, COALESCE(b.fiat_amount, 0) + COALESCE(b.ezt_redeemed, 0))::numeric';
   }
 }
 

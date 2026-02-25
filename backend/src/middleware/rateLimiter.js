@@ -38,8 +38,25 @@ const adminOverrideRateLimiter = rateLimit({
   legacyHeaders: false
 });
 
+// Review submit: per-user abuse prevention (per IP when not logged in; applies before auth)
+const reviewSubmitRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,
+  message: { success: false, error: 'Too many review submissions. Please try again in a minute.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      error: 'Too many review submissions. Please try again in a minute.',
+      retryAfter: 60
+    });
+  }
+});
+
 module.exports = {
   redemptionRateLimiter,
-  adminOverrideRateLimiter
+  adminOverrideRateLimiter,
+  reviewSubmitRateLimiter
 };
 

@@ -2,7 +2,9 @@
  * Inspect a partner offer by partner name and offer title (e.g. Bikers Cafe, Valentines).
  * Run from backend: node scripts/inspect-offer-by-name.js "Bikers Cafe" "Valentin"
  *
- * Usage: node scripts/inspect-offer-by-name.js [partnerName] [offerTitlePattern]
+ * Usage:
+ *   node scripts/inspect-offer-by-name.js [partnerName] [offerTitlePattern]
+ *   node scripts/inspect-offer-by-name.js --title "Holi Milan"   # search offers by title across all partners (shows image_url)
  * If no args: lists all partners and one sample offer each.
  */
 
@@ -14,8 +16,34 @@ async function main() {
   const { getPool } = require(path.join(backendRoot, 'src/config/db'));
   const pool = getPool();
 
-  const partnerName = process.argv[2] || null;
-  const offerTitlePattern = process.argv[3] || null;
+  const firstArg = process.argv[2] || null;
+  const secondArg = process.argv[3] || null;
+
+  // Mode: search by offer title across all partners (for image_url diagnostics)
+  if (firstArg === '--title' && secondArg) {
+    const titlePattern = '%' + secondArg + '%';
+    const res = await pool.query(
+      `SELECT po.id, po.title, po.image_url, p.name AS partner_name
+       FROM partner_offers po
+       JOIN partners p ON p.id = po.partner_id
+       WHERE po.title ILIKE $1
+       ORDER BY p.name, po.title`,
+      [titlePattern]
+    );
+    console.log('Offers matching title', JSON.stringify(secondArg), '\n');
+    for (const row of res.rows) {
+      console.log('  title:', row.title);
+      console.log('  id:', row.id);
+      console.log('  partner:', row.partner_name);
+      console.log('  image_url:', row.image_url == null ? '(null)' : (row.image_url.length > 80 ? row.image_url.slice(0, 80) + '...' : row.image_url));
+      console.log('');
+    }
+    if (res.rows.length === 0) console.log('  (none)\n');
+    return;
+  }
+
+  const partnerName = firstArg;
+  const offerTitlePattern = secondArg;
 
   if (!partnerName) {
     const partners = await pool.query(
@@ -47,7 +75,7 @@ async function main() {
 
   for (const partner of partnerResult.rows) {
     console.log('Partner:', partner.name, '(', partner.id, ')\n');
-    let offersQuery = `SELECT id, title, description, co_pay_percentage, discount_amount, offer_type, original_price, discounted_price, start_date, end_date, status, is_active
+    let offersQuery = `SELECT id, title, description, image_url, co_pay_percentage, discount_amount, offer_type, original_price, discounted_price, start_date, end_date, status, is_active
                         FROM partner_offers WHERE partner_id = $1`;
     const params = [partner.id];
     if (offerTitlePattern) {
@@ -65,6 +93,7 @@ async function main() {
     for (const o of offers.rows) {
       console.log('Offer:', o.title);
       console.log('  id:', o.id);
+      console.log('  image_url:', o.image_url == null ? '(null)' : (o.image_url.length > 60 ? o.image_url.slice(0, 60) + '...' : o.image_url));
       console.log('  co_pay_percentage:', o.co_pay_percentage);
       console.log('  discount_amount:', o.discount_amount);
       console.log('  offer_type:', o.offer_type);

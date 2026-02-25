@@ -156,6 +156,28 @@ const uploadToS3 = async (files) => {
 
 
 /**
+ * Upload a buffer to S3 at a specific key (e.g. avatars/userId/cardId/original.jpg).
+ * Compresses if image. Returns the key.
+ */
+const uploadBufferToKey = async (buffer, contentType, key) => {
+  if (!BUCKET_NAME) throw new Error("AWS_BUCKET_NAME environment variable is not set");
+  const mimetype = contentType && contentType.split(';')[0].trim() ? contentType.split(';')[0].trim() : 'image/jpeg';
+  let uploadBuffer = buffer;
+  if (mimetype.startsWith('image/')) {
+    uploadBuffer = await compressImage(buffer, mimetype);
+  }
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: key,
+      Body: uploadBuffer,
+      ContentType: mimetype,
+    })
+  );
+  return key;
+};
+
+/**
  * Returns a usable image URL for display.
  * - If key is null/undefined or empty, returns null.
  * - If key is already a full URL (http/https) or data URL, returns as-is so deal images display correctly.
@@ -173,6 +195,7 @@ const getS3FileUrl = (key) => {
 module.exports = {
   s3,
   uploadToS3,
+  uploadBufferToKey,
   getS3FileUrl,
   BUCKET_NAME,
 };

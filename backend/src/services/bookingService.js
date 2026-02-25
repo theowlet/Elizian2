@@ -120,24 +120,30 @@ async function createBooking(bookingData) {
           await client.query('ROLLBACK');
           throw new AppError(404, "Offer not found");
         }
-        await client.query('ROLLBACK');
         const status = (raw.status && String(raw.status).toLowerCase().trim()) || '';
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const isEvent = (raw.service_type && String(raw.service_type).toLowerCase().trim()) === 'events';
         if (status !== 'active' && !raw.is_active) {
+          await client.query('ROLLBACK');
           throw new AppError(400, "This deal is not active. It may be draft, paused, or rejected. Please select another deal.");
         }
-        if (raw.start_date && new Date(raw.start_date).toDateString() > today.toDateString()) {
+        // For non-events only: deal must have started. Events allow pre-booking (Pre-book Now).
+        if (!isEvent && raw.start_date && new Date(raw.start_date).toDateString() > today.toDateString()) {
+          await client.query('ROLLBACK');
           throw new AppError(400, "This deal is not yet open for booking. Please try again from the start date.");
         }
         if (raw.end_date && new Date(raw.end_date).toDateString() < today.toDateString()) {
+          await client.query('ROLLBACK');
           throw new AppError(400, "This deal's booking period has ended. Please select another deal.");
         }
         const pStatus = (raw.partner_status && String(raw.partner_status).toLowerCase().trim()) || '';
         if (['suspended', 'rejected'].includes(pStatus)) {
+          await client.query('ROLLBACK');
           throw new AppError(400, "This partner is not accepting bookings. Please select another deal.");
         }
-        throw new AppError(400, "This deal is not currently available for booking. Please try again or select another deal.");
+        // Pre-book: use raw as offer so booking can proceed (event within deal window; operating hours validated later).
+        offer = raw;
       }
       const offerStatus = (offer.status && String(offer.status).toLowerCase().trim()) || '';
       if (offerStatus !== 'active') {
@@ -145,7 +151,9 @@ async function createBooking(bookingData) {
         throw new AppError(400, "This deal is not active and cannot be booked. Please select another deal.");
       }
       const now = new Date();
-      if (offer.start_date && new Date(offer.start_date) > now) {
+      // Events allow pre-booking (Pre-book Now): do not require current time to be after start_date.
+      const isEventOffer = (offer.service_type && String(offer.service_type).toLowerCase().trim()) === 'events';
+      if (!isEventOffer && offer.start_date && new Date(offer.start_date) > now) {
         await client.query('ROLLBACK');
         throw new AppError(400, "This deal is not yet valid for booking. Please try again after the start date.");
       }
@@ -515,17 +523,18 @@ async function createBooking(bookingData) {
     bookingPayload.booking_time = bookingTime;  // Set booking time from reservation_data or current
     bookingPayload.user_tier_at_booking = userTierAtBooking;  // Store user's tier at booking time
 
-    // STABILIZATION FIX: Set voucher expiration to prevent indefinite redemption window
-    // Uses the earlier of: offer end_date or 30 days from now.
-    // Without this, vouchers for expired offers could be redeemed months later.
+    // Voucher "Valid until" = universal: 30 days from booked/visit date (or from today if no date) OR deal end, whichever is earlier.
     if (offer_id) {
+      const fromDate = bookingDate && /^\d{4}-\d{2}-\d{2}$/.test(String(bookingDate).trim())
+        ? new Date(String(bookingDate).trim() + 'T12:00:00')
+        : new Date();
+      const thirtyDaysFromVisit = new Date(fromDate.getTime() + 30 * 24 * 60 * 60 * 1000);
       const offerForExpiry = await offerRepository.getOfferById(offer_id, false);
       if (offerForExpiry && offerForExpiry.end_date) {
         const offerEnd = new Date(offerForExpiry.end_date);
-        const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        bookingPayload.expires_at = offerEnd < thirtyDaysFromNow ? offerEnd : thirtyDaysFromNow;
+        bookingPayload.expires_at = offerEnd < thirtyDaysFromVisit ? offerEnd : thirtyDaysFromVisit;
       } else {
-        bookingPayload.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        bookingPayload.expires_at = thirtyDaysFromVisit;
       }
     } else if (event_id) {
       // Events: expire voucher 24 hours after the event date

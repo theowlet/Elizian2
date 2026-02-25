@@ -9,7 +9,7 @@ async function getReferralCode(req, res) {
     const userId = req.userId;
     const referralCode = await referralService.getOrCreateReferralCode(userId);
 
-    return successResponse(res, { referralCode }, 'Referral code retrieved successfully');
+    return successResponse(res, 200, 'Referral code retrieved successfully', { referralCode });
   } catch (error) {
     return errorResponse(res, error);
   }
@@ -23,7 +23,7 @@ async function getReferralStats(req, res) {
     const userId = req.userId;
     const stats = await referralService.getUserReferralStats(userId);
 
-    return successResponse(res, stats, 'Referral stats retrieved successfully');
+    return successResponse(res, 200, 'Referral stats retrieved successfully', stats);
   } catch (error) {
     return errorResponse(res, error);
   }
@@ -40,7 +40,7 @@ async function getReferralHistory(req, res) {
 
     const history = await referralService.getReferralHistory(userId, limit, offset);
 
-    return successResponse(res, { history }, 'Referral history retrieved successfully');
+    return successResponse(res, 200, 'Referral history retrieved successfully', { history });
   } catch (error) {
     return errorResponse(res, error);
   }
@@ -54,7 +54,7 @@ async function getLeaderboard(req, res) {
     const limit = parseInt(req.query.limit) || 10;
     const leaderboard = await referralService.getLeaderboard(limit);
 
-    return successResponse(res, { leaderboard }, 'Leaderboard retrieved successfully');
+    return successResponse(res, 200, 'Leaderboard retrieved successfully', { leaderboard });
   } catch (error) {
     return errorResponse(res, error);
   }
@@ -85,12 +85,12 @@ async function validateReferralCode(req, res) {
     }
 
     const referral = result.rows[0];
-    return successResponse(res, {
+    return successResponse(res, 200, 'Referral code is valid', {
       valid: true,
       discount: referral.referee_discount_amount,
       referrerName: referral.first_name,
       message: `${referral.first_name} invited you! Get ₹${referral.referee_discount_amount} off your first booking!`
-    }, 'Referral code is valid');
+    });
   } catch (error) {
     return errorResponse(res, error);
   }

@@ -3,8 +3,29 @@ const tokenService = require('./tokenService');
 const pool = getPool();
 let legacyDiscountPercentageColumnExists = null;
 
-/** 1 EZT = 100 INR for co-pay calculation */
+/**
+ * EZT redemption and loyalty (single source of truth).
+ *
+ * 1) Fiat Spent = Total Bill − Co-pay by EZT (INR). (Stored as net_amount_from_user.)
+ * 2) EZT earned as loyalty = tier % of Fiat Spent. Formula: loyalty_ezt = (fiat_spent × tier_pct) / 1000 (e.g. Ather 1%, ₹2800 → 2.8 EZT).
+ * 3) At redemption: co-pay EZT is debited; loyalty EZT is credited.
+ *
+ * Co-pay: 1 EZT = 100 INR. All EZT to 5 decimal places.
+ */
 const EZT_TO_INR = 100;
+
+/**
+ * Use the deal's co-pay percentage exactly as given (e.g. 30 means 30%, not 29.98).
+ * Normalizes float/DB drift so 29.98 or 30.02 is treated as 30.
+ */
+function normalizeCoPayPercentage(pct) {
+  if (pct == null || Number.isNaN(parseFloat(pct))) return pct;
+  const n = parseFloat(pct);
+  const rounded = Math.round(n * 100) / 100;
+  const nearestInt = Math.round(rounded);
+  if (Math.abs(rounded - nearestInt) <= 0.02) return nearestInt;
+  return rounded;
+}
 
 /**
  * Get offer discount (percentage and/or fixed amount) and type by offer id
@@ -39,7 +60,11 @@ async function getOfferDiscount(offerId, executor = null) {
     `SELECT ${coPaySelector}, discount_amount, offer_type, title FROM partner_offers WHERE id = $1`,
     [offerId]
   );
-  return result.rows[0] || null;
+  const row = result.rows[0] || null;
+  if (row && row.co_pay_percentage != null) {
+    row.co_pay_percentage = normalizeCoPayPercentage(row.co_pay_percentage);
+  }
+  return row;
 }
 
 /**
@@ -55,7 +80,7 @@ function applyBookingTimeCoPay(offerRow, booking) {
   if (raw == null) return offerRow;
   const pct = parseFloat(raw);
   if (Number.isNaN(pct) || pct < 0) return offerRow;
-  const effective = Math.min(100, pct);
+  const effective = Math.min(100, normalizeCoPayPercentage(pct));
   if (effective === 0) {
     const current = parseFloat(offerRow?.co_pay_percentage);
     // Backward-compat: if snapshot is 0 but current deal has a positive co-pay,
@@ -128,7 +153,9 @@ async function calculateRedemptionBreakdown(offerId, totalBillAmount, userId = n
   let customerFullyFunded = true;
   if (userId) {
     userEztBalance = await tokenService.getBalance(userId, options.executor || null);
-    walletAffordableInr = Math.round(userEztBalance * EZT_TO_INR * 100) / 100;
+    const overdraftLimit = tokenService.getOverdraftLimit();
+    const effectiveEztCap = Math.max(0, userEztBalance + overdraftLimit);
+    walletAffordableInr = Math.round(effectiveEztCap * EZT_TO_INR * 100) / 100;
     maxAllowedCoPay = Math.min(standardCoPayInr, walletAffordableInr);
     walletShortfall = Math.max(0, Math.round((standardCoPayInr - walletAffordableInr) * 100) / 100);
     customerFullyFunded = walletAffordableInr >= standardCoPayInr - 0.01;

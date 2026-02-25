@@ -1,7 +1,17 @@
 const offerService = require("../services/offerService");
 const { successResponse, errorResponse } = require("../../utils/response");
 const { logError } = require("../../utils/logger");
-const {getS3FileUrl} = require("../../utils/s3Bucket")
+const { getS3FileUrl } = require("../../utils/s3Bucket");
+
+function validateCoPayBody(body) {
+  if (body.co_pay_percentage === undefined || body.co_pay_percentage === null) return;
+  const v = Number(body.co_pay_percentage);
+  if (Number.isNaN(v) || v < 0 || v > 100) {
+    const err = new Error("Co-pay percentage must be a number between 0 and 100");
+    err.statusCode = 400;
+    throw err;
+  }
+}
 
 // List offers by partner
 async function listOffers(req, res) {
@@ -53,6 +63,7 @@ async function getOffer(req, res) {
 // Create offer
 async function createOffer(req, res) {
   try {
+    validateCoPayBody(req.body);
     const { id } = req.params;
     console.log(
       "[offerController] Received request body keys:",
@@ -84,6 +95,7 @@ async function createOffer(req, res) {
 // Update offer
 async function updateOffer(req, res) {
   try {
+    validateCoPayBody(req.body);
     const { partnerId, offerId } = req.params;
     const offer = await offerService.updateOffer(partnerId, offerId, req.body, {
       actorUserId: req.user?.id,

@@ -1,5 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { getDealImageUrl, DEFAULT_DEAL_IMAGE_URL } from "../utils/dealImage";
 import "../styles/experienceCard.css";
 
 /**
@@ -43,7 +44,13 @@ export default function ExperienceCard({
     end_date,
   } = deal;
 
-  const imgUrl = image || image_url;
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+  const imgUrl = getDealImageUrl(deal, API_BASE);
+  const [imageError, setImageError] = React.useState(false);
+  const effectiveUrl = imageError ? DEFAULT_DEAL_IMAGE_URL : imgUrl;
+  React.useEffect(() => {
+    setImageError(false);
+  }, [id, imgUrl]);
   const displayRating = rating ?? partner_rating ?? null;
   const area = (partner_address || partner_name || "")
     .split(",")
@@ -58,8 +65,12 @@ export default function ExperienceCard({
     (deal.ezt_equivalent > 0 && `Co-pay up to 50% with $EZT`) ||
     null;
 
-  // Availability badge (placeholder: can be wired to slots/waitlist later)
-  const availabilityBadge = "Open Now"; // or "Limited Slots" | "Sold Out" | "This Weekend"
+  // Availability badge: upcoming events show "Pre-book Now", others "Open Now"
+  const isUpcomingEvent =
+    service_type === "events" &&
+    start_date &&
+    new Date(start_date) > new Date();
+  const availabilityBadge = isUpcomingEvent ? "Pre-book Now" : "Open Now";
 
   const handleViewDetails = (e) => {
     e.stopPropagation();
@@ -78,20 +89,24 @@ export default function ExperienceCard({
   };
 
   const isEchelon = min_tier_name && String(min_tier_name).toLowerCase().includes("echelon");
-  const primaryCtaLabel = isEchelon ? "Priority Book" : "Book Now";
+  const primaryCtaLabel = isUpcomingEvent
+    ? "Pre-book Now"
+    : isEchelon
+      ? "Priority Book"
+      : "Book Now";
 
   return (
     <article className="experience-card" data-service-type={service_type}>
-      {/* Layer 1 — Image area (top ~60%, 16:9) */}
+      {/* Layer 1 — Image area (top ~60%, 16:9). Use <img> so onError always runs and fallback shows. */}
       <div className="exp-card__image-wrap">
-        <div
-          className="exp-card__image"
-          style={{
-            backgroundImage: imgUrl ? `url(${imgUrl})` : "none",
-          }}
-          role="img"
-          aria-label={title}
-        />
+        <div className="exp-card__image" aria-hidden>
+          <img
+            src={effectiveUrl}
+            alt=""
+            className="exp-card__image-img"
+            onError={() => setImageError(true)}
+          />
+        </div>
         <div className="exp-card__overlays">
           {displayRating != null && (
             <div className="exp-card__rating">

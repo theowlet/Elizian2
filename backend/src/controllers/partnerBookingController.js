@@ -115,10 +115,34 @@ async function listPartnerBookings(req, res) {
     const countResult = await pool.query(countSql, countParams);
     const total = parseInt(countResult.rows[0].count, 10);
 
-    const bookings = result.rows.map((b) => ({
-      ...b,
-      customer_tier: normalizeTierName(b.customer_tier || 'Ather')
-    }));
+    const redeemedIds = result.rows.filter((b) => b.status === 'redeemed').map((b) => b.id);
+    let redemptionByBooking = {};
+    if (redeemedIds.length > 0) {
+      const raResult = await pool.query(
+        `SELECT DISTINCT ON (booking_id) booking_id, total_bill_amount, ezt_co_pay_amount, net_amount_from_user
+         FROM redemption_audit
+         WHERE booking_id = ANY($1::uuid[]) AND redemption_status IN ('redeemed', 'disputed')
+         ORDER BY booking_id, redeemed_at DESC`,
+        [redeemedIds]
+      );
+      raResult.rows.forEach((r) => {
+        redemptionByBooking[r.booking_id] = {
+          total_bill_amount: r.total_bill_amount != null ? parseFloat(r.total_bill_amount) : null,
+          ezt_co_pay_amount: r.ezt_co_pay_amount != null ? parseFloat(r.ezt_co_pay_amount) : null,
+          net_amount_from_user: r.net_amount_from_user != null ? parseFloat(r.net_amount_from_user) : null
+        };
+      });
+    }
+
+    const bookings = result.rows.map((b) => {
+      const base = { ...b, customer_tier: normalizeTierName(b.customer_tier || 'Ather') };
+      if (b.status === 'redeemed' && redemptionByBooking[b.id]) {
+        const r = redemptionByBooking[b.id];
+        base.total_price = r.total_bill_amount;
+        base.fiat_amount = r.net_amount_from_user;
+      }
+      return base;
+    });
 
     return successResponse(res, 200, 'Bookings retrieved successfully', {
       bookings,
@@ -173,7 +197,7 @@ async function getPartnerBooking(req, res) {
         u.first_name || ' ' || u.last_name as customer_name,
         u.email as customer_email,
         u.phone_number as customer_phone,
-        u.tier as customer_tier
+        u.current_tier_name as customer_tier
       FROM bookings b
       LEFT JOIN partner_offers po ON b.deal_id = po.id
       LEFT JOIN users u ON b.user_id = u.id
@@ -188,6 +212,25 @@ async function getPartnerBooking(req, res) {
 
     const booking = result.rows[0];
     booking.customer_tier = normalizeTierName(booking.customer_tier || booking.user_tier_at_booking);
+
+    if (booking.status === 'redeemed') {
+      // Include 'disputed' so we still return amounts for display when customer disputed (audit row has amounts from redemption time)
+      const ra = await pool.query(
+        `SELECT total_bill_amount, ezt_co_pay_amount, net_amount_from_user, redeemed_at
+         FROM redemption_audit
+         WHERE booking_id = $1 AND redemption_status IN ('redeemed', 'disputed')
+         ORDER BY redeemed_at DESC LIMIT 1`,
+        [bookingId]
+      );
+      if (ra.rows.length > 0) {
+        const r = ra.rows[0];
+        booking.redemption_total_bill = r.total_bill_amount != null ? parseFloat(r.total_bill_amount) : null;
+        booking.redemption_ezt_co_pay = r.ezt_co_pay_amount != null ? parseFloat(r.ezt_co_pay_amount) : null;
+        booking.redemption_net_from_user = r.net_amount_from_user != null ? parseFloat(r.net_amount_from_user) : null;
+        booking.redeemed_at = r.redeemed_at;
+      }
+    }
+
     return successResponse(res, 200, 'Booking retrieved successfully', booking);
   } catch (err) {
     logError('❌ Partner booking retrieval error:', err);

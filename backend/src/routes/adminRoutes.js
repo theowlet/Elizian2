@@ -6,6 +6,7 @@ const adminService = require('../services/adminService');
 const rewardsController = require('../controllers/rewardsController');
 const adminRedemptionController = require('../controllers/adminRedemptionController');
 const adminCampaignController = require('../controllers/adminCampaignController');
+const locationsController = require('../controllers/locationsController');
 const { adminOverrideRateLimiter } = require('../middleware/rateLimiter');
 const { getUserRoleById } = require('../utils/queries');
 
@@ -83,6 +84,13 @@ router.patch('/partner-tiers/:id/active', adminController.setPartnerTierActive);
 router.delete('/partner-tiers/:id', adminController.deletePartnerTier);
 // Platform revenue dashboard (from platform_earnings_ledger)
 router.get('/platform-earnings', adminController.getPlatformEarnings);
+router.get('/platform-earnings/report', adminController.getPlatformEarningsReport);
+router.get('/platform-earnings/export', adminController.getPlatformEarningsExport);
+
+// Locations (Country, State, City) for filters
+router.get('/locations/countries', locationsController.getCountries);
+router.get('/locations/states', locationsController.getStates);
+router.get('/locations/cities', locationsController.getCities);
 
 // Deals/Offers management
 router.get('/deals', adminController.listDeals);
@@ -202,6 +210,67 @@ router.get('/vouchers/:voucherCode/audit', adminRedemptionController.getVoucherA
 router.get('/bookings/:bookingId/audit', adminRedemptionController.getBookingAuditTrail);
 router.get('/bookings/:bookingId/state-history', adminRedemptionController.getStateHistory);
 router.get('/redemptions/:redemptionId/overrides', adminRedemptionController.getAdminOverrides);
+
+// Reputation: review governance (soft-delete, restore, audit)
+const reputationReviewService = require('../services/reputationReviewService');
+const { successResponse, errorResponse } = require('../../utils/response');
+router.delete('/reviews/:reviewId', async (req, res) => {
+  try {
+    const updated = await reputationReviewService.softDeleteReview(req.params.reviewId, req.userId, 'admin');
+    if (!updated) return errorResponse(res, 404, 'Review not found or already deleted');
+    successResponse(res, 200, 'Review soft-deleted', updated);
+  } catch (err) {
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to delete review');
+  }
+});
+router.post('/reviews/:reviewId/restore', async (req, res) => {
+  try {
+    const updated = await reputationReviewService.restoreReview(req.params.reviewId, req.userId, 'admin');
+    if (!updated) return errorResponse(res, 404, 'Review not found');
+    successResponse(res, 200, 'Review restored', updated);
+  } catch (err) {
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to restore review');
+  }
+});
+router.get('/reviews/:reviewId/audit', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const logs = await reputationReviewService.getReviewAuditLog(req.params.reviewId, limit);
+    successResponse(res, 200, 'Audit log', logs);
+  } catch (err) {
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to get audit log');
+  }
+});
+router.post('/reviews/:reviewId/mark-malicious', async (req, res) => {
+  try {
+    const updated = await reputationReviewService.markMaliciousReview(req.params.reviewId, req.userId, 'admin');
+    if (!updated) return errorResponse(res, 404, 'Review not found or already deleted');
+    successResponse(res, 200, 'Review marked as malicious', updated);
+  } catch (err) {
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to mark review as malicious');
+  }
+});
+router.post('/reviews/block-user', async (req, res) => {
+  try {
+    const { user_id: userId, reason } = req.body || {};
+    if (!userId) return errorResponse(res, 400, 'user_id is required');
+    await reputationReviewService.blockUserForReviews(userId, req.userId, reason);
+    successResponse(res, 200, 'User blocked from submitting reviews', { user_id: userId });
+  } catch (err) {
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to block user');
+  }
+});
+router.post('/reviews/unblock-user', async (req, res) => {
+  try {
+    const { user_id: userId } = req.body || {};
+    if (!userId) return errorResponse(res, 400, 'user_id is required');
+    const ok = await reputationReviewService.unblockUserForReviews(userId);
+    if (!ok) return errorResponse(res, 404, 'User was not blocked');
+    successResponse(res, 200, 'User unblocked', { user_id: userId });
+  } catch (err) {
+    errorResponse(res, err.statusCode || 500, err.message || 'Failed to unblock user');
+  }
+});
 
 module.exports = router;
 

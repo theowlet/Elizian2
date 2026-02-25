@@ -2707,7 +2707,7 @@
           const distanceObj = window.locationService.getDistanceToPartner(deal.latitude, deal.longitude);
           distance = distanceObj ? distanceObj.formatted : '';
         }
-        const rating = '4.5'; // TODO: Get from partner/booking data
+        const rating = (deal.rating != null || deal.partner_rating != null) ? String(Number(deal.rating ?? deal.partner_rating).toFixed(1)) : '';
         const cuisine = deal.service_type === 'dining' ? 'Italian' : deal.category_name || '';
         
         // Escape user-generated content to prevent XSS
@@ -5024,7 +5024,7 @@
                   <h4>${safePartnerName}</h4>
                   <p class="restaurant-cuisine">${safeCategoryName}</p>
                   <div class="restaurant-meta">
-                    <span>⭐ ${deal.rating ? deal.rating.toFixed(1) : '4.5'}</span>
+                    ${(deal.rating != null || deal.partner_rating != null) ? `<span>⭐ ${Number(deal.rating ?? deal.partner_rating).toFixed(1)}</span>` : ''}
                     ${distanceText ? `<span>📍 ${distanceText}</span>` : ''}
                   </div>
                   ${summary.hasDiscount ? `

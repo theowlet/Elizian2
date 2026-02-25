@@ -49,6 +49,26 @@ async function redeemVoucher(req, res) {
       return errorResponse(res, 400, 'Invalid net amount from user. Must be a finite number >= 0.');
     }
 
+    // Idempotency: if client sends X-Idempotency-Key and we already processed it, return same response (no duplicate financial impact)
+    const idempotencyKey = req.get('X-Idempotency-Key') || req.get('Idempotency-Key');
+    if (idempotencyKey && typeof idempotencyKey === 'string' && idempotencyKey.trim()) {
+      try {
+        const keyTrimmed = idempotencyKey.trim();
+        const keyRow = await getPool().query(
+          'SELECT redemption_id FROM redemption_idempotency_keys WHERE idempotency_key = $1',
+          [keyTrimmed]
+        );
+        if (keyRow.rows.length > 0) {
+          const existing = await enhancedRedemptionService.getRedemptionResponseById(keyRow.rows[0].redemption_id);
+          if (existing) {
+            return successResponse(res, 200, 'Voucher redeemed successfully', existing);
+          }
+        }
+      } catch (keyErr) {
+        if (keyErr.code !== '42P01') throw keyErr; // 42P01 = table does not exist (migration not run)
+      }
+    }
+
     // Use enhanced redemption service with enterprise features
     const redemption = await enhancedRedemptionService.redeemVoucherEnhanced({
       voucher_code,
@@ -66,6 +86,18 @@ async function redeemVoucher(req, res) {
       ipAddress: req.ip || req.connection.remoteAddress,
       userAgent: req.get('user-agent')
     });
+
+    // Store idempotency key so retries return same redemption (optional; table may not exist yet)
+    if (idempotencyKey && typeof idempotencyKey === 'string' && idempotencyKey.trim() && redemption && redemption.id) {
+      try {
+        await getPool().query(
+          'INSERT INTO redemption_idempotency_keys (idempotency_key, redemption_id) VALUES ($1, $2) ON CONFLICT (idempotency_key) DO NOTHING',
+          [idempotencyKey.trim(), redemption.id]
+        );
+      } catch (keyErr) {
+        if (keyErr.code !== '42P01') logError('Idempotency key insert (non-fatal):', keyErr.message);
+      }
+    }
 
     successResponse(res, 200, 'Voucher redeemed successfully', redemption);
   } catch (error) {

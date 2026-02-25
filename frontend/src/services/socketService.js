@@ -104,6 +104,13 @@ function connectSocket(wsUrl, token, onRealtime, setConnectionState) {
     onRealtime('notification_received', payload);
   });
 
+  // Ecosystem summary refetch: backend emits to users:${userId}; dispatch so CustomerChatHeader can refetch
+  ['customer:ecosystem_updated', 'tokens:updated', 'loyalty:updated'].forEach((ev) => {
+    socket.on(ev, (payload) => {
+      window.dispatchEvent(new CustomEvent(ev, { detail: payload ?? {} }));
+    });
+  });
+
   socketInstance = socket;
   return socket;
 }
