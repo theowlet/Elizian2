@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import Swal from "sweetalert2";
+import "sweetalert2/dist/sweetalert2.min.css";
 import "../styles/auth.css";
+
+// Service types that do NOT have time slot selection - user must contact partner
+const NO_TIME_SLOT_SERVICES = ["spa", "spa-and-salon", "wellness", "healthcare", "travel", "others"];
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
@@ -107,7 +112,7 @@ const EventBooking = () => {
   };
 
   // Screen 1: Handle selection submission -> move to review
-  const handleSelectionSubmit = (e) => {
+  const handleSelectionSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
@@ -123,6 +128,19 @@ const EventBooking = () => {
     if (needsDateAndTime && !bookingTime) {
       setError("Please select a booking time");
       return;
+    }
+
+    // For services without time slot selection: show alert before proceeding
+    const svcType = (deal?.service_type || "").toLowerCase();
+    if (NO_TIME_SLOT_SERVICES.includes(svcType)) {
+      const result = await Swal.fire({
+        icon: "info",
+        title: "Time slot not selected",
+        html: "Contact the partner for the available time slot. Your booking will reserve your spot.",
+        confirmButtonText: "Continue",
+        confirmButtonColor: "#059669",
+      });
+      if (!result.isConfirmed) return;
     }
 
     // Move to review screen
@@ -675,15 +693,15 @@ const EventBooking = () => {
                   borderLeft: "4px solid #059669",
                 }}
               >
-                <h3 style={{ margin: "0 0 0.5rem 0", color: "#333" }}>
+                <h3 style={{ margin: "0 0 0.5rem 0", color: "#111827" }}>
                   {deal.title}
                 </h3>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", margin: "0 0 0.25rem 0", color: "#4b5563", fontSize: "0.9rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", margin: "0 0 0.25rem 0", color: "#374151", fontSize: "0.9rem" }}>
                   <span>🏢</span>
-                  <span style={{ fontWeight: "500" }}>{deal.partner_name || deal.location}</span>
+                  <span style={{ fontWeight: "500", color: "#374151" }}>{deal.partner_name || deal.location}</span>
                 </div>
                 {deal.partner_address && (
-                  <div style={{ color: "#6b7280", fontSize: "0.8rem", margin: "0 0 0.5rem 0", paddingLeft: "1.5rem" }}>
+                  <div style={{ color: "#4b5563", fontSize: "0.8rem", margin: "0 0 0.5rem 0", paddingLeft: "1.5rem" }}>
                     📍 {deal.partner_address}
                   </div>
                 )}
@@ -710,7 +728,7 @@ const EventBooking = () => {
                 marginBottom: "1.5rem",
               }}
             >
-              <h4 style={{ margin: "0 0 1rem 0", color: "#333" }}>
+              <h4 style={{ margin: "0 0 1rem 0", color: "#111827" }}>
                 Booking Details
               </h4>
 
@@ -718,40 +736,55 @@ const EventBooking = () => {
                 <div style={{ marginBottom: "0.75rem" }}>
                   <div
                     style={{
-                      color: "#666",
+                      color: "#4b5563",
                       fontSize: "0.9rem",
                       marginBottom: "0.25rem",
                     }}
                   >
                     Date
                   </div>
-                  <div style={{ fontWeight: "600" }}>
+                  <div style={{ fontWeight: "600", color: "#111827" }}>
                     {formatDate(bookingDate)}
                   </div>
                 </div>
               )}
 
-              {bookingTime && (
+              {bookingTime ? (
                 <div style={{ marginBottom: "0.75rem" }}>
                   <div
                     style={{
-                      color: "#666",
+                      color: "#4b5563",
                       fontSize: "0.9rem",
                       marginBottom: "0.25rem",
                     }}
                   >
                     Time
                   </div>
-                  <div style={{ fontWeight: "600" }}>
+                  <div style={{ fontWeight: "600", color: "#111827" }}>
                     {formatTime(bookingTime)}
                   </div>
                 </div>
-              )}
+              ) : deal && NO_TIME_SLOT_SERVICES.includes((deal.service_type || "").toLowerCase()) ? (
+                <div style={{ marginBottom: "0.75rem" }}>
+                  <div
+                    style={{
+                      color: "#4b5563",
+                      fontSize: "0.9rem",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    Time
+                  </div>
+                  <div style={{ fontWeight: "600", color: "#92400e", fontStyle: "italic" }}>
+                    Contact partner for available time slot
+                  </div>
+                </div>
+              ) : null}
 
               <div style={{ marginBottom: "0.75rem" }}>
                 <div
                   style={{
-                    color: "#666",
+                    color: "#4b5563",
                     fontSize: "0.9rem",
                     marginBottom: "0.25rem",
                   }}
@@ -760,27 +793,27 @@ const EventBooking = () => {
                     ? "Number of Guests"
                     : "Number of Tickets"}
                 </div>
-                <div style={{ fontWeight: "600" }}>{numTickets}</div>
+                <div style={{ fontWeight: "600", color: "#111827" }}>{numTickets}</div>
               </div>
 
               {specialRequests && (
                 <div style={{ marginBottom: "0.75rem" }}>
                   <div
                     style={{
-                      color: "#666",
+                      color: "#4b5563",
                       fontSize: "0.9rem",
                       marginBottom: "0.25rem",
                     }}
                   >
                     Special Requests
                   </div>
-                  <div style={{ fontWeight: "600" }}>{specialRequests}</div>
+                  <div style={{ fontWeight: "600", color: "#111827" }}>{specialRequests}</div>
                 </div>
               )}
 
               <div
                 style={{
-                  borderTop: "1px solid #ddd",
+                  borderTop: "1px solid #bae6fd",
                   paddingTop: "0.75rem",
                   marginTop: "0.75rem",
                 }}
@@ -791,7 +824,7 @@ const EventBooking = () => {
                     justifyContent: "space-between",
                     fontSize: "1.2rem",
                     fontWeight: "bold",
-                    color: "#059669",
+                    color: "#047857",
                   }}
                 >
                   <span>Total Amount:</span>
@@ -803,23 +836,23 @@ const EventBooking = () => {
             {/* Payment Notice */}
             <div
               style={{
-                background: "#fff3cd",
+                background: "#fef3c7",
                 padding: "1rem",
                 borderRadius: "8px",
                 marginBottom: "1.5rem",
-                border: "1px solid #ffc107",
+                border: "1px solid #d97706",
               }}
             >
               <div
                 style={{
                   fontWeight: "bold",
-                  color: "#856404",
+                  color: "#92400e",
                   marginBottom: "0.5rem",
                 }}
               >
                 💳 Payment at Venue
               </div>
-              <div style={{ fontSize: "0.9rem", color: "#856404" }}>
+              <div style={{ fontSize: "0.9rem", color: "#78350f" }}>
                 You will pay directly at the partner venue when you arrive. This
                 booking reserves your spot.
               </div>
@@ -831,8 +864,8 @@ const EventBooking = () => {
                 onClick={() => setCurrentScreen(SCREEN_SELECTION)}
                 style={{
                   flex: 1,
-                  background: "transparent",
-                  color: "#6b7280",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "#e5e7eb",
                   border: "1.5px solid #d1d5db",
                   borderRadius: "10px",
                   padding: "14px 20px",
@@ -842,13 +875,15 @@ const EventBooking = () => {
                   transition: "all 0.25s ease",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#f9fafb";
+                  e.currentTarget.style.background = "#f3f4f6";
+                  e.currentTarget.style.color = "#374151";
                   e.currentTarget.style.transform = "translateY(-2px)";
                   e.currentTarget.style.boxShadow =
                     "0 6px 14px rgba(0,0,0,0.08)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                  e.currentTarget.style.color = "#e5e7eb";
                   e.currentTarget.style.transform = "translateY(0)";
                   e.currentTarget.style.boxShadow = "none";
                 }}
@@ -990,6 +1025,26 @@ const EventBooking = () => {
                 <div>
                   <strong>Phone:</strong> {user.phone_number || "N/A"}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Info banner for services without time slot selection */}
+          {deal && NO_TIME_SLOT_SERVICES.includes((deal.service_type || "").toLowerCase()) && (
+            <div
+              style={{
+                background: "#fef3c7",
+                padding: "1rem",
+                borderRadius: "8px",
+                marginBottom: "1.5rem",
+                border: "1px solid #d97706",
+              }}
+            >
+              <div style={{ fontWeight: "600", color: "#92400e", marginBottom: "0.25rem" }}>
+                Contact partner for time slot
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "#78350f" }}>
+                Time slot is not available for online selection. Contact the partner to confirm your preferred time.
               </div>
             </div>
           )}
@@ -1171,6 +1226,7 @@ const EventBooking = () => {
                 padding: "1rem",
                 borderRadius: "8px",
                 marginBottom: "1.5rem",
+                color: "#111827",
               }}
             >
               <div
@@ -1178,13 +1234,14 @@ const EventBooking = () => {
                   display: "flex",
                   justifyContent: "space-between",
                   marginBottom: "0.5rem",
+                  color: "#374151",
                 }}
               >
-                <span>
+                <span style={{ color: "#374151" }}>
                   Price per{" "}
                   {deal?.service_type === "dining" ? "guest" : "ticket"}:
                 </span>
-                <span>
+                <span style={{ color: "#111827", fontWeight: "600" }}>
                   {formatPrice(
                     deal?.discounted_price ||
                       deal?.original_price ||
@@ -1198,10 +1255,11 @@ const EventBooking = () => {
                   display: "flex",
                   justifyContent: "space-between",
                   marginBottom: "0.5rem",
+                  color: "#374151",
                 }}
               >
-                <span>Quantity:</span>
-                <span>{numTickets}</span>
+                <span style={{ color: "#374151" }}>Quantity:</span>
+                <span style={{ color: "#111827", fontWeight: "600" }}>{numTickets}</span>
               </div>
               <div
                 style={{
@@ -1209,8 +1267,8 @@ const EventBooking = () => {
                   justifyContent: "space-between",
                   fontSize: "1.2rem",
                   fontWeight: "bold",
-                  color: "#059669",
-                  borderTop: "1px solid #ddd",
+                  color: "#047857",
+                  borderTop: "1px solid #bae6fd",
                   paddingTop: "0.5rem",
                   marginTop: "0.5rem",
                 }}

@@ -1,6 +1,7 @@
 const { getPool } = require('../config/db');
 const { AppError } = require('../../utils/response');
 const { log, logError } = require('../../utils/logger');
+const bookingValidation = require('./bookingValidation');
 const operatingHoursService = require('./operatingHoursService');
 const slotCapacityService = require('./slotCapacityService');
 
@@ -39,7 +40,16 @@ async function joinWaitlist({ partner_id, user_id, booking_date, booking_time, p
   try {
     await client.query('BEGIN');
 
-    // 1. Validate that the time slot is within operating hours
+    // 1. Validate that the time slot is not in the past
+    if (booking_date && booking_time) {
+      const pastCheck = bookingValidation.validateBookingNotInPast(booking_date, booking_time);
+      if (!pastCheck.allowed) {
+        await client.query('ROLLBACK');
+        throw new AppError(400, pastCheck.message || 'Cannot join waitlist for a past time slot');
+      }
+    }
+
+    // 2. Validate that the time slot is within operating hours
     const hoursValidation = await operatingHoursService.validateBookingTime(
       partner_id,
       booking_date,
@@ -50,7 +60,7 @@ async function joinWaitlist({ partner_id, user_id, booking_date, booking_time, p
       throw new AppError(400, `Cannot join waitlist: ${hoursValidation.message || hoursValidation.reason}`);
     }
 
-    // 2. Check if user is already on waitlist for this slot
+    // 3. Check if user is already on waitlist for this slot
     const existingEntry = await client.query(
       `SELECT id, status, position
        FROM booking_waitlist
@@ -69,7 +79,7 @@ async function joinWaitlist({ partner_id, user_id, booking_date, booking_time, p
       };
     }
 
-    // 3. Calculate position in queue
+    // 4. Calculate position in queue
     const positionResult = await client.query(
       `SELECT COALESCE(MAX(position), 0) + 1 AS next_position
        FROM booking_waitlist

@@ -473,9 +473,14 @@ const BookingDetails = () => {
     ? '#16a34a'
     : (displayStatus === 'pending_confirmation' ? '#f59e0b' : displayStatus === 'cancelled' ? '#dc2626' : '#f59e0b');
 
-  const bookingDateText = booking.booking_date
-    ? `${formatDate(booking.booking_date)}${booking.booking_time ? `, ${formatTime(booking.booking_time)}` : ''}`
-    : formatDate(booking.created_at);
+  const NO_TIME_SLOT_SERVICES = ['spa', 'spa-and-salon', 'wellness', 'healthcare', 'travel', 'others'];
+  const svcType = (booking.service_type || '').toLowerCase();
+  const isNoTimeSlotService = NO_TIME_SLOT_SERVICES.includes(svcType);
+  const bookingDateText = isNoTimeSlotService
+    ? 'Contact partner for available time slot'
+    : (booking.booking_date
+      ? `${formatDate(booking.booking_date)}${booking.booking_time ? `, ${formatTime(booking.booking_time)}` : ''}`
+      : formatDate(booking.created_at));
 
   const partnerLat = booking.partner_latitude != null ? Number(booking.partner_latitude) : null;
   const partnerLng = booking.partner_longitude != null ? Number(booking.partner_longitude) : null;
@@ -552,7 +557,13 @@ const BookingDetails = () => {
         }}>
           <div style={{ padding: '1.1rem 1.1rem 0.8rem' }}>
             <div style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: '0.15rem' }}>
-              Upcoming Booking
+              {(() => {
+                const dateStr = booking.booking_date;
+                const timeStr = booking.booking_time || '00:00';
+                const dt = dateStr ? new Date(`${dateStr}T${String(timeStr).trim().slice(0, 5) || '00:00'}:00`) : null;
+                const isPast = dt && dt < new Date();
+                return isPast ? 'Past Booking' : 'Upcoming Booking';
+              })()}
             </div>
             <div style={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.1 }}>
               {booking.deal_title || 'Voucher Confirmation'}
@@ -587,7 +598,9 @@ const BookingDetails = () => {
           <div style={{ padding: '1rem 1.1rem 1.1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.8rem', marginBottom: '0.8rem' }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '0.2rem' }}>Booking Time</div>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '0.2rem' }}>
+                  {isNoTimeSlotService ? 'Time Slot' : 'Booking Time'}
+                </div>
                 <div style={{ fontSize: '1.45rem', fontWeight: 800, lineHeight: 1.25, color: '#111827' }}>
                   {bookingDateText}
                 </div>

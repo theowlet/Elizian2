@@ -1,4 +1,5 @@
 const reservationRepository = require('../repositories/reservationRepository');
+const bookingValidation = require('./bookingValidation');
 const { AppError } = require('../../utils/response');
 const { logError } = require('../../utils/logger');
 
@@ -25,13 +26,21 @@ async function getAvailableTimeSlots(partnerId, date, partySize = 2) {
 // Create table reservation
 async function createReservation(reservationData, client) {
   try {
-    // Validate date is not in the past
-    const reservationDate = new Date(reservationData.reservation_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    if (reservationDate < today) {
-      throw new AppError(400, 'Cannot make reservations for past dates');
+    // Validate datetime is not in the past (date + time, not just date)
+    const resDate = reservationData.reservation_date;
+    const resTime = reservationData.reservation_time || '00:00';
+    if (resDate && resTime) {
+      const pastCheck = bookingValidation.validateBookingNotInPast(resDate, resTime);
+      if (!pastCheck.allowed) {
+        throw new AppError(400, pastCheck.message || 'Cannot make reservations for past times');
+      }
+    } else if (resDate) {
+      const reservationDate = new Date(resDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (reservationDate < today) {
+        throw new AppError(400, 'Cannot make reservations for past dates');
+      }
     }
 
     // Validate party size

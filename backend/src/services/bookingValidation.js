@@ -277,8 +277,43 @@ async function getUserTier(user_id) {
   }
 }
 
+/**
+ * Validate that booking datetime is not in the past.
+ * Call this for ALL bookings that have date+time (spa, wellness, massage, etc.)
+ * — not just dining/events/shows.
+ *
+ * @param {String} booking_date - YYYY-MM-DD
+ * @param {String} booking_time - HH:MM
+ * @returns {Object} { allowed: boolean, reason?: string, message?: string }
+ */
+function validateBookingNotInPast(booking_date, booking_time) {
+  if (!booking_date || !booking_time) {
+    return { allowed: true };
+  }
+  const requestedDateTime = parseBookingDateTime(booking_date, booking_time);
+  if (!requestedDateTime) {
+    return {
+      allowed: false,
+      reason: 'INVALID_BOOKING_DATETIME',
+      message: 'Please select a valid booking date and time.'
+    };
+  }
+  const now = new Date();
+  const graceMs = PAST_BOOKING_GRACE_MINUTES * 60 * 1000;
+  const cutoff = now.getTime() - graceMs;
+  if (requestedDateTime.getTime() < cutoff) {
+    return {
+      allowed: false,
+      reason: 'BOOKING_TIME_IN_PAST',
+      message: 'Selected booking time has already passed. Please choose a current or future time slot.'
+    };
+  }
+  return { allowed: true };
+}
+
 module.exports = {
   validateBookingRequest,
+  validateBookingNotInPast,
   checkEchelonOverride,
   getUserTier
 };

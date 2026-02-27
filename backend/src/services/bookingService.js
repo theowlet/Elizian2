@@ -411,6 +411,21 @@ async function createBooking(bookingData) {
     }
 
     // ============================================
+    // CRITICAL: PAST-BOOKING VALIDATION (ALL SERVICES)
+    // ============================================
+    // Reject booking in the past for ANY service that has date+time (spa, massage,
+    // wellness, dining, events, etc.). This prevents "booked at 2:19 PM for 8:47 AM".
+    if (bookingDate && bookingTime) {
+      const pastCheck = bookingValidation.validateBookingNotInPast(bookingDate, bookingTime);
+      if (!pastCheck.allowed) {
+        await client.query('ROLLBACK');
+        throw new AppError(400, pastCheck.message || 'Selected booking time has already passed.', {
+          reason: pastCheck.reason || 'BOOKING_TIME_IN_PAST'
+        });
+      }
+    }
+
+    // ============================================
     // CRITICAL: OPERATING HOURS + ECHELON VALIDATION
     // ============================================
     // For time-based services (dining, events, shows): ALWAYS validate against
@@ -979,20 +994,26 @@ async function rescheduleBooking(bookingId, userId, { booking_date, booking_time
       throw new AppError(400, `Cannot reschedule a booking with status: ${booking.status}`);
     }
 
-    // Validate new date is not in the past (must be today or future)
-    const newDate = new Date(booking_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    if (newDate < today) {
-      await client.query('ROLLBACK');
-      throw new AppError(400, 'Cannot reschedule to a past date');
+    // Validate new datetime is not in the past (date + time, not just date)
+    const timeToUpdate = booking_time || booking.booking_time || null;
+    const timeToCheck = timeToUpdate || '00:00';
+    if (booking_date && timeToCheck) {
+      const pastCheck = bookingValidation.validateBookingNotInPast(booking_date, timeToCheck);
+      if (!pastCheck.allowed) {
+        await client.query('ROLLBACK');
+        throw new AppError(400, pastCheck.message || 'Cannot reschedule to a past time.');
+      }
+    } else if (booking_date) {
+      const newDate = new Date(booking_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (newDate < today) {
+        await client.query('ROLLBACK');
+        throw new AppError(400, 'Cannot reschedule to a past date');
+      }
     }
 
     // Update booking date and time
-    // CRITICAL: If booking_time is not provided, preserve existing time
-    // This prevents defaulting to 12:00 AM when time is not specified
-    const timeToUpdate = booking_time || booking.booking_time || null;
     
     const updateResult = await client.query(
       `UPDATE bookings 

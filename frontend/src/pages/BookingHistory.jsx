@@ -63,18 +63,33 @@ const BookingHistory = () => {
   // Filter and sort bookings
   const filteredBookings = useMemo(() => {
     if (!bookings || bookings.length === 0) return [];
-    
+
+    // Build full booking datetime (date + time) for comparison
+    const getBookingDatetime = (b) => {
+      const dateStr = b.booking_date;
+      const timeStr = b.booking_time || '00:00';
+      if (!dateStr) return null;
+      if (dateStr.includes('T')) return new Date(dateStr);
+      const timePart = String(timeStr).trim().match(/^\d{1,2}:\d{2}/)?.[0] || '00:00';
+      return new Date(`${dateStr}T${timePart}:00`);
+    };
+
     let filtered = [...bookings];
-    
+    const now = new Date();
+
     // Apply status filter
     if (filter === 'upcoming') {
       filtered = filtered.filter(b => {
-        const bookingDate = b.booking_date ? new Date(b.booking_date) : null;
-        const now = new Date();
-        return bookingDate && bookingDate >= now && b.status === 'confirmed';
+        const bookingDt = getBookingDatetime(b);
+        return bookingDt && bookingDt >= now && b.status === 'confirmed';
       });
     } else if (filter === 'completed') {
-      filtered = filtered.filter(b => b.status === 'confirmed' || b.status === 'redeemed');
+      filtered = filtered.filter(b => {
+        const bookingDt = getBookingDatetime(b);
+        const isPast = bookingDt && bookingDt < now;
+        const isRedeemed = b.status === 'redeemed';
+        return (isPast || isRedeemed) && (b.status === 'confirmed' || b.status === 'redeemed');
+      });
     } else if (filter === 'cancelled') {
       filtered = filtered.filter(b => b.status === 'cancelled');
     }
@@ -124,9 +139,17 @@ const BookingHistory = () => {
   };
 
   const getStatusBadge = (booking) => {
-    const displayStatus = (booking.voucher_state === 'pending_confirmation') ? 'pending_confirmation' : booking.status;
+    let displayStatus = (booking.voucher_state === 'pending_confirmation') ? 'pending_confirmation' : booking.status;
+    // Past confirmed bookings should show as "Past" not "Confirmed"
+    if (displayStatus === 'confirmed') {
+      const dateStr = booking.booking_date;
+      const timeStr = booking.booking_time || '00:00';
+      const dt = dateStr ? new Date(`${dateStr}T${String(timeStr).trim().slice(0, 5) || '00:00'}:00`) : null;
+      if (dt && dt < new Date()) displayStatus = 'past';
+    }
     const statusMap = {
       'confirmed': { label: 'Confirmed', class: 'status-confirmed' },
+      'past': { label: 'Past', class: 'status-completed' },
       'pending': { label: 'Pending', class: 'status-pending' },
       'pending_confirmation': { label: 'Awaiting Your Confirmation', class: 'status-pending' },
       'cancelled': { label: 'Cancelled', class: 'status-cancelled' },
@@ -314,8 +337,9 @@ const BookingHistory = () => {
                   <div>
                     <div style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Date & Time</div>
                     <div style={{ fontWeight: '600' }}>
-                      {formatDate(booking.booking_date || booking.created_at)}
-                      {booking.booking_time ? ` at ${formatTime(booking.booking_time)}` : ''}
+                      {['spa', 'spa-and-salon', 'wellness', 'healthcare', 'travel', 'others'].includes((booking.service_type || '').toLowerCase())
+                        ? `${formatDate(booking.booking_date || booking.created_at)} — Contact partner for time slot`
+                        : `${formatDate(booking.booking_date || booking.created_at)}${booking.booking_time ? ` at ${formatTime(booking.booking_time)}` : ''}`}
                     </div>
                   </div>
                   <div>

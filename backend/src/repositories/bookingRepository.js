@@ -193,7 +193,8 @@ async function getBookingById(bookingId) {
       p.address AS partner_address,
       p.latitude AS partner_latitude,
       p.longitude AS partner_longitude,
-      po.title AS deal_title
+      po.title AS deal_title,
+      po.service_type AS service_type
      FROM bookings b
      LEFT JOIN partners p ON b.partner_id = p.id
      LEFT JOIN partner_offers po ON b.deal_id = po.id
@@ -259,7 +260,8 @@ async function listBookings({ userId = null, partnerId = null, status = null, li
   let query = `
     SELECT b.*,
       p.name AS partner_name,
-      po.title AS deal_title
+      po.title AS deal_title,
+      po.service_type AS service_type
     FROM bookings b
     LEFT JOIN partners p ON b.partner_id = p.id
     LEFT JOIN partner_offers po ON b.deal_id = po.id
