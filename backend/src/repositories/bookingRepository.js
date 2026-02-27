@@ -151,7 +151,22 @@ async function createBooking(bookingData, executor = pool) {
   try {
     const paramsWithReward = [...baseValues, bookingData.co_pay_percentage_at_booking != null ? Number(bookingData.co_pay_percentage_at_booking) : null, rewardMultiplier];
     const result = await executor.query(insertWithRewardMultiplier, paramsWithReward);
-    return result.rows[0];
+    const row = result.rows[0];
+    if (row && bookingData.booked_at_client) {
+      try {
+        await executor.query('SAVEPOINT booked_at_client_update');
+        await executor.query(
+          `UPDATE bookings SET booked_at_client = $1::timestamptz WHERE id = $2`,
+          [bookingData.booked_at_client, row.id]
+        );
+        row.booked_at_client = bookingData.booked_at_client;
+        await executor.query('RELEASE SAVEPOINT booked_at_client_update');
+      } catch (_) {
+        await executor.query('ROLLBACK TO SAVEPOINT booked_at_client_update');
+        /* column may not exist yet - continue without it; main transaction stays healthy */
+      }
+    }
+    return row;
   } catch (err) {
     const msg = err.message || '';
     const code = err.code || '';

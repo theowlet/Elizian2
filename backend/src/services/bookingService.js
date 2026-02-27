@@ -42,7 +42,8 @@ async function createBooking(bookingData) {
       pre_order_data, // { items, specialInstructions, dietaryRequirements } - Echelon tier only
       // Direct booking date/time (for events, passed from frontend)
       booking_date,
-      booking_time
+      booking_time,
+      booked_at_client // Client ISO timestamp for accurate "Booked on" display in IST
     } = bookingData;
 
     // Validate required fields
@@ -537,6 +538,7 @@ async function createBooking(bookingData) {
     bookingPayload.booking_date = bookingDate;  // Set booking date from reservation_data or current
     bookingPayload.booking_time = bookingTime;  // Set booking time from reservation_data or current
     bookingPayload.user_tier_at_booking = userTierAtBooking;  // Store user's tier at booking time
+    if (booked_at_client) bookingPayload.booked_at_client = booked_at_client;  // Client timestamp for "Booked on" display
 
     // Voucher "Valid until" = universal: 30 days from booked/visit date (or from today if no date) OR deal end, whichever is earlier.
     if (offer_id) {

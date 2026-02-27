@@ -36,13 +36,10 @@ function createPool() {
     logError("Unexpected error on idle PostgreSQL client", err);
   });
 
-  // STABILIZATION FIX: Ensure all PostgreSQL connections use UTC timezone
-  // This prevents timezone mismatch between JavaScript new Date() (server TZ)
-  // and PostgreSQL CURRENT_TIMESTAMP (database TZ). Without this, offer
-  // start/end date comparisons can be off by hours, causing deals to appear
-  // started or expired at wrong times.
+  // Use IST (India Standard Time) for all PostgreSQL connections.
+  // CURRENT_TIMESTAMP and created_at will be stored/returned in IST.
   pool.on("connect", (client) => {
-    client.query("SET timezone = 'UTC'");
+    client.query("SET timezone = 'Asia/Kolkata'");
   });
 
   log("📦 PostgreSQL pool created");

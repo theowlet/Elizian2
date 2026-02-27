@@ -116,35 +116,44 @@ const EventBooking = () => {
     e.preventDefault();
     setError("");
 
-    // Validate required fields for dining and events
-    const needsDateAndTime =
-      deal?.service_type === "dining" || deal?.service_type === "events";
+    try {
+      // Validate required fields for dining and events
+      const needsDateAndTime =
+        deal?.service_type === "dining" || deal?.service_type === "events";
 
-    if (needsDateAndTime && !bookingDate) {
-      setError("Please select a booking date");
-      return;
+      if (needsDateAndTime && !bookingDate) {
+        setError("Please select a booking date");
+        return;
+      }
+
+      if (needsDateAndTime && !bookingTime) {
+        setError("Please select a booking time");
+        return;
+      }
+
+      // For services without time slot: show non-blocking info toast, then proceed
+      const svcType = (deal?.service_type || "").toLowerCase();
+      if (NO_TIME_SLOT_SERVICES.includes(svcType)) {
+        try {
+          await Swal.fire({
+            icon: "info",
+            title: "Time slot not selected",
+            html: "Contact the partner for the available time slot. Your booking will reserve your spot.",
+            confirmButtonText: "Continue",
+            confirmButtonColor: "#059669",
+          });
+        } catch (swalErr) {
+          // If SweetAlert fails, proceed anyway — banner already shows the info
+          console.warn("Swal skipped:", swalErr);
+        }
+      }
+
+      // Move to review screen
+      setCurrentScreen(SCREEN_REVIEW);
+    } catch (err) {
+      console.error("handleSelectionSubmit error:", err);
+      setError("Something went wrong. Please try again.");
     }
-
-    if (needsDateAndTime && !bookingTime) {
-      setError("Please select a booking time");
-      return;
-    }
-
-    // For services without time slot selection: show alert before proceeding
-    const svcType = (deal?.service_type || "").toLowerCase();
-    if (NO_TIME_SLOT_SERVICES.includes(svcType)) {
-      const result = await Swal.fire({
-        icon: "info",
-        title: "Time slot not selected",
-        html: "Contact the partner for the available time slot. Your booking will reserve your spot.",
-        confirmButtonText: "Continue",
-        confirmButtonColor: "#059669",
-      });
-      if (!result.isConfirmed) return;
-    }
-
-    // Move to review screen
-    setCurrentScreen(SCREEN_REVIEW);
   };
 
   // Screen 2: Handle final booking submission
@@ -180,6 +189,7 @@ const EventBooking = () => {
         offer_id: deal.id,
         num_tickets: numTickets,
         special_requests: specialRequests || null,
+        booked_at_client: new Date().toISOString(), // Client timestamp for accurate "Booked on" display
       };
 
       // ALWAYS send booking_date and booking_time for all service types
@@ -1049,7 +1059,7 @@ const EventBooking = () => {
             </div>
           )}
 
-          <form className="elizian-auth-form" onSubmit={handleSelectionSubmit}>
+          <form className="elizian-auth-form" onSubmit={handleSelectionSubmit} noValidate>
             {error && (
               <div className="elizian-auth-error" role="alert">
                 {error}

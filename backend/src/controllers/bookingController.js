@@ -37,6 +37,7 @@ async function createBooking(req, res) {
       // Direct booking date/time (for events)
       booking_date,
       booking_time,
+      booked_at_client, // Client ISO timestamp for accurate "Booked on" display
     } = req.body;
     const user_id = req.userId;
 
@@ -57,6 +58,7 @@ async function createBooking(req, res) {
       // Direct booking date/time (for events)
       booking_date,
       booking_time,
+      booked_at_client,
     });
 
     successResponse(res, 201, "Booking created successfully", booking);
@@ -160,6 +162,25 @@ async function getBooking(req, res) {
     // Always normalize qr_code_url to a full URL (S3 or existing http(s)) so the frontend can load the image
     if (booking.qr_code_url) {
       booking.qr_code_url = getS3FileUrl(booking.qr_code_url) || booking.qr_code_url;
+    }
+
+    // Format "Booked on" in IST — prefer client-provided timestamp when available
+    const ts = booking.booked_at_client || booking.created_at;
+    if (ts) {
+      try {
+        const d = new Date(ts);
+        if (!Number.isNaN(d.getTime())) {
+          booking.booked_on_ist = new Intl.DateTimeFormat("en-IN", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+            timeZone: "Asia/Kolkata",
+          }).format(d);
+        }
+      } catch (_) {}
     }
 
     // If booking is redeemed and the requester is the owner, attach disputable_redemption when within dispute window

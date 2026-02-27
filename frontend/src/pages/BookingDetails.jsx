@@ -332,6 +332,25 @@ const BookingDetails = () => {
     return `₹${parseFloat(price).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  // Format created_at (ISO datetime) as "27 February 2026, 4:08 pm"
+  const formatBookedOn = (isoString) => {
+    if (!isoString) return 'N/A';
+    try {
+      const d = new Date(isoString);
+      if (Number.isNaN(d.getTime())) return 'N/A';
+      return new Intl.DateTimeFormat('en-IN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }).format(d);
+    } catch (e) {
+      return isoString;
+    }
+  };
+
   const getStatusBadge = (status) => {
     const statusMap = {
       'confirmed': { label: 'Confirmed', class: 'status-confirmed' },
@@ -473,14 +492,21 @@ const BookingDetails = () => {
     ? '#16a34a'
     : (displayStatus === 'pending_confirmation' ? '#f59e0b' : displayStatus === 'cancelled' ? '#dc2626' : '#f59e0b');
 
+  // Services that do NOT have time slot selection — user must contact partner. Dining and Events DO have time slots.
   const NO_TIME_SLOT_SERVICES = ['spa', 'spa-and-salon', 'wellness', 'healthcare', 'travel', 'others'];
   const svcType = (booking.service_type || '').toLowerCase();
   const isNoTimeSlotService = NO_TIME_SLOT_SERVICES.includes(svcType);
-  const bookingDateText = isNoTimeSlotService
-    ? 'Contact partner for available time slot'
+  // Prefer backend-formatted IST when available; else use booking_date+time for no-time-slot, or format created_at
+  const bookedOnText = booking.booked_on_ist
+    ? booking.booked_on_ist
+    : (isNoTimeSlotService && booking.booking_date
+      ? `${formatDate(booking.booking_date)}${booking.booking_time ? ` at ${formatTime(booking.booking_time)}` : ''}`
+      : formatBookedOn(booking.created_at));
+  const scheduledText = isNoTimeSlotService
+    ? 'Contact partner to schedule'
     : (booking.booking_date
-      ? `${formatDate(booking.booking_date)}${booking.booking_time ? `, ${formatTime(booking.booking_time)}` : ''}`
-      : formatDate(booking.created_at));
+      ? `${formatDate(booking.booking_date)}${booking.booking_time ? ` at ${formatTime(booking.booking_time)}` : ''}`
+      : null);
 
   const partnerLat = booking.partner_latitude != null ? Number(booking.partner_latitude) : null;
   const partnerLng = booking.partner_longitude != null ? Number(booking.partner_longitude) : null;
@@ -599,11 +625,21 @@ const BookingDetails = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.8rem', marginBottom: '0.8rem' }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '0.2rem' }}>
-                  {isNoTimeSlotService ? 'Time Slot' : 'Booking Time'}
+                  Booked on
                 </div>
                 <div style={{ fontSize: '1.45rem', fontWeight: 800, lineHeight: 1.25, color: '#111827' }}>
-                  {bookingDateText}
+                  {bookedOnText}
                 </div>
+                {scheduledText && (
+                  <>
+                    <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.5rem', marginBottom: '0.2rem' }}>
+                      {isNoTimeSlotService ? 'Time slot' : 'Scheduled for'}
+                    </div>
+                    <div style={{ fontSize: '1rem', fontWeight: 600, color: '#334155' }}>
+                      {scheduledText}
+                    </div>
+                  </>
+                )}
                 <div style={{ marginTop: '0.35rem', fontSize: '0.95rem', color: '#334155', fontWeight: 600 }}>
                   {booking.partner_name || 'Partner Venue'}
                 </div>
