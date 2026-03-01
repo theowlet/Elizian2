@@ -57,7 +57,7 @@ BEGIN
      AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'token_ledger')
      AND NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'verify_token_ledger_integrity') THEN
     CREATE OR REPLACE FUNCTION verify_token_ledger_integrity(p_user_id UUID DEFAULT NULL)
-    RETURNS TABLE(user_id UUID, stored_balance NUMERIC, ledger_balance_after NUMERIC, discrepancy NUMERIC, ok BOOLEAN) AS $$
+    RETURNS TABLE(user_id UUID, stored_balance NUMERIC, ledger_balance_after NUMERIC, discrepancy NUMERIC, ok BOOLEAN) AS $func$
     BEGIN
       RETURN QUERY
       SELECT
@@ -76,7 +76,7 @@ BEGIN
       ) l ON true
       WHERE (p_user_id IS NULL OR u.id = p_user_id);
     END;
-    $$ LANGUAGE plpgsql STABLE;
+    $func$ LANGUAGE plpgsql STABLE;
     RAISE NOTICE 'Created verify_token_ledger_integrity(user_id) for ledger vs wallet reconciliation';
   END IF;
 END $$;
@@ -86,12 +86,12 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = 'public' AND p.proname = 'prevent_admin_overrides_modify') THEN
     CREATE OR REPLACE FUNCTION prevent_admin_overrides_modify()
-    RETURNS TRIGGER AS $$
+    RETURNS TRIGGER AS $func$
     BEGIN
       RAISE EXCEPTION 'admin_overrides is append-only; UPDATE and DELETE are not allowed'
         USING ERRCODE = 'integrity_constraint_violation';
     END;
-    $$ LANGUAGE plpgsql;
+    $func$ LANGUAGE plpgsql;
     RAISE NOTICE 'Created trigger function prevent_admin_overrides_modify';
   END IF;
 END $$;

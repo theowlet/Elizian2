@@ -28,6 +28,9 @@ build/
 railway.json
 vercel.json
 
+# Database dumps (local backups)
+*.dump
+
 
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
