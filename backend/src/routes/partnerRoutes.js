@@ -103,6 +103,7 @@ router.get('/:id/staff/check-ins', authenticateToken, staffController.listCheckI
 
 // Current partner profile (must be before /:id so "me" is not captured as id)
 router.get('/me', authenticateToken, partnerController.getPartnerMe);
+router.put('/me', authenticateToken, partnerController.updatePartnerMe);
 
 // Operating Hours Management (partner-only, authenticated)
 const operatingHoursController = require('../controllers/operatingHoursController');

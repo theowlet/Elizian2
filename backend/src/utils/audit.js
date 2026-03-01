@@ -90,6 +90,22 @@ async function fetchEntityDetails(entityType, entityId, executor) {
         details.userName = fullName || row.email || 'Unknown User';
         entityName = details.userName;
       }
+    } else if (entityType === 'booking') {
+      const result = await executor.query(
+        `SELECT b.booking_reference, po.title AS deal_title, p.name AS partner_name
+         FROM bookings b
+         LEFT JOIN partner_offers po ON b.deal_id = po.id
+         LEFT JOIN partners p ON b.partner_id = p.id
+         WHERE b.id = $1`,
+        [entityId]
+      );
+      if (result.rowCount > 0) {
+        const row = result.rows[0];
+        const ref = row.booking_reference || entityId?.toString?.()?.slice(0, 8) || 'N/A';
+        const deal = row.deal_title || 'Deal';
+        const partner = row.partner_name || 'Partner';
+        entityName = `Booking ${ref} (${deal} @ ${partner})`;
+      }
     }
   } catch (error) {
     logError('Failed to fetch entity details', error.message || error);
@@ -141,6 +157,10 @@ function buildDescription(actorName, action, entityType, entityDetails) {
   if (entityType === 'user') {
     const userName = entityDetails.userName || entityDetails.entityName || 'Unknown User';
     return `${actorName} ${verb} user '${userName}'`;
+  }
+
+  if (entityType === 'booking') {
+    return `${actorName} cancelled booking ${entityDetails.entityName}`;
   }
 
   return `${actorName} ${verb} ${entityType} '${entityDetails.entityName}'`;
@@ -210,8 +230,30 @@ async function writeAudit(actorUserId, actorRole, action, entityType, entityId, 
   return createAuditLogEntry.call(context, actorUserId, action, entityType, entityId, changes);
 }
 
+/**
+ * Write audit log using a specific executor (e.g. transaction client).
+ * Use when the audit must run within the same transaction.
+ */
+async function writeAuditWithExecutor(executor, actorUserId, actorRole, action, entityType, entityId, meta = {}) {
+  const context = { client: executor, actorRole };
+  const changes = {
+    previous: meta.previous || meta.before || null,
+    next: meta.next || meta.after || null
+  };
+  Object.keys(meta || {}).forEach((key) => {
+    if (!['previous', 'next', 'before', 'after', 'context'].includes(key)) {
+      changes[key] = meta[key];
+    }
+  });
+  if (meta.context) {
+    changes.context = meta.context;
+  }
+  return createAuditLogEntry.call(context, actorUserId, action, entityType, entityId, changes);
+}
+
 module.exports = {
   writeAudit,
+  writeAuditWithExecutor,
   createAuditLogEntry
 };
 

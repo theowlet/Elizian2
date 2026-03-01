@@ -17,9 +17,9 @@ const pool = getPool();
 const OTP_VERIFICATION_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 const OTP_REGISTRATION_TIMEOUT = 60 * 60 * 1000; // 60 minutes (1 hour) for registration flow - extended to allow time for form filling
 const PASSWORD_MIN_LENGTH = 8;
-const ETH_RPC_URL = 'https://sepolia.infura.io/v3/b12ace21fc3e474e9827d5639ce7e9b5';
-const TOKEN_CONTRACT_ADDRESS = '0x148ab417973b5a2b1063c2ef9b56037debadc066';
-const MASTER_WALLET_ADDRESS = '0xC07f47FdC9037477BAD29D5eEc9390B1e46037be';
+const ETH_RPC_URL = process.env.ETH_RPC_URL || '';
+const TOKEN_CONTRACT_ADDRESS = process.env.ETH_TOKEN_CONTRACT_ADDRESS || '';
+const MASTER_WALLET_ADDRESS = process.env.ETH_MASTER_WALLET_ADDRESS || '';
 
 async function sendOtp({ phoneNumber, countryCode = '+91', purpose = 'login', logToFile = true }) {
   if (!phoneNumber) {
@@ -178,7 +178,7 @@ async function verifyOtp({ phoneNumber, otpCode }) {
           type: 'user'
         },
         process.env.JWT_SECRET,
-        { expiresIn: '30d' }
+        { expiresIn: '7d' }
       );
 
       return {
@@ -417,7 +417,7 @@ async function registerSuperAdmin({
       type: "user",
     },
     process.env.JWT_SECRET,
-    { expiresIn: "30d" }
+    { expiresIn: "7d" }
   );
 
   return {
@@ -604,7 +604,7 @@ async function registerUser(payload) {
       type: "user",
     },
     process.env.JWT_SECRET,
-    { expiresIn: "30d" }
+    { expiresIn: "7d" }
   );
 
   // --- Ethereum Integration Start ---
@@ -725,7 +725,7 @@ async function loginUser({ email, password }) {
       type: "user",
     },
     process.env.JWT_SECRET,
-    { expiresIn: "30d" }
+    { expiresIn: "7d" }
   );
 
   return {
@@ -1109,16 +1109,17 @@ async function verifyMpin(phoneNumber, mpin) {
     if (!mpinMatch) {
       // Increment failed attempts
       const newAttempts = (user.mpin_failed_attempts || 0) + 1;
-      const maxAttempts = 5;
+      const maxAttempts = 3;
 
       let lockUntil = null;
       if (newAttempts >= maxAttempts) {
-        // Lock for 15 minutes
-        lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+        // Progressive lockout: 30 min base, doubles on repeat lockouts (max 4h)
+        const lockMinutes = Math.min(30 * Math.pow(2, Math.floor(newAttempts / maxAttempts) - 1), 240);
+        lockUntil = new Date(Date.now() + lockMinutes * 60 * 1000);
       }
 
       await client.query(
-        `UPDATE user_auth_credentials 
+        `UPDATE user_auth_credentials
          SET mpin_failed_attempts = $1, mpin_locked_until = $2, updated_at = NOW()
          WHERE user_id = $3`,
         [newAttempts, lockUntil, user.id]
@@ -1127,7 +1128,7 @@ async function verifyMpin(phoneNumber, mpin) {
       await client.query('COMMIT');
 
       if (newAttempts >= maxAttempts) {
-        throw new AppError(403, 'Too many failed attempts. Account locked for 15 minutes. Use OTP login instead.');
+        throw new AppError(403, 'Too many failed attempts. Account locked. Use OTP login instead.');
       }
 
       const remaining = maxAttempts - newAttempts;
@@ -1151,7 +1152,7 @@ async function verifyMpin(phoneNumber, mpin) {
         type: 'user'
       },
       process.env.JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: '7d' }
     );
 
     return {

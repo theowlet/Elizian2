@@ -1,4 +1,5 @@
 const offerService = require("../services/offerService");
+const offerSlotsService = require("../services/offerSlotsService");
 const { successResponse, errorResponse } = require("../../utils/response");
 const { logError } = require("../../utils/logger");
 const { getS3FileUrl } = require("../../utils/s3Bucket");
@@ -261,6 +262,29 @@ async function listPublicOffers(req, res) {
   }
 }
 
+// Get available slots for an offer (Dining: 30-min grid; Events: fixed slots)
+async function getAvailableSlots(req, res) {
+  try {
+    const { offerId } = req.params;
+    const date = req.query.date && /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.date).trim())
+      ? String(req.query.date).trim()
+      : null;
+    const partySize = req.query.partySize != null ? Math.max(1, parseInt(req.query.partySize, 10) || 1) : 1;
+
+    if (!date) {
+      return errorResponse(res, 400, "Query parameter 'date' (YYYY-MM-DD) is required");
+    }
+
+    const result = await offerSlotsService.getAvailableSlotsForOffer(offerId, date, partySize);
+    const slots = Array.isArray(result?.slots) ? result.slots : [];
+    const event_date = result?.event_date || undefined;
+    successResponse(res, 200, "Slots retrieved", { slots, event_date });
+  } catch (err) {
+    logError("Get available slots error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to fetch slots");
+  }
+}
+
 // Get single public offer by ID (e.g. for event detail page)
 async function getPublicOfferById(req, res) {
   try {
@@ -288,4 +312,5 @@ module.exports = {
   deleteOffer,
   listPublicOffers,
   getPublicOfferById,
+  getAvailableSlots,
 };

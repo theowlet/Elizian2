@@ -16,21 +16,18 @@ const slotCapacityService = require('./slotCapacityService');
 const { log, logError } = require('../../utils/logger');
 const { getPool } = require('../config/db');
 const { normalizeTierName } = require('../utils/tierNames');
+const { parseBookingDateTime: parseBookingDateTimeTZ, DEFAULT_DISPLAY_TZ } = require('../utils/timeService');
 
 const pool = getPool();
 // No grace: reject any booking time that is already in the past (prevents "booked at 12:10 for 12:09")
 const PAST_BOOKING_GRACE_MINUTES = 0;
 
-function parseBookingDateTime(bookingDate, bookingTime) {
-  const dateStr = String(bookingDate || '').trim();
-  const timeStr = String(bookingTime || '').trim();
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || !/^\d{2}:\d{2}$/.test(timeStr)) {
-    return null;
-  }
-
-  const parsed = new Date(`${dateStr}T${timeStr}:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+/**
+ * Parse booking date+time in the partner's timezone.
+ * Delegates to timeService.parseBookingDateTime which is server-timezone-independent.
+ */
+function parseBookingDateTime(bookingDate, bookingTime, timezone = DEFAULT_DISPLAY_TZ) {
+  return parseBookingDateTimeTZ(bookingDate, bookingTime, timezone);
 }
 
 /**
@@ -43,9 +40,13 @@ function parseBookingDateTime(bookingDate, bookingTime) {
  * @param {String} params.booking_time - HH:MM
  * @param {Integer} params.party_size
  * @param {String} params.user_tier - e.g., 'Echelon'
+ * @param {UUID} params.offer_id - optional, for deal-level slot capacity
+ * @param {Integer} params.max_redemptions_per_slot - optional, from offer when deal has per-slot limit (ignored for EVENT)
+ * @param {Boolean} params.is_event - when true, capacity MUST come from event_slots; never use venue_time_slots
+ * @param {Integer} params.effective_event_slot_capacity - from getEffectiveEventSlotCapacity; single source of truth for EVENT
  * @returns {Object} { allowed: boolean, reason?: string, override_used?: boolean }
  */
-async function validateBookingRequest({ partner_id, user_id, booking_date, booking_time, party_size = 1, user_tier }) {
+async function validateBookingRequest({ partner_id, user_id, booking_date, booking_time, party_size = 1, user_tier, timezone = DEFAULT_DISPLAY_TZ, offer_id, max_redemptions_per_slot, is_event, effective_event_slot_capacity }) {
   const isEchelon = String(user_tier || '').trim().toLowerCase() === 'echelon';
   try {
     // STEP 1: OPERATING HOURS VALIDATION (MANDATORY, NO EXCEPTIONS)
@@ -59,7 +60,7 @@ async function validateBookingRequest({ partner_id, user_id, booking_date, booki
       return { allowed: true };
     }
 
-    const requestedDateTime = parseBookingDateTime(booking_date, booking_time);
+    const requestedDateTime = parseBookingDateTime(booking_date, booking_time, timezone);
     if (!requestedDateTime) {
       return {
         allowed: false,
@@ -103,7 +104,55 @@ async function validateBookingRequest({ partner_id, user_id, booking_date, booki
 
     log(`✅ Hours validation passed for ${booking_date} ${booking_time}`);
 
-    // STEP 2: CAPACITY (venue_time_slots first, then legacy restaurant_availability)
+    // STEP 2: CAPACITY
+    // EVENT deals: ALWAYS use event_slots.capacity (effective_event_slot_capacity). Never fall back to venue_time_slots.
+    if (is_event && offer_id && effective_event_slot_capacity != null && effective_event_slot_capacity >= 1) {
+      const dealCapacity = await slotCapacityService.getDealSlotCapacity(offer_id, booking_date, booking_time, effective_event_slot_capacity);
+      if (!dealCapacity) {
+        logError('EVENT deal: deal_slots table missing or unavailable');
+        throw new Error('CAPACITY_SYSTEM_NOT_INITIALIZED');
+      }
+      if (dealCapacity.availableCapacity >= party_size) {
+        return { allowed: true };
+      }
+      return {
+        allowed: false,
+        reason: 'CAPACITY_FULL',
+        message: 'This time slot is fully booked',
+        can_waitlist: true,
+        waitlist_info: {
+          current_bookings: dealCapacity.booked_count,
+          max_capacity: dealCapacity.capacity
+        }
+      };
+    }
+
+    // EVENT without capacity: slot not found — caller should have thrown
+    if (is_event && offer_id) {
+      throw new Error('SLOT_NOT_FOUND');
+    }
+
+    // Non-EVENT: use max_redemptions_per_slot when set
+    if (offer_id && max_redemptions_per_slot != null && max_redemptions_per_slot >= 1) {
+      const dealCapacity = await slotCapacityService.getDealSlotCapacity(offer_id, booking_date, booking_time, max_redemptions_per_slot);
+      if (dealCapacity) {
+        if (dealCapacity.availableCapacity >= party_size) {
+          return { allowed: true };
+        }
+        return {
+          allowed: false,
+          reason: 'CAPACITY_FULL',
+          message: 'This time slot is fully booked',
+          can_waitlist: true,
+          waitlist_info: {
+            current_bookings: dealCapacity.booked_count,
+            max_capacity: dealCapacity.capacity
+          }
+        };
+      }
+    }
+
+    // Fallback: venue_time_slots first, then legacy restaurant_availability (non-EVENT only)
     const slotCapacity = await slotCapacityService.getSlotCapacity(partner_id, booking_date, booking_time);
 
     if (slotCapacity) {
@@ -168,16 +217,27 @@ async function validateBookingRequest({ partner_id, user_id, booking_date, booki
       };
     }
 
-    return {
-      allowed: false,
-      reason: 'CAPACITY_FULL',
-      message: 'This time slot is fully booked',
-      can_waitlist: true,
-      waitlist_info: {
-        current_bookings: availability?.bookedCapacity || 0,
-        max_capacity: availability?.maxCapacity || 0
-      }
-    };
+    // EVENT: should never reach here — capacity source must be resolved
+    if (is_event) {
+      throw new Error('SLOT_NOT_FOUND');
+    }
+
+    // Non-EVENT: if we have availability data showing full, return CAPACITY_FULL
+    if (availability && (availability.available === false || (availability.availableCapacity != null && availability.availableCapacity < party_size))) {
+      return {
+        allowed: false,
+        reason: 'CAPACITY_FULL',
+        message: 'This time slot is fully booked',
+        can_waitlist: true,
+        waitlist_info: {
+          current_bookings: availability?.bookedCapacity || 0,
+          max_capacity: availability?.maxCapacity || 0
+        }
+      };
+    }
+
+    // Non-EVENT: no capacity config — allow unlimited
+    return { allowed: true };
 
   } catch (error) {
     logError('Error in validateBookingRequest:', error);
@@ -286,11 +346,11 @@ async function getUserTier(user_id) {
  * @param {String} booking_time - HH:MM
  * @returns {Object} { allowed: boolean, reason?: string, message?: string }
  */
-function validateBookingNotInPast(booking_date, booking_time) {
+function validateBookingNotInPast(booking_date, booking_time, timezone = DEFAULT_DISPLAY_TZ) {
   if (!booking_date || !booking_time) {
     return { allowed: true };
   }
-  const requestedDateTime = parseBookingDateTime(booking_date, booking_time);
+  const requestedDateTime = parseBookingDateTime(booking_date, booking_time, timezone);
   if (!requestedDateTime) {
     return {
       allowed: false,
@@ -311,9 +371,36 @@ function validateBookingNotInPast(booking_date, booking_time) {
   return { allowed: true };
 }
 
+/**
+ * Date-only validation for non-time-based services (spa, wellness, travel, others, etc.).
+ * User selects only date; time slot is confirmed by contacting partner.
+ * Reject only if the selected date is in the past.
+ *
+ * @param {String} booking_date - YYYY-MM-DD
+ * @param {String} timezone - Partner timezone
+ * @returns {Object} { allowed: boolean, reason?: string, message?: string }
+ */
+function validateBookingDateNotInPast(booking_date, timezone = DEFAULT_DISPLAY_TZ) {
+  if (!booking_date || !/^\d{4}-\d{2}-\d{2}$/.test(String(booking_date).trim())) {
+    return { allowed: true };
+  }
+  const { getNowInTZ } = require('../utils/timeService');
+  const todayInPartnerTZ = getNowInTZ(timezone).date; // YYYY-MM-DD
+  const selectedDateStr = String(booking_date).trim();
+  if (selectedDateStr < todayInPartnerTZ) {
+    return {
+      allowed: false,
+      reason: 'BOOKING_DATE_IN_PAST',
+      message: 'Selected date has already passed. Please choose today or a future date.'
+    };
+  }
+  return { allowed: true };
+}
+
 module.exports = {
   validateBookingRequest,
   validateBookingNotInPast,
+  validateBookingDateNotInPast,
   checkEchelonOverride,
   getUserTier
 };

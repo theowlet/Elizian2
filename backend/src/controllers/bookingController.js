@@ -68,6 +68,7 @@ async function createBooking(req, res) {
       res,
       err.statusCode || 500,
       err.message || "Failed to create booking",
+      err.details || null,
     );
   }
 }
@@ -75,13 +76,16 @@ async function createBooking(req, res) {
 // List bookings
 async function listBookings(req, res) {
   try {
-    const { user_id, partner_id, status, limit = 50, offset = 0 } = req.query;
+    const { status, limit = 50, offset = 0 } = req.query;
+
+    // Authorization: users can only see their own bookings; partners only their own venue's bookings.
+    // Query params user_id/partner_id are NOT accepted — prevents IDOR enumeration.
     const filters = {
-      userId: user_id || req.userId || null,
-      partnerId: partner_id || null,
+      userId: req.userId || null,
+      partnerId: req.partnerId || null,
       status: status || null,
-      limit: parseInt(limit, 10),
-      offset: parseInt(offset, 10),
+      limit: Math.min(parseInt(limit, 10) || 50, 200),
+      offset: parseInt(offset, 10) || 0,
     };
 
     const bookings = await bookingService.listBookings(filters);
@@ -137,6 +141,15 @@ async function getBooking(req, res) {
     const { id } = req.params;
     let booking = await bookingService.getBookingById(id);
 
+    // Authorization: only booking owner or the partner can view
+    if (req.userId && booking.user_id && String(booking.user_id) !== String(req.userId)) {
+      // Not the owner — check if requester is the partner
+      const isPartner = booking.partner_id && String(booking.partner_id) === String(req.partnerId);
+      if (!isPartner) {
+        return errorResponse(res, 403, "You are not authorized to view this booking");
+      }
+    }
+
     // If booking doesn't have QR code but has voucher_code, try to regenerate it
     if (!booking.qr_code_url && booking.voucher_code) {
       try {
@@ -164,7 +177,8 @@ async function getBooking(req, res) {
       booking.qr_code_url = getS3FileUrl(booking.qr_code_url) || booking.qr_code_url;
     }
 
-    // Format "Booked on" in IST — prefer client-provided timestamp when available
+    // Format "Booked on" in partner's timezone — prefer client-provided timestamp when available
+    const displayTZ = booking.partner_timezone || 'Asia/Kolkata';
     const ts = booking.booked_at_client || booking.created_at;
     if (ts) {
       try {
@@ -177,10 +191,21 @@ async function getBooking(req, res) {
             hour: "2-digit",
             minute: "2-digit",
             hour12: true,
-            timeZone: "Asia/Kolkata",
+            timeZone: displayTZ,
           }).format(d);
         }
       } catch (_) {}
+    }
+
+    // Ensure booking_mode is set for voucher rendering (backward compat for legacy bookings)
+    if (!booking.booking_mode) {
+      try {
+        const { inferBookingMode } = require("../config/bookingModes");
+        booking.booking_mode = inferBookingMode(booking);
+      } catch (modeErr) {
+        logError("inferBookingMode (non-fatal):", modeErr);
+        booking.booking_mode = "PARTNER_CONFIRMATION";
+      }
     }
 
     // If booking is redeemed and the requester is the owner, attach disputable_redemption when within dispute window
@@ -212,6 +237,24 @@ async function getBooking(req, res) {
       res,
       err.statusCode || 500,
       err.message || "Failed to retrieve booking",
+    );
+  }
+}
+
+// User cancels their own booking
+async function cancelBooking(req, res) {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const booking = await bookingService.cancelBooking(id, userId);
+    successResponse(res, 200, "Booking cancelled successfully", booking);
+  } catch (err) {
+    logError("❌ Cancel booking error:", err);
+    errorResponse(
+      res,
+      err.statusCode || 500,
+      err.message || "Failed to cancel booking",
     );
   }
 }
@@ -317,6 +360,7 @@ module.exports = {
   listBookings,
   updateBooking,
   getBooking,
+  cancelBooking,
   confirmPayment,
   checkInAtVenue,
   qrCheckIn,

@@ -25,6 +25,7 @@ const MIGRATIONS = [
   'db/migrations/2026-02-enterprise-booking-engine.sql',    // is_priority_override
   'db/migrations/2026-02-bookings-co-pay-at-booking.sql',  // co_pay_percentage_at_booking
   'db/migrations/2026-02-booking-reward-multiplier.sql',   // reward_multiplier (campaign EZT boost)
+  'db/migrations/2026-02-booking-mode-column.sql',        // booking_mode (ONLINE_TIME_SLOT | PARTNER_CONFIRMATION)
 ];
 
 async function run() {

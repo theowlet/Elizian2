@@ -275,6 +275,77 @@
   gap: 12px;
 }
 
+.pc-form-label {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+
+/* Redemption limits section - dark-theme friendly */
+.pc-redemption-limits {
+  background: rgba(16, 185, 129, 0.08);
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.pc-redemption-limits .pc-form-label {
+  margin-bottom: 6px;
+}
+
+.pc-redemption-limits-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary-on-dark);
+  margin: 0 0 14px;
+  line-height: 1.4;
+}
+
+.pc-redemption-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pc-redemption-input {
+  min-width: 100px;
+  flex: 1;
+  max-width: 140px;
+}
+
+.pc-redemption-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.pc-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  color: var(--text-secondary-on-dark);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pc-checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--brand1);
+}
+
+/* Event slots - card per slot, dark-theme friendly */
+.pc-event-slots .pc-event-slot-row {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background 0.15s;
+}
+.pc-event-slots .pc-event-slot-row:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
 .pc-map-preview { margin-top: 8px; }
 .pc-map-hint { font-size: 0.9rem; color: var(--muted); margin: 0 0 10px 0; line-height: 1.4; }
 .pc-map-embed { border-radius: 8px; overflow: hidden; margin-bottom: 8px; }

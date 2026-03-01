@@ -32,8 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_special_closures_partner_date
 ON partner_special_closures(partner_id, closure_date);
 
 CREATE INDEX IF NOT EXISTS idx_special_closures_upcoming
-ON partner_special_closures(closure_date)
-WHERE closure_date >= CURRENT_DATE;
+ON partner_special_closures(closure_date);
 
 -- ============================================
 -- PART 2: WAITLIST SYSTEM
@@ -91,16 +90,16 @@ COMMENT ON COLUMN partners.allow_echelon_override IS 'Whether to allow Echelon t
 COMMENT ON COLUMN partners.echelon_capacity_buffer_percent IS 'Percentage buffer for Echelon override (default: 10%)';
 
 -- ============================================
--- PART 4: RESTAURANT_AVAILABILITY ENHANCEMENTS
+-- PART 4: RESTAURANT_AVAILABILITY ENHANCEMENTS (conditional)
 -- ============================================
 
--- Add reason for blocking (already exists, just adding comment)
-COMMENT ON COLUMN restaurant_availability.block_reason IS 'Reason for blocking slot (e.g., "Private event", "Maintenance", "Staff shortage")';
-
--- Add index for partner dashboard queries
-CREATE INDEX IF NOT EXISTS idx_availability_partner_date_range
-ON restaurant_availability(partner_id, date)
-WHERE is_available = TRUE AND date >= CURRENT_DATE;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'restaurant_availability') THEN
+    EXECUTE format('COMMENT ON COLUMN restaurant_availability.block_reason IS %L', 'Reason for blocking slot (e.g., "Private event", "Maintenance", "Staff shortage")');
+    CREATE INDEX IF NOT EXISTS idx_availability_partner_date_range ON restaurant_availability(partner_id, date) WHERE is_available = TRUE;
+  END IF;
+END $$;
 
 -- ============================================
 -- PART 5: PERFORMANCE INDEXES

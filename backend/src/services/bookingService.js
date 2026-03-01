@@ -13,12 +13,18 @@ const reservationService = require('./reservationService');
 const preOrderService = require('./preOrderService');
 const bookingValidation = require('./bookingValidation');
 const slotCapacityService = require('./slotCapacityService');
+const waitlistService = require('./waitlistService');
+const { writeAuditWithExecutor } = require('../utils/audit');
+const eventSlotsRepository = require('../repositories/eventSlotsRepository');
 const { v4: uuidv4 } = require('uuid');
 const { AppError } = require('../../utils/response');
 const { logError, log } = require('../../utils/logger');
 const { emitRealtimeEvent, emitToRoom, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
 const { generateAndUploadQRCode } = require('../utils/qrCodeGenerator');
 const { normalizeTierName } = require('../utils/tierNames');
+const { getNowInTZ, parseDateInTZ } = require('../utils/timeService');
+const { normalizeCoPayPercentage } = require('./redemptionCalculationService');
+const { getBookingModeFromServiceType } = require('../config/bookingModes');
 
 const pool = getPool();
 
@@ -45,6 +51,8 @@ async function createBooking(bookingData) {
       booking_time,
       booked_at_client // Client ISO timestamp for accurate "Booked on" display in IST
     } = bookingData;
+
+    let offer = null; // Set in offer_id branch; used for max_redemptions_per_slot in validation
 
     // Validate required fields
     if (!user_id) {
@@ -114,7 +122,7 @@ async function createBooking(bookingData) {
       bookingPayload.status = 'confirmed';
     } else if (offer_id) {
       // Offer booking: fetch without partner filter first to return a specific error
-      let offer = await offerRepository.getOfferById(offer_id, false);
+      offer = await offerRepository.getOfferById(offer_id, false);
       if (!offer) {
         const raw = await offerRepository.getOfferByIdRaw(offer_id);
         if (!raw) {
@@ -189,7 +197,7 @@ async function createBooking(bookingData) {
       const rawCoPay = offer.co_pay_percentage != null ? offer.co_pay_percentage : offer.discount_percentage;
       const coPayPct = rawCoPay != null ? parseFloat(rawCoPay) : NaN;
       bookingPayload.co_pay_percentage_at_booking = Number.isFinite(coPayPct)
-        ? Math.min(100, Math.max(0, coPayPct))
+        ? normalizeCoPayPercentage(Math.min(100, Math.max(0, coPayPct)))
         : null;
     } else if (show_id) {
       // Show/Theatre booking
@@ -273,7 +281,7 @@ async function createBooking(bookingData) {
       }
     }
 
-    const partner_earning = finalAmount - (finalAmount * commission_percentage / 100);
+    const partner_earning = Math.round((finalAmount * (100 - commission_percentage)) / 100 * 100) / 100;
 
     // BUG FIX #5: Set booking_type explicitly in payload
     const bookingType = event_id ? 'event' : (offer_id ? 'offer' : 'show');
@@ -313,23 +321,24 @@ async function createBooking(bookingData) {
       }
     }
     
-    // Get deal/event title
-    if (offer_id) {
-      const offer = await offerRepository.getOfferById(offer_id, true);
-      dealTitle = offer?.title || null;
+    // Get deal/event title — FIX #12: Reuse already-fetched offer instead of re-querying
+    if (offer_id && offer) {
+      dealTitle = offer.title || null;
     } else if (event_id) {
       const event = await eventRepository.getEventById(event_id);
       dealTitle = event?.title || null;
     }
     
-    // Get partner name
+    // Get partner name and timezone
+    let partnerTZ = 'Asia/Kolkata'; // Default timezone
     if (partner_id) {
       try {
         const partner = await partnerRepository.getPartnerById(partner_id);
         partnerName = partner?.name || null;
+        partnerTZ = partner?.timezone || 'Asia/Kolkata';
       } catch (partnerError) {
         logError('⚠️ Could not fetch partner name for QR code:', partnerError);
-        // Continue without partner name
+        // Continue without partner name, use default timezone
       }
     }
     
@@ -341,18 +350,14 @@ async function createBooking(bookingData) {
     let bookingDate = booking_date || null;
     let bookingTime = booking_time || null;
 
-    // Only fallback to bookingPayload if direct values are not provided
-    if (!bookingDate) {
-      bookingDate = bookingPayload.booking_date || null;
-    }
-    if (!bookingTime) {
-      bookingTime = bookingPayload.booking_time || null;
-    }
-
-    // CRITICAL: Log the initial values to debug time extraction
-    log(`🔍 Booking time extraction - Initial: booking_time=${booking_time}, bookingPayload.booking_time=${bookingPayload.booking_time}, reservation_data=${JSON.stringify(reservation_data)}`);
+    log(`🔍 Booking time extraction - Initial: booking_date=${booking_date}, booking_time=${booking_time}, reservation_data=${JSON.stringify(reservation_data)}`);
 
     if (reservation_data) {
+      // Validate: if both direct params and reservation_data provide a date, they must match
+      if (bookingDate && reservation_data.date && bookingDate !== reservation_data.date) {
+        await client.query('ROLLBACK');
+        throw new AppError(400, 'Booking date mismatch between request and reservation data.');
+      }
       if (reservation_data.date) {
         bookingDate = reservation_data.date;
       }
@@ -370,21 +375,36 @@ async function createBooking(bookingData) {
     const TIME_BASED_SERVICES = ['dining', 'events', 'shows'];
     const requiresHoursValidation = TIME_BASED_SERVICES.includes(serviceType);
 
-    // Default date/time for STORAGE and validation. For events with no date/time, use event start_time.
+    // Default date/time for STORAGE and validation.
+    // Uses partner's timezone so defaults are correct regardless of server timezone.
+    // For non-time-based services (spa, wellness, travel, others): user selects only date; time slot
+    // is confirmed by contacting partner. Use "12:00" as neutral placeholder — do NOT use current time,
+    // which would cause "Selected booking time has already passed" when user picks a past date.
+    const isDateOnlyBooking = !requiresHoursValidation && booking_date && !booking_time;
     if (!bookingDate || !bookingTime) {
       if (serviceType === 'events' && eventStartTimeForDefault) {
-        const d = new Date(eventStartTimeForDefault);
-        if (!bookingDate) bookingDate = d.toISOString().split('T')[0];
-        if (!bookingTime) bookingTime = d.toTimeString().slice(0, 5);
+        // For events with a known start_time, extract date/time in partner's timezone
+        const evtDate = new Date(eventStartTimeForDefault);
+        if (!Number.isNaN(evtDate.getTime())) {
+          if (!bookingDate) bookingDate = evtDate.toLocaleDateString('en-CA', { timeZone: partnerTZ });
+          if (!bookingTime) bookingTime = evtDate.toLocaleTimeString('en-GB', { timeZone: partnerTZ, hour12: false, hour: '2-digit', minute: '2-digit' });
+        }
         log(`⚠️ No booking date/time provided, using event start for record/validation: ${bookingDate} ${bookingTime}`);
+      } else if (isDateOnlyBooking) {
+        // Non-time-based: user provided date only. Use 12:00 as placeholder for storage.
+        if (!bookingTime) {
+          bookingTime = '12:00';
+          log(`📅 Date-only booking (contact partner for time): using 12:00 placeholder for ${bookingDate}`);
+        }
       } else {
+        const nowInPartnerTZ = getNowInTZ(partnerTZ);
         if (!bookingDate) {
-          bookingDate = new Date().toISOString().split('T')[0];
-          log(`⚠️ No booking date provided, using current date for record: ${bookingDate}`);
+          bookingDate = nowInPartnerTZ.date;
+          log(`⚠️ No booking date provided, using current date in partner TZ (${partnerTZ}): ${bookingDate}`);
         }
         if (!bookingTime) {
-          bookingTime = new Date().toTimeString().slice(0, 5);
-          log(`⚠️ No booking time provided, using current time for record: ${bookingTime}`);
+          bookingTime = nowInPartnerTZ.time;
+          log(`⚠️ No booking time provided, using current time in partner TZ (${partnerTZ}): ${bookingTime}`);
         }
       }
     }
@@ -397,6 +417,80 @@ async function createBooking(bookingData) {
     if (!partner_id) {
       await client.query('ROLLBACK');
       throw new AppError(500, "Partner mapping failed for booking. Cannot create booking without partner_id.");
+    }
+
+    // EVENTS: If event_slots are defined, validate booking_time matches a slot.
+    // If no event_slots exist, allow any time (validated later against operating hours, like dining).
+    if (offer_id && serviceType === 'events' && requiresHoursValidation) {
+      const eventSlots = await eventSlotsRepository.listByOffer(offer_id, client);
+      const hasDefinedSlots = eventSlots && eventSlots.length > 0;
+
+      if (hasDefinedSlots) {
+        // Validate booking_time matches one of the defined event_slots
+        const normTime = (t) => {
+          const s = String(t || '').trim().substring(0, 5);
+          if (!/^\d{1,2}:\d{2}$/.test(s)) return null;
+          const [h, m] = s.split(':').map(Number);
+          return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        };
+        const bookingTimeNorm = normTime(bookingTime);
+        const validSlots = eventSlots.map(s => normTime(s.slot_time)).filter(Boolean);
+        if (!bookingTimeNorm || !validSlots.includes(bookingTimeNorm)) {
+          await client.query('ROLLBACK');
+          throw new AppError(400, "Selected time does not match any event slot. Please choose from the available slots.");
+        }
+      } else {
+        // No event_slots defined — allow any time; operating hours validation below will handle it
+        log(`ℹ️ Event ${offer_id} has no event_slots defined — allowing free time selection within operating hours`);
+      }
+
+      // EVENTS: Validate booking_date matches the event's date (applies regardless of whether slots are defined)
+      // Source: experience_metadata.event_date, or offer start_date when start_date === end_date (single-day event)
+      const eventDateRow = await client.query(
+        `SELECT em.event_date, po.start_date, po.end_date
+         FROM partner_offers po
+         LEFT JOIN experience_metadata em ON em.offer_id = po.id
+         WHERE po.id = $1`,
+        [offer_id]
+      );
+      const row = eventDateRow.rows[0];
+      const eventDateFromMeta = row?.event_date;
+      const startDate = row?.start_date ?? offer?.start_date;
+      const endDate = row?.end_date ?? offer?.end_date;
+      const bookingDateStr = String(bookingDate || '').trim();
+
+      const toDateStr = (d) => {
+        if (!d) return null;
+        if (typeof d === 'string') return d.split('T')[0].split(' ')[0];
+        if (d instanceof Date) return d.toISOString().split('T')[0];
+        return String(d).split('T')[0].split(' ')[0];
+      };
+      let eventDateStr = eventDateFromMeta ? toDateStr(eventDateFromMeta) : null;
+      if (!eventDateStr && startDate && endDate) {
+        const startStr = toDateStr(startDate);
+        const endStr = toDateStr(endDate);
+        if (startStr && endStr && startStr === endStr) {
+          eventDateStr = startStr; // Single-day event: start_date === end_date
+        }
+      }
+      if (eventDateStr && bookingDateStr && eventDateStr !== bookingDateStr) {
+        await client.query('ROLLBACK');
+        const formatted = eventDateStr.replace(/(\d{4})-(\d{2})-(\d{2})/, (_, y, m, d) => `${d}/${m}/${y}`);
+        throw new AppError(400, `This event is only on ${formatted}. Please select that date to book.`, {
+          reason: 'BOOKING_DATE_MISMATCH',
+          event_date: eventDateStr
+        });
+      }
+      if (!eventDateStr && startDate && endDate && bookingDateStr) {
+        const startStr = toDateStr(startDate);
+        const endStr = toDateStr(endDate);
+        if (startStr && endStr && (bookingDateStr < startStr || bookingDateStr > endStr)) {
+          await client.query('ROLLBACK');
+          throw new AppError(400, `This event is scheduled between ${startStr} and ${endStr}. Please select a date within that range.`, {
+            reason: 'BOOKING_DATE_OUT_OF_RANGE'
+          });
+        }
+      }
     }
 
     // Fetch user's current tier at booking time (canonical: Ather, Nova, Luminar, Valiant, Echelon only)
@@ -412,12 +506,21 @@ async function createBooking(bookingData) {
     }
 
     // ============================================
-    // CRITICAL: PAST-BOOKING VALIDATION (ALL SERVICES)
+    // CRITICAL: PAST-BOOKING VALIDATION
     // ============================================
-    // Reject booking in the past for ANY service that has date+time (spa, massage,
-    // wellness, dining, events, etc.). This prevents "booked at 2:19 PM for 8:47 AM".
-    if (bookingDate && bookingTime) {
-      const pastCheck = bookingValidation.validateBookingNotInPast(bookingDate, bookingTime);
+    // For time-based services (dining, events): validate date+time.
+    // For non-time-based services (spa, wellness, travel, others): validate only date —
+    // user will contact partner for time slot; any time is a placeholder.
+    if (!requiresHoursValidation && bookingDate) {
+      const dateCheck = bookingValidation.validateBookingDateNotInPast(bookingDate, partnerTZ);
+      if (!dateCheck.allowed) {
+        await client.query('ROLLBACK');
+        throw new AppError(400, dateCheck.message || 'Selected date has already passed.', {
+          reason: dateCheck.reason || 'BOOKING_DATE_IN_PAST'
+        });
+      }
+    } else if (bookingDate && bookingTime) {
+      const pastCheck = bookingValidation.validateBookingNotInPast(bookingDate, bookingTime, partnerTZ);
       if (!pastCheck.allowed) {
         await client.query('ROLLBACK');
         throw new AppError(400, pastCheck.message || 'Selected booking time has already passed.', {
@@ -438,13 +541,42 @@ async function createBooking(bookingData) {
     if (requiresHoursValidation && partner_id) {
       log(`🔍 Validating booking time: ${bookingDate} ${bookingTime} for partner ${partner_id}`);
 
+      // EVENT deals with event_slots: use getEffectiveEventSlotCapacity (event_slots.capacity).
+      // EVENT deals WITHOUT event_slots: optional slots — use venue_time_slots / operating hours like dining.
+      let effectiveEventSlotCapacity = null;
+      const isEventOffer = serviceType === 'events';
+      const eventSlotsForCapacity = await eventSlotsRepository.listByOffer(offer_id, client);
+      const hasEventSlots = eventSlotsForCapacity && eventSlotsForCapacity.length > 0;
+
+      if (isEventOffer && offer_id && hasEventSlots) {
+        try {
+          const eventCap = await slotCapacityService.getEffectiveEventSlotCapacity(offer_id, bookingDate, bookingTime, client);
+          effectiveEventSlotCapacity = eventCap.capacity;
+        } catch (err) {
+          if (err.message === 'SLOT_NOT_FOUND') {
+            await client.query('ROLLBACK');
+            throw new AppError(400, 'Selected time does not match any event slot. Please choose from the available slots.', { reason: 'SLOT_NOT_FOUND' });
+          }
+          throw err;
+        }
+      }
+
+      if (process.env.DEBUG_BOOKING_CAPACITY === 'true') {
+        log(`[BOOKING DEBUG] createBooking: offer_id=${offer_id} booking_date=${bookingDate} booking_time=${bookingTime} normalized_timeSlot=${slotCapacityService.normalizeDealTimeSlot(bookingTime)} max_redemptions_per_slot=${offer?.max_redemptions_per_slot ?? 'null'} effective_event_slot_capacity=${effectiveEventSlotCapacity ?? 'null'} is_event=${isEventOffer} hasEventSlots=${hasEventSlots}`);
+      }
+
       const validation = await bookingValidation.validateBookingRequest({
         partner_id,
         user_id,
         booking_date: bookingDate,
         booking_time: bookingTime,
         party_size: num_tickets || 1,
-        user_tier: userTierAtBooking
+        user_tier: userTierAtBooking,
+        timezone: partnerTZ,
+        offer_id: offer_id || null,
+        max_redemptions_per_slot: (isEventOffer && hasEventSlots) ? null : (offer?.max_redemptions_per_slot ?? null),
+        is_event: isEventOffer && hasEventSlots,
+        effective_event_slot_capacity: effectiveEventSlotCapacity
       });
 
       if (!validation.allowed) {
@@ -470,31 +602,52 @@ async function createBooking(bookingData) {
         log(`👑 Echelon override used for user ${user_id} at ${bookingDate} ${bookingTime}`);
       }
 
-      // Concurrency-safe slot reserve (venue_time_slots). If table missing, LEGACY and we do not touch slots.
+      // Concurrency-safe slot reserve: EVENT with slots uses effectiveEventSlotCapacity.
+      // EVENT without slots / non-EVENT: use max_redemptions_per_slot or venue_time_slots.
       let slotReserved = false;
-      const slotDt = slotCapacityService.toSlotDatetime(bookingDate, bookingTime);
-      if (slotDt) {
-        const reserveResult = await slotCapacityService.reserveSlot(
+      const effectiveSlotCapacity = (isEventOffer && hasEventSlots) ? effectiveEventSlotCapacity : (offer?.max_redemptions_per_slot ?? null);
+
+      if (effectiveSlotCapacity != null && effectiveSlotCapacity >= 1 && offer_id) {
+        const reserveResult = await slotCapacityService.reserveDealSlot(
           client,
-          partner_id,
-          slotDt,
-          (String(userTierAtBooking || '').trim().toLowerCase() === 'echelon'),
+          offer_id,
+          bookingDate,
+          bookingTime,
           num_tickets || 1,
-          slotCapacityService.DEFAULT_CAPACITY,
-          slotCapacityService.DEFAULT_ECHELON_BUFFER
+          effectiveSlotCapacity
         );
         if (reserveResult.status === 'CONFIRMED') {
           slotReserved = true;
-          if (reserveResult.is_priority_override) {
-            bookingPayload.is_priority_override = true;
-            bookingPayload.override_reason = bookingPayload.override_reason || 'Echelon tier capacity override';
-          }
+          bookingPayload._dealSlotReserved = true;
         } else if (reserveResult.status === 'FULL') {
           await client.query('ROLLBACK');
           throw new AppError(409, 'Time slot just became full. Try again or join waitlist.', { can_waitlist: true });
         }
-        bookingPayload._slotReserved = slotReserved;
+      } else {
+        const slotDt = slotCapacityService.toSlotDatetime(bookingDate, bookingTime);
+        if (slotDt) {
+          const reserveResult = await slotCapacityService.reserveSlot(
+            client,
+            partner_id,
+            slotDt,
+            (String(userTierAtBooking || '').trim().toLowerCase() === 'echelon'),
+            num_tickets || 1,
+            slotCapacityService.DEFAULT_CAPACITY,
+            slotCapacityService.DEFAULT_ECHELON_BUFFER
+          );
+          if (reserveResult.status === 'CONFIRMED') {
+            slotReserved = true;
+            if (reserveResult.is_priority_override) {
+              bookingPayload.is_priority_override = true;
+              bookingPayload.override_reason = bookingPayload.override_reason || 'Echelon tier capacity override';
+            }
+          } else if (reserveResult.status === 'FULL') {
+            await client.query('ROLLBACK');
+            throw new AppError(409, 'Time slot just became full. Try again or join waitlist.', { can_waitlist: true });
+          }
+        }
       }
+      bookingPayload._slotReserved = slotReserved;
     } else if (partner_id) {
       log(`⏩ Skipping hours validation — service_type="${serviceType}" is not time-based. Stored date/time: ${bookingDate} ${bookingTime}`);
     }
@@ -538,27 +691,35 @@ async function createBooking(bookingData) {
     bookingPayload.booking_date = bookingDate;  // Set booking date from reservation_data or current
     bookingPayload.booking_time = bookingTime;  // Set booking time from reservation_data or current
     bookingPayload.user_tier_at_booking = userTierAtBooking;  // Store user's tier at booking time
+    bookingPayload.booking_mode = getBookingModeFromServiceType(serviceType);  // ONLINE_TIME_SLOT | PARTNER_CONFIRMATION
     if (booked_at_client) bookingPayload.booked_at_client = booked_at_client;  // Client timestamp for "Booked on" display
 
     // Voucher "Valid until" = universal: 30 days from booked/visit date (or from today if no date) OR deal end, whichever is earlier.
+    // All date parsing uses partner's timezone so expiry is correct regardless of server timezone.
     if (offer_id) {
       const fromDate = bookingDate && /^\d{4}-\d{2}-\d{2}$/.test(String(bookingDate).trim())
-        ? new Date(String(bookingDate).trim() + 'T12:00:00')
+        ? parseDateInTZ(String(bookingDate).trim(), partnerTZ, 12) || new Date()
         : new Date();
       const thirtyDaysFromVisit = new Date(fromDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-      const offerForExpiry = await offerRepository.getOfferById(offer_id, false);
-      if (offerForExpiry && offerForExpiry.end_date) {
-        const offerEnd = new Date(offerForExpiry.end_date);
+      // FIX #12: Reuse already-fetched offer instead of re-querying
+      if (offer && offer.end_date) {
+        const offerEnd = new Date(offer.end_date);
         bookingPayload.expires_at = offerEnd < thirtyDaysFromVisit ? offerEnd : thirtyDaysFromVisit;
       } else {
         bookingPayload.expires_at = thirtyDaysFromVisit;
       }
     } else if (event_id) {
-      // Events: expire voucher 24 hours after the event date
+      // Events: expire voucher 24 hours after the event date (in partner's timezone)
       const eventExpiry = bookingDate
-        ? new Date(new Date(bookingDate).getTime() + 24 * 60 * 60 * 1000)
+        ? new Date((parseDateInTZ(bookingDate, partnerTZ, 0) || new Date()).getTime() + 24 * 60 * 60 * 1000)
         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       bookingPayload.expires_at = eventExpiry;
+    } else if (show_id) {
+      // Shows: expire voucher 24 hours after the show date (in partner's timezone)
+      const showExpiry = bookingDate
+        ? new Date((parseDateInTZ(bookingDate, partnerTZ, 0) || new Date()).getTime() + 24 * 60 * 60 * 1000)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      bookingPayload.expires_at = showExpiry;
     } else {
       bookingPayload.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     }
@@ -707,8 +868,7 @@ async function createBooking(bookingData) {
     let reservation = null;
     if (reservation_data && offer_id && partner_id) {
       try {
-        // Check if offer is for dining (already validated, but keep approval check for consistency)
-        const offer = await offerRepository.getOfferById(offer_id, true);
+        // FIX #12: Reuse already-fetched offer instead of re-querying
         if (offer && (offer.service_type === 'dining' || offer.service_type === 'restaurant')) {
           reservation = await reservationService.createReservation({
             booking_id: booking.id,
@@ -800,11 +960,10 @@ async function createBooking(bookingData) {
     // BUG FIX #4: Enrich booking response with deal/offer title (BEFORE commit, inside try)
     // Note: dealTitle is already fetched earlier for QR code generation, reuse it
     // If not set earlier, fetch it now
+    // FIX #12: Reuse already-fetched offer instead of re-querying
     if (!dealTitle) {
-      if (offer_id) {
-        // Get offer title (already validated, but keep approval check for consistency)
-        const offer = await offerRepository.getOfferById(offer_id, true);
-        dealTitle = offer?.title || null;
+      if (offer_id && offer) {
+        dealTitle = offer.title || null;
       } else if (event_id) {
         const event = await eventRepository.getEventById(event_id);
         dealTitle = event?.title || null;
@@ -823,6 +982,12 @@ async function createBooking(bookingData) {
     }
     if (dealTitle) {
       booking.deal_title = dealTitle;
+    }
+    if (serviceType) {
+      booking.service_type = serviceType;
+    }
+    if (bookingPayload.booking_mode) {
+      booking.booking_mode = bookingPayload.booking_mode;
     }
 
     // Get user's current balances and tier info for rewards response
@@ -938,18 +1103,27 @@ async function createBooking(bookingData) {
 
     return booking;
   } catch (err) {
-    // Release slot capacity if it was reserved in this transaction (cross-vertical: dining/slots)
-    // Must run in standalone transaction so decrement commits even when this transaction rolls back
-    if (typeof bookingPayload !== 'undefined' && bookingPayload && bookingPayload._slotReserved && partner_id && bookingDate && bookingTime) {
-      const slotDt = slotCapacityService.toSlotDatetime(bookingDate, bookingTime);
-      if (slotDt) {
-        const partySize = (bookingPayload.num_guests ?? bookingPayload.num_tickets ?? num_tickets) || 1;
-        await slotCapacityService.releaseSlotStandalone(partner_id, slotDt, partySize).catch((e) => {
-          logError('Release slot on rollback failed (slot count may be stale):', e);
+    // Release slot capacity if it was reserved in this transaction
+    // Use bookingPayload when available; avoid num_tickets (may be undefined if error occurred before destructuring)
+    const partySize = (typeof bookingPayload !== 'undefined' && bookingPayload ? (bookingPayload.num_guests ?? bookingPayload.num_tickets ?? 1) : 1) || 1;
+    if (typeof bookingPayload !== 'undefined' && bookingPayload && bookingPayload._slotReserved) {
+      if (bookingPayload._dealSlotReserved && offer_id && bookingDate && bookingTime) {
+        await slotCapacityService.releaseDealSlotStandalone(offer_id, bookingDate, bookingTime, partySize).catch((e) => {
+          logError('Release deal slot on rollback failed:', e);
         });
+      } else if (partner_id && bookingDate && bookingTime) {
+        const slotDt = slotCapacityService.toSlotDatetime(bookingDate, bookingTime);
+        if (slotDt) {
+          await slotCapacityService.releaseSlotStandalone(partner_id, slotDt, partySize).catch((e) => {
+            logError('Release slot on rollback failed (slot count may be stale):', e);
+          });
+        }
       }
     }
     await client.query('ROLLBACK');
+    if (err.message === 'CAPACITY_SYSTEM_NOT_INITIALIZED') {
+      throw new AppError(503, 'Capacity system is temporarily unavailable. Please try again later.', { reason: 'CAPACITY_SYSTEM_NOT_INITIALIZED' });
+    }
     throw err;
   } finally {
     client.release();
@@ -971,6 +1145,7 @@ async function getBookingById(bookingId) {
 }
 
 // Reschedule booking
+// FIX #1: Release old slot capacity, validate new slot, reserve new slot capacity
 async function rescheduleBooking(bookingId, userId, { booking_date, booking_time }) {
   const client = await pool.connect();
   try {
@@ -1015,11 +1190,107 @@ async function rescheduleBooking(bookingId, userId, { booking_date, booking_time
       }
     }
 
+    // FIX #1: Determine if this is a time-based booking that needs slot management
+    const serviceType = (booking.service_type || booking.booking_mode || '').toLowerCase();
+    const TIME_BASED_SERVICES = ['dining', 'events', 'shows'];
+    const bookingMode = booking.booking_mode || getBookingModeFromServiceType(serviceType);
+    const isTimeBased = TIME_BASED_SERVICES.includes(serviceType) ||
+                        bookingMode === 'ONLINE_TIME_SLOT';
+    const partySize = booking.num_tickets || booking.num_guests || 1;
+    const dealId = booking.deal_id || booking.offer_id || null;
+    const partnerId = booking.partner_id;
+    const oldDate = booking.booking_date;
+    const oldTime = booking.booking_time;
+
+    if (isTimeBased && partnerId) {
+      // --- Release old slot capacity ---
+      if (dealId && oldDate) {
+        try {
+          await slotCapacityService.releaseDealSlot(client, dealId, oldDate, oldTime, partySize);
+          log(`🔄 Released old deal slot: deal=${dealId} date=${oldDate} time=${oldTime}`);
+        } catch (e) {
+          logError(`⚠️ Failed to release old deal slot during reschedule:`, e);
+        }
+      }
+      if (oldDate && oldTime) {
+        const oldSlotDt = slotCapacityService.toSlotDatetime(oldDate, oldTime);
+        if (oldSlotDt) {
+          try {
+            await slotCapacityService.releaseSlot(client, partnerId, oldSlotDt, partySize);
+            log(`🔄 Released old venue slot: partner=${partnerId} slot=${oldSlotDt}`);
+          } catch (e) {
+            logError(`⚠️ Failed to release old venue slot during reschedule:`, e);
+          }
+        }
+      }
+
+      // --- Validate new time for events (must match defined event slot) ---
+      if (serviceType === 'events' && dealId && timeToUpdate) {
+        const eventSlots = await eventSlotsRepository.listByOffer(dealId, client);
+        if (eventSlots && eventSlots.length > 0) {
+          const normTime = (t) => {
+            const s = String(t || '').trim().substring(0, 5);
+            if (!/^\d{1,2}:\d{2}$/.test(s)) return null;
+            const [h, m] = s.split(':').map(Number);
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          };
+          const bookingTimeNorm = normTime(timeToUpdate);
+          const validSlots = eventSlots.map(s => normTime(s.slot_time)).filter(Boolean);
+          if (!bookingTimeNorm || !validSlots.includes(bookingTimeNorm)) {
+            await client.query('ROLLBACK');
+            throw new AppError(400, 'Selected time does not match any event slot. Please choose from the available slots.');
+          }
+        }
+      }
+
+      // --- Reserve new slot capacity ---
+      if (dealId && booking_date) {
+        let reserveCapacity = null;
+        if (serviceType === 'events') {
+          try {
+            const eventCap = await slotCapacityService.getEffectiveEventSlotCapacity(dealId, booking_date, timeToUpdate, client);
+            reserveCapacity = eventCap.capacity;
+          } catch (_) { /* SLOT_NOT_FOUND — fall through */ }
+        }
+        if (reserveCapacity == null || reserveCapacity < 1) {
+          try {
+            const offerRes = await client.query(
+              `SELECT max_redemptions_per_slot FROM partner_offers WHERE id = $1`,
+              [dealId]
+            );
+            reserveCapacity = offerRes.rows[0]?.max_redemptions_per_slot ?? null;
+          } catch (_) { /* use null */ }
+        }
+        if (reserveCapacity != null && reserveCapacity >= 1) {
+          const reserveResult = await slotCapacityService.reserveDealSlot(
+            client, dealId, booking_date, timeToUpdate, partySize, reserveCapacity
+          );
+          if (reserveResult.status === 'FULL') {
+            await client.query('ROLLBACK');
+            throw new AppError(409, 'New time slot is fully booked. Please choose a different time.', { can_waitlist: true });
+          }
+        }
+      }
+      // Reserve venue slot
+      if (booking_date && timeToUpdate) {
+        const newSlotDt = slotCapacityService.toSlotDatetime(booking_date, timeToUpdate);
+        if (newSlotDt) {
+          const reserveResult = await slotCapacityService.reserveSlot(
+            client, partnerId, newSlotDt, false, partySize,
+            slotCapacityService.DEFAULT_CAPACITY, slotCapacityService.DEFAULT_ECHELON_BUFFER
+          );
+          if (reserveResult.status === 'FULL') {
+            await client.query('ROLLBACK');
+            throw new AppError(409, 'New time slot is fully booked at the venue. Please choose a different time.', { can_waitlist: true });
+          }
+        }
+      }
+    }
+
     // Update booking date and time
-    
     const updateResult = await client.query(
-      `UPDATE bookings 
-       SET booking_date = $1, 
+      `UPDATE bookings
+       SET booking_date = $1,
            booking_time = $2,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $3
@@ -1037,8 +1308,104 @@ async function rescheduleBooking(bookingId, userId, { booking_date, booking_time
     if (error instanceof AppError) {
       throw error;
     }
+    if (error.message === 'CAPACITY_SYSTEM_NOT_INITIALIZED') {
+      throw new AppError(503, 'Capacity system is temporarily unavailable. Please try again later.', { reason: 'CAPACITY_SYSTEM_NOT_INITIALIZED' });
+    }
     logError('❌ Reschedule booking error:', error);
     throw new AppError(500, `Failed to reschedule booking: ${error.message}`);
+  } finally {
+    client.release();
+  }
+}
+
+// User cancels their own booking
+async function cancelBooking(bookingId, userId) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const booking = await bookingRepository.getBookingByIdForUpdate(bookingId);
+    if (!booking) {
+      await client.query('ROLLBACK');
+      throw new AppError(404, 'Booking not found');
+    }
+
+    if (String(booking.user_id) !== String(userId)) {
+      await client.query('ROLLBACK');
+      throw new AppError(403, 'You can only cancel your own bookings');
+    }
+
+    const cancellableStatuses = ['pending', 'confirmed'];
+    if (!cancellableStatuses.includes(booking.status)) {
+      await client.query('ROLLBACK');
+      throw new AppError(400, `Cannot cancel a booking with status "${booking.status}"`);
+    }
+
+    const resolvedId = booking.id;
+    const updated = await bookingRepository.updateBookingStatus(resolvedId, 'cancelled', {
+      cancelled_at: new Date(),
+      cancellation_reason: 'Cancelled by user'
+    }, client);
+
+    // Audit: user-initiated cancellation (within same transaction)
+    await writeAuditWithExecutor(client, userId, 'user', 'booking_cancelled', 'booking', resolvedId, {
+      previous_status: booking.status,
+      new_status: 'cancelled',
+      cancellation_reason: 'Cancelled by user',
+      booking_reference: booking.booking_reference,
+      partner_id: booking.partner_id,
+      deal_id: booking.deal_id,
+      booking_date: booking.booking_date,
+      booking_time: String(booking.booking_time || '').slice(0, 5),
+    });
+
+    const partySize = booking.num_tickets || booking.num_guests || 1;
+
+    if (booking.deal_id && booking.booking_date) {
+      try {
+        await slotCapacityService.releaseDealSlot(client, booking.deal_id, booking.booking_date, booking.booking_time, partySize);
+        log(`✅ Released deal slot for user-cancelled booking ${bookingId}`);
+      } catch (slotErr) {
+        logError(`⚠️ Failed to release deal slot for booking ${bookingId}:`, slotErr);
+      }
+    }
+    if (booking.partner_id && booking.booking_date && booking.booking_time) {
+      try {
+        const slotDt = slotCapacityService.toSlotDatetime(booking.booking_date, booking.booking_time);
+        if (slotDt) {
+          await slotCapacityService.releaseSlot(client, booking.partner_id, slotDt, partySize);
+          log(`✅ Released venue slot for user-cancelled booking ${bookingId}`);
+        }
+      } catch (slotErr) {
+        logError(`⚠️ Failed to release venue slot for booking ${bookingId}:`, slotErr);
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // FIFO: Auto-promote next waitlist user to confirmed booking when slot opens
+    if (booking.partner_id && booking.booking_date && booking.booking_time) {
+      const dateStr = slotCapacityService.toDateString ? slotCapacityService.toDateString(booking.booking_date) : String(booking.booking_date).trim().substring(0, 10);
+      const timeStr = slotCapacityService.normalizeDealTimeSlot(booking.booking_time) || String(booking.booking_time || '').substring(0, 5);
+      if (dateStr && timeStr) {
+        const promote = booking.deal_id
+          ? waitlistService.promoteNextWaitlistToBooking(booking.partner_id, booking.deal_id, dateStr, timeStr)
+          : waitlistService.notifyNextInWaitlist(booking.partner_id, dateStr, timeStr);
+        promote
+          .then((result) => {
+            if (result) {
+              if (result.booking) log(`🔔 FIFO waitlist: promoted user ${result.waitlistEntry?.user_id} to confirmed booking for slot ${dateStr} ${timeStr}`);
+              else log(`🔔 FIFO waitlist: notified user ${result.user_id} for user-cancelled slot ${dateStr} ${timeStr}`);
+            }
+          })
+          .catch((err) => logError('⚠️ Waitlist promote/notify failed (non-fatal):', err));
+      }
+    }
+
+    return updated || { ...booking, status: 'cancelled' };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
   } finally {
     client.release();
   }
@@ -1091,5 +1458,6 @@ module.exports = {
   listBookings,
   getBookingById,
   rescheduleBooking,
+  cancelBooking,
   confirmPayment
 };

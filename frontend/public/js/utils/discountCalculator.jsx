@@ -51,10 +51,18 @@ export function computeDiscountSummary(offer = {}) {
     : 0;
   const displayPercent = hasExplicitPercent ? percent : derivedPercent;
 
+  // Normalize: snap near-integer values to whole numbers (29.97→30, 30.02→30)
+  const finalPercent = (() => {
+    const r = Math.round(displayPercent * 100) / 100;
+    const nearest = Math.round(r);
+    return Math.abs(r - nearest) <= 0.05 ? nearest : r;
+  })();
+
   return {
     original: parseFloat(original.toFixed(2)),
     discounted: parseFloat(discounted.toFixed(2)),
-    percentage: parseFloat((hasExplicitPercent ? Math.round(displayPercent * 100) / 100 : displayPercent).toFixed(2)),
+    percentage: parseFloat(finalPercent.toFixed(2)),
+    percent: parseFloat(finalPercent.toFixed(2)),  // alias for legacy HTML (index.html uses summary.percent)
     amount: parseFloat(amount.toFixed(2)),
     savings: parseFloat(savings.toFixed(2)),
     hasDiscount: original > 0 && discounted < original,

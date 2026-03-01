@@ -4,6 +4,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getDealImageUrl } from '../utils/dealImage';
 import OperatingHoursManager from '../components/OperatingHoursManager';
 import EnterpriseAnalyticsDashboard from '../components/analytics/EnterpriseAnalyticsDashboard';
 import MenuBuilderModal from '../components/MenuBuilderModal';
@@ -867,6 +868,9 @@ export default function PartnerConsole() {
       perk_description: '',
       co_pay_percentage: String(DEFAULT_CO_PAY_PERCENT),
       applicable_days: ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'],
+      max_redemptions: null,
+      max_redemptions_per_slot: null,
+      event_slots: [],
     });
     setShowOfferModal(true);
   }
@@ -886,8 +890,13 @@ export default function PartnerConsole() {
     setOfferEditId(id);
     const toDatetimeLocal = (v) => {
       if (!v) return '';
-      if (typeof v === 'string' && v.length <= 16) return v;
-      try { return new Date(v).toISOString().slice(0, 16); } catch (_) { return ''; }
+      if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v.trim())) return v.trim();
+      try {
+        const d = new Date(v);
+        if (Number.isNaN(d.getTime())) return '';
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      } catch (_) { return ''; }
     };
     const populateForm = (o2) => {
       const raw = o2?.co_pay_percentage;
@@ -909,6 +918,11 @@ export default function PartnerConsole() {
         featured_request_pending: !!o2?.featured_request_pending,
         request_trending: !!o2?.request_trending,
         applicable_days: Array.isArray(o2?.applicable_days) ? o2?.applicable_days : ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'],
+        max_redemptions: o2?.max_redemptions ?? null,
+        max_redemptions_per_slot: o2?.max_redemptions_per_slot ?? null,
+        event_slots: Array.isArray(o2?.event_slots) ? o2.event_slots.map(s => ({ slot_time: s.slot_time || '19:00', duration_minutes: s.duration_minutes ?? 120, capacity: s.capacity ?? 50, label: s.label || '' })) : [],
+        original_price: o2?.original_price ?? '',
+        discounted_price: o2?.discounted_price ?? '',
       };
     };
     // Populate immediately from list data so co-pay shows right away
@@ -936,11 +950,28 @@ export default function PartnerConsole() {
         return;
       }
     }
+    if (offerForm.perk_type === 'fixed_price_deal' || offerForm.perk_type === 'free_item') {
+      const dp = Number(offerForm.discounted_price);
+      if (Number.isNaN(dp) || dp < 0) {
+        alert('Deal Price (₹) is required for Fixed Price deals. Enter a valid amount (e.g. 1500).');
+        return;
+      }
+    }
+    // Event time slots are optional. Without slots, guests pick any time within operating hours.
     const url = offerEditId ? `${API_BASE}/api/v1/partners/${partner.id}/offers/${offerEditId}` : `${API_BASE}/api/v1/partners/${partner.id}/offers`;
     const payload = { ...offerForm };
     if (payload.request_trending) payload.request_trending = true;
-    const numericOptionals = ['co_pay_percentage', 'discount_amount', 'original_price', 'discounted_price', 'min_purchase_amount'];
+    const numericOptionals = ['co_pay_percentage', 'discount_amount', 'original_price', 'discounted_price', 'min_purchase_amount', 'max_redemptions', 'max_redemptions_per_slot'];
     numericOptionals.forEach((k) => { if (payload[k] === '' || payload[k] === undefined) payload[k] = null; });
+    // Preserve start_date/end_date when editing: omit empty values so backend keeps existing.
+    // Do NOT delete when user has entered values — ensures time changes persist.
+    if (offerEditId) {
+      if (payload.start_date === '' || payload.start_date === null || payload.start_date === undefined) delete payload.start_date;
+      if (payload.end_date === '' || payload.end_date === null || payload.end_date === undefined) delete payload.end_date;
+    }
+    // Ensure datetime-local values are sent as ISO for backend (append :00 if needed for seconds)
+    if (payload.start_date && payload.start_date.length === 16) payload.start_date = payload.start_date + ':00';
+    if (payload.end_date && payload.end_date.length === 16) payload.end_date = payload.end_date + ':00';
     if (payload.co_pay_percentage != null && typeof payload.co_pay_percentage !== 'number') payload.co_pay_percentage = Number(payload.co_pay_percentage);
     if (typeof payload.co_pay_percentage === 'number' && !Number.isNaN(payload.co_pay_percentage)) payload.co_pay_percentage = Math.round(payload.co_pay_percentage * 100) / 100;
     try {
@@ -1077,6 +1108,7 @@ export default function PartnerConsole() {
 
     async function saveProfile() {
       if (!partner) return;
+      const slotDur = document.getElementById('venueSlotDuration')?.value;
       const payload = {
         name: document.getElementById('venueName')?.value,
         email: document.getElementById('venueEmail')?.value,
@@ -1086,12 +1118,13 @@ export default function PartnerConsole() {
         partner_category_type: document.getElementById('venueType')?.value,
         description: document.getElementById('venueDescription')?.value
       };
+      if (slotDur !== undefined && slotDur !== '') payload.slot_duration_minutes = slotDur === 'default' ? null : parseInt(slotDur, 10);
       if (displayCoords) {
         payload.latitude = displayCoords.lat;
         payload.longitude = displayCoords.lng;
       }
       try {
-        const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}`, { method: 'PUT', headers: headers(), body: JSON.stringify(payload) });
+        const r = await authFetch(`${API_BASE}/api/v1/partners/me`, { method: 'PUT', headers: headers(), body: JSON.stringify(payload) });
         const j = await r.json();
         if (j.success) {
           setPartner(j.data);
@@ -1118,6 +1151,17 @@ export default function PartnerConsole() {
           </div>
           <div className="pc-form-group"><label>Phone</label><input id="venuePhone" className="pc-form-input" defaultValue={partner?.phone_number || partner?.phone || ''} /></div>
           <div className="pc-form-group"><label>GST</label><input id="venueGST" className="pc-form-input" defaultValue={partner?.gst_number || ''} /></div>
+          <div className="pc-form-group">
+            <label>Dining slot duration</label>
+            <select id="venueSlotDuration" className="pc-form-input" defaultValue={partner?.slot_duration_minutes ?? 'default'}>
+              <option value="default">30 min (default)</option>
+              <option value="15">15 min</option>
+              <option value="30">30 min</option>
+              <option value="45">45 min</option>
+              <option value="60">60 min</option>
+            </select>
+            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#6b7280' }}>Used for dining deals: time slots shown to guests (e.g. 7:00, 7:30, 8:00).</p>
+          </div>
           <div className="pc-form-group"><label>Address</label><textarea id="venueAddress" className="pc-form-input" placeholder="Enter complete venue address (street, city, state, pincode)" defaultValue={partner?.address || ''} /></div>
           <div className="pc-form-group pc-map-preview">
             <label>Location &amp; map</label>
@@ -2899,6 +2943,57 @@ export default function PartnerConsole() {
             <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#6b7280' }}>Check spelling (e.g. Hygiene, Camp). This appears on the app.</p>
           </div>
           <div className="pc-form-group"><label>Service Type</label><select className="pc-form-input" value={offerForm.service_type||''} onChange={e=>setOfferForm({...offerForm, service_type: e.target.value})}><option value="">Select</option><option value="dining">Dining</option><option value="events">Events</option><option value="spa-and-salon">Spa & Salon</option><option value="wellness">Wellness</option><option value="travel">Travel</option><option value="healthcare">Healthcare</option><option value="others">Others</option></select></div>
+          {offerForm.service_type === 'events' && (
+            <div className="pc-form-group pc-event-slots">
+              <label className="pc-form-label">Event time slots (optional)</label>
+              <p className="pc-redemption-limits-hint">Optional. Add slots to restrict guests to specific show times (e.g. 7PM show 2h, 9:30PM show 3h). Leave empty to allow any time within operating hours.</p>
+              {(offerForm.event_slots || []).map((slot, idx) => (
+                <div key={idx} className="pc-event-slot-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', marginBottom: '10px', padding: '12px', borderRadius: '8px' }}>
+                  <div style={{ flex: '0 0 auto' }}>
+                    <div className="pc-form-label" style={{ fontSize: '0.7rem', marginBottom: '2px' }}>Start time</div>
+                    <input type="time" className="pc-form-input" style={{ width: '100px' }} value={slot.slot_time || '19:00'} onChange={e=>{ const s = [...(offerForm.event_slots || [])]; s[idx] = { ...s[idx], slot_time: e.target.value }; setOfferForm({ ...offerForm, event_slots: s }); }} />
+                  </div>
+                  <div style={{ flex: '0 0 auto' }}>
+                    <div className="pc-form-label" style={{ fontSize: '0.7rem', marginBottom: '2px' }}>Duration (min)</div>
+                    <input type="number" min={1} max={480} className="pc-form-input" style={{ width: '80px' }} placeholder="120" value={slot.duration_minutes ?? 120} onChange={e=>{ const v = parseInt(e.target.value, 10); const s = [...(offerForm.event_slots || [])]; s[idx] = { ...s[idx], duration_minutes: isNaN(v) ? 120 : v }; setOfferForm({ ...offerForm, event_slots: s }); }} title="e.g. 120 = 2 hours" />
+                  </div>
+                  <div style={{ flex: '0 0 auto' }}>
+                    <div className="pc-form-label" style={{ fontSize: '0.7rem', marginBottom: '2px' }}>Seats</div>
+                    <input type="number" min={1} className="pc-form-input" style={{ width: '70px' }} placeholder="50" value={slot.capacity ?? 50} onChange={e=>{ const v = parseInt(e.target.value, 10); const s = [...(offerForm.event_slots || [])]; s[idx] = { ...s[idx], capacity: isNaN(v) ? 50 : v }; setOfferForm({ ...offerForm, event_slots: s }); }} />
+                  </div>
+                  <div style={{ flex: '1 1 140px', minWidth: '120px' }}>
+                    <div className="pc-form-label" style={{ fontSize: '0.7rem', marginBottom: '2px' }}>Label</div>
+                    <input type="text" className="pc-form-input" style={{ width: '100%' }} placeholder="e.g. 7PM Show" value={slot.label || ''} onChange={e=>{ const s = [...(offerForm.event_slots || [])]; s[idx] = { ...s[idx], label: e.target.value }; setOfferForm({ ...offerForm, event_slots: s }); }} />
+                  </div>
+                  <button type="button" className="btn btn-sm btn-secondary" style={{ alignSelf: 'flex-end' }} onClick={()=> setOfferForm({ ...offerForm, event_slots: (offerForm.event_slots || []).filter((_, i) => i !== idx) })}>Remove</button>
+                </div>
+              ))}
+              <button type="button" className="btn btn-sm btn-primary" onClick={()=> setOfferForm({ ...offerForm, event_slots: [...(offerForm.event_slots || []), { slot_time: '19:00', duration_minutes: 120, capacity: 50, label: '' }] })}>+ Add slot</button>
+              {((offerForm.event_slots || []).length === 0) && <p style={{ marginTop: '8px', fontSize: '0.85rem', color: '#6b7280' }}>No slots defined — guests can pick any time within your operating hours.</p>}
+            </div>
+          )}
+          {(offerForm.service_type === 'dining' || offerForm.service_type === 'events') && (
+            <div className="pc-form-group pc-redemption-limits">
+              <label className="pc-form-label">Waitlist & capacity limits</label>
+              <p className="pc-redemption-limits-hint">When a slot is full, guests see &quot;Join waitlist&quot;. Leave unlimited if you don&apos;t need limits.</p>
+              <div className="pc-form-grid">
+                <div className="pc-form-group">
+                  <label>Total bookings (all slots)</label>
+                  <div className="pc-redemption-row">
+                    <input type="number" min={1} className="pc-form-input pc-redemption-input" placeholder="e.g. 100" value={offerForm.max_redemptions ?? ''} onChange={e=>{ const v = e.target.value; setOfferForm({...offerForm, max_redemptions: v === '' ? null : parseInt(v, 10) || null}); }} disabled={offerForm.max_redemptions == null || offerForm.max_redemptions === ''} />
+                    <label className="pc-checkbox-label"><input type="checkbox" checked={offerForm.max_redemptions == null || offerForm.max_redemptions === ''} onChange={e=>{ setOfferForm({...offerForm, max_redemptions: e.target.checked ? null : 1}); }} /> Unlimited</label>
+                  </div>
+                </div>
+                <div className="pc-form-group">
+                  <label>{offerForm.service_type === 'dining' ? 'Max per time slot' : 'Max per slot per day'}</label>
+                  <div className="pc-redemption-row">
+                    <input type="number" min={1} className="pc-form-input pc-redemption-input" placeholder="e.g. 10" value={offerForm.max_redemptions_per_slot ?? ''} onChange={e=>{ const v = e.target.value; setOfferForm({...offerForm, max_redemptions_per_slot: v === '' ? null : parseInt(v, 10) || null}); }} disabled={offerForm.max_redemptions_per_slot == null || offerForm.max_redemptions_per_slot === ''} />
+                    <label className="pc-checkbox-label"><input type="checkbox" checked={offerForm.max_redemptions_per_slot == null || offerForm.max_redemptions_per_slot === ''} onChange={e=>{ setOfferForm({...offerForm, max_redemptions_per_slot: e.target.checked ? null : 1}); }} /> Unlimited</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="pc-form-grid"><div className="pc-form-group"><label>Start Date</label><input type="datetime-local" className="pc-form-input" value={offerForm.start_date||''} onChange={e=>setOfferForm({...offerForm, start_date: e.target.value})} /></div><div className="pc-form-group"><label>End Date</label><input type="datetime-local" className="pc-form-input" value={offerForm.end_date||''} onChange={e=>setOfferForm({...offerForm, end_date: e.target.value})} /></div></div>
           <div className="pc-form-group"><label>Perk type</label><select className="pc-form-input" value={offerForm.perk_type||'discount'} onChange={e=>{
             const newPerk = e.target.value;
@@ -2906,6 +3001,19 @@ export default function PartnerConsole() {
             const coPayEmpty = offerForm.co_pay_percentage === '' || offerForm.co_pay_percentage == null;
             setOfferForm({...offerForm, perk_type: newPerk, co_pay_percentage: (isDiscount && coPayEmpty) ? String(DEFAULT_CO_PAY_PERCENT) : offerForm.co_pay_percentage});
           }}><option value="discount">Discount</option><option value="fixed_price_deal">Fixed Price deal</option><option value="free_item">Free item</option><option value="secret_menu">Secret menu</option><option value="priority_access">Priority access</option><option value="other">Other</option></select></div>
+          {(offerForm.perk_type === 'fixed_price_deal' || offerForm.perk_type === 'free_item') && (
+            <div className="pc-form-grid">
+              <div className="pc-form-group">
+                <label>Original Price (₹)</label>
+                <input type="number" min={0} step={0.01} className="pc-form-input" placeholder="e.g. 2500" value={offerForm.original_price ?? ''} onChange={e=>{ const v = e.target.value; setOfferForm({...offerForm, original_price: v === '' ? '' : (parseFloat(v) || 0)}); }} />
+              </div>
+              <div className="pc-form-group">
+                <label>Deal Price (₹) *</label>
+                <input type="number" min={0} step={0.01} className="pc-form-input" placeholder="e.g. 1500" value={offerForm.discounted_price ?? ''} onChange={e=>{ const v = e.target.value; setOfferForm({...offerForm, discounted_price: v === '' ? '' : (parseFloat(v) || 0)}); }} />
+                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#6b7280' }}>This is the price shown on the app.</p>
+              </div>
+            </div>
+          )}
           <div className="pc-form-group"><label>Perk description (optional)</label><textarea className="pc-form-input" rows={2} value={offerForm.perk_description||''} onChange={e=>setOfferForm({...offerForm, perk_description: e.target.value})} placeholder="e.g. Complimentary dessert with main" /></div>
           <div className="pc-form-group">
             <label>Co-pay % (EZT) {offerForm.perk_type === 'discount' ? '*' : '(optional)'}</label>
@@ -2942,7 +3050,7 @@ export default function PartnerConsole() {
             {(offerForm.image_url || offerForm.image_base64) && (
               <div style={{ marginBottom: 10 }}>
                 <img
-                  src={offerForm.image_base64 || offerForm.image_url}
+                  src={offerForm.image_base64 || getDealImageUrl(offerForm, API_BASE)}
                   alt="Deal"
                   style={{ maxWidth: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 8, border: '1px solid #ddd' }}
                 />

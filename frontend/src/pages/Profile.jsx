@@ -40,7 +40,7 @@ const Profile = () => {
   const BRAND_AVATAR_URL = "/img/z.png";
 
   useEffect(() => {
-    console.log("navigation done");
+    if (import.meta.env.DEV) console.log("navigation done");
     if (!token) {
       navigate("/login", { replace: true });
       return;

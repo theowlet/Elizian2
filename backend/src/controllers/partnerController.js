@@ -121,7 +121,7 @@ async function createPartner(req, res) {
   }
 }
 
-// Update partner
+// Update partner (admin only - for updating any partner)
 async function updatePartner(req, res) {
   try {
     const { id } = req.params;
@@ -132,6 +132,22 @@ async function updatePartner(req, res) {
   } catch (err) {
     logError("❌ Partner update error:", err);
     errorResponse(res, err.statusCode || 500, err.message || "Failed to update partner");
+  }
+}
+
+// Update current partner's own profile (partner auth - no super admin required)
+async function updatePartnerMe(req, res) {
+  try {
+    const partnerId = req.partnerId;
+    if (!partnerId) {
+      return errorResponse(res, 401, "Partner authentication required");
+    }
+    const updates = req.body;
+    const partner = await partnerService.updatePartner(partnerId, updates);
+    successResponse(res, 200, "Profile updated successfully", partner);
+  } catch (err) {
+    logError("❌ Partner profile update error:", err);
+    errorResponse(res, err.statusCode || 500, err.message || "Failed to update profile");
   }
 }
 
@@ -411,6 +427,7 @@ module.exports = {
   getCheckInsToday,
   createPartner,
   updatePartner,
+  updatePartnerMe,
   verifyLocation,
   deletePartner,
   login,

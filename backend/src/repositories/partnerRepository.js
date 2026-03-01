@@ -160,6 +160,7 @@ async function updatePartner(partnerId, updates) {
     "address",
     "phone_number",
     "email",
+    "gst_number",
     "partner_discount_percentage",
     "rating",
     "is_active",
@@ -170,6 +171,7 @@ async function updatePartner(partnerId, updates) {
     "avg_cost_for_two",
     "latitude",
     "longitude",
+    "slot_duration_minutes",
   ];
 
   const updateFields = [];
@@ -187,6 +189,11 @@ async function updatePartner(partnerId, updates) {
       } else if (key === "avg_cost_for_two" || key === "latitude" || key === "longitude") {
         updateFields.push(`${key} = $${paramCount}::numeric`);
         values.push(value);
+      } else if (key === "slot_duration_minutes") {
+        const v = value == null ? null : parseInt(value, 10);
+        const valid = [15, 30, 45, 60].includes(v) ? v : null;
+        updateFields.push(`${key} = $${paramCount}`);
+        values.push(valid);
       } else {
         updateFields.push(`${key} = $${paramCount}`);
         values.push(value);

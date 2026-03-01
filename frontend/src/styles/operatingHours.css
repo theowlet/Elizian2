@@ -206,7 +206,32 @@
 
 .hours-day {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.oh-copy-hint {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.btn-copy-day {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.1);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-copy-day:hover {
+  background: rgba(124, 58, 237, 0.15);
+  border-color: #7c3aed;
 }
 
 .day-checkbox {

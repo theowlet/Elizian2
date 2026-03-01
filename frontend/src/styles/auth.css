@@ -25,6 +25,41 @@
   overflow: auto !important;
 }
 
+/* Event/Deal booking overlay - above BottomNav (10002) and other app chrome */
+.event-booking-overlay.elizian-auth-overlay {
+  z-index: 99999 !important;
+}
+
+/* Event booking modal - flex layout so alert stays visible at top */
+.event-booking-overlay .elizian-auth-modal {
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Booking date input in yellow banner - visible, readable */
+.event-booking-overlay .elizian-booking-date-input {
+  width: 100%;
+  max-width: 200px;
+  padding: 0.625rem 0.875rem;
+  background: #fff !important;
+  border: 2px solid #d97706;
+  border-radius: 8px;
+  color: #1f2937;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.event-booking-overlay .elizian-booking-date-input:hover {
+  border-color: #b45309;
+}
+.event-booking-overlay .elizian-booking-date-input:focus {
+  outline: none;
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.2);
+}
+
 /* Modal Container - Centers the modal */
 .elizian-auth-modal-container {
   width: 100% !important;

@@ -50,8 +50,18 @@ router.post('/', authenticateToken, checkOfferTierAccess, bookingController.crea
 // List bookings
 router.get('/', authenticateToken, bookingController.listBookings);
 
+// Waitlist management (MUST be before /:id or "waitlist" gets captured as booking id)
+const waitlistController = require('../controllers/waitlistController');
+router.post('/waitlist/join', authenticateToken, waitlistController.joinWaitlist);
+router.get('/waitlist/my-entries', authenticateToken, waitlistController.getMyWaitlistEntries);
+router.delete('/waitlist/:id', authenticateToken, waitlistController.cancelWaitlistEntry);
+router.post('/waitlist/expire-notifications', waitlistController.expireNotifications);
+
 // Get booking by ID
 router.get('/:id', authenticateToken, bookingController.getBooking);
+
+// User cancel booking (more specific - must be before /:id)
+router.put('/:id/cancel', authenticateToken, bookingController.cancelBooking);
 
 // Update/Reschedule booking
 router.put('/:id', authenticateToken, bookingController.updateBooking);
@@ -64,13 +74,6 @@ router.post('/:id/qr-check-in', authenticateToken, bookingController.qrCheckIn);
 
 // Consumer check-in at venue (visit session + 100m geofence)
 router.post('/:id/check-in', authenticateToken, bookingController.checkInAtVenue);
-
-// Waitlist management (user-facing)
-const waitlistController = require('../controllers/waitlistController');
-router.post('/waitlist/join', authenticateToken, waitlistController.joinWaitlist);
-router.get('/waitlist/my-entries', authenticateToken, waitlistController.getMyWaitlistEntries);
-router.delete('/waitlist/:id', authenticateToken, waitlistController.cancelWaitlistEntry);
-router.post('/waitlist/expire-notifications', waitlistController.expireNotifications); // Cron job endpoint
 
 module.exports = router;
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import QRCodeModal from '../components/QRCodeModal';
 import EmptyState from '../components/EmptyState';
 import '../styles/auth.css';
@@ -8,16 +8,58 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 const BookingHistory = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState('all'); // all, upcoming, completed, cancelled
+  const [filter, setFilter] = useState('all'); // all, upcoming, completed, cancelled, waitlist
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [waitlistEntries, setWaitlistEntries] = useState([]);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
 
   useEffect(() => {
     loadBookings();
   }, []);
+
+  // Reload when returning from cancel (ensures fresh data)
+  useEffect(() => {
+    if (!location.state?.fromCancel) return;
+    const run = async () => {
+      await loadBookings();
+      if (location.state?.showCancelled) setFilter('cancelled');
+      navigate(location.pathname, { replace: true, state: {} });
+    };
+    run();
+  }, [location.state?.fromCancel, location.state?.showCancelled]);
+
+  const loadWaitlistEntries = async () => {
+    try {
+      setWaitlistLoading(true);
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/api/v1/bookings/waitlist/my-entries`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const result = await res.json();
+        const data = result.data ?? result;
+        const entries = Array.isArray(data) ? data : [];
+        setWaitlistEntries(entries.filter((e) => ['waiting', 'notified'].includes(e.status)));
+      } else {
+        setWaitlistEntries([]);
+      }
+    } catch (e) {
+      console.error('Waitlist load error:', e);
+      setWaitlistEntries([]);
+    } finally {
+      setWaitlistLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (filter === 'waitlist') loadWaitlistEntries();
+  }, [filter]);
 
   const loadBookings = async () => {
     try {
@@ -92,6 +134,9 @@ const BookingHistory = () => {
       });
     } else if (filter === 'cancelled') {
       filtered = filtered.filter(b => b.status === 'cancelled');
+    } else if (filter === 'all') {
+      // "All" = active bookings only (exclude cancelled - those show in Cancelled tab)
+      filtered = filtered.filter(b => b.status !== 'cancelled');
     }
     
     // Sort by date (upcoming first, then by creation date)
@@ -184,7 +229,8 @@ const BookingHistory = () => {
       });
 
       if (response.ok) {
-        await loadBookings(); // Reload bookings
+        await loadBookings();
+        setSelectedBooking(null);
       } else {
         const result = await response.json();
         alert(result?.message ?? result?.error ?? 'Failed to cancel booking');
@@ -247,7 +293,7 @@ const BookingHistory = () => {
           borderBottom: '1px solid #374151',
           paddingBottom: '1rem'
         }}>
-          {['all', 'upcoming', 'completed', 'cancelled'].map((filterOption) => (
+          {['all', 'upcoming', 'completed', 'cancelled', 'waitlist'].map((filterOption) => (
             <button
               key={filterOption}
               onClick={() => setFilter(filterOption)}
@@ -267,8 +313,81 @@ const BookingHistory = () => {
           ))}
         </div>
 
-        {/* Bookings List */}
-        {filteredBookings.length === 0 ? (
+        {/* Waitlist Tab */}
+        {filter === 'waitlist' && (
+          waitlistLoading ? (
+            <p style={{ color: '#9ca3af' }}>Loading waitlist…</p>
+          ) : waitlistEntries.length === 0 ? (
+            <EmptyState
+              icon="📋"
+              title="No waitlist entries"
+              message="You haven't joined any waitlists. When a time slot is full, you can join the waitlist and we'll notify you when a spot opens."
+              actionLabel="Explore Deals"
+              onAction={() => navigate('/home')}
+            />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {waitlistEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  style={{
+                    background: '#1f2937',
+                    borderRadius: '12px',
+                    padding: '1.5rem',
+                    border: '1px solid #d97706',
+                    borderLeft: '4px solid #d97706'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '0.75rem' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#fbbf24' }}>
+                      {entry.deal_title || entry.partner_name || 'Event'}
+                    </h3>
+                    <span style={{
+                      background: '#d97706',
+                      color: '#fff',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      textTransform: 'uppercase'
+                    }}>
+                      #{entry.position} {entry.status}
+                    </span>
+                  </div>
+                  {(entry.partner_name || entry.partner_address) && (
+                    <div style={{ marginBottom: '0.75rem', color: '#d1d5db', fontSize: '0.9rem' }}>
+                      {entry.partner_name && (
+                        <div style={{ fontWeight: 500 }}>{entry.partner_name}</div>
+                      )}
+                      {entry.partner_address && (
+                        <div style={{ marginTop: '0.25rem', color: '#9ca3af', fontSize: '0.85rem' }}>
+                          📍 {entry.partner_address}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem', color: '#d1d5db', fontSize: '0.9rem' }}>
+                    <div>
+                      <span style={{ color: '#9ca3af' }}>Date:</span> {formatDate(entry.booking_date)}
+                    </div>
+                    <div>
+                      <span style={{ color: '#9ca3af' }}>Time:</span> {formatTime(entry.booking_time)}
+                    </div>
+                    <div>
+                      <span style={{ color: '#9ca3af' }}>Party size:</span> {entry.party_size}
+                    </div>
+                  </div>
+                  <p style={{ margin: '0.75rem 0 0', fontSize: '0.85rem', color: '#9ca3af' }}>
+                    We&apos;ll notify you when a spot opens for this time slot.
+                  </p>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {/* Bookings List (non-waitlist tabs) */}
+        {filter !== 'waitlist' && (filteredBookings.length === 0 ? (
           <EmptyState
             icon="📋"
             title="No bookings found"
@@ -500,7 +619,7 @@ const BookingHistory = () => {
               </div>
             ))}
           </div>
-        )}
+        ))}
       </div>
 
       {/* QR Code Modal */}

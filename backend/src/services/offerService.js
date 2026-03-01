@@ -1,4 +1,5 @@
 const offerRepository = require('../repositories/offerRepository');
+const eventSlotsRepository = require('../repositories/eventSlotsRepository');
 const partnerRepository = require('../repositories/partnerRepository');
 const menuRepository = require('../repositories/menuRepository');
 const settingsRepository = require('../repositories/settingsRepository');
@@ -71,6 +72,13 @@ async function getOfferByPartner(partnerId, offerId) {
     const offer = await offerRepository.getOfferByPartnerAndId(partnerId, offerId);
     if (!offer) {
       throw new AppError(404, 'Offer not found');
+    }
+    if (String(offer.service_type || '').toLowerCase() === 'events') {
+      try {
+        offer.event_slots = await eventSlotsRepository.listByOffer(offerId);
+      } catch (_) {
+        offer.event_slots = [];
+      }
     }
     return offer;
   } catch (error) {
@@ -176,8 +184,9 @@ async function createOffer(partnerId, offerData, options = {}) {
     const desiredStatus = approvalRequired ? OFFER_STATUS.PENDING : OFFER_STATUS.ACTIVE;
     const trendingRequest = !!offerData.request_trending;
 
+    const { event_slots: eventSlotsPayload, ...offerDataForRepo } = offerData;
     const offer = await offerRepository.createOffer(partnerId, {
-      ...offerData,
+      ...offerDataForRepo,
       applicable_days: normalizedDays,
       image_url: finalImageUrl,
       menu_item_id: finalMenuItemId,
@@ -193,6 +202,14 @@ async function createOffer(partnerId, offerData, options = {}) {
       forced_by_admin: false,
       status: scheduleStatus === 'expired' ? OFFER_STATUS.EXPIRED : desiredStatus
     });
+
+    if (String(finalServiceType || '').toLowerCase() === 'events' && Array.isArray(eventSlotsPayload) && eventSlotsPayload.length > 0) {
+      try {
+        await eventSlotsRepository.upsertForOffer(offer.id, eventSlotsPayload);
+      } catch (slotsErr) {
+        logError('Event slots upsert failed (offer created):', slotsErr);
+      }
+    }
 
     emitRealtimeEvent(REALTIME_EVENTS.DEAL_UPDATED, {
       action: 'created',
@@ -308,7 +325,8 @@ async function updateOffer(partnerId, offerId, updates, options = {}) {
       finalImageUrl = existingOffer.image_url;
     }
 
-    const payload = { ...updates, image_url: finalImageUrl };
+    const { event_slots: eventSlotsPayload, ...updatesForRepo } = updates;
+    const payload = { ...updatesForRepo, image_url: finalImageUrl };
 
     delete payload.status;
     delete payload.is_trending;
@@ -332,21 +350,44 @@ async function updateOffer(partnerId, offerId, updates, options = {}) {
       payload.co_pay_percentage !== undefined ||
       payload.discount_amount !== undefined
     ) {
-      const discountValues = deriveDiscountValues({
-        original_price: payload.original_price ?? existingOffer.original_price,
-        co_pay_percentage: payload.co_pay_percentage ?? existingOffer.co_pay_percentage,
-        discount_amount: payload.discount_amount ?? existingOffer.discount_amount,
-        discounted_price: payload.discounted_price ?? existingOffer.discounted_price
-      });
-      payload.original_price = discountValues.original_price;
-      payload.discounted_price = discountValues.discounted_price;
-      payload.co_pay_percentage = discountValues.co_pay_percentage;
-      payload.discount_amount = discountValues.discount_amount;
-      payload.savings = discountValues.savings;
-      payload.ezt_equivalent = discountValues.ezt_equivalent;
+      const perkType = String(payload.perk_type ?? existingOffer.perk_type ?? '').toLowerCase();
+      const isFixedPrice = perkType === 'fixed_price_deal' || perkType === 'free_item';
+
+      if (isFixedPrice && (payload.discounted_price != null && payload.discounted_price !== '')) {
+        // Fixed Price deal: use explicit prices, do NOT recalculate from co_pay_percentage
+        const orig = payload.original_price != null && payload.original_price !== '' ? Number(payload.original_price) : (existingOffer.original_price ?? null);
+        const disc = Number(payload.discounted_price);
+        payload.original_price = Number.isFinite(orig) && orig >= 0 ? orig : null;
+        payload.discounted_price = Number.isFinite(disc) && disc >= 0 ? disc : (existingOffer.discounted_price ?? null);
+        payload.savings = (payload.original_price != null && payload.discounted_price != null && payload.original_price > payload.discounted_price)
+          ? payload.original_price - payload.discounted_price
+          : 0;
+        payload.ezt_equivalent = payload.savings > 0 ? Math.round((payload.savings / 100) * 100) / 100 : 0;
+      } else {
+        const discountValues = deriveDiscountValues({
+          original_price: payload.original_price ?? existingOffer.original_price,
+          co_pay_percentage: payload.co_pay_percentage ?? existingOffer.co_pay_percentage,
+          discount_amount: payload.discount_amount ?? existingOffer.discount_amount,
+          discounted_price: payload.discounted_price ?? existingOffer.discounted_price
+        });
+        payload.original_price = discountValues.original_price;
+        payload.discounted_price = discountValues.discounted_price;
+        payload.co_pay_percentage = discountValues.co_pay_percentage;
+        payload.discount_amount = discountValues.discount_amount;
+        payload.savings = discountValues.savings;
+        payload.ezt_equivalent = discountValues.ezt_equivalent;
+      }
     }
 
     const updatedOffer = await offerRepository.updateOffer(partnerId, offerId, payload);
+
+    if (String(updatedOffer.service_type || existingOffer.service_type || '').toLowerCase() === 'events' && eventSlotsPayload !== undefined) {
+      try {
+        await eventSlotsRepository.upsertForOffer(offerId, Array.isArray(eventSlotsPayload) ? eventSlotsPayload : []);
+      } catch (slotsErr) {
+        logError('Event slots upsert failed (offer updated):', slotsErr);
+      }
+    }
 
     emitRealtimeEvent(REALTIME_EVENTS.DEAL_UPDATED, {
       action: 'updated',
@@ -531,11 +572,40 @@ async function getPublicOfferById(offerId) {
   const partnerStatus = offer.partner_status != null ? String(offer.partner_status).toLowerCase().trim() : '';
   if (['suspended', 'rejected'].includes(partnerStatus)) return null;
   const { resolveOfferImageUrl } = require('../utils/offerImageUrl');
+  const { getPool } = require('../config/db');
+  const pool = getPool();
+  let event_date = null;
+  if ((offer.service_type || '').toLowerCase() === 'events') {
+    try {
+      const meta = await pool.query(
+        `SELECT em.event_date, po.start_date, po.end_date
+         FROM partner_offers po
+         LEFT JOIN experience_metadata em ON em.offer_id = po.id
+         WHERE po.id = $1`,
+        [offerId]
+      );
+      const row = meta.rows[0];
+      const fromMeta = row?.event_date;
+      if (fromMeta) {
+        const d = fromMeta;
+        event_date = typeof d === 'string' ? d.split('T')[0] : (d instanceof Date ? d.toISOString().split('T')[0] : String(d).split('T')[0]);
+      } else if (row?.start_date && row?.end_date) {
+        const toStr = (d) => (d ? (typeof d === 'string' ? d.split('T')[0] : (d instanceof Date ? d.toISOString().split('T')[0] : String(d).split('T')[0])) : null);
+        const s = toStr(row.start_date);
+        const e = toStr(row.end_date);
+        if (s && e && s === e) event_date = s; // Single-day event: start_date === end_date
+      }
+    } catch (_) {
+      // experience_metadata may not exist; ignore
+    }
+  }
   return {
     ...offer,
     image_url: resolveOfferImageUrl(offer.image_url),
     perk_type: offer.perk_type || 'discount',
-    perk_description: offer.perk_description || null
+    perk_description: offer.perk_description || null,
+    event_date: event_date || undefined,
+    experience_metadata: event_date ? { event_date } : undefined
   };
 }
 

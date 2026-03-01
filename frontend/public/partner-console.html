@@ -4080,11 +4080,14 @@ ${pointsEarned > 0 ? `⭐ Loyalty Points: +${pointsEarned} points` : ''}` : ''}
         function formatDiscountLabel(offer = {}) {
             const percent = parseFloat(offer.co_pay_percentage);
             if (!Number.isNaN(percent) && percent > 0) {
-                return `${percent.toFixed(2)}% OFF`;
+                // Snap near-integer values (29.97→30, 30.02→30) to prevent float drift display
+                const nearest = Math.round(percent);
+                const display = Math.abs(percent - nearest) <= 0.05 ? nearest : Math.round(percent * 100) / 100;
+                return `${display % 1 === 0 ? display.toFixed(0) : display.toFixed(2)}% OFF`;
             }
             const amount = parseFloat(offer.discount_amount);
             if (!Number.isNaN(amount) && amount > 0) {
-                return `₹${amount.toFixed(2)} OFF`;
+                return `₹${amount % 1 === 0 ? amount.toFixed(0) : amount.toFixed(2)} OFF`;
             }
             return 'No Discount';
         }

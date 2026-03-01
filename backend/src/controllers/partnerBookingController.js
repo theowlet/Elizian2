@@ -19,15 +19,21 @@ async function listPartnerBookings(req, res) {
     const whereClause = `(po.partner_id = $1 OR (b.partner_id = $1 AND (b.deal_id IS NULL OR po.id IS NULL)))`;
     const params = [partnerId];
     let paramIndex = 2;
+    let statusFilter = '';
     if (status) {
+      statusFilter = ` AND b.status = $${paramIndex}`;
+      params.push(status);
       paramIndex++;
+    } else {
+      // Default "All Status" = active bookings only (exclude cancelled)
+      statusFilter = ` AND b.status != 'cancelled'`;
     }
 
     const baseFrom = `
       FROM bookings b
       LEFT JOIN partner_offers po ON b.deal_id = po.id
       LEFT JOIN users u ON b.user_id = u.id
-      WHERE ${whereClause}
+      WHERE ${whereClause}${statusFilter}
     `;
     const orderLimit = ` ORDER BY b.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     const listParams = [...params, parseInt(limit, 10), parseInt(offset, 10)];
@@ -47,7 +53,7 @@ async function listPartnerBookings(req, res) {
         NULL::time as time_slot, 0::decimal as ezt_redeemed, 0::decimal as ezt_earned, 0::decimal as points_earned,
         NULL::varchar as user_tier_at_booking,
         'Ather' as customer_tier
-      ${baseFrom} ${status ? ' AND b.status = $2' : ''} ${orderLimit}
+      ${baseFrom} ${orderLimit}
     `;
     const selectWithTotalPrice = `
       SELECT
@@ -64,7 +70,7 @@ async function listPartnerBookings(req, res) {
         NULL::time as time_slot, 0::decimal as ezt_redeemed, 0::decimal as ezt_earned, 0::decimal as points_earned,
         NULL::varchar as user_tier_at_booking,
         'Ather' as customer_tier
-      ${baseFrom} ${status ? ' AND b.status = $2' : ''} ${orderLimit}
+      ${baseFrom} ${orderLimit}
     `;
     const selectMinimal = `
       SELECT
@@ -79,7 +85,7 @@ async function listPartnerBookings(req, res) {
         NULL::varchar as user_tier_at_booking,
         NULL::varchar as booking_reference, NULL::varchar as voucher_code, NULL::varchar as qr_code_url,
         'Ather' as customer_tier
-      ${baseFrom} ${status ? ' AND b.status = $2' : ''} ${orderLimit}
+      ${baseFrom} ${orderLimit}
     `;
 
     let result;
@@ -102,16 +108,12 @@ async function listPartnerBookings(req, res) {
       }
     }
 
-    let countSql = `
+    const countSql = `
       SELECT COUNT(*) FROM bookings b
       LEFT JOIN partner_offers po ON b.deal_id = po.id
-      WHERE ${whereClause}
+      WHERE ${whereClause}${statusFilter}
     `;
-    const countParams = [partnerId];
-    if (status) {
-      countSql += ` AND b.status = $2`;
-      countParams.push(status);
-    }
+    const countParams = [...params];
     const countResult = await pool.query(countSql, countParams);
     const total = parseInt(countResult.rows[0].count, 10);
 

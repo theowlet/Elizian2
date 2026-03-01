@@ -1,5 +1,6 @@
 const { getPool } = require('../config/db');
 const crypto = require('crypto');
+const { logError } = require('../../utils/logger');
 
 const pool = getPool();
 
@@ -95,12 +96,8 @@ async function createBooking(bookingData, executor = pool) {
     bookingData.deal_id || bookingData.offer_id || null,  // Support both deal_id and offer_id for backwards compatibility
     bookingData.partner_id || null,
     bookingData.show_id || null,
-    bookingData.booking_date || new Date().toISOString().split('T')[0], // Use provided booking_date or current date
-    // CRITICAL: Only use fallback if booking_time is null/undefined, not if it's empty string
-    // Empty string is valid (means no specific time), null/undefined means use current time
-    (bookingData.booking_time !== null && bookingData.booking_time !== undefined)
-      ? bookingData.booking_time
-      : new Date().toTimeString().slice(0, 5), // Use provided booking_time or current time
+    (bookingData.booking_date && bookingData.booking_date.trim()) || new Date().toISOString().split('T')[0],
+    (bookingData.booking_time && bookingData.booking_time.trim()) || new Date().toTimeString().slice(0, 5),
     bookingData.status || 'pending',
     bookingData.amount || bookingData.total_price || 0,  // total_price
     bookingData.fiat_amount || bookingData.amount || 0,   // fiat_amount (before EZT discount)
@@ -166,6 +163,20 @@ async function createBooking(bookingData, executor = pool) {
         /* column may not exist yet - continue without it; main transaction stays healthy */
       }
     }
+    if (row && bookingData.booking_mode) {
+      try {
+        await executor.query('SAVEPOINT booking_mode_update');
+        await executor.query(
+          `UPDATE bookings SET booking_mode = $1 WHERE id = $2`,
+          [bookingData.booking_mode, row.id]
+        );
+        row.booking_mode = bookingData.booking_mode;
+        await executor.query('RELEASE SAVEPOINT booking_mode_update');
+      } catch (_) {
+        await executor.query('ROLLBACK TO SAVEPOINT booking_mode_update');
+        /* column may not exist yet - run migration 2026-02-booking-mode-column.sql */
+      }
+    }
     return row;
   } catch (err) {
     const msg = err.message || '';
@@ -173,6 +184,7 @@ async function createBooking(bookingData, executor = pool) {
 
     // Collision on booking_reference unique constraint → retry with new reference
     if (code === '23505' && msg.includes('booking_reference') && refAttempt < MAX_REF_RETRIES - 1) {
+      logError(`⚠️ Booking reference collision on attempt ${refAttempt + 1} (ref: ${bookingReference}) — regenerating. This should be extremely rare.`);
       continue; // next iteration of retry loop generates a new reference
     }
 
@@ -196,8 +208,10 @@ async function createBooking(bookingData, executor = pool) {
   throw new Error('Failed to generate unique booking reference after retries');
 }
 
-// Get booking by ID (with venue and deal for voucher display)
+// Get booking by ID (with venue and deal for voucher display). Accepts UUID or booking_reference.
 async function getBookingById(bookingId) {
+  const resolvedId = await resolveBookingId(bookingId);
+  if (!resolvedId) return null;
   const result = await pool.query(
     `SELECT 
       b.*,
@@ -214,7 +228,7 @@ async function getBookingById(bookingId) {
      LEFT JOIN partners p ON b.partner_id = p.id
      LEFT JOIN partner_offers po ON b.deal_id = po.id
      WHERE b.id = $1`,
-    [bookingId]
+    [resolvedId]
   );
   if (result.rows[0]) {
     result.rows[0].booking_time = result.rows[0].booking_time || null;
@@ -255,14 +269,32 @@ async function getBookingByVoucherCode(voucherCode) {
   }
 }
 
-// Get booking by ID with lock (FOR UPDATE)
+// UUID pattern for validating id param (8-4-4-4-12 hex)
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Resolve booking identifier to UUID (accepts id or booking_reference)
+async function resolveBookingId(identifier) {
+  if (!identifier || typeof identifier !== 'string') return null;
+  const trimmed = String(identifier).trim();
+  if (UUID_REGEX.test(trimmed)) return trimmed;
+  const row = await pool.query(
+    'SELECT id FROM bookings WHERE booking_reference = $1',
+    [trimmed]
+  );
+  return row.rows[0]?.id || null;
+}
+
+// Get booking by ID with lock (FOR UPDATE). Accepts UUID or booking_reference.
 async function getBookingByIdForUpdate(bookingId) {
+  const resolvedId = await resolveBookingId(bookingId);
+  if (!resolvedId) return null;
   const result = await pool.query(
-    `SELECT id, user_id, partner_id, fiat_amount, ezt_redeemed, reward_eligible, reward_credited, booking_reference
+    `SELECT id, user_id, partner_id, deal_id, status, booking_date, booking_time,
+            num_tickets, num_guests, fiat_amount, ezt_redeemed, reward_eligible, reward_credited, booking_reference
      FROM bookings
      WHERE id = $1
      FOR UPDATE`,
-    [bookingId]
+    [resolvedId]
   );
   return result.rows[0];
 }

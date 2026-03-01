@@ -1,8 +1,21 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import "../styles/auth.css";
+import { inferBookingMode, ONLINE_TIME_SLOT, PARTNER_CONFIRMATION } from "../config/bookingModes";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+
+const isDev = import.meta.env.DEV;
+
+/** Category-specific banner text for PARTNER_CONFIRMATION reschedule */
+const getPartnerBannerText = (serviceType) => {
+  const st = (serviceType || "").toLowerCase();
+  if (st === "spa-and-salon" || st === "spa") return "Select your preferred date. Contact the salon to confirm your appointment time.";
+  if (st === "wellness") return "Select your preferred date. Contact the studio to confirm your session time.";
+  if (st === "healthcare") return "Select your preferred date. Contact the clinic to schedule your appointment.";
+  if (st === "travel") return "Select your preferred date. Contact the travel partner for check-in or pickup details.";
+  return "Select your preferred date. Please contact the partner for the available time slot.";
+};
 
 const RescheduleBooking = () => {
   const navigate = useNavigate();
@@ -13,27 +26,80 @@ const RescheduleBooking = () => {
   const [error, setError] = useState("");
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
+  // FIX #13: Slot picker state for events/dining
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   const bookingTimeRef = useRef(null);
 
   const todayStr = new Date().toISOString().split("T")[0];
 
+  // Determine if this is a time-based service (dining, events, shows) or date-only (spa, healthcare, etc.)
+  const isPartnerConfirmation = useMemo(
+    () => booking ? inferBookingMode(booking) === PARTNER_CONFIRMATION : false,
+    [booking]
+  );
+
   useEffect(() => {
     if (!booking && id) {
       loadBooking();
     } else if (booking) {
-      // Pre-fill with existing date/time; for past bookings use today so user picks a valid date
+      // Pre-fill with existing date; for past bookings use today so user picks a valid date
       if (booking.booking_date) {
         const date = new Date(booking.booking_date);
         const dateStr = date.toISOString().split("T")[0];
         const isPast = dateStr < todayStr;
         setNewDate(isPast ? todayStr : dateStr);
       }
-      if (booking.booking_time) {
+      // Pre-fill time only for time-based services (not partner-confirmation / date-only)
+      const mode = inferBookingMode(booking);
+      if (mode !== PARTNER_CONFIRMATION && booking.booking_time) {
         setNewTime(booking.booking_time);
       }
     }
   }, [id, booking]);
+
+  // FIX #13: Fetch available slots when date changes (for time-based services)
+  const offerId = booking?.deal_id || booking?.offer_id || null;
+  useEffect(() => {
+    if (!offerId || !newDate || isPartnerConfirmation) {
+      setAvailableSlots([]);
+      return;
+    }
+    let cancelled = false;
+    const prevTime = newTime;
+    (async () => {
+      setSlotsLoading(true);
+      setAvailableSlots([]);
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(
+          `${API_BASE}/api/v1/offers/${offerId}/available-slots?date=${newDate}&partySize=${booking?.num_tickets || booking?.num_guests || 1}`,
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+        if (cancelled) return;
+        const json = await res.json();
+        const slots = Array.isArray(json.data?.slots) ? json.data.slots : (Array.isArray(json.data) ? json.data : []);
+        if (json.success && slots.length > 0) {
+          setAvailableSlots(slots);
+          // Preserve selection if still valid
+          if (prevTime && slots.some(s => s.time === prevTime && s.available !== false)) {
+            setNewTime(prevTime);
+          } else {
+            setNewTime("");
+          }
+        } else {
+          setNewTime("");
+        }
+      } catch (e) {
+        if (isDev) console.error("Fetch reschedule slots error:", e);
+        setNewTime("");
+      } finally {
+        if (!cancelled) setSlotsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [offerId, newDate, isPartnerConfirmation]);
 
   const loadBooking = async () => {
     try {
@@ -56,7 +122,9 @@ const RescheduleBooking = () => {
             const today = new Date().toISOString().split("T")[0];
             setNewDate(dateStr < today ? today : dateStr);
           }
-          if (result.data.booking_time) {
+          // Pre-fill time only for time-based services
+          const mode = inferBookingMode(result.data);
+          if (mode !== PARTNER_CONFIRMATION && result.data.booking_time) {
             setNewTime(result.data.booking_time);
           }
         }
@@ -90,24 +158,26 @@ const RescheduleBooking = () => {
         return;
       }
 
-      if (!newTime) {
+      if (!isPartnerConfirmation && !newTime) {
         setError("Please select a new time");
         setLoading(false);
         return;
       }
 
-      // Note: Backend may need a specific reschedule endpoint
-      // For now, we'll use a PUT to update the booking
+      // Build reschedule payload: time-based services send date + time;
+      // partner-confirmation (spa, healthcare, etc.) send date only
+      const reschedulePayload = { booking_date: newDate };
+      if (!isPartnerConfirmation && newTime) {
+        reschedulePayload.booking_time = newTime;
+      }
+
       const response = await fetch(`${API_BASE}/api/v1/bookings/${id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          booking_date: newDate,
-          booking_time: newTime, // Time is now required
-        }),
+        body: JSON.stringify(reschedulePayload),
       });
 
       const result = await response.json();
@@ -207,7 +277,12 @@ const RescheduleBooking = () => {
                 {booking.status || "N/A"}
               </div>
               <div>Date: {formatDate(booking.booking_date)}</div>
-              {booking.booking_time && <div>Time: {booking.booking_time}</div>}
+              {!isPartnerConfirmation && booking.booking_time && <div>Time: {booking.booking_time}</div>}
+              {isPartnerConfirmation && (
+                <div style={{ color: "#92400e", fontStyle: "italic", fontSize: "0.85rem" }}>
+                  Contact partner for time slot
+                </div>
+              )}
             </div>
           </div>
           <form className="elizian-auth-form" onSubmit={handleSubmit}>
@@ -236,37 +311,77 @@ const RescheduleBooking = () => {
                 Pick today or a future date. Past bookings can be rescheduled to a new date.
               </small>
             </div>
+            {/* Time picker: only for time-based services (dining, events, shows) */}
+            {!isPartnerConfirmation && (
             <div className="elizian-auth-form-group">
-              <label
-                className="elizian-auth-label"
-                htmlFor="newTime"
-                style={{ cursor: newDate ? "pointer" : "not-allowed" }}
-                onClick={() => {
-                  if (newDate) {
-                    document.getElementById("newTime")?.focus();
-                    document.getElementById("newTime")?.showPicker?.();
-                  }
-                }}
-              >
+              <label className="elizian-auth-label" htmlFor="newTime">
                 New Booking Time
               </label>
 
-              <input
-                id="newTime"
-                type="time"
-                className="elizian-auth-input"
-                value={newTime}
-                onChange={(e) => setNewTime(e.target.value)}
-                required={!!newDate}
-                disabled={!newDate}
-                aria-required="true"
-                aria-disabled={!newDate}
-                onClick={(e) => {
-                  if (newDate) {
-                    e.currentTarget.showPicker?.();
-                  }
-                }}
-              />
+              {slotsLoading && (
+                <small style={{ color: "#666", fontSize: "0.85rem", display: "block", marginBottom: "0.5rem" }}>
+                  Loading available slots…
+                </small>
+              )}
+
+              {/* Slot button grid when slots are available */}
+              {!slotsLoading && availableSlots.length > 0 ? (
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: "10px 12px",
+                  marginTop: "8px",
+                  maxHeight: "260px",
+                  overflowY: "auto",
+                  paddingRight: "6px",
+                }}>
+                  {availableSlots.map((slot) => (
+                    <button
+                      key={slot.time || slot.id || slot.label}
+                      type="button"
+                      onClick={() => slot.available !== false && setNewTime(slot.time)}
+                      disabled={slot.available === false}
+                      style={{
+                        padding: "12px 16px",
+                        borderRadius: "10px",
+                        border: newTime === slot.time ? "2px solid #004f4a" : "1px solid #d1d5db",
+                        background: newTime === slot.time ? "#f0fdf4" : slot.available === false ? "#f3f4f6" : "#fff",
+                        color: slot.available === false ? "#9ca3af" : "#1f2937",
+                        cursor: slot.available === false ? "not-allowed" : "pointer",
+                        fontSize: "0.9rem",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {slot.label || slot.time}
+                      {slot.available === false && " (Full)"}
+                      {slot.remaining_seats != null && slot.remaining_seats <= 10 && slot.available !== false && (
+                        <span style={{ display: "block", fontSize: "0.7rem", color: "#dc2626", marginTop: "2px" }}>
+                          {slot.remaining_seats} {slot.remaining_seats === 1 ? "seat" : "seats"} left
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ) : !slotsLoading && (
+                /* Fallback: raw time input when no slots loaded (e.g., partner hasn't configured operating hours) */
+                <input
+                  id="newTime"
+                  type="time"
+                  className="elizian-auth-input"
+                  value={newTime}
+                  onChange={(e) => setNewTime(e.target.value)}
+                  required={!!newDate}
+                  disabled={!newDate}
+                  aria-required="true"
+                  aria-disabled={!newDate}
+                  onClick={(e) => {
+                    if (newDate) {
+                      e.currentTarget.showPicker?.();
+                    }
+                  }}
+                />
+              )}
+
               {!newDate && (
                 <small
                   style={{
@@ -279,7 +394,7 @@ const RescheduleBooking = () => {
                   Please select a date first
                 </small>
               )}
-              {newDate && !newTime && (
+              {newDate && !newTime && !slotsLoading && (
                 <small
                   style={{
                     color: "#d97706",
@@ -288,11 +403,28 @@ const RescheduleBooking = () => {
                     display: "block",
                   }}
                 >
-                  ⚠️ Please select a time. If not provided, it will default to
-                  12:00 AM.
+                  ⚠️ Please select a time slot{availableSlots.length > 0 ? "" : ". If not provided, it will default to 12:00 AM"}.
                 </small>
               )}
             </div>
+            )}
+
+            {/* For partner-confirmation services, show info about contacting partner for time */}
+            {isPartnerConfirmation && (
+              <div
+                style={{
+                  background: "#fef3c7",
+                  padding: "0.75rem 1rem",
+                  borderRadius: "8px",
+                  marginBottom: "1rem",
+                  border: "1px solid #d97706",
+                }}
+              >
+                <div style={{ fontSize: "0.9rem", color: "#78350f" }}>
+                  📅 {getPartnerBannerText(booking?.service_type)}
+                </div>
+              </div>
+            )}
 
             <div
               style={{
@@ -305,7 +437,7 @@ const RescheduleBooking = () => {
             >
               <div style={{ fontSize: "0.9rem", color: "#856404" }}>
                 <strong>Note:</strong> Rescheduling may be subject to
-                availability and partner policies. Your booking date and time
+                availability and partner policies. Your booking {isPartnerConfirmation ? "date" : "date and time"}{" "}
                 will be updated; the same voucher remains valid.
               </div>
             </div>

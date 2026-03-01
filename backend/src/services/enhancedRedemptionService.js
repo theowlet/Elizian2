@@ -274,6 +274,13 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       booking.visit_session_id = visitSession.id;
     }
 
+    // Sanity check: bill amount shouldn't wildly exceed the booking value
+    const bookingPrice = parseFloat(booking.total_price) || 0;
+    if (bookingPrice > 0 && total_bill_amount > bookingPrice * 3) {
+      await client.query('ROLLBACK');
+      throw new AppError(400, `Bill amount (₹${total_bill_amount}) exceeds 3x the booking value (₹${bookingPrice}). Please verify the amount.`);
+    }
+
     const effectiveOfferId = booking.deal_id || booking.offer_id || null;
     let offerRow = await redemptionCalculationService.getOfferDiscount(effectiveOfferId, client);
     offerRow = applyBookingTimeCoPay(offerRow, booking);
@@ -596,7 +603,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
         await tokenService.redeemTokens(
           booking.user_id,
           eztToDeduct,
-          null,
+          booking.id,
           `Voucher redemption (Booking ${booking.booking_reference})`,
           client
         );
@@ -688,9 +695,9 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     
     // Idempotency: skip tier if already processed (ezt_earned IS NOT NULL; do not use > 0 so ₹0 bills are idempotent)
     const existingTierProcessing = await client.query(
-      `SELECT ezt_earned, user_tier_at_booking 
-       FROM bookings 
-       WHERE id = $1 AND ezt_earned IS NOT NULL`,
+      `SELECT ezt_earned, user_tier_at_booking
+       FROM bookings
+       WHERE id = $1 FOR UPDATE`,
       [booking.id]
     );
     
@@ -699,7 +706,8 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     let pointsEarned = 0;
     const fiatAmount = parseFloat(net_amount_from_user) || 0;
     
-    if (existingTierProcessing.rows.length === 0) {
+    const tierAlreadyProcessed = existingTierProcessing.rows.length > 0 && existingTierProcessing.rows[0].ezt_earned != null;
+    if (!tierAlreadyProcessed) {
       // Tier processing not done yet - process using fiat amount (amount paid in cash, excluding EZT co-pay)
       const tierAmount = fiatAmount;
       
@@ -780,8 +788,17 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
             executor: client
           });
         } catch (tierError) {
-          // Log error but don't fail redemption - tier processing is important but not critical
-          logError('⚠️ Tier processing error at redemption (redemption succeeded):', tierError);
+          // Log error but don't fail redemption - tier processing is important but not critical.
+          // The customer is physically at the venue — failing their redemption over a loyalty
+          // calculation error would be a worse outcome. Mark for retry instead.
+          logError('⚠️ Tier processing error at redemption (redemption succeeded, marked for retry):', tierError);
+          // Flag the booking so a retry job can pick it up
+          try {
+            await client.query(
+              `UPDATE bookings SET ezt_earned = -1 WHERE id = $1 AND ezt_earned IS NULL`,
+              [booking.id]
+            );
+          } catch (_) { /* best effort */ }
           await voucherAuditService.logAuditEvent({
             bookingId: booking.id,
             voucherCode: voucher_code,
@@ -791,13 +808,19 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
             actorRole: 'system',
             errorData: {
               error: tierError.message,
-              total_bill_amount
+              total_bill_amount,
+              needs_retry: true
             },
             executor: client
           });
         }
       } else {
+        // Fiat paid = ₹0 (100% EZT co-pay): no tier/loyalty processing, but MUST set
+        // ezt_earned = 0 to mark idempotency. Without this, ezt_earned stays NULL and
+        // the idempotency check at line 709 would re-enter this block on retry.
         log(`⚠️ Skipping tier processing when fiat paid = 0, booking ${booking.id}`);
+        const bookingRepository = require('../repositories/bookingRepository');
+        await bookingRepository.updateBookingTierInfo(booking.id, { ezt_earned: 0 }, client);
       }
 
       // EZ Club: cross-network check-in count and qualification (idempotent per redemption)
@@ -869,7 +892,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
 
       // Notify user: redemption happened; they can open booking to dispute if needed
       const eztAppliedInr = parsedCoPayInr;
-      const shortfallInr = Math.round((maxApplicableInr - eztAppliedInr) * 100) / 100;
+      const shortfallInr = Math.round((maxAllowedCoPay - eztAppliedInr) * 100) / 100;
       const dealTitle = (await pool.query(`SELECT title FROM partner_offers WHERE id = (SELECT deal_id FROM bookings WHERE id = $1)`, [booking.id])).rows[0]?.title;
       let userMessage = `Your voucher for ${dealTitle || 'this deal'} at ${partner?.name || 'the venue'} was redeemed.`;
       if (eztAppliedInr > 0) {

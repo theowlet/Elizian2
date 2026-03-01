@@ -70,6 +70,20 @@ async function recordActivity({
       }
     }
     
+    // Idempotency guard: prevent double-crediting on retry
+    if (referenceId && source) {
+      const dup = await db.query(
+        `SELECT id, balance_after FROM loyalty_activity
+         WHERE user_id = $1 AND reference_id = $2 AND source = $3
+         LIMIT 1`,
+        [userId, referenceId, source]
+      );
+      if (dup.rowCount > 0) {
+        log(`⚠️ Loyalty activity already recorded for user=${userId}, ref=${referenceId}, source=${source} — skipping duplicate`);
+        return { balanceAfter: parseFloat(dup.rows[0].balance_after || 0) };
+      }
+    }
+
     const previousBalance = await getCurrentBalance(userId, executor);
     const balanceAfter = previousBalance + pointsEarned - pointsSpent;
 

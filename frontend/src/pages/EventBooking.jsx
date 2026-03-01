@@ -3,25 +3,92 @@ import { useNavigate, useLocation } from "react-router-dom";
 import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
 import "../styles/auth.css";
+import { getBookingModeFromServiceType, ONLINE_TIME_SLOT, PARTNER_CONFIRMATION } from "../config/bookingModes";
 
-// Service types that do NOT have time slot selection - user must contact partner
-const NO_TIME_SLOT_SERVICES = ["spa", "spa-and-salon", "wellness", "healthcare", "travel", "others"];
+const getServiceType = (deal) =>
+  (deal?.service_type || deal?.serviceType || "").toString().toLowerCase().trim();
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+const isDev = import.meta.env.DEV;
 
 // Screen states
 const SCREEN_SELECTION = "selection";
 const SCREEN_REVIEW = "review";
 const SCREEN_CONFIRMATION = "confirmation";
 
+/**
+ * Category-specific labels for party size and special requests.
+ * Maps service_type to contextually appropriate labels.
+ */
+const getPartySizeLabel = (serviceType) => {
+  const st = (serviceType || "").toLowerCase();
+  if (st === "dining" || st === "restaurant") return "Number of Guests";
+  if (st === "events") return "Number of Tickets";
+  if (st === "spa-and-salon" || st === "spa") return "Number of Guests";
+  if (st === "wellness") return "Number of Participants";
+  if (st === "healthcare") return "Number of Patients";
+  if (st === "travel") return "Number of Travellers";
+  return "Quantity";
+};
+
+const getPartnerConfirmationBanner = (serviceType) => {
+  const st = (serviceType || "").toLowerCase();
+  if (st === "spa-and-salon" || st === "spa") return {
+    title: "Contact the salon for appointment",
+    description: "Appointment time is not available for online selection. Contact the salon to confirm your preferred time."
+  };
+  if (st === "wellness") return {
+    title: "Contact the studio for session time",
+    description: "Session time is not available for online selection. Contact the studio to confirm your preferred session."
+  };
+  if (st === "healthcare") return {
+    title: "Contact the clinic for appointment",
+    description: "Appointment time is not available for online selection. Contact the clinic to schedule your appointment."
+  };
+  if (st === "travel") return {
+    title: "Contact partner for booking details",
+    description: "Contact the travel partner for check-in, pickup, or activity timing details."
+  };
+  return {
+    title: "Contact partner for time slot",
+    description: "Time slot is not available for online selection. Contact the partner to confirm your preferred time."
+  };
+};
+
+const getSpecialRequestsPlaceholder = (serviceType) => {
+  const st = (serviceType || "").toLowerCase();
+  if (st === "dining" || st === "restaurant") return "Any special requests or dietary requirements...";
+  if (st === "events") return "Any special requirements or accessibility needs...";
+  if (st === "spa-and-salon" || st === "spa") return "Pressure preference, skin sensitivity, allergies...";
+  if (st === "wellness") return "Fitness level or health conditions...";
+  if (st === "healthcare") return "Medical conditions or special requirements...";
+  if (st === "travel") return "Travel preferences or accessibility requirements...";
+  return "Any special requirements...";
+};
+
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+};
+
 const EventBooking = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const dateRef = useRef(null);
   const bookingTimeRef = useRef(null);
+  const submittingRef = useRef(false);
   const [currentScreen, setCurrentScreen] = useState(SCREEN_SELECTION);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [slotSoldOutCanWaitlist, setSlotSoldOutCanWaitlist] = useState(false);
+  const [joiningWaitlist, setJoiningWaitlist] = useState(false);
+  const [waitlistSuccess, setWaitlistSuccess] = useState(false);
+  const [waitlistEntry, setWaitlistEntry] = useState(null); // { position, estimated_wait_minutes, ... }
 
   // Get deal data from navigation state or sessionStorage
   const [deal, setDeal] = useState(null);
@@ -33,6 +100,9 @@ const EventBooking = () => {
   const [specialRequests, setSpecialRequests] = useState("");
   const [bookingDate, setBookingDate] = useState("");
   const [bookingTime, setBookingTime] = useState("");
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [slotsEventDate, setSlotsEventDate] = useState(null); // event_date from slots API (for "not available on this day" message)
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   useEffect(() => {
     // Get user info
@@ -41,16 +111,16 @@ const EventBooking = () => {
       try {
         setUser(JSON.parse(userStr));
       } catch (e) {
-        console.error("Error parsing user data:", e);
+        if (isDev) console.error("Error parsing user data:", e);
       }
     }
 
     // Get deal data from location state (preferred - already validated)
     if (location.state?.deal) {
-      console.log("✅ Using deal from navigation state:", location.state.deal);
+      if (isDev) console.log("Using deal from navigation state:", location.state.deal);
       setDeal(location.state.deal);
     } else if (location.state?.dealId) {
-      console.log("⚠️ Only dealId provided, fetching details...");
+      if (isDev) console.log("Only dealId provided, fetching details...");
       fetchDealDetails(location.state.dealId);
     } else {
       // Check sessionStorage for pending booking
@@ -58,11 +128,11 @@ const EventBooking = () => {
       if (pendingBooking) {
         try {
           const bookingData = JSON.parse(pendingBooking);
-          console.log("⚠️ Fetching deal from pending booking:", bookingData);
+          if (isDev) console.log("Fetching deal from pending booking:", bookingData);
           fetchDealDetails(bookingData.dealId);
           sessionStorage.removeItem("pendingBooking");
         } catch (e) {
-          console.error("Error parsing pending booking:", e);
+          if (isDev) console.error("Error parsing pending booking:", e);
           setError("Failed to load deal information");
         }
       } else {
@@ -70,6 +140,69 @@ const EventBooking = () => {
       }
     }
   }, [location]);
+
+  // For single-day events: pre-select and lock booking date to event_date
+  const eventDate = deal?.event_date || deal?.experience_metadata?.event_date;
+  const eventDateStr = eventDate
+    ? (typeof eventDate === "string" ? eventDate.split("T")[0] : eventDate instanceof Date ? eventDate.toISOString().split("T")[0] : null)
+    : null;
+  const isSingleDayEvent = Boolean(eventDateStr && getServiceType(deal) === "events");
+
+  useEffect(() => {
+    if (eventDateStr && getServiceType(deal) === "events") {
+      setBookingDate(eventDateStr);
+    }
+  }, [eventDateStr, deal?.id]);
+
+  // Fetch available slots when date changes (Dining: 30-min grid; Events: fixed slots)
+  useEffect(() => {
+    if (!deal?.id || !bookingDate || getBookingModeFromServiceType(getServiceType(deal)) !== ONLINE_TIME_SLOT) {
+      setAvailableSlots([]);
+      setSlotsEventDate(null);
+      return;
+    }
+    let cancelled = false;
+    // FIX #10: Capture current selection before re-fetch so we can preserve it if still valid
+    const prevBookingTime = bookingTime;
+    (async () => {
+      setSlotsLoading(true);
+      setAvailableSlots([]);
+      setSlotsEventDate(null);
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(
+          `${API_BASE}/api/v1/offers/${deal.id}/available-slots?date=${bookingDate}&partySize=${numTickets}`,
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+        if (cancelled) return;
+        const json = await res.json();
+        const slots = Array.isArray(json.data?.slots) ? json.data.slots : (Array.isArray(json.data) ? json.data : []);
+        const eventDateFromApi = json.data?.event_date ? String(json.data.event_date).split("T")[0] : null;
+        setSlotsEventDate(eventDateFromApi || null);
+        if (json.success && slots.length > 0) {
+          setAvailableSlots(slots);
+          // FIX #10: Preserve selection if the slot is still available for the new party size
+          if (prevBookingTime && slots.some(s => s.time === prevBookingTime && s.available !== false)) {
+            setBookingTime(prevBookingTime);
+          } else {
+            setBookingTime("");
+          }
+        } else {
+          setBookingTime("");
+          if (!res.ok && isDev) {
+            console.warn("[EventBooking] Slots API error:", res.status, json?.message || json?.error);
+          }
+        }
+      } catch (e) {
+        setBookingTime("");
+        setSlotsEventDate(null);
+        if (isDev) console.error("Fetch slots error:", e);
+      } finally {
+        if (!cancelled) setSlotsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [deal?.id, bookingDate, numTickets]);
 
   // STABILIZATION FIX: Fetch single deal by ID instead of loading ALL offers
   // Previously fetched up to 1000 offers and filtered client-side — wasteful
@@ -92,7 +225,7 @@ const EventBooking = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
-          console.log("✅ Found deal:", result.data);
+          if (isDev) console.log("Found deal:", result.data);
           setDeal(result.data);
         } else {
           setError(
@@ -104,12 +237,16 @@ const EventBooking = () => {
         setError(errorData?.message ?? errorData?.error ?? "Failed to load deal details");
       }
     } catch (err) {
-      console.error("Error fetching deal:", err);
+      if (isDev) console.error("Error fetching deal:", err);
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  // Selected slot is full (available === false) - show only Join waitlist
+  const selectedSlot = availableSlots.find((s) => s.time === bookingTime);
+  const isSelectedSlotFull = Boolean(selectedSlot?.available === false);
 
   // Screen 1: Handle selection submission -> move to review
   const handleSelectionSubmit = async (e) => {
@@ -117,53 +254,53 @@ const EventBooking = () => {
     setError("");
 
     try {
-      // Validate required fields for dining and events
-      const needsDateAndTime =
-        deal?.service_type === "dining" || deal?.service_type === "events";
+      const bookingMode = getBookingModeFromServiceType(getServiceType(deal));
+      const isOnlineTimeSlot = bookingMode === ONLINE_TIME_SLOT;
 
-      if (needsDateAndTime && !bookingDate) {
+      if (isOnlineTimeSlot && !bookingDate) {
         setError("Please select a booking date");
         return;
       }
 
-      if (needsDateAndTime && !bookingTime) {
+      if (isOnlineTimeSlot && !bookingTime) {
         setError("Please select a booking time");
         return;
       }
 
-      // For services without time slot: show non-blocking info toast, then proceed
-      const svcType = (deal?.service_type || "").toLowerCase();
-      if (NO_TIME_SLOT_SERVICES.includes(svcType)) {
-        try {
-          await Swal.fire({
-            icon: "info",
-            title: "Time slot not selected",
-            html: "Contact the partner for the available time slot. Your booking will reserve your spot.",
-            confirmButtonText: "Continue",
-            confirmButtonColor: "#059669",
-          });
-        } catch (swalErr) {
-          // If SweetAlert fails, proceed anyway — banner already shows the info
-          console.warn("Swal skipped:", swalErr);
-        }
+      // Do not proceed to review when selected slot is full - user must join waitlist
+      if (isSelectedSlotFull) return;
+
+      if (bookingMode === PARTNER_CONFIRMATION && !bookingDate) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Date required",
+          text: "Please select your preferred date for the booking. The voucher will show this date and you'll contact the partner for the time slot.",
+          confirmButtonColor: "#059669",
+        });
+        setError("Please select your preferred date for the booking");
+        return;
       }
 
-      // Move to review screen
+      // Move to review screen (yellow banner already explains contact-partner flow for PARTNER_CONFIRMATION)
       setCurrentScreen(SCREEN_REVIEW);
     } catch (err) {
-      console.error("handleSelectionSubmit error:", err);
+      if (isDev) console.error("handleSelectionSubmit error:", err);
       setError("Something went wrong. Please try again.");
     }
   };
 
   // Screen 2: Handle final booking submission
   const handleBookingSubmit = async () => {
+    // Prevent double-submission (React state update is async, so useRef guard is needed)
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError("");
+    setSlotSoldOutCanWaitlist(false);
     setLoading(true);
 
     try {
       const token = localStorage.getItem("token");
-      if (!token) {
+      if (!token || isTokenExpired(token)) {
         setError("Please login to book deals");
         navigate("/login");
         return;
@@ -174,8 +311,8 @@ const EventBooking = () => {
         return;
       }
 
-      const needsDateAndTime = deal?.service_type === "dining" || deal?.service_type === "events";
-      if (needsDateAndTime && bookingDate && bookingTime) {
+      const isOnlineTimeSlot = getBookingModeFromServiceType(getServiceType(deal)) === ONLINE_TIME_SLOT;
+      if (isOnlineTimeSlot && bookingDate && bookingTime) {
         const bookingDt = new Date(`${bookingDate}T${bookingTime}:00`);
         if (!Number.isNaN(bookingDt.getTime()) && bookingDt.getTime() < Date.now()) {
           setError("Selected date and time have already passed. Please choose a current or future time.");
@@ -202,7 +339,7 @@ const EventBooking = () => {
       }
 
       // Add dining-specific reservation data
-      if (deal.service_type === "dining" && bookingDate) {
+      if (getServiceType(deal) === "dining" && bookingDate) {
         bookingData.reservation_data = {
           date: bookingDate,
           time: bookingTime || "19:00",
@@ -211,7 +348,7 @@ const EventBooking = () => {
         };
       }
 
-      console.log("📋 Submitting booking:", bookingData);
+      if (isDev) console.log("[EventBooking] Submitting booking:", { bookingData, dealServiceType: deal?.service_type });
 
       const response = await fetch(`${API_BASE}/api/v1/bookings`, {
         method: "POST",
@@ -222,10 +359,17 @@ const EventBooking = () => {
         body: JSON.stringify(bookingData),
       });
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseErr) {
+        console.error("[EventBooking] Failed to parse response:", parseErr);
+        setError("Invalid response from server. Check console for details.");
+        return;
+      }
 
       if (response.ok && result.success) {
-        console.log("✅ Booking created:", result.data);
+        if (isDev) console.log("Booking created:", result.data);
         // Always show the same voucher view as after reschedule (BookingDetails: map, QR, Booking Time, etc.)
         const bookingId = result.data?.id ?? result.data?.booking_id;
         if (bookingId) {
@@ -237,17 +381,26 @@ const EventBooking = () => {
       } else {
         const errorMsg =
           result?.message ?? result?.error ?? "Failed to create booking";
-        console.error("❌ Booking failed:", {
+        const canWaitlist = response.status === 409 && result?.details?.can_waitlist;
+
+        console.error("[EventBooking] Booking failed:", {
           status: response.status,
           error: errorMsg,
+          canWaitlist,
+          fullResponse: result,
           dealId: deal?.id,
           dealTitle: deal?.title,
           partnerId: deal?.partner_id,
+          serviceType: deal?.service_type,
         });
 
-        // Prefer server message when it gives an actionable fix (e.g. "Admin must approve the partner")
-        const isActionable = typeof errorMsg === 'string' && (errorMsg.includes('Admin must approve') || errorMsg.includes('Partners section'));
-        if (isActionable) {
+        if (canWaitlist && deal?.partner_id && bookingDate && bookingTime) {
+          setSlotSoldOutCanWaitlist(true);
+          setError(errorMsg);
+        } else if (
+          typeof errorMsg === "string" &&
+          (errorMsg.includes("Admin must approve") || errorMsg.includes("Partners section"))
+        ) {
           setError(errorMsg);
         } else if (
           errorMsg.includes("not found") ||
@@ -262,10 +415,49 @@ const EventBooking = () => {
         }
       }
     } catch (err) {
-      console.error("Booking error:", err);
-      setError(err.message || "Network error. Please try again.");
+      console.error("[EventBooking] Booking error:", err, { API_BASE, url: `${API_BASE}/api/v1/bookings` });
+      const msg = err.message || "Network error. Please try again.";
+      const isNetworkErr = err.name === "TypeError" || /fetch|network/i.test(String(msg));
+      setError(isNetworkErr ? `${msg} (API: ${API_BASE})` : msg);
     } finally {
       setLoading(false);
+      submittingRef.current = false;
+    }
+  };
+
+  const handleJoinWaitlist = async () => {
+    if (!deal?.partner_id || !bookingDate || !bookingTime || joiningWaitlist) return;
+    setJoiningWaitlist(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/v1/bookings/waitlist/join`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          partner_id: deal.partner_id,
+          booking_date: bookingDate,
+          booking_time: bookingTime,
+          party_size: numTickets,
+          special_requests: specialRequests || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setWaitlistSuccess(true);
+        setSlotSoldOutCanWaitlist(false);
+        const entry = data.waitlist_entry ?? data.data?.waitlist_entry ?? data.data;
+        setWaitlistEntry(entry ? { ...entry, estimated_wait_minutes: data.estimated_wait_minutes ?? data.data?.estimated_wait_minutes ?? entry.estimated_wait_minutes } : null);
+      } else {
+        setError(data?.message ?? data?.error ?? "Failed to join waitlist");
+      }
+    } catch (err) {
+      setError(err.message || "Failed to join waitlist");
+    } finally {
+      setJoiningWaitlist(false);
     }
   };
 
@@ -315,7 +507,7 @@ const EventBooking = () => {
   // Loading state
   if (loading && !deal) {
     return (
-      <div className="elizian-auth-overlay">
+      <div className="event-booking-overlay elizian-auth-overlay">
         <div className="elizian-auth-modal-container">
           <div className="elizian-auth-modal">
             <p>Loading deal details...</p>
@@ -328,7 +520,7 @@ const EventBooking = () => {
   // Error state
   if (error && !deal && currentScreen === SCREEN_SELECTION) {
     return (
-      <div className="elizian-auth-overlay">
+      <div className="event-booking-overlay elizian-auth-overlay">
         <div className="elizian-auth-modal-container">
           <div className="elizian-auth-modal">
             <h2 className="elizian-auth-modal-title">Booking Error</h2>
@@ -345,10 +537,110 @@ const EventBooking = () => {
     );
   }
 
+  // Waitlist success: show waitlisted voucher
+  if (waitlistSuccess && deal) {
+    return (
+      <div className="event-booking-overlay elizian-auth-overlay">
+        <div className="elizian-auth-modal-container">
+          <div className="elizian-auth-modal" style={{ maxWidth: "600px" }}>
+            <div style={{ padding: "1.5rem" }}>
+              <div style={{ textAlign: "center", marginBottom: "1.25rem" }}>
+                <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>📋</div>
+                <h2 className="elizian-auth-modal-title" style={{ margin: "0 0 0.25rem 0" }}>You&apos;re on the Waitlist!</h2>
+                <p style={{ color: "#6b7280", fontSize: "0.875rem", margin: 0 }}>
+                  We&apos;ll notify you when a spot opens for this time slot
+                </p>
+              </div>
+
+              {/* Waitlisted Voucher Card */}
+              <div style={{
+                background: "#fff",
+                border: "1.5px solid #e5e7eb",
+                borderRadius: "14px",
+                overflow: "hidden",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+                marginBottom: "1.25rem",
+              }}>
+                <div style={{
+                  background: "linear-gradient(135deg, #d97706, #b45309)",
+                  padding: "1rem 1.25rem",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}>
+                  <div>
+                    <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "2px" }}>
+                      Waitlist Position
+                    </div>
+                    <div style={{ color: "#fff", fontWeight: "700", fontSize: "1.1rem" }}>
+                      #{waitlistEntry?.position ?? "—"}
+                    </div>
+                  </div>
+                  <div style={{
+                    background: "rgba(255,255,255,0.2)",
+                    borderRadius: "6px",
+                    padding: "4px 10px",
+                    color: "#fff",
+                    fontSize: "0.7rem",
+                    fontWeight: "600",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}>
+                    Waitlisted
+                  </div>
+                </div>
+                <div style={{ padding: "1.25rem" }}>
+                  <div style={{ fontWeight: "700", fontSize: "1.1rem", color: "#1f2937", marginBottom: "0.5rem" }}>
+                    {deal?.title || "N/A"}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "0.5rem", color: "#374151", fontSize: "0.9rem" }}>
+                    <span>🏢</span>
+                    <span style={{ fontWeight: "500" }}>{deal?.partner_name || deal?.location}</span>
+                  </div>
+                  <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid #e5e7eb" }}>
+                    <div>
+                      <div style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", marginBottom: "2px" }}>Date</div>
+                      <div style={{ fontWeight: "600", color: "#1f2937" }}>{formatDate(bookingDate)}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "0.7rem", color: "#6b7280", textTransform: "uppercase", marginBottom: "2px" }}>Time</div>
+                      <div style={{ fontWeight: "600", color: "#1f2937" }}>{formatTime(bookingTime)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className="elizian-auth-button"
+                  onClick={() => navigate("/home")}
+                  style={{
+                    background: "linear-gradient(135deg, #059669, #047857)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "10px",
+                    padding: "14px 28px",
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    minWidth: "160px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Browse More Deals
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Screen 3: Confirmation
   if (currentScreen === SCREEN_CONFIRMATION && bookingResult) {
     return (
-      <div className="elizian-auth-overlay">
+      <div className="event-booking-overlay elizian-auth-overlay">
         <div className="elizian-auth-modal-container">
           <div className="elizian-auth-modal" style={{ maxWidth: "600px" }}>
             <div style={{ padding: "1.5rem" }}>
@@ -673,12 +965,16 @@ const EventBooking = () => {
   // Screen 2: Review & Confirm
   if (currentScreen === SCREEN_REVIEW) {
     return (
-      <div className="elizian-auth-overlay">
+      <div className="event-booking-overlay elizian-auth-overlay">
         <div className="elizian-auth-modal-container">
           <div className="elizian-auth-modal" style={{ maxWidth: "600px" }}>
             <button
               className="elizian-auth-modal-close"
-              onClick={() => setCurrentScreen(SCREEN_SELECTION)}
+              onClick={() => {
+                setSlotSoldOutCanWaitlist(false);
+                setWaitlistSuccess(false);
+                setCurrentScreen(SCREEN_SELECTION);
+              }}
               aria-label="Go back"
             >
               ← Back
@@ -687,8 +983,57 @@ const EventBooking = () => {
             <h2 className="elizian-auth-modal-title">Review & Confirm</h2>
 
             {error && (
-              <div className="elizian-auth-error" role="alert">
+              <div
+                className="elizian-auth-error"
+                role="alert"
+                style={{
+                  background: "rgba(239, 68, 68, 0.25)",
+                  border: "1px solid #ef4444",
+                  color: "#fef2f2",
+                  padding: "1rem",
+                  borderRadius: "8px",
+                  marginBottom: "1rem",
+                }}
+              >
                 {error}
+              </div>
+            )}
+
+            {slotSoldOutCanWaitlist && (
+              <div
+                style={{
+                  background: "#fef3c7",
+                  border: "1px solid #d97706",
+                  color: "#92400e",
+                  padding: "1rem",
+                  borderRadius: "8px",
+                  marginBottom: "1rem",
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
+                  This time slot is sold out
+                </div>
+                <p style={{ margin: "0 0 0.75rem 0", fontSize: "0.9rem" }}>
+                  Join the waitlist and we&apos;ll notify you when a spot opens (e.g. if someone cancels).
+                </p>
+                <button
+                  type="button"
+                  onClick={handleJoinWaitlist}
+                  disabled={joiningWaitlist}
+                  style={{
+                    background: "linear-gradient(135deg, #059669, #047857)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "8px",
+                    padding: "10px 20px",
+                    fontSize: "0.95rem",
+                    fontWeight: 600,
+                    cursor: joiningWaitlist ? "not-allowed" : "pointer",
+                    opacity: joiningWaitlist ? 0.7 : 1,
+                  }}
+                >
+                  {joiningWaitlist ? "Joining…" : "Join waitlist"}
+                </button>
               </div>
             )}
 
@@ -774,7 +1119,7 @@ const EventBooking = () => {
                     {formatTime(bookingTime)}
                   </div>
                 </div>
-              ) : deal && NO_TIME_SLOT_SERVICES.includes((deal.service_type || "").toLowerCase()) ? (
+              ) : deal && getBookingModeFromServiceType(getServiceType(deal)) === PARTNER_CONFIRMATION ? (
                 <div style={{ marginBottom: "0.75rem" }}>
                   <div
                     style={{
@@ -786,7 +1131,7 @@ const EventBooking = () => {
                     Time
                   </div>
                   <div style={{ fontWeight: "600", color: "#92400e", fontStyle: "italic" }}>
-                    Contact partner for available time slot
+                    {getPartnerConfirmationBanner(getServiceType(deal)).title}
                   </div>
                 </div>
               ) : null}
@@ -934,9 +1279,9 @@ const EventBooking = () => {
 
   // Screen 1: Selection (default)
   return (
-    <div className="elizian-auth-overlay">
+    <div className="event-booking-overlay elizian-auth-overlay">
       <div className="elizian-auth-modal-container">
-        <div className="elizian-auth-modal" style={{ maxWidth: "600px" }}>
+        <div className="elizian-auth-modal" style={{ maxWidth: "600px", display: "flex", flexDirection: "column", overflow: "hidden" }}>
           <button
             className="elizian-auth-modal-close"
             onClick={() => navigate("/home")}
@@ -945,8 +1290,59 @@ const EventBooking = () => {
             &times;
           </button>
 
-          <h2 className="elizian-auth-modal-title">Book Your Experience</h2>
+          {/* Fixed header: title + alert (no scroll) - solid bg so scroll content can't show through */}
+          <div style={{ flexShrink: 0, background: "var(--glass-bg, #1f2937)", position: "relative", zIndex: 10 }}>
+            <h2 className="elizian-auth-modal-title">Book Your Experience</h2>
 
+            {/* Info banner - always visible at top */}
+            {deal && getBookingModeFromServiceType(getServiceType(deal)) === PARTNER_CONFIRMATION && (
+              <>
+                <div
+                  style={{
+                    background: "#fef3c7",
+                    padding: "1rem",
+                    borderRadius: "8px",
+                    marginBottom: "1rem",
+                    border: "1px solid #d97706",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                    position: "relative",
+                    zIndex: 11,
+                  }}
+                >
+                  <div style={{ fontWeight: "600", color: "#92400e", marginBottom: "0.25rem" }}>
+                    {getPartnerConfirmationBanner(getServiceType(deal)).title}
+                  </div>
+                  <div style={{ fontSize: "0.9rem", color: "#78350f", marginBottom: "0.75rem" }}>
+                    {getPartnerConfirmationBanner(getServiceType(deal)).description}
+                  </div>
+                  {/* Date picker in header - always visible for PARTNER_CONFIRMATION */}
+                  <div style={{ marginTop: "0.5rem" }}>
+                    <label className="elizian-auth-label" htmlFor="bookingDateHeader" style={{ display: "block", marginBottom: "0.35rem", color: "#78350f", fontWeight: 600 }}>
+                      Preferred Date (required)
+                    </label>
+                    {isSingleDayEvent ? (
+                      <div style={{ padding: "8px 12px", background: "#f0fdf4", borderRadius: "6px", color: "#065f46", fontWeight: 500 }}>
+                        {formatDate(eventDateStr)}
+                      </div>
+                    ) : (
+                      <input
+                        id="bookingDateHeader"
+                        type="date"
+                        className="elizian-booking-date-input"
+                        value={bookingDate}
+                        onChange={(e) => setBookingDate(e.target.value)}
+                        min={(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })()}
+                        aria-required={true}
+                      />
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Scrollable body - below header, cannot overlap it */}
+          <div style={{ flex: 1, overflowY: "auto", minHeight: 0, position: "relative", zIndex: 1 }}>
           {deal && (
             <div
               style={{
@@ -1039,26 +1435,6 @@ const EventBooking = () => {
             </div>
           )}
 
-          {/* Info banner for services without time slot selection */}
-          {deal && NO_TIME_SLOT_SERVICES.includes((deal.service_type || "").toLowerCase()) && (
-            <div
-              style={{
-                background: "#fef3c7",
-                padding: "1rem",
-                borderRadius: "8px",
-                marginBottom: "1.5rem",
-                border: "1px solid #d97706",
-              }}
-            >
-              <div style={{ fontWeight: "600", color: "#92400e", marginBottom: "0.25rem" }}>
-                Contact partner for time slot
-              </div>
-              <div style={{ fontSize: "0.9rem", color: "#78350f" }}>
-                Time slot is not available for online selection. Contact the partner to confirm your preferred time.
-              </div>
-            </div>
-          )}
-
           <form className="elizian-auth-form" onSubmit={handleSelectionSubmit} noValidate>
             {error && (
               <div className="elizian-auth-error" role="alert">
@@ -1067,9 +1443,7 @@ const EventBooking = () => {
             )}
             <div className="elizian-auth-form-group">
               <label className="elizian-auth-label" htmlFor="numTickets">
-                {deal?.service_type === "dining"
-                  ? "Number of Guests"
-                  : "Number of Tickets"}
+                {getPartySizeLabel(getServiceType(deal))}
               </label>
               <div style={{
                 display: "flex",
@@ -1155,51 +1529,111 @@ const EventBooking = () => {
                 </button>
               </div>
             </div>
-            {(deal?.service_type === "dining" ||
-              deal?.service_type === "events") && (
+            {/* Date picker: for ONLINE_TIME_SLOT only (PARTNER_CONFIRMATION has it in header) */}
+            {deal && getBookingModeFromServiceType(getServiceType(deal)) === ONLINE_TIME_SLOT && (
               <>
                 <div className="elizian-auth-form-group">
                   <label className="elizian-auth-label" htmlFor="bookingDate">
-                    {deal?.service_type === "events"
+                    {getServiceType(deal) === "events"
                       ? "Event Date"
                       : "Booking Date"}
                   </label>
-                  <input
-                    id="bookingDate"
-                    ref={dateRef}
-                    onClick={() => dateRef.current?.showPicker()}
-                    type="date"
-                    className="elizian-auth-input"
-                    value={bookingDate}
-                    onChange={(e) => setBookingDate(e.target.value)}
-                    min={new Date().toISOString().split("T")[0]}
-                    required
-                    aria-required="true"
-                  />
+                  {isSingleDayEvent ? (
+                    <div style={{ padding: "10px 14px", background: "#f0fdf4", borderRadius: "8px", color: "#065f46", fontWeight: 500, border: "1px solid #a7f3d0" }}>
+                      {formatDate(eventDateStr)}
+                    </div>
+                  ) : (
+                    <input
+                      id="bookingDate"
+                      ref={dateRef}
+                      onClick={() => dateRef.current?.showPicker()}
+                      type="date"
+                      className="elizian-auth-input"
+                      value={bookingDate}
+                      onChange={(e) => setBookingDate(e.target.value)}
+                      min={(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })()}
+                      required={true}
+                      aria-required={true}
+                    />
+                  )}
                 </div>
 
                 <div className="elizian-auth-form-group">
                   <label className="elizian-auth-label" htmlFor="bookingTime">
-                    {deal?.service_type === "events"
+                    {getServiceType(deal) === "events"
                       ? "Event Time"
                       : "Booking Time"}
                   </label>
 
-                  <input
-                    id="bookingTime"
-                    name="bookingTime"
-                    type="time"
-                    ref={bookingTimeRef}
-                    className="elizian-auth-input elizian-time-input"
-                    value={bookingTime}
-                    onChange={(e) => setBookingTime(e.target.value)}
-                    onClick={() => bookingTimeRef.current?.showPicker?.()}
-                    required={Boolean(bookingDate)}
-                    disabled={!bookingDate}
-                    aria-required={Boolean(bookingDate)}
-                    aria-disabled={!bookingDate}
-                    aria-label="Select booking time"
-                  />
+                  {slotsLoading && (
+                    <small style={{ color: "#666", fontSize: "0.85rem", display: "block", marginBottom: "0.5rem" }}>
+                      Loading available slots…
+                    </small>
+                  )}
+                  {!slotsLoading && availableSlots.length > 0 ? (
+                    <div style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(3, 1fr)",
+                      gap: "10px 12px",
+                      marginTop: "8px",
+                      maxHeight: "260px",
+                      overflowY: "auto",
+                      paddingRight: "6px",
+                    }}
+                      className="event-booking-slots-grid"
+                    >
+                      {availableSlots.map((slot) => (
+                        <button
+                          key={slot.time || slot.id || slot.label}
+                          type="button"
+                          onClick={() => setBookingTime(slot.time)}
+                          style={{
+                            padding: "12px 16px",
+                            borderRadius: "10px",
+                            border: bookingTime === slot.time ? "2px solid #004f4a" : "1px solid #d1d5db",
+                            background: bookingTime === slot.time ? "#f0fdf4" : slot.available === false ? "#fef3c7" : "#fff",
+                            color: slot.available === false ? "#92400e" : "#1f2937",
+                            cursor: "pointer",
+                            fontSize: "0.9rem",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {slot.label || slot.time}
+                          {slot.available === false && " (Full)"}
+                          {/* FIX #8: Show remaining seats for low-availability slots */}
+                          {slot.remaining_seats != null && slot.remaining_seats <= 10 && slot.available !== false && (
+                            <span style={{ display: "block", fontSize: "0.7rem", color: "#dc2626", marginTop: "2px" }}>
+                              {slot.remaining_seats} {slot.remaining_seats === 1 ? "seat" : "seats"} left
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ) : !slotsLoading && getServiceType(deal) === "events" && bookingDate && slotsEventDate && slotsEventDate !== bookingDate ? (
+                    /* Only block when the API explicitly says the event is on a DIFFERENT date */
+                    <div style={{ padding: "1rem", background: "#fef3c7", borderRadius: "8px", marginTop: "4px", color: "#92400e" }}>
+                      <strong>Event not available on this day</strong>
+                      <p style={{ margin: "0.5rem 0 0", fontSize: "0.9rem" }}>
+                        This event is on {formatDate(slotsEventDate)}. Please select that date to book.
+                      </p>
+                    </div>
+                  ) : !slotsLoading && (
+                    <input
+                      id="bookingTime"
+                      name="bookingTime"
+                      type="time"
+                      ref={bookingTimeRef}
+                      className="elizian-auth-input elizian-time-input"
+                      value={bookingTime}
+                      onChange={(e) => setBookingTime(e.target.value)}
+                      onClick={() => bookingTimeRef.current?.showPicker?.()}
+                      required={Boolean(bookingDate)}
+                      disabled={!bookingDate}
+                      aria-required={Boolean(bookingDate)}
+                      aria-disabled={!bookingDate}
+                      aria-label="Select booking time"
+                    />
+                  )}
 
                   {!bookingDate && (
                     <small
@@ -1226,7 +1660,7 @@ const EventBooking = () => {
                 rows="3"
                 value={specialRequests}
                 onChange={(e) => setSpecialRequests(e.target.value)}
-                placeholder="Any special requests or dietary requirements..."
+                placeholder={getSpecialRequestsPlaceholder(getServiceType(deal))}
                 aria-label="Special requests"
               />
             </div>
@@ -1287,33 +1721,76 @@ const EventBooking = () => {
                 <span>{formatPrice(calculateTotal())}</span>
               </div>
             </div>
-            <button
-              type="submit"
-              style={{
-                background: "linear-gradient(135deg, #059669, #047857)",
-                color: "#fff",
-                border: "none",
-                borderRadius: "10px",
-                padding: "14px 24px",
-                fontSize: "16px",
-                fontWeight: 600,
-                cursor: "pointer",
-                boxShadow: "0 6px 18px rgba(5, 150, 105, 0.35)",
-                transition: "all 0.25s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow =
-                  "0 10px 26px rgba(5, 150, 105, 0.45)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow =
-                  "0 6px 18px rgba(5, 150, 105, 0.35)";
-              }}
-            >
-              Continue to Review
-            </button>
+            {error && (
+              <div role="alert" style={{ background: "rgba(239, 68, 68, 0.2)", border: "1px solid #ef4444", color: "#fef2f2", padding: "0.75rem 1rem", borderRadius: "8px", marginBottom: "1rem" }}>
+                {error}
+              </div>
+            )}
+            {isSelectedSlotFull ? (
+              <div
+                style={{
+                  background: "#fef3c7",
+                  border: "1px solid #d97706",
+                  color: "#92400e",
+                  padding: "1rem",
+                  borderRadius: "10px",
+                  marginBottom: "1rem",
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
+                  This time slot is sold out
+                </div>
+                <p style={{ margin: "0 0 0.75rem 0", fontSize: "0.9rem" }}>
+                  Join the waitlist and we&apos;ll notify you when a spot opens (e.g. if someone cancels).
+                </p>
+                <button
+                  type="button"
+                  onClick={handleJoinWaitlist}
+                  disabled={joiningWaitlist}
+                  style={{
+                    background: "linear-gradient(135deg, #059669, #047857)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "8px",
+                    padding: "10px 20px",
+                    fontSize: "0.95rem",
+                    fontWeight: 600,
+                    cursor: joiningWaitlist ? "not-allowed" : "pointer",
+                    opacity: joiningWaitlist ? 0.7 : 1,
+                  }}
+                >
+                  {joiningWaitlist ? "Joining…" : "Join waitlist"}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="submit"
+                style={{
+                  background: "linear-gradient(135deg, #059669, #047857)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "14px 24px",
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  boxShadow: "0 6px 18px rgba(5, 150, 105, 0.35)",
+                  transition: "all 0.25s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow =
+                    "0 10px 26px rgba(5, 150, 105, 0.45)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow =
+                    "0 6px 18px rgba(5, 150, 105, 0.35)";
+                }}
+              >
+                Continue to Review
+              </button>
+            )}
             <button
               type="button"
               onClick={() => navigate("/home")}
@@ -1344,6 +1821,7 @@ const EventBooking = () => {
               Cancel
             </button>
           </form>
+          </div>
         </div>
       </div>
     </div>

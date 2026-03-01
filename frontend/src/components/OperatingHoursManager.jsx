@@ -196,6 +196,26 @@ export default function OperatingHoursManager({ partnerId, token }) {
     });
   };
 
+  /** Copy one day's hours and breaks to all other days */
+  const handleCopyToAllDays = (sourceDayIndex) => {
+    const source = hours[sourceDayIndex];
+    if (!source) return;
+    setHours(prev =>
+      prev.map((day, i) =>
+        i === sourceDayIndex
+          ? day
+          : {
+              ...day,
+              is_closed: source.is_closed,
+              opens_at: source.opens_at,
+              closes_at: source.closes_at,
+              breaks: (source.breaks || []).map(b => ({ ...b }))
+            }
+      )
+    );
+    showMessage(`Copied ${source.day_label}'s hours to all days`, 'success');
+  };
+
   // Save hours
   const saveHours = async () => {
     setSaving(true);
@@ -385,6 +405,7 @@ export default function OperatingHoursManager({ partnerId, token }) {
             onBreakChange={handleBreakChange}
             onAddBreak={handleAddBreak}
             onRemoveBreak={handleRemoveBreak}
+            onCopyToAllDays={handleCopyToAllDays}
             onSave={saveHours}
             saving={saving}
           />
@@ -404,9 +425,10 @@ export default function OperatingHoursManager({ partnerId, token }) {
   );
 }
 
-function WeeklyHoursTab({ hours, onHourChange, onBreakChange, onAddBreak, onRemoveBreak, onSave, saving }) {
+function WeeklyHoursTab({ hours, onHourChange, onBreakChange, onAddBreak, onRemoveBreak, onCopyToAllDays, onSave, saving }) {
   return (
     <div className="weekly-hours-tab">
+      <p className="oh-copy-hint">Configure one day, then click &quot;Copy to all days&quot; to apply the same hours and breaks across the week.</p>
       <div className="hours-grid">
         {hours.map((day, index) => (
           <div key={day.day_of_week} className="hours-row">
@@ -419,6 +441,14 @@ function WeeklyHoursTab({ hours, onHourChange, onBreakChange, onAddBreak, onRemo
                 />
                 <span className="day-label">{day.day_label}</span>
               </label>
+              <button
+                type="button"
+                className="btn-copy-day"
+                onClick={() => onCopyToAllDays(index)}
+                title={`Copy ${day.day_label}'s hours to all days`}
+              >
+                Copy to all days
+              </button>
             </div>
 
             {!day.is_closed ? (

@@ -15,15 +15,16 @@ let legacyDiscountPercentageColumnExists = null;
 const EZT_TO_INR = 100;
 
 /**
- * Use the deal's co-pay percentage exactly as given (e.g. 30 means 30%, not 29.98).
- * Normalizes float/DB drift so 29.98 or 30.02 is treated as 30.
+ * Use the deal's co-pay percentage exactly as given (e.g. 30 means 30%, not 29.97).
+ * Normalizes float/DB drift so 29.95–30.05 is treated as 30.
+ * Tolerance ±0.05 covers typical JS floating-point and NUMERIC→float conversion drift.
  */
 function normalizeCoPayPercentage(pct) {
   if (pct == null || Number.isNaN(parseFloat(pct))) return pct;
   const n = parseFloat(pct);
   const rounded = Math.round(n * 100) / 100;
   const nearestInt = Math.round(rounded);
-  if (Math.abs(rounded - nearestInt) <= 0.02) return nearestInt;
+  if (Math.abs(rounded - nearestInt) <= 0.05) return nearestInt;
   return rounded;
 }
 
@@ -109,13 +110,13 @@ function calculateRedemptionAmounts(offerId, totalBillAmount, offerRow = null) {
   let discountAmount;
   let effectivePercentage;
   if (coPayPct != null && !isNaN(coPayPct) && coPayPct >= 0) {
-    effectivePercentage = Math.min(100, coPayPct);
+    effectivePercentage = normalizeCoPayPercentage(Math.min(100, coPayPct));
     discountAmount = Math.round((total * (effectivePercentage / 100)) * 100) / 100;
     discountAmount = Math.min(discountAmount, total);
   } else if (fixedDiscount > 0) {
     discountAmount = Math.min(fixedDiscount, total);
     discountAmount = Math.round(discountAmount * 100) / 100;
-    effectivePercentage = total > 0 ? Math.round((discountAmount / total) * 10000) / 100 : 0;
+    effectivePercentage = total > 0 ? normalizeCoPayPercentage(Math.round((discountAmount / total) * 10000) / 100) : 0;
   } else {
     discountAmount = 0;
     effectivePercentage = 0;
@@ -203,6 +204,7 @@ function validateCalculation(totalBillAmount, eztCoPay, netAmount, offerId, offe
 }
 
 module.exports = {
+  normalizeCoPayPercentage,
   getOfferDiscount,
   applyBookingTimeCoPay,
   calculateRedemptionAmounts,

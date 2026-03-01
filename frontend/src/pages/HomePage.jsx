@@ -1398,6 +1398,14 @@ const HomePage = () => {
                         {event.category_name || "Event"} · {event.start_date ? new Date(event.start_date).toLocaleDateString("en-IN", { month: "short", day: "numeric" }) : "Soon"}
                       </p>
                       <p className="home-card-distance">📍 {formatDistance(event.distanceKmClient ?? event.distance_km)}</p>
+                      <button
+                        type="button"
+                        className="home-card-cta primary card-action-btn"
+                        onClick={(e) => { e.stopPropagation(); handleBookDeal(event); }}
+                        aria-label={`Book ${event.title}`}
+                      >
+                        Book Now
+                      </button>
                     </div>
                   </div>
                 ))}

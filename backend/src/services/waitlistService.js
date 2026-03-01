@@ -4,6 +4,7 @@ const { log, logError } = require('../../utils/logger');
 const bookingValidation = require('./bookingValidation');
 const operatingHoursService = require('./operatingHoursService');
 const slotCapacityService = require('./slotCapacityService');
+const partnerRepository = require('../repositories/partnerRepository');
 
 const pool = getPool();
 const PROMOTION_BATCH_SIZE = 50;
@@ -230,7 +231,11 @@ async function getUserWaitlistEntries(user_id, status = null) {
       SELECT
         w.*,
         p.name AS partner_name,
-        p.address AS partner_location
+        p.address AS partner_address,
+        (SELECT po.title FROM partner_offers po
+         WHERE po.partner_id = w.partner_id AND po.status = 'active'
+         ORDER BY po.created_at DESC
+         LIMIT 1) AS deal_title
       FROM booking_waitlist w
       JOIN partners p ON w.partner_id = p.id
       WHERE w.user_id = $1
@@ -290,8 +295,134 @@ async function getWaitlistForSlot(partner_id, booking_date, booking_time, status
   }
 }
 
+/** Default timezone for date extraction (matches deal_slots / bookings) */
+const DEFAULT_TZ = 'Asia/Kolkata';
+
+/**
+ * Normalize date to YYYY-MM-DD for API calls.
+ * Uses Asia/Kolkata for Date objects so calendar date matches DB.
+ */
+function toDateStr(val) {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+  const d = new Date(val);
+  return !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-CA', { timeZone: DEFAULT_TZ }) : null;
+}
+
+/**
+ * Normalize time to HH:MM for API calls
+ */
+function toTimeStr(val) {
+  const raw = String(val || '').trim();
+  if (!raw) return null;
+  const m = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (m) return `${String(parseInt(m[1], 10)).padStart(2, '0')}:${m[2]}`;
+  const d = new Date(`1970-01-01T${raw}`);
+  if (!Number.isNaN(d.getTime())) return d.toTimeString().slice(0, 5);
+  return null;
+}
+
+/**
+ * Promote next person in waitlist to a confirmed booking when a slot opens.
+ * Creates the booking automatically and sends notification.
+ *
+ * @param {UUID} partner_id
+ * @param {UUID} deal_id - Offer/deal that had the cancelled booking
+ * @param {String} booking_date - YYYY-MM-DD
+ * @param {String} booking_time - HH:MM
+ * @returns {Object} { booking, waitlistEntry } or null
+ */
+async function promoteNextWaitlistToBooking(partner_id, deal_id, booking_date, booking_time) {
+  const dateStr = toDateStr(booking_date);
+  const timeStr = toTimeStr(booking_time);
+  if (!dateStr || !timeStr || !deal_id) return null;
+
+  const client = await pool.connect();
+  let nextEntry = null;
+  try {
+    await client.query('BEGIN');
+
+    const nextResult = await client.query(
+      `SELECT * FROM booking_waitlist
+       WHERE partner_id = $1 AND booking_date = $2::date AND booking_time::text LIKE $3 || '%'
+         AND status = 'waiting'
+       ORDER BY position ASC
+       LIMIT 1
+       FOR UPDATE`,
+      [partner_id, dateStr, timeStr]
+    );
+
+    if (nextResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    nextEntry = nextResult.rows[0];
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    logError('Error fetching next waitlist entry for promotion:', err);
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  try {
+    const bookingService = require('./bookingService');
+    const booking = await bookingService.createBooking({
+      offer_id: deal_id,
+      user_id: nextEntry.user_id,
+      num_tickets: nextEntry.party_size || 1,
+      booking_date: dateStr,
+      booking_time: timeStr,
+      special_requests: nextEntry.special_requests || null,
+    });
+
+    const updateClient = await pool.connect();
+    try {
+      await updateClient.query(
+        `UPDATE booking_waitlist
+         SET status = 'confirmed', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [nextEntry.id]
+      );
+    } finally {
+      updateClient.release();
+    }
+
+    log(`✅ Promoted waitlist user ${nextEntry.user_id} to confirmed booking ${booking.id}`);
+
+    try {
+      const notificationService = require('./notificationService');
+      const partner = await partnerRepository.getPartnerById(partner_id);
+      const dealTitle = booking.deal_title || 'your deal';
+      await notificationService.create({
+        userId: nextEntry.user_id,
+        type: 'booking_confirmation',
+        title: 'You\'re in! Spot opened up',
+        message: `A spot opened for ${dealTitle} at ${partner?.name || 'the venue'} on ${dateStr} at ${timeStr}. Your booking is now confirmed.`,
+        actionUrl: `/booking/${booking.id}`,
+        actionLabel: 'View Booking',
+        priority: 'high',
+        metadata: { booking_id: booking.id, waitlist_id: nextEntry.id, deal_title: dealTitle, source: 'waitlist_promoted' },
+        sentViaInApp: true,
+        sentViaPush: true,
+      });
+    } catch (notifErr) {
+      logError('Waitlist promotion notification failed (non-fatal):', notifErr);
+    }
+
+    return { booking, waitlistEntry: { ...nextEntry, status: 'confirmed' } };
+  } catch (err) {
+    logError('Error promoting waitlist to booking:', err);
+    return notifyNextInWaitlist(partner_id, dateStr, timeStr);
+  }
+}
+
 /**
  * Notify next person in waitlist when slot becomes available
+ * (Legacy: used when deal_id is unknown; only sets status to 'notified' with 10-min window)
  *
  * @param {UUID} partner_id
  * @param {String} booking_date
@@ -541,6 +672,7 @@ module.exports = {
   estimateWaitTime,
   getUserWaitlistEntries,
   getWaitlistForSlot,
+  promoteNextWaitlistToBooking,
   notifyNextInWaitlist,
   cancelWaitlistEntry,
   expireOldNotifications,

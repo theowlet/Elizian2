@@ -91,6 +91,7 @@ async function createOffer(partnerId, offerData) {
     start_date,
     end_date,
     max_redemptions,
+    max_redemptions_per_slot,
     applicable_days,
     applicable_categories,
     min_purchase_amount,
@@ -186,6 +187,10 @@ async function createOffer(partnerId, offerData) {
     insertCols.push("perk_description");
     insertVals.push(perk_description || null);
   }
+  if (offerMaxRedemptionsPerSlotColumnExists) {
+    insertCols.push("max_redemptions_per_slot");
+    insertVals.push(max_redemptions_per_slot === "" || max_redemptions_per_slot == null ? null : Math.max(1, parseInt(max_redemptions_per_slot, 10)));
+  }
 
   const placeholders = insertVals.map((_, i) => `$${i + 1}`).join(", ");
   const result = await pool.query(
@@ -218,6 +223,7 @@ async function updateOffer(partnerId, offerId, updates) {
     "end_date",
     "is_trending",
     "max_redemptions",
+    "max_redemptions_per_slot",
     "applicable_days",
     "applicable_categories",
     "min_purchase_amount",
@@ -237,7 +243,7 @@ async function updateOffer(partnerId, offerId, updates) {
   const numericFields = new Set([
     "co_pay_percentage", "discount_amount",
     "original_price", "discounted_price", "min_purchase_amount",
-    "savings", "ezt_equivalent", "max_redemptions"
+    "savings", "ezt_equivalent", "max_redemptions", "max_redemptions_per_slot"
   ]);
 
   const updateFields = [];
@@ -247,6 +253,7 @@ async function updateOffer(partnerId, offerId, updates) {
 
   for (const [key, value] of Object.entries(updates)) {
     if (allowedFields.includes(key) && value !== undefined) {
+      if ((key === 'start_date' || key === 'end_date') && (value === '' || value == null)) continue;
       paramCount++;
       if (key === "applicable_categories" && typeof value === "object") {
         updateFields.push(`${key} = $${paramCount}`);
@@ -378,6 +385,7 @@ let offerFeaturedRequestPendingColumnExists = null;
 let offerForcedByAdminColumnExists = null;
 let offerSavingsColumnExists = null;
 let offerEztEquivalentColumnExists = null;
+let offerMaxRedemptionsPerSlotColumnExists = null;
 
 async function checkColumnExists(tableName, columnName) {
   try {
@@ -456,6 +464,9 @@ async function ensureOfferPerkColumns() {
   }
   if (offerEztEquivalentColumnExists === null) {
     offerEztEquivalentColumnExists = await checkColumnExists("partner_offers", "ezt_equivalent");
+  }
+  if (offerMaxRedemptionsPerSlotColumnExists === null) {
+    offerMaxRedemptionsPerSlotColumnExists = await checkColumnExists("partner_offers", "max_redemptions_per_slot");
   }
 }
 

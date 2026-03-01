@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import '../styles/auth.css';
+import { inferBookingMode, ONLINE_TIME_SLOT, PARTNER_CONFIRMATION } from '../config/bookingModes';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
@@ -243,12 +244,18 @@ const BookingDetails = () => {
         if (response.status === 404) {
           setError('Booking not found');
         } else {
-          setError('Failed to load booking details');
+          let errMsg = 'Failed to load booking details';
+          try {
+            const errBody = await response.json();
+            if (errBody?.message) errMsg = errBody.message;
+            else if (errBody?.error) errMsg = errBody.error;
+          } catch (_) {}
+          setError(errMsg);
         }
       }
     } catch (err) {
       console.error('Error loading booking:', err);
-      setError('Network error. Please try again.');
+      setError(err?.message || 'Network error. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -492,18 +499,21 @@ const BookingDetails = () => {
     ? '#16a34a'
     : (displayStatus === 'pending_confirmation' ? '#f59e0b' : displayStatus === 'cancelled' ? '#dc2626' : '#f59e0b');
 
-  // Services that do NOT have time slot selection — user must contact partner. Dining and Events DO have time slots.
-  const NO_TIME_SLOT_SERVICES = ['spa', 'spa-and-salon', 'wellness', 'healthcare', 'travel', 'others'];
-  const svcType = (booking.service_type || '').toLowerCase();
-  const isNoTimeSlotService = NO_TIME_SLOT_SERVICES.includes(svcType);
-  // Prefer backend-formatted IST when available; else use booking_date+time for no-time-slot, or format created_at
+  // Single source of truth: voucher rendering based on booking_mode only
+  const bookingMode = inferBookingMode(booking);
+  const isPartnerConfirmation = bookingMode === PARTNER_CONFIRMATION;
+  const isOnlineTimeSlot = bookingMode === ONLINE_TIME_SLOT;
+
   const bookedOnText = booking.booked_on_ist
     ? booking.booked_on_ist
-    : (isNoTimeSlotService && booking.booking_date
-      ? `${formatDate(booking.booking_date)}${booking.booking_time ? ` at ${formatTime(booking.booking_time)}` : ''}`
+    : (isPartnerConfirmation && booking.booking_date
+      ? `${formatDate(booking.booking_date)}${booking.booking_time && booking.booking_time !== '12:00' ? ` at ${formatTime(booking.booking_time)}` : ''}`
       : formatBookedOn(booking.created_at));
-  const scheduledText = isNoTimeSlotService
-    ? 'Contact partner to schedule'
+
+  const scheduledText = isPartnerConfirmation
+    ? (booking.booking_date
+        ? `${formatDate(booking.booking_date)} — Please contact the partner for the available time slot.`
+        : 'Please contact the partner for the available time slot.')
     : (booking.booking_date
       ? `${formatDate(booking.booking_date)}${booking.booking_time ? ` at ${formatTime(booking.booking_time)}` : ''}`
       : null);
@@ -596,6 +606,41 @@ const BookingDetails = () => {
             </div>
           </div>
 
+          {isPartnerConfirmation && (() => {
+            const st = (booking.service_type || '').toLowerCase();
+            let bannerTitle = 'Contact partner for time slot';
+            let bannerDesc = 'Please contact the partner for the available time slot.';
+            if (st === 'spa-and-salon' || st === 'spa') {
+              bannerTitle = 'Contact the salon for appointment';
+              bannerDesc = 'Please contact the salon to confirm your appointment time.';
+            } else if (st === 'wellness') {
+              bannerTitle = 'Contact the studio for session time';
+              bannerDesc = 'Please contact the studio to confirm your session time.';
+            } else if (st === 'healthcare') {
+              bannerTitle = 'Contact the clinic for appointment';
+              bannerDesc = 'Please contact the clinic to schedule your appointment.';
+            } else if (st === 'travel') {
+              bannerTitle = 'Contact partner for booking details';
+              bannerDesc = 'Contact the travel partner for check-in, pickup, or activity timing details.';
+            }
+            return (
+              <div style={{
+                margin: '0 1.1rem 1rem',
+                padding: '0.75rem 1rem',
+                background: '#fef3c7',
+                borderRadius: '8px',
+                border: '1px solid #d97706',
+              }}>
+                <div style={{ fontWeight: 600, color: '#92400e', marginBottom: '0.2rem' }}>
+                  {bannerTitle}
+                </div>
+                <div style={{ fontSize: '0.9rem', color: '#78350f' }}>
+                  {bannerDesc}
+                </div>
+              </div>
+            );
+          })()}
+
           <div style={{ height: '190px', background: '#e2e8f0', borderTop: '1px solid #e2e8f0', borderBottom: '1px solid #e2e8f0' }}>
             {mapEmbedUrl ? (
               <iframe
@@ -633,7 +678,7 @@ const BookingDetails = () => {
                 {scheduledText && (
                   <>
                     <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.5rem', marginBottom: '0.2rem' }}>
-                      {isNoTimeSlotService ? 'Time slot' : 'Scheduled for'}
+                      {isPartnerConfirmation ? 'Booked for' : 'Scheduled for'}
                     </div>
                     <div style={{ fontSize: '1rem', fontWeight: 600, color: '#334155' }}>
                       {scheduledText}
@@ -680,7 +725,7 @@ const BookingDetails = () => {
               <div style={{ fontSize: '0.95rem', color: '#475569', lineHeight: 1.45 }}>
                 {partnerAddress}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.85rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isPartnerConfirmation && canCallVenue ? '1fr 1fr 1fr' : '1fr 1fr', gap: '0.6rem', marginTop: '0.85rem' }}>
                 <button
                   type="button"
                   onClick={() => { if (canCallVenue) window.location.href = `tel:${partnerPhoneDial}`; }}
@@ -696,8 +741,32 @@ const BookingDetails = () => {
                     fontSize: '0.9rem',
                   }}
                 >
-                  📞 Call Venue
+                  📞 Call
                 </button>
+                {/* WhatsApp deep link for PARTNER_CONFIRMATION — most Indian businesses use WhatsApp */}
+                {isPartnerConfirmation && canCallVenue && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const phone = partnerPhoneDial.startsWith('+') ? partnerPhoneDial.substring(1) : (partnerPhoneDial.startsWith('0') ? '91' + partnerPhoneDial.substring(1) : (/^\d{10}$/.test(partnerPhoneDial) ? '91' + partnerPhoneDial : partnerPhoneDial));
+                      const dateText = booking.booking_date ? formatDate(booking.booking_date) : 'my preferred date';
+                      const msg = `Hi, I have an Elizian voucher (Ref: ${booking.booking_reference || 'N/A'}) for ${booking.deal_title || 'your service'} on ${dateText}. What times are available?`;
+                      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+                    }}
+                    style={{
+                      padding: '0.68rem 0.75rem',
+                      borderRadius: '10px',
+                      border: '2px solid #25d366',
+                      background: '#fff',
+                      color: '#128c7e',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    💬 WhatsApp
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => window.open(directionsUrl, '_blank', 'noopener,noreferrer')}
@@ -859,12 +928,18 @@ const BookingDetails = () => {
                   if (!window.confirm('Are you sure you want to cancel this booking?')) return;
                   try {
                     const token = localStorage.getItem('token');
-                    const response = await fetch(`${API_BASE}/api/v1/bookings/${booking.id}/cancel`, {
+                    const cancelId = id || booking?.id;
+                    if (!cancelId) {
+                      alert('Cannot cancel: booking ID missing');
+                      return;
+                    }
+                    const response = await fetch(`${API_BASE}/api/v1/bookings/${cancelId}/cancel`, {
                       method: 'PUT',
                       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                     });
-                    if (response.ok) navigate('/bookings');
-                    else {
+                    if (response.ok) {
+                      navigate('/bookings', { replace: true, state: { fromCancel: true, showCancelled: true } });
+                    } else {
                       const result = await response.json();
                       alert(result?.message ?? result?.error ?? 'Failed to cancel booking');
                     }

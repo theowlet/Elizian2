@@ -96,21 +96,107 @@ function nowUTC() {
 }
 
 /**
- * Parse booking date + time (YYYY-MM-DD, HH:MM) into UTC Date.
- * Assumes input is in partner/user timezone.
- * @param {string} dateStr - YYYY-MM-DD
- * @param {string} timeStr - HH:MM or HH:MM:SS
- * @param {string} [timezone] - IANA (default: Asia/Kolkata)
+ * Convert an IANA timezone name to a UTC offset string for a given date.
+ * Uses Intl.DateTimeFormat to resolve the actual offset (DST-safe).
+ *
+ * Examples:
+ *   getUTCOffsetForTZ('Asia/Kolkata')       → '+05:30'
+ *   getUTCOffsetForTZ('America/New_York')   → '-05:00' (EST) or '-04:00' (EDT)
+ *   getUTCOffsetForTZ('Europe/London')      → '+00:00' (GMT) or '+01:00' (BST)
+ *
+ * @param {string} timezone - IANA timezone (e.g. 'Asia/Kolkata')
+ * @param {Date}   [date]   - Reference date for DST resolution (default: now)
+ * @returns {string} - UTC offset like '+05:30' or '-04:00'
+ */
+function getUTCOffsetForTZ(timezone, date = new Date()) {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      timeZoneName: 'shortOffset',
+    });
+    const parts = formatter.formatToParts(date);
+    const tzPart = parts.find((p) => p.type === 'timeZoneName');
+    // tzPart.value is like "GMT+5:30", "GMT-5", or "GMT"
+    const match = (tzPart?.value || '').match(/GMT([+-]?\d{1,2}(?::\d{2})?)?/);
+    if (!match || !match[1]) return '+00:00'; // Pure GMT/UTC
+    const raw = match[1];
+    const [h, m] = raw.includes(':') ? raw.split(':') : [raw, '0'];
+    const sign = h.startsWith('-') ? '-' : '+';
+    const absH = Math.abs(parseInt(h, 10));
+    const absM = parseInt(m, 10) || 0;
+    return `${sign}${String(absH).padStart(2, '0')}:${String(absM).padStart(2, '0')}`;
+  } catch {
+    // Invalid timezone name → fall back to UTC
+    return '+00:00';
+  }
+}
+
+/**
+ * Parse booking date + time (YYYY-MM-DD, HH:MM) into a Date object,
+ * interpreting the values in the specified IANA timezone.
+ *
+ * This is server-timezone-independent: a booking at 19:30 in Asia/Kolkata
+ * will always parse to 14:00 UTC regardless of where the server runs.
+ *
+ * @param {string} dateStr  - YYYY-MM-DD
+ * @param {string} timeStr  - HH:MM or HH:MM:SS
+ * @param {string} [timezone] - IANA timezone (default: Asia/Kolkata)
  * @returns {Date|null}
  */
 function parseBookingDateTime(dateStr, timeStr, timezone = DEFAULT_DISPLAY_TZ) {
   if (!dateStr || !timeStr) return null;
   const datePart = String(dateStr).trim();
   const timePart = String(timeStr).trim().slice(0, 5);
-  const iso = `${datePart}T${timePart}:00`;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datePart) || !/^\d{2}:\d{2}$/.test(timePart)) return null;
+  const offset = getUTCOffsetForTZ(timezone);
+  const d = new Date(`${datePart}T${timePart}:00${offset}`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Get current date and time in a specific timezone.
+ * Returns { date: 'YYYY-MM-DD', time: 'HH:MM' }.
+ *
+ * Server-timezone-independent: always returns the wall-clock values
+ * for the requested IANA timezone.
+ *
+ * @param {string} [timezone] - IANA timezone (default: Asia/Kolkata)
+ * @returns {{ date: string, time: string }}
+ */
+function getNowInTZ(timezone = DEFAULT_DISPLAY_TZ) {
+  const now = new Date();
+  // en-CA locale gives YYYY-MM-DD format
+  const dateStr = now.toLocaleDateString('en-CA', { timeZone: timezone });
+  // en-GB with hour12:false gives 24-hour HH:MM
+  const timeStr = now.toLocaleTimeString('en-GB', {
+    timeZone: timezone,
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return { date: dateStr, time: timeStr };
+}
+
+/**
+ * Parse a date-only string (YYYY-MM-DD) in a given timezone at a specific hour.
+ * Useful for voucher expiry calculations.
+ *
+ * Examples:
+ *   parseDateInTZ('2026-03-01', 'Asia/Kolkata', 0)  → 2026-02-28T18:30:00.000Z (IST midnight)
+ *   parseDateInTZ('2026-03-01', 'Asia/Kolkata', 12) → 2026-03-01T06:30:00.000Z (IST noon)
+ *
+ * @param {string} dateStr   - YYYY-MM-DD
+ * @param {string} [timezone] - IANA timezone (default: Asia/Kolkata)
+ * @param {number} [hour]    - Hour of day 0-23 (default: 0 = midnight)
+ * @returns {Date|null}
+ */
+function parseDateInTZ(dateStr, timezone = DEFAULT_DISPLAY_TZ, hour = 0) {
+  const d = String(dateStr).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  const offset = getUTCOffsetForTZ(timezone);
+  const hh = String(hour).padStart(2, '0');
+  const result = new Date(`${d}T${hh}:00:00${offset}`);
+  return Number.isNaN(result.getTime()) ? null : result;
 }
 
 module.exports = {
@@ -121,5 +207,8 @@ module.exports = {
   formatForDisplay,
   nowUTC,
   parseBookingDateTime,
+  getUTCOffsetForTZ,
+  getNowInTZ,
+  parseDateInTZ,
   DEFAULT_DISPLAY_TZ,
 };

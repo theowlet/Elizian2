@@ -20,8 +20,6 @@ const VenueDetailPage = () => {
   const [submittingTip, setSubmittingTip] = useState(false);
   const [tipPaymentMethod, setTipPaymentMethod] = useState("fiat");
   const [eztBalance, setEztBalance] = useState(null);
-  const [prelaunchSignedUp, setPrelaunchSignedUp] = useState(false);
-  const [joiningWaitlist, setJoiningWaitlist] = useState(false);
   const [checkInsToday, setCheckInsToday] = useState(null);
   const [venueStats, setVenueStats] = useState(null);
   const [userTier, setUserTier] = useState(null);
@@ -82,19 +80,6 @@ const VenueDetailPage = () => {
     fetchReviews();
     return () => { cancelled = true; };
   }, [id, API_BASE]);
-
-  useEffect(() => {
-    if (!id || !token) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/v1/partners/${id}/prelaunch/check`, { headers: { Authorization: `Bearer ${token}` } });
-        const data = await res.json();
-        if (!cancelled && data.success && data.data?.signed_up) setPrelaunchSignedUp(true);
-      } catch (_) {}
-    })();
-    return () => { cancelled = true; };
-  }, [id, token, API_BASE]);
 
   // Check-ins today (social proof) – public
   useEffect(() => {
@@ -237,23 +222,12 @@ const VenueDetailPage = () => {
     }
   };
 
-  const joinWaitlist = async () => {
-    if (!token || prelaunchSignedUp || joiningWaitlist) return;
-    setJoiningWaitlist(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/partners/${id}/prelaunch/signup`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      if (data.success) setPrelaunchSignedUp(true);
-    } catch (_) {}
-    setJoiningWaitlist(false);
-  };
-
   const handleBookOffer = (offer) => {
     const deal = {
       id: offer.id,
       title: offer.title,
       description: offer.description,
-      service_type: offer.service_type || "dining",
+      service_type: offer.service_type || "others",
       partner_id: id,
       partner_name: venue?.name,
       discounted_price: offer.discounted_price,
@@ -328,17 +302,9 @@ const VenueDetailPage = () => {
           </div>
         )}
         {token && (
-          <>
-            <button type="button" className="venue-detail-tip-btn" onClick={openTipModal}>
-              Tip venue
-            </button>
-{!prelaunchSignedUp && (
-              <button type="button" className="venue-detail-tip-btn" onClick={joinWaitlist} disabled={joiningWaitlist}>
-                {joiningWaitlist ? "Joining…" : "Join waitlist"}
-              </button>
-            )}
-            {prelaunchSignedUp && <span className="venue-detail-perk-badge">Founding member</span>}
-          </>
+          <button type="button" className="venue-detail-tip-btn" onClick={openTipModal}>
+            Tip venue
+          </button>
         )}
         {/* Quick action buttons */}
         <div className="venue-detail-action-bar">

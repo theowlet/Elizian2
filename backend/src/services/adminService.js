@@ -5,8 +5,29 @@ const { AppError } = require('../../utils/response');
 const { logError, log } = require('../../utils/logger');
 const { emitRealtimeEvent, emitToRoom, REALTIME_EVENTS } = require('../utils/realtimeEmitter');
 const { normalizeTierName } = require('../utils/tierNames');
+const slotCapacityService = require('./slotCapacityService'); // FIX #3: Release slot capacity on cancellation
+const waitlistService = require('./waitlistService');
 
 const pool = getPool();
+
+/** Promote or notify next waitlist user (FIFO) when a slot opens due to cancellation. Fire-and-forget. */
+function notifyWaitlistOnSlotRelease(partnerId, bookingDate, bookingTime, dealId = null) {
+  if (!partnerId || !bookingDate || !bookingTime) return;
+  const dateStr = (slotCapacityService.toDateString && slotCapacityService.toDateString(bookingDate)) || String(bookingDate).trim().substring(0, 10);
+  const timeStr = slotCapacityService.normalizeDealTimeSlot(bookingTime) || String(bookingTime || '').substring(0, 5);
+  if (!dateStr || !timeStr) return;
+  const promote = dealId
+    ? waitlistService.promoteNextWaitlistToBooking(partnerId, dealId, dateStr, timeStr)
+    : waitlistService.notifyNextInWaitlist(partnerId, dateStr, timeStr);
+  promote
+    .then((result) => {
+      if (result) {
+        if (result.booking) log(`🔔 FIFO waitlist: promoted user ${result.waitlistEntry?.user_id} to confirmed booking for slot ${dateStr} ${timeStr}`);
+        else log(`🔔 FIFO waitlist: notified user ${result.user_id} for slot ${dateStr} ${timeStr}`);
+      }
+    })
+    .catch((err) => logError('⚠️ Waitlist promote/notify failed (non-fatal):', err));
+}
 
 function ensureIdsArray(ids) {
   if (!Array.isArray(ids) || ids.length === 0) {
@@ -759,13 +780,37 @@ async function updateBookingStatus(bookingId, status, reason, actorId, actorRole
       }
     });
     
-    // If status is cancelled, process refund logic here if needed
+    // If status is cancelled: release slot capacity and notify waitlist (FIFO)
     if (status === 'cancelled' && currentBooking.status !== 'cancelled') {
-      // TODO: Trigger refund process if applicable
-      log(`Booking ${bookingId} cancelled - refund process may be required`);
+      log(`Booking ${bookingId} cancelled - releasing slot and notifying waitlist`);
+      const partySize = currentBooking.num_tickets || currentBooking.num_guests || 1;
+      if (currentBooking.deal_id && currentBooking.booking_date) {
+        try {
+          await slotCapacityService.releaseDealSlot(client, currentBooking.deal_id, currentBooking.booking_date, currentBooking.booking_time, partySize);
+          log(`✅ Released deal slot for cancelled booking ${bookingId}`);
+        } catch (slotErr) {
+          logError(`⚠️ Failed to release deal slot for booking ${bookingId}:`, slotErr);
+        }
+      }
+      if (currentBooking.partner_id && currentBooking.booking_date && currentBooking.booking_time) {
+        try {
+          const slotDt = slotCapacityService.toSlotDatetime(currentBooking.booking_date, currentBooking.booking_time);
+          if (slotDt) {
+            await slotCapacityService.releaseSlot(client, currentBooking.partner_id, slotDt, partySize);
+            log(`✅ Released venue slot for cancelled booking ${bookingId}`);
+          }
+        } catch (slotErr) {
+          logError(`⚠️ Failed to release venue slot for booking ${bookingId}:`, slotErr);
+        }
+      }
     }
     
     await client.query('COMMIT');
+
+    // FIFO: Promote or notify next waitlist user when slot opens (after commit)
+    if (status === 'cancelled' && currentBooking.status !== 'cancelled' && currentBooking.partner_id && currentBooking.booking_date && currentBooking.booking_time) {
+      notifyWaitlistOnSlotRelease(currentBooking.partner_id, currentBooking.booking_date, currentBooking.booking_time, currentBooking.deal_id);
+    }
     
     const updatedBooking = updateResult.rows[0];
     const bookingEvent = {
@@ -853,12 +898,35 @@ async function processRefund(bookingId, amount, reason, refundType, actorId, act
     
     // Update booking status to cancelled
     await client.query(
-      `UPDATE bookings 
-       SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP 
+      `UPDATE bookings
+       SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
       [bookingId]
     );
-    
+
+    // FIX #3: Release slot capacity for cancelled booking (atomic within same transaction)
+    const partySize = booking.num_tickets || booking.num_guests || 1;
+    if (booking.deal_id && booking.booking_date) {
+      try {
+        await slotCapacityService.releaseDealSlot(client, booking.deal_id, booking.booking_date, booking.booking_time, partySize);
+        log(`✅ Released deal slot for cancelled booking ${bookingId}`);
+      } catch (slotErr) {
+        logError(`⚠️ Failed to release deal slot for booking ${bookingId}:`, slotErr);
+        // Non-fatal: don't fail the cancellation if slot release fails
+      }
+    }
+    if (booking.partner_id && booking.booking_date && booking.booking_time) {
+      try {
+        const slotDt = slotCapacityService.toSlotDatetime(booking.booking_date, booking.booking_time);
+        if (slotDt) {
+          await slotCapacityService.releaseSlot(client, booking.partner_id, slotDt, partySize);
+          log(`✅ Released venue slot for cancelled booking ${bookingId}`);
+        }
+      } catch (slotErr) {
+        logError(`⚠️ Failed to release venue slot for booking ${bookingId}:`, slotErr);
+      }
+    }
+
     // Log audit
     await writeAudit(client, {
       actor_user_id: actorId,
@@ -876,6 +944,9 @@ async function processRefund(bookingId, amount, reason, refundType, actorId, act
     });
     
     await client.query('COMMIT');
+
+    // FIFO: Promote or notify next waitlist user when slot opens
+    notifyWaitlistOnSlotRelease(booking.partner_id, booking.booking_date, booking.booking_time, booking.deal_id);
     
     const refundPayload = {
       action: 'refunded',
