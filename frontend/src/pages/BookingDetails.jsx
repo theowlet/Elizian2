@@ -24,6 +24,40 @@ const BookingDetails = () => {
   const [confirmResult, setConfirmResult] = useState(null); // null | 'confirmed' | 'disputed' | 'error'
   const [confirmMessage, setConfirmMessage] = useState('');
   const [timeLeft, setTimeLeft] = useState(null);
+  const [paymentTimeLeft, setPaymentTimeLeft] = useState(null); // seconds remaining for payment deadline
+  const [reservationTimeLeft, setReservationTimeLeft] = useState(null); // seconds remaining for INVENTORY reservation
+
+  // Live-updating countdown for INVENTORY reservation expiry
+  useEffect(() => {
+    if (booking?.status !== 'temp_reserved' || !booking?.reservation_expires_at) {
+      setReservationTimeLeft(null);
+      return;
+    }
+    const calcRemaining = () => Math.max(0, Math.floor((new Date(booking.reservation_expires_at).getTime() - Date.now()) / 1000));
+    setReservationTimeLeft(calcRemaining());
+    const timer = setInterval(() => {
+      const r = calcRemaining();
+      setReservationTimeLeft(r);
+      if (r <= 0) clearInterval(timer);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [booking?.status, booking?.reservation_expires_at]);
+
+  // Live-updating countdown for event payment deadline
+  useEffect(() => {
+    if (booking?.status !== 'payment_pending' || !booking?.payment_deadline) {
+      setPaymentTimeLeft(null);
+      return;
+    }
+    const calcRemaining = () => Math.max(0, Math.floor((new Date(booking.payment_deadline).getTime() - Date.now()) / 1000));
+    setPaymentTimeLeft(calcRemaining());
+    const timer = setInterval(() => {
+      const r = calcRemaining();
+      setPaymentTimeLeft(r);
+      if (r <= 0) clearInterval(timer);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [booking?.status, booking?.payment_deadline]);
 
   useEffect(() => {
     if (!booking && id) {
@@ -100,6 +134,53 @@ const BookingDetails = () => {
     const iv = setInterval(update, 1000);
     return () => clearInterval(iv);
   }, [pendingRedemption?.confirmation_expires_at]);
+
+  // Poll for payment_pending → confirmed transition (every 15 seconds)
+  useEffect(() => {
+    if (booking?.status !== 'payment_pending') return;
+    const pollStatus = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token || !booking?.id) return;
+        const resp = await fetch(`${API_BASE}/api/v1/bookings/${booking.id}/status`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json.success && json.data?.status && json.data.status !== 'payment_pending') {
+            // Status changed — reload full booking details
+            loadBookingDetails();
+          }
+        }
+      } catch (_) {
+        // Silent failure — poll will retry
+      }
+    };
+    const iv = setInterval(pollStatus, 15000);
+    return () => clearInterval(iv);
+  }, [booking?.id, booking?.status]);
+
+  // Poll for temp_reserved → redeemed/expired transition (every 15 seconds)
+  useEffect(() => {
+    if (booking?.status !== 'temp_reserved') return;
+    const pollStatus = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token || !booking?.id) return;
+        const resp = await fetch(`${API_BASE}/api/v1/bookings/${booking.id}/status`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json.success && json.data?.status && json.data.status !== 'temp_reserved') {
+            loadBookingDetails();
+          }
+        }
+      } catch (_) {}
+    };
+    const iv = setInterval(pollStatus, 15000);
+    return () => clearInterval(iv);
+  }, [booking?.id, booking?.status]);
 
   const handleConfirmRedemption = async () => {
     if (!pendingRedemption) return;
@@ -362,8 +443,11 @@ const BookingDetails = () => {
     const statusMap = {
       'confirmed': { label: 'Confirmed', class: 'status-confirmed' },
       'pending': { label: 'Pending', class: 'status-pending' },
+      'payment_pending': { label: 'Awaiting Payment', class: 'status-pending' },
+      'temp_reserved': { label: 'Reserved', class: 'status-pending' },
       'pending_confirmation': { label: 'Awaiting Your Confirmation', class: 'status-pending' },
       'cancelled': { label: 'Cancelled', class: 'status-cancelled' },
+      'expired': { label: 'Expired', class: 'status-cancelled' },
       'redeemed': { label: 'Redeemed', class: 'status-redeemed' },
       'disputed': { label: 'Disputed', class: 'status-cancelled' },
       'completed': { label: 'Completed', class: 'status-completed' }
@@ -489,14 +573,20 @@ const BookingDetails = () => {
   const statusText = {
     confirmed: 'Voucher Confirmed',
     pending: 'Booking Pending',
+    payment_pending: 'Awaiting Payment',
+    temp_reserved: 'Seats Reserved',
     pending_confirmation: 'Awaiting Your Confirmation',
     cancelled: 'Booking Cancelled',
+    expired: 'Booking Expired',
     redeemed: 'Voucher Redeemed',
     completed: 'Booking Completed',
   }[displayStatus] || (displayStatus ? String(displayStatus).replace(/_/g, ' ') : 'Booking Status');
 
   const statusColor = displayStatus === 'confirmed'
     ? '#16a34a'
+    : displayStatus === 'temp_reserved' ? '#f59e0b'
+    : displayStatus === 'payment_pending' ? '#f59e0b'
+    : displayStatus === 'expired' ? '#dc2626'
     : (displayStatus === 'pending_confirmation' ? '#f59e0b' : displayStatus === 'cancelled' ? '#dc2626' : '#f59e0b');
 
   // Single source of truth: voucher rendering based on booking_mode only
@@ -904,24 +994,26 @@ const BookingDetails = () => {
               View Details
             </button>
           )}
-          {booking.status === 'confirmed' && (
+          {(booking.status === 'confirmed' || booking.status === 'payment_pending' || booking.status === 'temp_reserved') && (
             <>
-              <button
-                type="button"
-                onClick={() => navigate(`/booking/${booking.id}/reschedule`, { state: { booking } })}
-                style={{
-                  padding: '0.85rem 1.25rem',
-                  background: theme.card,
-                  color: theme.gold,
-                  border: `1px solid ${theme.gold}`,
-                  borderRadius: '10px',
-                  cursor: 'pointer',
-                  fontSize: '0.95rem',
-                  fontWeight: 600,
-                }}
-              >
-                Reschedule
-              </button>
+              {booking.status === 'confirmed' && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/booking/${booking.id}/reschedule`, { state: { booking } })}
+                  style={{
+                    padding: '0.85rem 1.25rem',
+                    background: theme.card,
+                    color: theme.gold,
+                    border: `1px solid ${theme.gold}`,
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  Reschedule
+                </button>
+              )}
               <button
                 type="button"
                 onClick={async () => {
@@ -1019,6 +1111,92 @@ const BookingDetails = () => {
           )}
         </div>
 
+        {/* Event Payment Deadline Card (payment_pending only) */}
+        {booking.status === 'payment_pending' && booking.payment_deadline && (
+          <div style={{
+            background: '#1a1500',
+            borderRadius: '12px',
+            padding: '1.5rem',
+            marginBottom: '1.5rem',
+            border: '1.5px solid #f59e0b',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '1.3rem' }}>⏰</span>
+              <h3 style={{ margin: 0, fontSize: '1rem', color: '#fbbf24', fontWeight: 700 }}>Payment Deadline</h3>
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#fde68a', marginBottom: '0.5rem' }}>
+              Pay before: <strong>{new Date(booking.payment_deadline).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' })}</strong>
+            </div>
+            <div style={{
+              background: 'rgba(251,191,36,0.15)',
+              borderRadius: '8px',
+              padding: '8px 12px',
+              textAlign: 'center',
+              fontFamily: 'monospace',
+              fontSize: '1.2rem',
+              fontWeight: 700,
+              color: '#fbbf24',
+              marginBottom: '0.75rem',
+            }}>
+              {(() => {
+                const remaining = paymentTimeLeft ?? 0;
+                if (remaining <= 0) return 'Deadline passed';
+                const h = Math.floor(remaining / 3600);
+                const m = Math.floor((remaining % 3600) / 60);
+                const s = remaining % 60;
+                return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s remaining`;
+              })()}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#a16207', lineHeight: '1.5' }}>
+              Your slot is reserved. Contact the venue to pay directly. Once the venue confirms payment, your voucher will activate automatically.
+              If payment is not confirmed by the deadline, the booking will expire.
+            </div>
+          </div>
+        )}
+
+        {/* INVENTORY Reservation Expiry Card (temp_reserved only) */}
+        {booking.status === 'temp_reserved' && booking.reservation_expires_at && (
+          <div style={{
+            background: '#1a1500',
+            borderRadius: '12px',
+            padding: '1.5rem',
+            marginBottom: '1.25rem',
+            border: '1.5px solid #f59e0b',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
+              <span style={{ fontSize: '1.3rem' }}>🎫</span>
+              <h3 style={{ margin: 0, fontSize: '1rem', color: '#fbbf24', fontWeight: 700 }}>Reservation Window</h3>
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#fde68a', marginBottom: '0.5rem' }}>
+              Expires: <strong>{new Date(booking.reservation_expires_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' })}</strong>
+            </div>
+            <div style={{
+              background: 'rgba(251,191,36,0.15)',
+              borderRadius: '8px',
+              padding: '8px 12px',
+              textAlign: 'center',
+              fontFamily: 'monospace',
+              fontSize: '1.2rem',
+              fontWeight: 700,
+              color: '#fbbf24',
+              marginBottom: '0.75rem',
+            }}>
+              {(() => {
+                const remaining = reservationTimeLeft ?? 0;
+                if (remaining <= 0) return 'Reservation expired';
+                const h = Math.floor(remaining / 3600);
+                const m = Math.floor((remaining % 3600) / 60);
+                const s = remaining % 60;
+                return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s remaining`;
+              })()}
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#a16207', lineHeight: '1.5' }}>
+              Your seats and EZT tokens are reserved. Visit the venue and show your QR code to the partner to complete payment and redeem.
+              If not redeemed by the deadline, the reservation will expire and your tokens will be released.
+            </div>
+          </div>
+        )}
+
         {/* Redemption Instructions */}
         <div style={{
           background: theme.card,
@@ -1027,14 +1205,32 @@ const BookingDetails = () => {
           marginBottom: '1.5rem',
           border: `1px solid ${theme.border}`
         }}>
-          <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: theme.muted }}>Redemption Instructions</h3>
+          <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: theme.muted }}>
+            {booking.status === 'payment_pending' ? 'How to Pay' : booking.status === 'temp_reserved' ? 'How to Redeem' : 'Redemption Instructions'}
+          </h3>
           <div style={{ color: '#d1d5db', lineHeight: '1.6' }}>
-            <ol style={{ paddingLeft: '1.5rem', margin: 0 }}>
-              <li style={{ marginBottom: '0.5rem' }}>Arrive at the partner venue on the scheduled date and time</li>
-              <li style={{ marginBottom: '0.5rem' }}>Show your booking reference or QR code to the staff</li>
-              <li style={{ marginBottom: '0.5rem' }}>Pay the amount directly at the venue</li>
-              <li style={{ marginBottom: '0.5rem' }}>Enjoy your experience!</li>
-            </ol>
+            {booking.status === 'payment_pending' ? (
+              <ol style={{ paddingLeft: '1.5rem', margin: 0 }}>
+                <li style={{ marginBottom: '0.5rem' }}>Contact the venue directly to arrange payment</li>
+                <li style={{ marginBottom: '0.5rem' }}>Pay the full amount to the venue (not through this platform)</li>
+                <li style={{ marginBottom: '0.5rem' }}>The venue will confirm receipt and your voucher will activate</li>
+                <li style={{ marginBottom: '0.5rem' }}>Once active, show your QR code at the venue to enjoy your experience</li>
+              </ol>
+            ) : booking.status === 'temp_reserved' ? (
+              <ol style={{ paddingLeft: '1.5rem', margin: 0 }}>
+                <li style={{ marginBottom: '0.5rem' }}>Go to the venue on the event date</li>
+                <li style={{ marginBottom: '0.5rem' }}>Show your QR code to the partner staff</li>
+                <li style={{ marginBottom: '0.5rem' }}>Partner scans your QR and enters your bill amount</li>
+                <li style={{ marginBottom: '0.5rem' }}>Your EZT tokens are applied automatically — pay the remaining balance</li>
+              </ol>
+            ) : (
+              <ol style={{ paddingLeft: '1.5rem', margin: 0 }}>
+                <li style={{ marginBottom: '0.5rem' }}>Arrive at the partner venue on the scheduled date and time</li>
+                <li style={{ marginBottom: '0.5rem' }}>Show your booking reference or QR code to the staff</li>
+                <li style={{ marginBottom: '0.5rem' }}>Pay the amount directly at the venue</li>
+                <li style={{ marginBottom: '0.5rem' }}>Enjoy your experience!</li>
+              </ol>
+            )}
           </div>
         </div>
 

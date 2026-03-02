@@ -12,7 +12,7 @@ const pool = getPool();
 // Valid state transitions (redemption overhaul: active -> pending_confirmation -> redeemed)
 const VALID_TRANSITIONS = {
   'created': ['booked'],
-  'booked': ['active', 'cancelled'],
+  'booked': ['active', 'cancelled', 'redeemed'],
   'active': ['pending_confirmation', 'redeemed', 'expired', 'cancelled'],
   'pending_confirmation': ['redeemed', 'disputed', 'active'],
   'redeemed': ['settled', 'disputed'],

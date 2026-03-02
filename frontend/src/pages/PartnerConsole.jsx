@@ -181,6 +181,13 @@ export default function PartnerConsole() {
   const [calculationLoading, setCalculationLoading] = useState(false);
   const [overrideCalculation, setOverrideCalculation] = useState(false);
   const [walletInfo, setWalletInfo] = useState({ max_allowed_co_pay: null, standard_deal_co_pay: null, wallet_shortfall: null, customer_fully_funded: true });
+  const [redemptionError, setRedemptionError] = useState(null);
+  const redemptionErrorBannerRef = useRef(null);
+  useEffect(() => {
+    if (redemptionError && redemptionErrorBannerRef.current) {
+      redemptionErrorBannerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [redemptionError]);
   const [offerEditId, setOfferEditId] = useState(null);
   const [menuEditId, setMenuEditId] = useState(null);
   const [showCampaignModal, setShowCampaignModal] = useState(false);
@@ -2296,8 +2303,11 @@ export default function PartnerConsole() {
             >
               <option value="">All Status</option>
               <option value="pending">Pending</option>
+              <option value="payment_pending">Payment Pending</option>
+              <option value="temp_reserved">Reserved</option>
               <option value="confirmed">Confirmed</option>
               <option value="redeemed">Redeemed</option>
+              <option value="expired">Expired</option>
               <option value="cancelled">Cancelled</option>
             </select>
             <button className="btn btn-secondary" onClick={loadBookings}>Refresh</button>
@@ -2352,7 +2362,7 @@ export default function PartnerConsole() {
                   <td>
                     {b.qr_code_url ? (
                       <img 
-                        src={b.qr_code_url} 
+                        src={b.qr_code_url.startsWith('http') ? b.qr_code_url : `${API_BASE}${b.qr_code_url.startsWith('/') ? '' : '/'}${b.qr_code_url}`} 
                         alt="QR Code" 
                         style={{width:'50px', height:'50px', cursor:'pointer', borderRadius:'4px'}}
                         onClick={() => {
@@ -2378,15 +2388,58 @@ export default function PartnerConsole() {
                       <span style={{color:'#999', fontSize:'0.85rem'}}>No QR</span>
                     )}
                   </td>
-                  <td><span className={`pc-badge pc-badge-${getStatusClass(b.status)}`}>{b.status}</span></td>
+                  <td><span className={`pc-badge pc-badge-${getStatusClass(b.status)}`}>{b.status === 'payment_pending' ? 'Awaiting Payment' : b.status === 'temp_reserved' ? 'Reserved' : b.status}</span></td>
                   <td>
                     <div className="pc-actions">
                       {b.status === 'redeemed' && (
                         <span style={{ fontSize: '0.8rem', color: '#059669', marginRight: 8 }} title="Voucher was redeemed">✓ Redeemed</span>
                       )}
+                      {b.status === 'temp_reserved' && (
+                        <>
+                          <button
+                            className="btn btn-sm btn-primary"
+                            style={{ background: '#d97706', borderColor: '#d97706' }}
+                            onClick={() => {
+                              setSelectedBooking(b);
+                              setShowRedemptionModal(true);
+                            }}
+                            title="Scan QR and redeem at POS"
+                          >
+                            Scan & Redeem
+                          </button>
+                          <button
+                            className="btn btn-sm btn-secondary"
+                            style={{ color: '#ef4444', borderColor: '#ef4444' }}
+                            onClick={() => cancelBookingByPartner(b.id, b.status)}
+                            title="Cancel this reservation"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                      {b.status === 'payment_pending' && (
+                        <>
+                          <button
+                            className="btn btn-sm btn-primary"
+                            style={{ background: '#059669', borderColor: '#059669' }}
+                            onClick={() => confirmPaymentForBooking(b.id)}
+                            title="Mark payment as received"
+                          >
+                            ✅ Confirm Payment
+                          </button>
+                          <button
+                            className="btn btn-sm btn-secondary"
+                            style={{ color: '#ef4444', borderColor: '#ef4444' }}
+                            onClick={() => cancelBookingByPartner(b.id, b.status)}
+                            title="Cancel this booking"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
                       {b.status === 'confirmed' && b.voucher_code && (
-                        <button 
-                          className="btn btn-sm btn-primary" 
+                        <button
+                          className="btn btn-sm btn-primary"
                           onClick={() => {
                             setSelectedBooking(b);
                             setShowRedemptionModal(true);
@@ -2394,6 +2447,16 @@ export default function PartnerConsole() {
                           title="Redeem voucher at POS"
                         >
                           Redeem
+                        </button>
+                      )}
+                      {b.status === 'confirmed' && (
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          style={{ color: '#ef4444', borderColor: '#ef4444' }}
+                          onClick={() => cancelBookingByPartner(b.id, b.status)}
+                          title="Cancel this booking"
+                        >
+                          Cancel
                         </button>
                       )}
                       <button className="btn btn-sm btn-secondary" onClick={() => viewBooking(b.id)}>View</button>
@@ -2431,6 +2494,62 @@ export default function PartnerConsole() {
     } catch (e) {
       console.error(e);
       showNotification('Failed to load booking details', 'error');
+    }
+  }
+
+  async function confirmPaymentForBooking(bookingId) {
+    if (!partner?.id) return;
+    if (!window.confirm('Confirm that you have received payment for this booking? This will activate the customer\'s voucher.')) return;
+    try {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/bookings/${bookingId}/confirm-payment`, {
+        method: 'POST',
+        headers: { ...headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const j = await r.json();
+      if (j.success) {
+        showNotification('Payment confirmed — voucher activated!', 'success');
+        loadBookings();
+      } else {
+        showNotification(j.message || 'Failed to confirm payment', 'error');
+      }
+    } catch (e) {
+      console.error(e);
+      showNotification('Network error. Please try again.', 'error');
+    }
+  }
+
+  async function cancelBookingByPartner(bookingId, currentStatus) {
+    if (!partner?.id) return;
+    let reason = '';
+    if (currentStatus === 'confirmed') {
+      reason = window.prompt('Please enter a reason for cancelling this confirmed booking (required):');
+      // null = user clicked Cancel on the prompt → abort silently
+      if (reason === null) return;
+      if (!reason.trim()) {
+        showNotification('Cancellation reason is required for confirmed bookings', 'error');
+        return;
+      }
+    } else {
+      if (!window.confirm('Cancel this booking? The customer will be notified.')) return;
+      reason = 'Cancelled by venue';
+    }
+    try {
+      const r = await authFetch(`${API_BASE}/api/v1/partners/${partner.id}/bookings/${bookingId}/cancel`, {
+        method: 'POST',
+        headers: { ...headers(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancellation_reason: reason.trim() })
+      });
+      const j = await r.json();
+      if (j.success) {
+        showNotification('Booking cancelled successfully', 'success');
+        loadBookings();
+      } else {
+        showNotification(j.message || 'Failed to cancel booking', 'error');
+      }
+    } catch (e) {
+      console.error(e);
+      showNotification('Network error. Please try again.', 'error');
     }
   }
 
@@ -2739,14 +2858,17 @@ export default function PartnerConsole() {
   }
 
   function getStatusClass(status) {
-    const mapping = { 
-      pending: 'warning', 
-      confirmed: 'secondary', 
+    const mapping = {
+      pending: 'warning',
+      payment_pending: 'warning',
+      temp_reserved: 'warning',
+      confirmed: 'secondary',
       redeemed: 'success',
-      preparing: 'warning', 
-      ready: 'success', 
-      completed: 'success', 
-      cancelled: 'error' 
+      preparing: 'warning',
+      ready: 'success',
+      completed: 'success',
+      expired: 'error',
+      cancelled: 'error'
     };
     return mapping[status] || 'secondary';
   }
@@ -2839,6 +2961,7 @@ export default function PartnerConsole() {
       return;
     }
 
+    setRedemptionError(null);
     try {
       const response = await authFetch(`${API_BASE}/api/v1/redemptions/redeem`, {
         method: 'POST',
@@ -2882,15 +3005,15 @@ export default function PartnerConsole() {
         loadDashboard();
       } else {
         const msg = result?.message ?? result?.error ?? (response.ok ? 'Redemption failed' : `Request failed (${response.status})`);
+        setRedemptionError(msg);
         showNotification(msg, 'error');
       }
     } catch (error) {
       console.error('Redemption error:', error);
       const isRefused = error?.message?.includes('Failed to fetch') || error?.name === 'TypeError';
-      showNotification(
-        isRefused ? 'Cannot reach server. Is the backend running? Check API URL (e.g. http://localhost:4000).' : 'Network error. Please try again.',
-        'error'
-      );
+      const msg = isRefused ? 'Cannot reach server. Is the backend running? Check API URL (e.g. http://localhost:4000).' : 'Network error. Please try again.';
+      setRedemptionError(msg);
+      showNotification(msg, 'error');
     }
   }
 
@@ -3493,6 +3616,7 @@ export default function PartnerConsole() {
         onClose={() => {
           setShowRedemptionModal(false);
           setSelectedBooking(null);
+          setRedemptionError(null);
           setRedemptionForm({
             total_bill_amount: '',
             ezt_co_pay_amount: '',
@@ -3508,6 +3632,26 @@ export default function PartnerConsole() {
       >
         {selectedBooking && (
           <form onSubmit={handleRedemptionSubmit}>
+            {redemptionError && (
+              <div
+                ref={redemptionErrorBannerRef}
+                style={{
+                  background: '#fef2f2',
+                  color: '#b91c1c',
+                  border: '1px solid #fecaca',
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  marginBottom: '1.5rem',
+                  fontSize: '0.95rem',
+                  fontWeight: 500,
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10
+                }}
+              >
+                ⚠️ {redemptionError}
+              </div>
+            )}
             {/* Booking Info - explicit dark text on light background for readability */}
             <div style={{
               background: '#f3f4f6',
@@ -3523,7 +3667,7 @@ export default function PartnerConsole() {
               <div style={{marginBottom:'0.5rem', color:'#111827'}}><strong>Voucher Code:</strong> <span style={{fontFamily:'monospace', fontSize:'0.9rem', color:'#374151'}}>{selectedBooking.voucher_code}</span></div>
               {selectedBooking.qr_code_url && (
                 <div style={{marginTop:'1rem', textAlign:'center'}}>
-                  <img src={selectedBooking.qr_code_url} alt="QR Code" style={{width:'150px', height:'150px', border:'2px solid #9ca3af', borderRadius:'8px', display:'block', margin:'0 auto'}} />
+                  <img src={selectedBooking.qr_code_url.startsWith('http') ? selectedBooking.qr_code_url : `${API_BASE}${selectedBooking.qr_code_url.startsWith('/') ? '' : '/'}${selectedBooking.qr_code_url}`} alt="QR Code" style={{width:'150px', height:'150px', border:'2px solid #9ca3af', borderRadius:'8px', display:'block', margin:'0 auto'}} />
                   <span style={{display:'inline-block', marginTop:'0.5rem', fontSize:'0.85rem', color:'#4b5563', fontWeight:500}}>QR Code</span>
                 </div>
               )}
@@ -3691,14 +3835,14 @@ export default function PartnerConsole() {
               >
                 Cancel
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="btn btn-primary"
                 disabled={
-                  !redemptionForm.total_bill_amount || 
-                  !redemptionForm.ezt_co_pay_amount || 
+                  !redemptionForm.total_bill_amount ||
+                  (!redemptionForm.ezt_co_pay_amount && !overrideCalculation) ||
                   !redemptionForm.net_amount_from_user ||
-                  parseFloat(redemptionForm.net_amount_from_user) !== (parseFloat(redemptionForm.total_bill_amount) - parseFloat(redemptionForm.ezt_co_pay_amount))
+                  parseFloat(redemptionForm.net_amount_from_user) !== (parseFloat(redemptionForm.total_bill_amount) - parseFloat(redemptionForm.ezt_co_pay_amount || 0))
                 }
               >
                 Redeem Voucher

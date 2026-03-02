@@ -1,13 +1,18 @@
 /**
  * Redemption Validation Service
  * Validates time-based rules, day-of-week restrictions, blackout dates, etc.
+ * Event redemption: not allowed before start date or before 60 mins prior to start time.
  */
 
 const { getPool } = require('../config/db');
 const { AppError } = require('../../utils/response');
 const { logError } = require('../../utils/logger');
+const { parseBookingDateTime, DEFAULT_DISPLAY_TZ } = require('../utils/timeService');
 
 const pool = getPool();
+
+/** Minutes before event start when redemption becomes allowed (default: 60) */
+const REDEMPTION_MINUTES_BEFORE_START = 60;
 
 /**
  * Validate redemption against time-based rules
@@ -157,8 +162,62 @@ function validateValidityWindow(booking, redemptionDate = new Date()) {
   return true;
 }
 
+/**
+ * Validate event/time-slot redemption window: not allowed before start date or before N minutes prior to start time.
+ * For events like "Ram Navmi 26/3/2026 8:00 PM - 11:00 PM", redemption allowed only from 26/3/2026 7:00 PM (60 mins before start).
+ *
+ * @param {Object} booking - Booking with booking_date, booking_time
+ * @param {Date} redemptionDate - Redemption attempt timestamp
+ * @param {string} partnerTimezone - IANA timezone (e.g. 'Asia/Kolkata')
+ * @param {number} minutesBeforeStart - Redemption allowed N mins before start (default: 60)
+ * @returns {{ valid: boolean, error?: string }}
+ */
+function validateEventRedemptionWindow(booking, redemptionDate = new Date(), partnerTimezone = DEFAULT_DISPLAY_TZ, minutesBeforeStart = REDEMPTION_MINUTES_BEFORE_START) {
+  // INVENTORY bookings: users are AT the venue within their dynamic reservation window — skip event window check
+  if (booking.booking_category === 'INVENTORY') return { valid: true };
+
+  let dateStr = null;
+  if (booking.booking_date) {
+    const v = booking.booking_date;
+    if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.trim())) {
+      dateStr = v.trim();
+    } else if (v instanceof Date && !Number.isNaN(v.getTime())) {
+      dateStr = v.toLocaleDateString('en-CA', { timeZone: partnerTimezone });
+    } else {
+      const d = new Date(v);
+      dateStr = !Number.isNaN(d.getTime()) ? d.toLocaleDateString('en-CA', { timeZone: partnerTimezone }) : null;
+    }
+  }
+  const timeStr = booking.booking_time ? String(booking.booking_time).trim().replace(/^(\d{2}:\d{2}).*/, '$1') : null;
+
+  if (!dateStr || !timeStr || !/^\d{2}:\d{2}$/.test(timeStr)) {
+    return { valid: true };
+  }
+
+  const eventStart = parseBookingDateTime(dateStr, timeStr, partnerTimezone);
+  if (!eventStart) {
+    return { valid: true };
+  }
+
+  const earliestRedemption = new Date(eventStart.getTime() - minutesBeforeStart * 60 * 1000);
+  const now = redemptionDate instanceof Date ? redemptionDate : new Date(redemptionDate);
+
+  if (now < earliestRedemption) {
+    const allowedDate = earliestRedemption.toLocaleDateString('en-CA', { timeZone: partnerTimezone });
+    const allowedTime = earliestRedemption.toLocaleTimeString('en-GB', { timeZone: partnerTimezone, hour12: false, hour: '2-digit', minute: '2-digit' });
+    return {
+      valid: false,
+      error: `Redemption not allowed before event start. Earliest redemption: ${allowedDate} at ${allowedTime} (${minutesBeforeStart} minutes before event start at ${dateStr} ${timeStr})`
+    };
+  }
+
+  return { valid: true };
+}
+
 module.exports = {
   validateRedemptionRules,
-  validateValidityWindow
+  validateValidityWindow,
+  validateEventRedemptionWindow,
+  REDEMPTION_MINUTES_BEFORE_START
 };
 

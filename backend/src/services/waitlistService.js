@@ -377,43 +377,71 @@ async function promoteNextWaitlistToBooking(partner_id, deal_id, booking_date, b
       booking_date: dateStr,
       booking_time: timeStr,
       special_requests: nextEntry.special_requests || null,
+      is_waitlist_promotion: true, // Signals shorter payment deadline for events
     });
+
+    // Update waitlist status to 'confirmed' for all promotions.
+    // NOTE: We use 'confirmed' (not 'promoted') because the booking_waitlist CHECK
+    // constraint only allows: 'waiting', 'notified', 'confirmed', 'expired', 'cancelled'.
+    // For events (payment_pending), the booking itself tracks the payment state separately.
+    const isPaymentPending = booking.status === 'payment_pending';
+    const waitlistNewStatus = 'confirmed';
 
     const updateClient = await pool.connect();
     try {
       await updateClient.query(
         `UPDATE booking_waitlist
-         SET status = 'confirmed', updated_at = CURRENT_TIMESTAMP
-         WHERE id = $1`,
-        [nextEntry.id]
+         SET status = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [waitlistNewStatus, nextEntry.id]
       );
     } finally {
       updateClient.release();
     }
 
-    log(`✅ Promoted waitlist user ${nextEntry.user_id} to confirmed booking ${booking.id}`);
+    log(`✅ Promoted waitlist user ${nextEntry.user_id} to ${isPaymentPending ? 'payment_pending' : 'confirmed'} booking ${booking.id}`);
 
     try {
       const notificationService = require('./notificationService');
       const partner = await partnerRepository.getPartnerById(partner_id);
       const dealTitle = booking.deal_title || 'your deal';
-      await notificationService.create({
-        userId: nextEntry.user_id,
-        type: 'booking_confirmation',
-        title: 'You\'re in! Spot opened up',
-        message: `A spot opened for ${dealTitle} at ${partner?.name || 'the venue'} on ${dateStr} at ${timeStr}. Your booking is now confirmed.`,
-        actionUrl: `/booking/${booking.id}`,
-        actionLabel: 'View Booking',
-        priority: 'high',
-        metadata: { booking_id: booking.id, waitlist_id: nextEntry.id, deal_title: dealTitle, source: 'waitlist_promoted' },
-        sentViaInApp: true,
-        sentViaPush: true,
-      });
+
+      if (isPaymentPending) {
+        // Event waitlist promotion: shorter payment window
+        const deadlineStr = booking.payment_deadline
+          ? new Date(booking.payment_deadline).toLocaleString('en-IN', { timeZone: partner?.timezone || 'Asia/Kolkata' })
+          : 'soon';
+        await notificationService.create({
+          userId: nextEntry.user_id,
+          type: 'waitlist_promoted_payment_pending',
+          title: 'A spot opened — complete payment quickly!',
+          message: `A spot opened for ${dealTitle} at ${partner?.name || 'the venue'} on ${dateStr} at ${timeStr}. Pay the venue before ${deadlineStr} to secure your spot!`,
+          actionUrl: `/booking/${booking.id}`,
+          actionLabel: 'View Booking',
+          priority: 'high',
+          metadata: { booking_id: booking.id, waitlist_id: nextEntry.id, deal_title: dealTitle, source: 'waitlist_promoted', payment_deadline: booking.payment_deadline },
+          sentViaInApp: true,
+          sentViaPush: true,
+        });
+      } else {
+        await notificationService.create({
+          userId: nextEntry.user_id,
+          type: 'booking_confirmation',
+          title: 'You\'re in! Spot opened up',
+          message: `A spot opened for ${dealTitle} at ${partner?.name || 'the venue'} on ${dateStr} at ${timeStr}. Your booking is now confirmed.`,
+          actionUrl: `/booking/${booking.id}`,
+          actionLabel: 'View Booking',
+          priority: 'high',
+          metadata: { booking_id: booking.id, waitlist_id: nextEntry.id, deal_title: dealTitle, source: 'waitlist_promoted' },
+          sentViaInApp: true,
+          sentViaPush: true,
+        });
+      }
     } catch (notifErr) {
       logError('Waitlist promotion notification failed (non-fatal):', notifErr);
     }
 
-    return { booking, waitlistEntry: { ...nextEntry, status: 'confirmed' } };
+    return { booking, waitlistEntry: { ...nextEntry, status: waitlistNewStatus } };
   } catch (err) {
     logError('Error promoting waitlist to booking:', err);
     return notifyNextInWaitlist(partner_id, dateStr, timeStr);

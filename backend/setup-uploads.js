@@ -10,6 +10,7 @@ const uploadDirs = [
   path.join(__dirname, 'uploads/offers'),
   path.join(__dirname, 'uploads/partners'),
   path.join(__dirname, 'uploads/events'),
+  path.join(__dirname, 'uploads/vouchers'),
 ];
 
 console.log('🚀 Creating upload directories...\n');

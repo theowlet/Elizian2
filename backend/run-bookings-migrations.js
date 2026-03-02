@@ -26,6 +26,8 @@ const MIGRATIONS = [
   'db/migrations/2026-02-bookings-co-pay-at-booking.sql',  // co_pay_percentage_at_booking
   'db/migrations/2026-02-booking-reward-multiplier.sql',   // reward_multiplier (campaign EZT boost)
   'db/migrations/2026-02-booking-mode-column.sql',        // booking_mode (ONLINE_TIME_SLOT | PARTNER_CONFIRMATION)
+  'db/migrations/2026-03-event-payment-confirmation.sql', // event payment_pending workflow
+  'db/migrations/2026-03-inventory-booking-model.sql',   // INVENTORY: token_locks, temp_reserved, dynamic expiry
 ];
 
 async function run() {
@@ -47,8 +49,9 @@ async function run() {
         await client.query(sql);
         log(`✅ ${path.basename(fullPath)} completed`);
       } catch (err) {
-        if (err.message.includes('already exists') || err.message.includes('duplicate')) {
-          log(`⚠️  ${path.basename(fullPath)}: some objects may already exist (ok)`);
+        const msg = err.message || '';
+        if (msg.includes('already exists') || msg.includes('duplicate') || err.code === '23514') {
+          log(`⚠️  ${path.basename(fullPath)}: skipped (objects may already exist or constraint violation on existing data)`);
         } else {
           throw err;
         }

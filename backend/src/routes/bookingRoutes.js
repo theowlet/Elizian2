@@ -57,6 +57,9 @@ router.get('/waitlist/my-entries', authenticateToken, waitlistController.getMyWa
 router.delete('/waitlist/:id', authenticateToken, waitlistController.cancelWaitlistEntry);
 router.post('/waitlist/expire-notifications', waitlistController.expireNotifications);
 
+// Lightweight booking status check (for polling payment_pending → confirmed transitions)
+router.get('/:id/status', authenticateToken, bookingController.getBookingStatus);
+
 // Get booking by ID
 router.get('/:id', authenticateToken, bookingController.getBooking);
 

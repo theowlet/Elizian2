@@ -188,6 +188,8 @@ const getS3FileUrl = (key) => {
   const k = String(key);
   if (k.startsWith("http://") || k.startsWith("https://") || k.startsWith("data:"))
     return k;
+  // Local path (e.g. /uploads/vouchers/...) — leave as-is for API to serve
+  if (k.startsWith("/")) return null;
   if (!BUCKET_NAME) return null;
   return `https://${BUCKET_NAME}.s3.${region}.amazonaws.com/${key}`;
 };

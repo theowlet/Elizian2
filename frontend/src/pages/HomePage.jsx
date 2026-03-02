@@ -1317,12 +1317,13 @@ const HomePage = () => {
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleDealCardClick(event, e); } }}
                     aria-label={`Join ${event.title}`}
                   >
-                    <div
-                      className="home-card-image"
-                      style={{ backgroundImage: `url(${getDealImageUrl(event, API_BASE)})` }}
-                      role="img"
-                      aria-label={event.title}
-                    >
+                    <div className="home-card-image" role="img" aria-label={event.title}>
+                      <img
+                        src={getDealImageUrl(event, API_BASE)}
+                        alt=""
+                        className="home-card-image-img"
+                        onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_DEAL_IMAGE_URL; }}
+                      />
                       <div className="home-card-badge live">LIVE</div>
                     </div>
                     <div className="home-card-body">
@@ -1386,12 +1387,14 @@ const HomePage = () => {
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleDealCardClick(event, e); } }}
                     aria-label={`View ${event.title}`}
                   >
-                    <div
-                      className="home-card-image"
-                      style={{ backgroundImage: `url(${getDealImageUrl(event, API_BASE)})` }}
-                      role="img"
-                      aria-label={event.title}
-                    />
+                    <div className="home-card-image" role="img" aria-label={event.title}>
+                      <img
+                        src={getDealImageUrl(event, API_BASE)}
+                        alt=""
+                        className="home-card-image-img"
+                        onError={(e) => { e.target.onerror = null; e.target.src = DEFAULT_DEAL_IMAGE_URL; }}
+                      />
+                    </div>
                     <div className="home-card-body compact">
                       <h4 className="home-card-title small">{event.title}</h4>
                       <p className="home-card-meta">

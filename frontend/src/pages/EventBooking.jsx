@@ -646,11 +646,31 @@ const EventBooking = () => {
             <div style={{ padding: "1.5rem" }}>
               {/* Header */}
               <div style={{ textAlign: "center", marginBottom: "1.25rem" }}>
-                <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>✅</div>
-                <h2 className="elizian-auth-modal-title" style={{ margin: "0 0 0.25rem 0" }}>Booking Confirmed!</h2>
-                <p style={{ color: "#6b7280", fontSize: "0.875rem", margin: 0 }}>
-                  Your voucher has been generated successfully
-                </p>
+                {bookingResult.status === 'temp_reserved' ? (
+                  <>
+                    <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>🎫</div>
+                    <h2 className="elizian-auth-modal-title" style={{ margin: "0 0 0.25rem 0" }}>Seats Reserved!</h2>
+                    <p style={{ color: "#92400e", fontSize: "0.875rem", margin: 0, fontWeight: 500 }}>
+                      Show this QR code to the venue to complete payment and redeem
+                    </p>
+                  </>
+                ) : bookingResult.status === 'payment_pending' ? (
+                  <>
+                    <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>⏳</div>
+                    <h2 className="elizian-auth-modal-title" style={{ margin: "0 0 0.25rem 0" }}>Booking Reserved!</h2>
+                    <p style={{ color: "#92400e", fontSize: "0.875rem", margin: 0, fontWeight: 500 }}>
+                      Complete payment to the venue to confirm your spot
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ fontSize: "3rem", marginBottom: "0.5rem" }}>✅</div>
+                    <h2 className="elizian-auth-modal-title" style={{ margin: "0 0 0.25rem 0" }}>Booking Confirmed!</h2>
+                    <p style={{ color: "#6b7280", fontSize: "0.875rem", margin: 0 }}>
+                      Your voucher has been generated successfully
+                    </p>
+                  </>
+                )}
               </div>
 
               {/* Voucher Card */}
@@ -679,7 +699,7 @@ const EventBooking = () => {
                     </div>
                   </div>
                   <div style={{
-                    background: "rgba(255,255,255,0.2)",
+                    background: bookingResult.status === 'payment_pending' ? "rgba(251,191,36,0.3)" : "rgba(255,255,255,0.2)",
                     borderRadius: "6px",
                     padding: "4px 10px",
                     color: "#fff",
@@ -688,7 +708,7 @@ const EventBooking = () => {
                     textTransform: "uppercase",
                     letterSpacing: "0.04em",
                   }}>
-                    {bookingResult.voucher_state || bookingResult.status || "Active"}
+                    {bookingResult.status === 'payment_pending' ? 'Awaiting Payment' : (bookingResult.voucher_state || bookingResult.status || "Active")}
                   </div>
                 </div>
 
@@ -866,21 +886,129 @@ const EventBooking = () => {
                     </div>
                   )}
 
-                  {/* Payment Instructions */}
-                  <div style={{
-                    background: "#f0f9ff",
-                    borderRadius: "8px",
-                    padding: "0.75rem",
-                    border: "1px solid #bae6fd",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                      <span style={{ fontSize: "1rem" }}>💳</span>
-                      <span style={{ fontWeight: "600", fontSize: "0.85rem", color: "#0369a1" }}>How to Redeem</span>
+                  {/* INVENTORY Reservation Countdown (for temp_reserved) */}
+                  {bookingResult.status === 'temp_reserved' && bookingResult.reservation_expires_at && (
+                    <div style={{
+                      background: "#fffbeb",
+                      borderRadius: "10px",
+                      padding: "1rem",
+                      border: "1.5px solid #f59e0b",
+                      marginBottom: "1rem",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                        <span style={{ fontSize: "1.2rem" }}>🎫</span>
+                        <span style={{ fontWeight: "700", fontSize: "0.9rem", color: "#92400e" }}>Reservation Window</span>
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "#78350f", fontWeight: "600", marginBottom: "6px" }}>
+                        Expires: {new Date(bookingResult.reservation_expires_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' })}
+                      </div>
+                      {(() => {
+                        const diff = new Date(bookingResult.reservation_expires_at).getTime() - Date.now();
+                        if (diff <= 0) return <div style={{ background: "#fecaca", borderRadius: "6px", padding: "6px 10px", fontSize: "1rem", fontWeight: "700", color: "#b91c1c", textAlign: "center" }}>Reservation Expired</div>;
+                        const totalSec = Math.floor(diff / 1000);
+                        const h = Math.floor(totalSec / 3600);
+                        const m = Math.floor((totalSec % 3600) / 60);
+                        const s = totalSec % 60;
+                        return (
+                          <div style={{ background: "#fef3c7", borderRadius: "6px", padding: "6px 10px", fontSize: "1.1rem", fontWeight: "700", color: "#92400e", textAlign: "center", fontFamily: "monospace" }}>
+                            {h > 0 ? `${h}h ${m}m remaining` : `${m}m ${s}s remaining`}
+                          </div>
+                        );
+                      })()}
+                      <div style={{ fontSize: "0.75rem", color: "#a16207", marginTop: "6px", lineHeight: "1.4" }}>
+                        Visit the venue and show your QR code to complete payment and redeem. If not redeemed before the deadline, the reservation will expire and your locked EZT tokens will be released.
+                      </div>
                     </div>
-                    <div style={{ fontSize: "0.8rem", color: "#64748b", lineHeight: "1.5" }}>
-                      Visit the partner venue and show your booking reference or QR code. Pay the bill amount directly at the venue to redeem your deal.
+                  )}
+
+                  {/* Payment Deadline Countdown (for payment_pending only — legacy SERVICE events) */}
+                  {bookingResult.status === 'payment_pending' && bookingResult.payment_deadline && (
+                    <div style={{
+                      background: "#fffbeb",
+                      borderRadius: "10px",
+                      padding: "1rem",
+                      border: "1.5px solid #f59e0b",
+                      marginBottom: "1rem",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                        <span style={{ fontSize: "1.2rem" }}>⏰</span>
+                        <span style={{ fontWeight: "700", fontSize: "0.9rem", color: "#92400e" }}>Payment Deadline</span>
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "#78350f", fontWeight: "600", marginBottom: "6px" }}>
+                        Pay before: {new Date(bookingResult.payment_deadline).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Kolkata' })}
+                      </div>
+                      {bookingResult.time_remaining_seconds != null && (
+                        <div style={{
+                          background: "#fef3c7",
+                          borderRadius: "6px",
+                          padding: "6px 10px",
+                          fontSize: "1.1rem",
+                          fontWeight: "700",
+                          color: "#92400e",
+                          textAlign: "center",
+                          fontFamily: "monospace",
+                        }}>
+                          {(() => {
+                            const s = bookingResult.time_remaining_seconds;
+                            const h = Math.floor(s / 3600);
+                            const m = Math.floor((s % 3600) / 60);
+                            return `${h}h ${m}m remaining`;
+                          })()}
+                        </div>
+                      )}
+                      <div style={{ fontSize: "0.75rem", color: "#a16207", marginTop: "6px", lineHeight: "1.4" }}>
+                        Your slot is reserved. If payment is not confirmed by the venue before the deadline, the booking will expire automatically.
+                      </div>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Instructions */}
+                  {bookingResult.status === 'temp_reserved' ? (
+                    <div style={{
+                      background: "#ecfdf5",
+                      borderRadius: "8px",
+                      padding: "0.75rem",
+                      border: "1px solid #6ee7b7",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                        <span style={{ fontSize: "1rem" }}>🎫</span>
+                        <span style={{ fontWeight: "600", fontSize: "0.85rem", color: "#065f46" }}>How to Redeem</span>
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "#064e3b", lineHeight: "1.5" }}>
+                        Visit the venue and show this QR code to the partner. They will scan it, enter your bill amount, and your EZT discount will be applied automatically. Pay the remaining amount directly.
+                      </div>
+                    </div>
+                  ) : bookingResult.status === 'payment_pending' ? (
+                    <div style={{
+                      background: "#fef3c7",
+                      borderRadius: "8px",
+                      padding: "0.75rem",
+                      border: "1px solid #fbbf24",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                        <span style={{ fontSize: "1rem" }}>💰</span>
+                        <span style={{ fontWeight: "600", fontSize: "0.85rem", color: "#92400e" }}>How to Pay</span>
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "#78350f", lineHeight: "1.5" }}>
+                        Contact the venue directly to complete your payment. Once the venue confirms receipt, your voucher will be activated automatically.
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{
+                      background: "#f0f9ff",
+                      borderRadius: "8px",
+                      padding: "0.75rem",
+                      border: "1px solid #bae6fd",
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                        <span style={{ fontSize: "1rem" }}>💳</span>
+                        <span style={{ fontWeight: "600", fontSize: "0.85rem", color: "#0369a1" }}>How to Redeem</span>
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "#64748b", lineHeight: "1.5" }}>
+                        Visit the partner venue and show your booking reference or QR code. Pay the bill amount directly at the venue to redeem your deal.
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

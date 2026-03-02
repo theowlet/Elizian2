@@ -52,10 +52,32 @@ function inferBookingMode(booking) {
   return hasTimeSlot ? ONLINE_TIME_SLOT : PARTNER_CONFIRMATION;
 }
 
+// ─── INVENTORY vs SERVICE category types ────────────────────────
+// SERVICE: Postpaid model (Dining, Spa, Wellness, Healthcare, Travel, Others)
+// INVENTORY: Pre-settlement model with seat + token locking (Events; future: Hotels, Flights, Premium)
+const INVENTORY = 'INVENTORY';
+const SERVICE = 'SERVICE';
+
+/**
+ * Maps service_type to booking_category (SERVICE vs INVENTORY).
+ * Events use INVENTORY (limited seats, pre-settlement).
+ * All others use SERVICE (postpaid, no inventory loss).
+ * @param {string} serviceType - From offer (dining, events, spa, wellness, etc.)
+ * @returns {string} 'SERVICE' | 'INVENTORY'
+ */
+function getBookingCategoryFromServiceType(serviceType) {
+  if (!serviceType || typeof serviceType !== 'string') return SERVICE;
+  const key = String(serviceType).toLowerCase().trim();
+  return key === 'events' ? INVENTORY : SERVICE;
+}
+
 module.exports = {
   ONLINE_TIME_SLOT,
   PARTNER_CONFIRMATION,
   BOOKING_CATEGORY_CONFIG,
   getBookingModeFromServiceType,
   inferBookingMode,
+  INVENTORY,
+  SERVICE,
+  getBookingCategoryFromServiceType,
 };

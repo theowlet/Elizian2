@@ -2,6 +2,7 @@ const { getPool } = require('../config/db');
 const { successResponse, errorResponse } = require('../../utils/response');
 const { logError } = require('../../utils/logger');
 const { normalizeTierName } = require('../utils/tierNames');
+const { getS3FileUrl } = require('../../utils/s3Bucket');
 const bookingRepository = require('../repositories/bookingRepository');
 
 const pool = getPool();
@@ -25,8 +26,8 @@ async function listPartnerBookings(req, res) {
       params.push(status);
       paramIndex++;
     } else {
-      // Default "All Status" = active bookings only (exclude cancelled)
-      statusFilter = ` AND b.status != 'cancelled'`;
+      // Default "All Status" = show all bookings including cancelled
+      statusFilter = '';
     }
 
     const baseFrom = `
@@ -143,6 +144,8 @@ async function listPartnerBookings(req, res) {
         base.total_price = r.total_bill_amount;
         base.fiat_amount = r.net_amount_from_user;
       }
+      // Transform S3 key → full URL (same as bookingController.js line 99)
+      base.qr_code_url = getS3FileUrl(base.qr_code_url) || base.qr_code_url;
       return base;
     });
 
@@ -214,6 +217,8 @@ async function getPartnerBooking(req, res) {
 
     const booking = result.rows[0];
     booking.customer_tier = normalizeTierName(booking.customer_tier || booking.user_tier_at_booking);
+    // Transform S3 key → full URL
+    booking.qr_code_url = getS3FileUrl(booking.qr_code_url) || booking.qr_code_url;
 
     if (booking.status === 'redeemed') {
       // Include 'disputed' so we still return amounts for display when customer disputed (audit row has amounts from redemption time)
@@ -374,11 +379,57 @@ async function lookupVoucher(req, res) {
   }
 }
 
+/**
+ * Partner confirms payment received for event booking (payment_pending → confirmed).
+ * POST /api/v1/partners/:id/bookings/:bookingId/confirm-payment
+ */
+async function confirmEventPayment(req, res) {
+  try {
+    const { id: partnerId, bookingId } = req.params;
+    const partnerUserId = req.userId; // The partner's user account
+    const { payment_proof_url } = req.body || {};
+
+    const bookingService = require('../services/bookingService');
+    const result = await bookingService.confirmEventPayment(bookingId, partnerId, partnerUserId, {
+      payment_proof_url: payment_proof_url || null
+    });
+
+    return successResponse(res, 200, 'Payment confirmed — voucher is now active', result);
+  } catch (err) {
+    logError('❌ Confirm event payment error:', err);
+    return errorResponse(res, err.statusCode || 500, err.message || 'Failed to confirm payment');
+  }
+}
+
+/**
+ * Partner cancels an event booking.
+ * POST /api/v1/partners/:id/bookings/:bookingId/cancel
+ */
+async function cancelEventBooking(req, res) {
+  try {
+    const { id: partnerId, bookingId } = req.params;
+    const partnerUserId = req.userId;
+    const { cancellation_reason } = req.body || {};
+
+    const bookingService = require('../services/bookingService');
+    const result = await bookingService.partnerCancelEventBooking(bookingId, partnerId, partnerUserId, {
+      cancellation_reason: cancellation_reason || null
+    });
+
+    return successResponse(res, 200, 'Booking cancelled successfully', result);
+  } catch (err) {
+    logError('❌ Partner cancel booking error:', err);
+    return errorResponse(res, err.statusCode || 500, err.message || 'Failed to cancel booking');
+  }
+}
+
 module.exports = {
   listPartnerBookings,
   getPartnerBooking,
   updateBookingStatus,
   getBookingStats,
-  lookupVoucher
+  lookupVoucher,
+  confirmEventPayment,
+  cancelEventBooking
 };
 

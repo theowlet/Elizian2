@@ -2,9 +2,21 @@ const QRCode = require('qrcode');
 const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
-const { uploadToS3 } = require('../../utils/s3Bucket');
+const { uploadToS3, BUCKET_NAME, getS3FileUrl } = require('../../utils/s3Bucket');
 const { log, logError } = require('../../utils/logger');
 const { AppError } = require('../../utils/response');
+
+/** Save QR code to local uploads/vouchers/ when S3 is unavailable or fails. */
+async function saveQRCodeLocally(voucherCode, buffer) {
+  const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'vouchers');
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  const filename = `qr_${voucherCode}.png`;
+  const filePath = path.join(uploadsDir, filename);
+  fs.writeFileSync(filePath, buffer);
+  const url = `/uploads/vouchers/${filename}`;
+  log(`✅ QR code saved locally: ${url}`);
+  return url;
+}
 
 /**
  * Generate QR code for voucher and upload to S3.
@@ -80,32 +92,31 @@ async function generateAndUploadQRCode(voucherCode, metadata = {}) {
       finalQrBuffer = qrBuffer;
     }
 
-    // Prepare file object for S3 upload
-    const qrFile = {
-      buffer: finalQrBuffer,
-      originalname: `qr-${voucherCode}.png`,
-      mimetype: 'image/png'
-    };
-
-    // Upload to S3
-    // CRITICAL: If S3 upload fails, throw error so caller can handle appropriately
+    // Upload to S3 when configured; otherwise fall back to local storage
     let qrCodeUrl;
-    try {
-      qrCodeUrl = await uploadToS3(qrFile);
-      if (!qrCodeUrl || typeof qrCodeUrl !== 'string') {
-        throw new Error('S3 upload returned invalid URL');
+    if (BUCKET_NAME) {
+      const qrFile = {
+        buffer: finalQrBuffer,
+        originalname: `qr-${voucherCode}.png`,
+        mimetype: 'image/png'
+      };
+      try {
+        const s3Key = await uploadToS3(qrFile);
+        if (s3Key && typeof s3Key === 'string') {
+          qrCodeUrl = getS3FileUrl(s3Key);
+          log(`✅ QR code uploaded to S3: ${qrCodeUrl}`);
+        } else {
+          throw new Error('S3 upload returned invalid key');
+        }
+      } catch (s3Error) {
+        logError('⚠️ S3 upload failed for QR code, falling back to local storage:', s3Error.message);
+        qrCodeUrl = await saveQRCodeLocally(voucherCode, finalQrBuffer);
       }
-      log(`✅ QR code uploaded to S3: ${qrCodeUrl}`);
-    } catch (s3Error) {
-      logError('❌ S3 upload failed for QR code:', {
-        error: s3Error.message,
-        voucherCode: voucherCode,
-        fileSize: finalQrBuffer.length
-      });
-      // Re-throw so caller can decide whether to fail booking or continue
-      throw new AppError(500, `Failed to upload QR code to S3: ${s3Error.message}`);
+    } else {
+      log('⚠️ S3 not configured, saving QR code locally');
+      qrCodeUrl = await saveQRCodeLocally(voucherCode, finalQrBuffer);
     }
-    
+
     return qrCodeUrl;
   } catch (error) {
     logError('❌ QR code generation/upload error:', error);

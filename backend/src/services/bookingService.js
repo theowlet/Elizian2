@@ -24,7 +24,7 @@ const { generateAndUploadQRCode } = require('../utils/qrCodeGenerator');
 const { normalizeTierName } = require('../utils/tierNames');
 const { getNowInTZ, parseDateInTZ } = require('../utils/timeService');
 const { normalizeCoPayPercentage } = require('./redemptionCalculationService');
-const { getBookingModeFromServiceType } = require('../config/bookingModes');
+const { getBookingModeFromServiceType, getBookingCategoryFromServiceType } = require('../config/bookingModes');
 
 const pool = getPool();
 
@@ -119,7 +119,10 @@ async function createBooking(bookingData) {
 
       amount = (parseFloat(event.price_per_ticket) || 0) * num_tickets;
       bookingPayload.event_id = event_id;
-      bookingPayload.status = 'confirmed';
+      // INVENTORY model: events use temp_reserved with token locking + dynamic expiry
+      bookingPayload.status = 'temp_reserved';
+      bookingPayload.booking_category = 'INVENTORY';
+      bookingPayload.platform_handles_payment = false;
     } else if (offer_id) {
       // Offer booking: fetch without partner filter first to return a specific error
       offer = await offerRepository.getOfferById(offer_id, false);
@@ -191,7 +194,18 @@ async function createBooking(bookingData) {
       amount = parseFloat(offer.discounted_price || offer.original_price || 0);
       bookingPayload.deal_id = offer_id;  // Use deal_id to match table schema
       bookingPayload.offer_id = offer_id;  // Keep for backwards compatibility
-      bookingPayload.status = 'confirmed';
+      // INVENTORY model: events use temp_reserved with token locking + dynamic expiry
+      // SERVICE model: all other service types use immediate confirmation
+      const offerBookingCategory = getBookingCategoryFromServiceType(offer.service_type);
+      const isEventType = offerBookingCategory === 'INVENTORY';
+      if (isEventType) {
+        bookingPayload.status = 'temp_reserved';
+        bookingPayload.booking_category = 'INVENTORY';
+        bookingPayload.platform_handles_payment = false;
+      } else {
+        bookingPayload.status = 'confirmed';
+        bookingPayload.booking_category = 'SERVICE';
+      }
       // Snapshot deal co-pay at booking time so redemption uses terms that applied when user booked.
       // Backward-compat: some deployments still have legacy discount_percentage.
       const rawCoPay = offer.co_pay_percentage != null ? offer.co_pay_percentage : offer.discount_percentage;
@@ -266,15 +280,26 @@ async function createBooking(bookingData) {
     
     if (ezt_to_redeem && parseFloat(ezt_to_redeem) > 0) {
       try {
-        const bookingType = event_id ? 'event' : (offer_id ? 'offer' : 'show');
-        // STABILIZATION FIX: Pass transaction client to redeemTokens to ensure
-        // token balance check + deduction is atomic within the booking transaction.
-        // Prevents concurrent bookings from overdrawing EZT balance.
-        const redeemResult = await tokenService.redeemTokens(user_id, parseFloat(ezt_to_redeem), null, `Redeemed for ${bookingType} booking`, client);
-        eztRedeemed = redeemResult.eztRedeemed;
-        eztDiscount = redeemResult.discountAmount;
-        // BUG FIX #6: Subtract from already discounted amount (finalAmount), not original amount
-        finalAmount = Math.max(0, finalAmount - eztDiscount);
+        if (bookingPayload.booking_category === 'INVENTORY') {
+          // INVENTORY: LOCK tokens (do NOT deduct yet — deduction happens at redemption)
+          // Store lock intent; actual lock INSERT happens after booking INSERT when booking.id is available
+          const effectiveBalance = await tokenService.getEffectiveBalance(user_id, client);
+          const lockableEzt = Math.min(parseFloat(ezt_to_redeem), Math.max(0, effectiveBalance));
+          bookingPayload._eztToLock = parseFloat(ezt_to_redeem); // Will be capped at lockTokens()
+          eztRedeemed = 0; // No actual deduction yet
+          eztDiscount = Math.round(lockableEzt * 100 * 100) / 100; // Estimated discount for pricing display
+          finalAmount = Math.max(0, finalAmount - eztDiscount);
+        } else {
+          // SERVICE: existing redeemTokens flow (unchanged)
+          const bookingType = event_id ? 'event' : (offer_id ? 'offer' : 'show');
+          // STABILIZATION FIX: Pass transaction client to redeemTokens to ensure
+          // token balance check + deduction is atomic within the booking transaction.
+          const redeemResult = await tokenService.redeemTokens(user_id, parseFloat(ezt_to_redeem), null, `Redeemed for ${bookingType} booking`, client);
+          eztRedeemed = redeemResult.eztRedeemed;
+          eztDiscount = redeemResult.discountAmount;
+          // BUG FIX #6: Subtract from already discounted amount (finalAmount), not original amount
+          finalAmount = Math.max(0, finalAmount - eztDiscount);
+        }
       } catch (redeemError) {
         await client.query('ROLLBACK');
         throw new AppError(400, `EZT redemption failed: ${redeemError.message}`);
@@ -694,6 +719,69 @@ async function createBooking(bookingData) {
     bookingPayload.booking_mode = getBookingModeFromServiceType(serviceType);  // ONLINE_TIME_SLOT | PARTNER_CONFIRMATION
     if (booked_at_client) bookingPayload.booked_at_client = booked_at_client;  // Client timestamp for "Booked on" display
 
+    // ═══════════════════════════════════════════════════════════════
+    // INVENTORY: Max reservations check + dynamic expiry + pricing snapshot
+    // ═══════════════════════════════════════════════════════════════
+    if (bookingPayload.booking_category === 'INVENTORY') {
+      // Abuse prevention: max simultaneous temp_reserved bookings per user
+      await enforceMaxInventoryReservations(user_id, client);
+
+      // Dynamic expiry calculation (replaces payment_deadline for INVENTORY)
+      // Pass the event's REAL start_time (null for open-ended events like "All year round Cafe access")
+      // so calculateInventoryExpiry can distinguish real event times from defaulted bookingTime values.
+      const expiryResult = await calculateInventoryExpiry(bookingDate, bookingTime, partnerTZ, {
+        eventStartTime: eventStartTimeForDefault || null
+      });
+      if (!expiryResult.allowed) {
+        await client.query('ROLLBACK');
+        throw new AppError(400, expiryResult.message || 'Booking window has closed for this event.', {
+          reason: expiryResult.reason || 'BOOKING_TOO_LATE'
+        });
+      }
+      bookingPayload.reservation_expires_at = expiryResult.expiresAt;
+      log(`⏰ Inventory reservation expiry set: ${expiryResult.expiresAt.toISOString()} (${expiryResult.description})`);
+
+      // Full pricing snapshot frozen at booking time (for audit + dispute resolution)
+      bookingPayload.pricing_snapshot = JSON.stringify({
+        total_price: finalAmount,
+        fiat_amount: amount,
+        ezt_to_redeem: parseFloat(ezt_to_redeem || 0),
+        ezt_discount_inr: eztDiscount,
+        bank_offer_discount: bankOfferDiscount,
+        co_pay_percentage: bookingPayload.co_pay_percentage_at_booking,
+        user_tier: userTierAtBooking,
+        ezt_rate_inr: 100,
+        commission_percentage: commission_percentage,
+        partner_earning: partner_earning,
+        event_price_per_ticket: event_id ? (amount / (num_tickets || 1)) : null,
+        num_tickets: num_tickets || 1,
+        snapshot_at: new Date().toISOString()
+      });
+    }
+
+    // EVENT PAYMENT DEADLINE: Calculate dynamic deadline for payment_pending bookings (SERVICE events / legacy)
+    if (bookingPayload.status === 'payment_pending') {
+      const deadlineOptions = {};
+      // Waitlist promotions get a shorter acceptance window (default 30 min)
+      if (bookingData.is_waitlist_promotion) {
+        let acceptanceMinutes = 30;
+        try {
+          const acceptSetting = await settingsRepository.getSystemSetting('event_waitlist_acceptance_minutes');
+          if (acceptSetting) acceptanceMinutes = parseInt(acceptSetting, 10) || 30;
+        } catch (_) {}
+        deadlineOptions.overrideWindowMinutes = acceptanceMinutes;
+      }
+      const deadlineResult = await calculatePaymentDeadline(bookingDate, bookingTime, partnerTZ, deadlineOptions);
+      if (!deadlineResult.allowed) {
+        await client.query('ROLLBACK');
+        throw new AppError(400, deadlineResult.message || 'Booking window has closed for this event.', {
+          reason: deadlineResult.reason || 'PAYMENT_WINDOW_CLOSED'
+        });
+      }
+      bookingPayload.payment_deadline = deadlineResult.deadline;
+      log(`⏰ Event payment deadline set: ${deadlineResult.deadline.toISOString()} (${deadlineResult.description})`);
+    }
+
     // Voucher "Valid until" = universal: 30 days from booked/visit date (or from today if no date) OR deal end, whichever is earlier.
     // All date parsing uses partner's timezone so expiry is correct regardless of server timezone.
     if (offer_id) {
@@ -777,7 +865,37 @@ async function createBooking(bookingData) {
       throw new AppError(500, `Booking creation failed: QR code generation error - ${qrError.message}`);
     }
 
-    // Transition state: CREATED → BOOKED → ACTIVE (if confirmed) or CREATED → BOOKED (if pending)
+    // ═══════════════════════════════════════════════════════════════
+    // INVENTORY: Create token lock now that booking.id is available
+    // ═══════════════════════════════════════════════════════════════
+    if (bookingPayload.booking_category === 'INVENTORY' && bookingPayload._eztToLock > 0) {
+      try {
+        const lockResult = await tokenService.lockTokens(
+          user_id, bookingPayload._eztToLock, booking.id,
+          bookingPayload.reservation_expires_at, client
+        );
+        // Update booking with locked amounts (SAVEPOINT for migration safety)
+        await client.query('SAVEPOINT ezt_lock_update');
+        try {
+          await client.query(
+            `UPDATE bookings SET ezt_locked = $1, ezt_locked_inr = $2 WHERE id = $3`,
+            [lockResult.locked, lockResult.lockedInr, booking.id]
+          );
+          booking.ezt_locked = lockResult.locked;
+          booking.ezt_locked_inr = lockResult.lockedInr;
+          await client.query('RELEASE SAVEPOINT ezt_lock_update');
+        } catch (_savepointErr) {
+          await client.query('ROLLBACK TO SAVEPOINT ezt_lock_update');
+          log(`⚠️ Could not update ezt_locked columns (migration may be needed), lock still created`);
+        }
+        log(`🔒 Token lock created for booking ${booking.id}: ${lockResult.locked} EZT (₹${lockResult.lockedInr})`);
+      } catch (lockError) {
+        await client.query('ROLLBACK');
+        throw new AppError(400, `Token lock failed: ${lockError.message}`);
+      }
+    }
+
+    // Transition state: CREATED → BOOKED → ACTIVE (if confirmed) or CREATED → BOOKED (if pending/temp_reserved)
     // CRITICAL: State machine requires: created → booked → active (cannot skip 'booked')
     // CRITICAL: State transition failure MUST rollback booking (P0 Fix #4)
     // Voucher state is required for redemption - invalid state = invalid booking
@@ -1069,14 +1187,19 @@ async function createBooking(bookingData) {
     // Booking confirmation notifications (after commit; failure must not rollback booking)
     try {
       const notificationService = require('./notificationService');
+      const isPaymentPending = booking.status === 'payment_pending';
+      const notifTitle = isPaymentPending ? 'Booking Reserved — Payment Required' : 'Booking confirmed';
+      const notifMessage = isPaymentPending
+        ? `Your booking for ${dealTitle || 'your event'} is reserved. Please pay the venue directly before ${booking.payment_deadline ? new Date(booking.payment_deadline).toLocaleString('en-IN', { timeZone: partnerTZ }) : 'the deadline'}. Ref: ${booking.booking_reference}.`
+        : `Your booking for ${dealTitle || 'your deal'} is confirmed. Voucher: ${booking.voucher_code || booking.booking_reference}.`;
       await notificationService.create({
         userId: user_id,
-        type: 'booking_created',
-        title: 'Booking confirmed',
-        message: `Your booking for ${dealTitle || 'your deal'} is confirmed. Voucher: ${booking.voucher_code || booking.booking_reference}.`,
+        type: isPaymentPending ? 'event_payment_pending' : 'booking_created',
+        title: notifTitle,
+        message: notifMessage,
         actionUrl: `/bookings/${booking.id}`,
         priority: 'high',
-        metadata: { booking_id: booking.id, offer_name: dealTitle, booking_date: bookingDate, voucher_code: booking.voucher_code },
+        metadata: { booking_id: booking.id, offer_name: dealTitle, booking_date: bookingDate, voucher_code: booking.voucher_code, payment_deadline: booking.payment_deadline || null },
         sentViaInApp: true,
         sentViaPush: true,
       });
@@ -1084,14 +1207,18 @@ async function createBooking(bookingData) {
         const partner = await partnerRepository.getPartnerById(partner_id);
         const partnerUserId = partner?.user_id || partner?.owner_user_id;
         if (partnerUserId) {
+          const partnerNotifTitle = isPaymentPending ? 'New event booking — awaiting payment' : 'New booking';
+          const partnerNotifMsg = isPaymentPending
+            ? `New event booking for ${dealTitle || 'event'}. Ref: ${booking.booking_reference}. Awaiting payment — confirm when received.`
+            : `New booking for ${dealTitle || 'deal'}. Ref: ${booking.booking_reference}. Voucher: ${booking.voucher_code || '—'}.`;
           await notificationService.create({
             userId: partnerUserId,
-            type: 'booking_received',
-            title: 'New booking',
-            message: `New booking for ${dealTitle || 'deal'}. Ref: ${booking.booking_reference}. Voucher: ${booking.voucher_code || '—'}.`,
+            type: isPaymentPending ? 'event_payment_pending_partner' : 'booking_received',
+            title: partnerNotifTitle,
+            message: partnerNotifMsg,
             actionUrl: `/partner/bookings`,
             priority: 'high',
-            metadata: { booking_id: booking.id, offer_name: dealTitle, booking_date: bookingDate, voucher_code: booking.voucher_code },
+            metadata: { booking_id: booking.id, offer_name: dealTitle, booking_date: bookingDate, voucher_code: booking.voucher_code, payment_deadline: booking.payment_deadline || null },
             sentViaInApp: true,
             sentViaPush: true,
           });
@@ -1324,7 +1451,7 @@ async function cancelBooking(bookingId, userId) {
   try {
     await client.query('BEGIN');
 
-    const booking = await bookingRepository.getBookingByIdForUpdate(bookingId);
+    const booking = await bookingRepository.getBookingByIdForUpdate(bookingId, client);
     if (!booking) {
       await client.query('ROLLBACK');
       throw new AppError(404, 'Booking not found');
@@ -1335,7 +1462,7 @@ async function cancelBooking(bookingId, userId) {
       throw new AppError(403, 'You can only cancel your own bookings');
     }
 
-    const cancellableStatuses = ['pending', 'confirmed'];
+    const cancellableStatuses = ['pending', 'payment_pending', 'temp_reserved', 'confirmed'];
     if (!cancellableStatuses.includes(booking.status)) {
       await client.query('ROLLBACK');
       throw new AppError(400, `Cannot cancel a booking with status "${booking.status}"`);
@@ -1344,14 +1471,45 @@ async function cancelBooking(bookingId, userId) {
     const resolvedId = booking.id;
     const updated = await bookingRepository.updateBookingStatus(resolvedId, 'cancelled', {
       cancelled_at: new Date(),
-      cancellation_reason: 'Cancelled by user'
+      cancellation_reason: 'Cancelled by user',
+      cancelled_by: 'user'
     }, client);
+
+    // Voucher state transition for payment_pending or confirmed cancellation
+    try {
+      const voucherStateMachine = require('./voucherStateMachine');
+      const currentVoucherState = (booking.status === 'payment_pending' || booking.status === 'temp_reserved') ? 'booked' : 'active';
+      await voucherStateMachine.transitionState({
+        bookingId: resolvedId,
+        voucherCode: booking.voucher_code,
+        fromState: currentVoucherState,
+        toState: 'cancelled',
+        actorId: userId,
+        actorRole: 'user',
+        reasonCode: 'user_cancelled',
+        reasonText: 'Cancelled by user',
+        executor: client
+      });
+    } catch (vErr) {
+      logError('⚠️ Voucher state transition on cancel failed (non-fatal):', vErr);
+    }
+
+    // INVENTORY: Release token lock on user cancellation
+    if (booking.status === 'temp_reserved') {
+      try {
+        await tokenService.releaseTokenLock(resolvedId, 'user_cancel', client);
+        log(`🔓 Token lock released for user-cancelled INVENTORY booking ${bookingId}`);
+      } catch (lockErr) {
+        logError(`⚠️ Failed to release token lock for booking ${bookingId}:`, lockErr);
+      }
+    }
 
     // Audit: user-initiated cancellation (within same transaction)
     await writeAuditWithExecutor(client, userId, 'user', 'booking_cancelled', 'booking', resolvedId, {
       previous_status: booking.status,
       new_status: 'cancelled',
       cancellation_reason: 'Cancelled by user',
+      cancelled_by: 'user',
       booking_reference: booking.booking_reference,
       partner_id: booking.partner_id,
       deal_id: booking.deal_id,
@@ -1417,7 +1575,7 @@ async function confirmPayment(bookingId, userId) {
   try {
     await client.query('BEGIN');
 
-    const booking = await bookingRepository.getBookingByIdForUpdate(bookingId);
+    const booking = await bookingRepository.getBookingByIdForUpdate(bookingId, client);
     if (!booking) {
       await client.query('ROLLBACK');
       throw new AppError(404, 'Booking not found');
@@ -1453,11 +1611,562 @@ async function confirmPayment(bookingId, userId) {
   }
 }
 
+/**
+ * Calculate dynamic payment deadline for event bookings.
+ * Formula: MIN(now + paymentWindow, eventStart - safetyBuffer)
+ * @param {string} bookingDate - YYYY-MM-DD
+ * @param {string} bookingTime - HH:MM
+ * @param {string} partnerTZ - IANA timezone (e.g. 'Asia/Kolkata')
+ * @param {object} options - { overrideWindowMinutes } for waitlist promotions
+ * @returns {{ deadline: Date, allowed: boolean, reason?: string, message?: string, description: string }}
+ */
+async function calculatePaymentDeadline(bookingDate, bookingTime, partnerTZ = 'Asia/Kolkata', options = {}) {
+  // Fetch configurable values from system_settings
+  let paymentWindowHours = 12;
+  let safetyBufferHours = 2;
+
+  try {
+    const windowSetting = await settingsRepository.getSystemSetting('event_payment_window_hours');
+    if (windowSetting) paymentWindowHours = parseFloat(windowSetting) || 12;
+    const bufferSetting = await settingsRepository.getSystemSetting('event_safety_buffer_hours');
+    if (bufferSetting) safetyBufferHours = parseFloat(bufferSetting) || 2;
+  } catch (_) {
+    // Use defaults if settings unavailable
+  }
+
+  // Override for waitlist promotions (shorter acceptance window)
+  if (options.overrideWindowMinutes) {
+    paymentWindowHours = options.overrideWindowMinutes / 60;
+  }
+
+  const now = new Date();
+  const windowDeadline = new Date(now.getTime() + paymentWindowHours * 60 * 60 * 1000);
+
+  // Parse event start time from bookingDate + bookingTime in partner's timezone.
+  // NOTE: parseDateInTZ only accepts YYYY-MM-DD (no time component), so we
+  // construct the datetime directly using the timezone's UTC offset.
+  let eventStart = null;
+  if (bookingDate && bookingTime) {
+    const dateStr = String(bookingDate).trim().substring(0, 10);
+    const timeStr = String(bookingTime).trim().substring(0, 5);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr) && /^\d{2}:\d{2}$/.test(timeStr)) {
+      const { getUTCOffsetForTZ } = require('../utils/timeService');
+      const offset = getUTCOffsetForTZ(partnerTZ);
+      const eventStartParsed = new Date(`${dateStr}T${timeStr}:00${offset}`);
+      if (!isNaN(eventStartParsed.getTime())) {
+        eventStart = eventStartParsed;
+      }
+    }
+  }
+
+  // If no valid event start, use window deadline alone
+  if (!eventStart) {
+    return {
+      deadline: windowDeadline,
+      allowed: true,
+      description: `${paymentWindowHours}h payment window (no event start time available)`
+    };
+  }
+
+  const safetyDeadline = new Date(eventStart.getTime() - safetyBufferHours * 60 * 60 * 1000);
+
+  // If safety deadline has already passed → booking window is closed
+  if (safetyDeadline <= now) {
+    return {
+      deadline: now,
+      allowed: false,
+      reason: 'PAYMENT_WINDOW_CLOSED',
+      message: `Bookings close ${safetyBufferHours} hours before the event. This event starts too soon to accept new bookings.`,
+      description: 'Safety buffer exceeded — event starts too soon'
+    };
+  }
+
+  // Use whichever deadline comes first
+  const effectiveDeadline = windowDeadline < safetyDeadline ? windowDeadline : safetyDeadline;
+
+  // If effective deadline is in the past or essentially now → block
+  if (effectiveDeadline <= now) {
+    return {
+      deadline: now,
+      allowed: false,
+      reason: 'PAYMENT_WINDOW_CLOSED',
+      message: 'Payment window has closed for this event.',
+      description: 'Effective deadline is in the past'
+    };
+  }
+
+  const description = effectiveDeadline === windowDeadline
+    ? `${paymentWindowHours}h payment window`
+    : `Safety buffer: ${safetyBufferHours}h before event start`;
+
+  return { deadline: effectiveDeadline, allowed: true, description };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INVENTORY: Dynamic Expiry Calculation
+// Rules:
+//   1. Booking made >24h before event start → Expires 24h after booking
+//   2. Booking made ≤24h before event start → Expires at (event_start − 60 min)
+//   3. Booking attempt after (event_start − 60 min) → REJECT
+// ═══════════════════════════════════════════════════════════════════════
+async function calculateInventoryExpiry(bookingDate, bookingTime, partnerTZ = 'Asia/Kolkata', options = {}) {
+  // Fetch configurable values from system_settings (with code defaults)
+  let defaultExpiryHours = 24;
+  let cutoffMinutes = 60;
+  let allowInstant = false;
+  let instantExpiryMinutes = 15;
+
+  try {
+    const expirySetting = await settingsRepository.getSystemSetting('inventory_default_expiry_hours');
+    if (expirySetting) defaultExpiryHours = parseFloat(expirySetting) || 24;
+    const cutoffSetting = await settingsRepository.getSystemSetting('inventory_cutoff_minutes_before_event');
+    if (cutoffSetting) cutoffMinutes = parseInt(cutoffSetting, 10) || 60;
+    const instantSetting = await settingsRepository.getSystemSetting('inventory_allow_instant_booking');
+    if (instantSetting === 'true') allowInstant = true;
+    const instantExpSetting = await settingsRepository.getSystemSetting('inventory_instant_booking_expiry_minutes');
+    if (instantExpSetting) instantExpiryMinutes = parseInt(instantExpSetting, 10) || 15;
+  } catch (_) {
+    // Use defaults if settings unavailable
+  }
+
+  // Allow caller overrides (e.g. for testing)
+  if (options.defaultExpiryHours != null) defaultExpiryHours = options.defaultExpiryHours;
+  if (options.cutoffMinutes != null) cutoffMinutes = options.cutoffMinutes;
+  if (options.allowInstant != null) allowInstant = options.allowInstant;
+
+  const now = new Date();
+
+  // Determine event start time.
+  // Priority: options.eventStartTime (the event's REAL start_time from DB) > bookingDate+bookingTime parsing.
+  // If eventStartTime is explicitly null → open-ended event (no cutoff) → eventStart stays null → 24h fallback.
+  // If eventStartTime is undefined → legacy path: parse from bookingDate+bookingTime (backward compat).
+  let eventStart = null;
+  if (options.eventStartTime !== undefined) {
+    // Caller explicitly provided the event's real start_time (or null for open-ended)
+    if (options.eventStartTime) {
+      const parsed = new Date(options.eventStartTime);
+      if (!isNaN(parsed.getTime())) eventStart = parsed;
+    }
+    // If eventStartTime is null → eventStart stays null → 24h fallback applies
+  } else {
+    // Legacy path: parse from bookingDate + bookingTime in partner's timezone
+    if (bookingDate && bookingTime) {
+      const dateStr = String(bookingDate).trim().substring(0, 10);
+      const timeStr = String(bookingTime).trim().substring(0, 5);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr) && /^\d{2}:\d{2}$/.test(timeStr)) {
+        const { getUTCOffsetForTZ } = require('../utils/timeService');
+        const offset = getUTCOffsetForTZ(partnerTZ);
+        const parsed = new Date(`${dateStr}T${timeStr}:00${offset}`);
+        if (!isNaN(parsed.getTime())) eventStart = parsed;
+      }
+    }
+  }
+
+  // If no valid event start, fallback to defaultExpiryHours from now
+  if (!eventStart) {
+    return {
+      expiresAt: new Date(now.getTime() + defaultExpiryHours * 60 * 60 * 1000),
+      allowed: true,
+      description: `${defaultExpiryHours}h reservation window (no event start time available)`
+    };
+  }
+
+  const cutoff = new Date(eventStart.getTime() - cutoffMinutes * 60 * 1000);
+
+  // Rule 3: If booking attempt is after cutoff
+  if (now >= cutoff) {
+    // Instant booking: allow walk-in / last-minute with short expiry window
+    if (allowInstant) {
+      return {
+        expiresAt: new Date(now.getTime() + instantExpiryMinutes * 60 * 1000),
+        allowed: true,
+        instant: true,
+        description: `Instant booking: ${instantExpiryMinutes}m reservation window`
+      };
+    }
+    return {
+      expiresAt: now,
+      allowed: false,
+      reason: 'BOOKING_TOO_LATE',
+      message: `Bookings close ${cutoffMinutes} minutes before the event. This event starts too soon.`,
+      description: `Cutoff: ${cutoffMinutes} min before event start`
+    };
+  }
+
+  const msUntilEvent = eventStart.getTime() - now.getTime();
+  const defaultExpiryMs = defaultExpiryHours * 60 * 60 * 1000;
+
+  // Rule 1: If >24h before event → expires = now + 24h
+  if (msUntilEvent > defaultExpiryMs) {
+    return {
+      expiresAt: new Date(now.getTime() + defaultExpiryMs),
+      allowed: true,
+      description: `${defaultExpiryHours}h reservation window (event is >24h away)`
+    };
+  }
+
+  // Rule 2: If ≤24h before event → expires = eventStart − cutoffMinutes
+  return {
+    expiresAt: cutoff,
+    allowed: true,
+    description: `Reservation expires ${cutoffMinutes} min before event start`
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INVENTORY: Max Simultaneous Reservations (abuse prevention)
+// ═══════════════════════════════════════════════════════════════════════
+async function enforceMaxInventoryReservations(userId, executor) {
+  let maxReservations = 3;
+  try {
+    const setting = await settingsRepository.getSystemSetting('max_inventory_reservations_per_user');
+    if (setting) maxReservations = parseInt(setting, 10) || 3;
+  } catch (_) {}
+
+  const countResult = await executor.query(
+    `SELECT COUNT(*) as cnt FROM bookings WHERE user_id = $1 AND status = 'temp_reserved'`,
+    [userId]
+  );
+  const activeCount = parseInt(countResult.rows[0].cnt, 10);
+  if (activeCount >= maxReservations) {
+    throw new AppError(429, `You have ${activeCount} active event reservations. Maximum ${maxReservations} simultaneous reservations allowed. Please complete or cancel an existing reservation first.`);
+  }
+}
+
+/**
+ * Partner confirms that payment has been received for an event booking.
+ * Transitions: payment_pending → confirmed, voucher: booked → active.
+ * @param {string} bookingId - UUID of the booking
+ * @param {string} partnerId - UUID of the partner (ownership check)
+ * @param {string} partnerUserId - UUID of the partner's user account (who confirmed)
+ * @param {{ payment_proof_url?: string }} options
+ */
+async function confirmEventPayment(bookingId, partnerId, partnerUserId, options = {}) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Lock the booking row (FOR UPDATE OF b — cannot lock nullable side of LEFT JOIN)
+    const bResult = await client.query(
+      `SELECT b.*, po.partner_id AS offer_partner_id
+       FROM bookings b
+       LEFT JOIN partner_offers po ON b.deal_id = po.id
+       WHERE b.id = $1
+       FOR UPDATE OF b`,
+      [bookingId]
+    );
+
+    if (bResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      throw new AppError(404, 'Booking not found');
+    }
+
+    const booking = bResult.rows[0];
+    const effectivePartnerId = booking.offer_partner_id || booking.partner_id;
+
+    // Ownership check
+    if (String(effectivePartnerId) !== String(partnerId)) {
+      await client.query('ROLLBACK');
+      throw new AppError(403, 'This booking does not belong to your venue');
+    }
+
+    // INVENTORY bookings skip payment confirmation — they use direct redemption at POS
+    if (booking.booking_category === 'INVENTORY' || booking.status === 'temp_reserved') {
+      await client.query('ROLLBACK');
+      throw new AppError(400, 'Event bookings use direct redemption at the venue. No separate payment confirmation needed.');
+    }
+
+    // Status check
+    if (booking.status !== 'payment_pending') {
+      await client.query('ROLLBACK');
+      if (booking.status === 'confirmed') {
+        throw new AppError(400, 'Payment has already been confirmed for this booking');
+      }
+      if (booking.status === 'expired') {
+        throw new AppError(400, 'This booking has expired. The payment deadline has passed.');
+      }
+      throw new AppError(400, `Cannot confirm payment for a booking with status "${booking.status}"`);
+    }
+
+    // Deadline check — partner can still confirm slightly after deadline (grace)
+    // but cron job may have already expired it, caught by status check above
+    if (booking.payment_deadline && new Date(booking.payment_deadline) < new Date()) {
+      // Only warn, don't block — if status is still payment_pending, the cron hasn't run yet
+      log(`⚠️ Payment confirmation received after deadline for booking ${bookingId} — allowing since status is still payment_pending`);
+    }
+
+    // Update booking: payment_pending → confirmed
+    const now = new Date();
+    const updateFields = {
+      confirmed_at: now,
+      confirmed_by_partner_user_id: partnerUserId
+    };
+    if (options.payment_proof_url) {
+      updateFields.payment_proof_url = options.payment_proof_url;
+    }
+
+    await bookingRepository.updateBookingStatus(bookingId, 'confirmed', updateFields, client);
+
+    // Transition voucher: booked → active
+    // This is critical — if it fails, the booking says confirmed but voucher is still 'booked'.
+    // We attempt the transition, and if it fails we still try a direct UPDATE as a fallback.
+    try {
+      const voucherStateMachine = require('./voucherStateMachine');
+      await voucherStateMachine.transitionState({
+        bookingId: bookingId,
+        voucherCode: booking.voucher_code,
+        fromState: 'booked',
+        toState: 'active',
+        actorId: partnerUserId,
+        actorRole: 'partner',
+        reasonCode: 'payment_confirmed',
+        reasonText: 'Partner confirmed payment received',
+        executor: client
+      });
+    } catch (vErr) {
+      logError('⚠️ Voucher booked→active transition failed during payment confirm — attempting direct fallback:', vErr);
+      // Fallback: update voucher_state directly so booking and voucher stay in sync
+      try {
+        await client.query(
+          `UPDATE bookings SET voucher_state = 'active' WHERE id = $1`,
+          [bookingId]
+        );
+        log(`✅ Fallback voucher_state → active applied for booking ${bookingId}`);
+      } catch (fallbackErr) {
+        logError('❌ Fallback voucher_state update also failed — rolling back entire confirm:', fallbackErr);
+        throw new AppError(500, 'Failed to activate voucher after payment confirmation. Please try again.');
+      }
+    }
+
+    // Audit log
+    await writeAuditWithExecutor(client, partnerUserId, 'partner', 'event_payment_confirmed', 'booking', bookingId, {
+      previous_status: 'payment_pending',
+      new_status: 'confirmed',
+      partner_id: partnerId,
+      booking_reference: booking.booking_reference,
+      payment_proof_url: options.payment_proof_url || null
+    });
+
+    await client.query('COMMIT');
+
+    // Post-commit: notify user
+    try {
+      const notificationService = require('./notificationService');
+      let dealTitle = null;
+      if (booking.deal_id) {
+        const offer = await offerRepository.getOfferById(booking.deal_id, false);
+        dealTitle = offer?.title;
+      }
+      await notificationService.create({
+        userId: booking.user_id,
+        type: 'event_payment_confirmed',
+        title: 'Payment Confirmed — Voucher Active!',
+        message: `Your payment for ${dealTitle || 'the event'} has been confirmed by the venue. Your voucher is now active. Ref: ${booking.booking_reference}.`,
+        actionUrl: `/bookings/${bookingId}`,
+        priority: 'high',
+        metadata: { booking_id: bookingId, booking_reference: booking.booking_reference },
+        sentViaInApp: true,
+        sentViaPush: true,
+      });
+    } catch (notifErr) {
+      logError('Payment confirmed notification failed (non-fatal):', notifErr);
+    }
+
+    // Emit real-time event
+    emitRealtimeEvent(REALTIME_EVENTS.BOOKING_CREATED, {
+      action: 'payment_confirmed',
+      bookingId,
+      status: 'confirmed',
+      userId: booking.user_id,
+      partnerId,
+      timestamp: new Date().toISOString()
+    });
+    emitToRoom(`users:${booking.user_id}`, REALTIME_EVENTS.BOOKING_CREATED, {
+      action: 'payment_confirmed',
+      bookingId,
+      status: 'confirmed'
+    });
+
+    log(`✅ Event payment confirmed for booking ${bookingId} by partner user ${partnerUserId}`);
+    return { success: true, bookingId, status: 'confirmed' };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Partner cancels an event booking (payment_pending or confirmed).
+ * For confirmed bookings, cancellation_reason is mandatory.
+ * @param {string} bookingId
+ * @param {string} partnerId
+ * @param {string} partnerUserId
+ * @param {{ cancellation_reason?: string }} options
+ */
+async function partnerCancelEventBooking(bookingId, partnerId, partnerUserId, options = {}) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const bResult = await client.query(
+      `SELECT b.*, po.partner_id AS offer_partner_id
+       FROM bookings b
+       LEFT JOIN partner_offers po ON b.deal_id = po.id
+       WHERE b.id = $1
+       FOR UPDATE OF b`,
+      [bookingId]
+    );
+
+    if (bResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      throw new AppError(404, 'Booking not found');
+    }
+
+    const booking = bResult.rows[0];
+    const effectivePartnerId = booking.offer_partner_id || booking.partner_id;
+
+    if (String(effectivePartnerId) !== String(partnerId)) {
+      await client.query('ROLLBACK');
+      throw new AppError(403, 'This booking does not belong to your venue');
+    }
+
+    const cancellableStatuses = ['payment_pending', 'confirmed'];
+    if (!cancellableStatuses.includes(booking.status)) {
+      await client.query('ROLLBACK');
+      throw new AppError(400, `Cannot cancel a booking with status "${booking.status}"`);
+    }
+
+    // For confirmed bookings, require a reason
+    if (booking.status === 'confirmed' && !options.cancellation_reason) {
+      await client.query('ROLLBACK');
+      throw new AppError(400, 'Cancellation reason is required when cancelling a confirmed booking');
+    }
+
+    const reason = options.cancellation_reason || 'Cancelled by venue';
+
+    await bookingRepository.updateBookingStatus(bookingId, 'cancelled', {
+      cancelled_at: new Date(),
+      cancellation_reason: reason,
+      cancelled_by: 'partner'
+    }, client);
+
+    // Voucher state transition
+    try {
+      const voucherStateMachine = require('./voucherStateMachine');
+      const fromState = booking.status === 'payment_pending' ? 'booked' : 'active';
+      await voucherStateMachine.transitionState({
+        bookingId,
+        voucherCode: booking.voucher_code,
+        fromState,
+        toState: 'cancelled',
+        actorId: partnerUserId,
+        actorRole: 'partner',
+        reasonCode: 'partner_cancelled',
+        reasonText: reason,
+        executor: client
+      });
+    } catch (vErr) {
+      logError('⚠️ Voucher cancel transition failed (non-fatal):', vErr);
+    }
+
+    // Audit
+    await writeAuditWithExecutor(client, partnerUserId, 'partner', 'booking_cancelled_by_partner', 'booking', bookingId, {
+      previous_status: booking.status,
+      new_status: 'cancelled',
+      cancellation_reason: reason,
+      cancelled_by: 'partner',
+      partner_id: partnerId,
+      booking_reference: booking.booking_reference,
+      deal_id: booking.deal_id,
+      booking_date: booking.booking_date,
+      booking_time: String(booking.booking_time || '').slice(0, 5),
+    });
+
+    // Release slots
+    const partySize = booking.num_tickets || booking.num_guests || 1;
+    if (booking.deal_id && booking.booking_date) {
+      try {
+        await slotCapacityService.releaseDealSlot(client, booking.deal_id, booking.booking_date, booking.booking_time, partySize);
+      } catch (e) {
+        logError(`⚠️ Failed to release deal slot for partner-cancelled booking ${bookingId}:`, e);
+      }
+    }
+    if (booking.partner_id && booking.booking_date && booking.booking_time) {
+      try {
+        const slotDt = slotCapacityService.toSlotDatetime(booking.booking_date, booking.booking_time);
+        if (slotDt) {
+          await slotCapacityService.releaseSlot(client, booking.partner_id, slotDt, partySize);
+        }
+      } catch (e) {
+        logError(`⚠️ Failed to release venue slot for partner-cancelled booking ${bookingId}:`, e);
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // Post-commit: notify user
+    try {
+      const notificationService = require('./notificationService');
+      let dealTitle = null;
+      if (booking.deal_id) {
+        const offer = await offerRepository.getOfferById(booking.deal_id, false);
+        dealTitle = offer?.title;
+      }
+      await notificationService.create({
+        userId: booking.user_id,
+        type: 'booking_cancelled_by_partner',
+        title: 'Booking Cancelled by Venue',
+        message: `Your booking for ${dealTitle || 'the event'} has been cancelled by the venue. Reason: ${reason}. Ref: ${booking.booking_reference}.`,
+        actionUrl: `/bookings/${bookingId}`,
+        priority: 'high',
+        metadata: { booking_id: bookingId, booking_reference: booking.booking_reference, cancellation_reason: reason },
+        sentViaInApp: true,
+        sentViaPush: true,
+      });
+    } catch (notifErr) {
+      logError('Partner cancel notification failed (non-fatal):', notifErr);
+    }
+
+    // FIFO: Promote next waitlist user when slot opens
+    if (booking.partner_id && booking.booking_date && booking.booking_time) {
+      const dateStr = slotCapacityService.toDateString ? slotCapacityService.toDateString(booking.booking_date) : String(booking.booking_date).trim().substring(0, 10);
+      const timeStr = slotCapacityService.normalizeDealTimeSlot(booking.booking_time) || String(booking.booking_time || '').substring(0, 5);
+      if (dateStr && timeStr) {
+        const promote = booking.deal_id
+          ? waitlistService.promoteNextWaitlistToBooking(booking.partner_id, booking.deal_id, dateStr, timeStr)
+          : waitlistService.notifyNextInWaitlist(booking.partner_id, dateStr, timeStr);
+        promote
+          .then((result) => {
+            if (result) {
+              if (result.booking) log(`🔔 FIFO waitlist: promoted user ${result.waitlistEntry?.user_id} for partner-cancelled slot ${dateStr} ${timeStr}`);
+              else log(`🔔 FIFO waitlist: notified user ${result.user_id} for partner-cancelled slot ${dateStr} ${timeStr}`);
+            }
+          })
+          .catch((err) => logError('⚠️ Waitlist promote/notify failed (non-fatal):', err));
+      }
+    }
+
+    log(`✅ Booking ${bookingId} cancelled by partner ${partnerId} (reason: ${reason})`);
+    return { success: true, bookingId, status: 'cancelled' };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   createBooking,
   listBookings,
   getBookingById,
   rescheduleBooking,
   cancelBooking,
-  confirmPayment
+  confirmPayment,
+  calculatePaymentDeadline,
+  calculateInventoryExpiry,
+  confirmEventPayment,
+  partnerCancelEventBooking
 };

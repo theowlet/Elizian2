@@ -511,7 +511,7 @@ const BookingHistory = () => {
                   >
                     <div style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: '0.5rem' }}>Voucher (tap to open full view)</div>
                     <img
-                      src={booking.qr_code_url}
+                      src={booking.qr_code_url.startsWith('http') ? booking.qr_code_url : `${API_BASE}${booking.qr_code_url.startsWith('/') ? '' : '/'}${booking.qr_code_url}`}
                       alt="Booking QR Code"
                       style={{
                         width: '120px',
@@ -629,7 +629,7 @@ const BookingHistory = () => {
           setQrModalOpen(false);
           setSelectedBooking(null);
         }}
-        qrCodeUrl={selectedBooking?.qr_code_url}
+        qrCodeUrl={selectedBooking?.qr_code_url ? (selectedBooking.qr_code_url.startsWith('http') ? selectedBooking.qr_code_url : `${API_BASE}${selectedBooking.qr_code_url.startsWith('/') ? '' : '/'}${selectedBooking.qr_code_url}`) : null}
         voucherCode={selectedBooking?.voucher_code}
         bookingReference={selectedBooking?.booking_reference || selectedBooking?.id}
       />

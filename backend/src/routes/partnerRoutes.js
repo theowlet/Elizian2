@@ -198,6 +198,9 @@ router.get('/:id/bookings', authenticateToken, checkPartnerOwnership, partnerBoo
 router.get('/:id/bookings/stats', authenticateToken, checkPartnerOwnership, partnerBookingController.getBookingStats);
 router.get('/:id/bookings/:bookingId', authenticateToken, checkPartnerOwnership, partnerBookingController.getPartnerBooking);
 router.put('/:id/bookings/:bookingId/status', authenticateToken, checkPartnerOwnership, partnerBookingController.updateBookingStatus);
+// Event payment confirmation workflow
+router.post('/:id/bookings/:bookingId/confirm-payment', authenticateToken, checkPartnerOwnership, partnerBookingController.confirmEventPayment);
+router.post('/:id/bookings/:bookingId/cancel', authenticateToken, checkPartnerOwnership, partnerBookingController.cancelEventBooking);
 
 // Partner rewards analytics
 router.get('/:id/rewards/analytics', authenticateToken, checkPartnerOwnership, partnerController.getRewardsAnalytics);

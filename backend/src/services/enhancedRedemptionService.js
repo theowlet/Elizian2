@@ -140,7 +140,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
           b.id, b.user_id, b.partner_id, b.deal_id, b.status, b.voucher_state,
           b.voucher_code, b.booking_reference, b.total_price, b.fiat_amount,
           b.booking_date, b.booking_time, b.expires_at, b.created_at,
-          b.co_pay_percentage_at_booking,
+          b.co_pay_percentage_at_booking, b.booking_category,
           po.id as offer_id, po.end_date as offer_end_date
          FROM bookings b
          LEFT JOIN partner_offers po ON b.deal_id = po.id
@@ -211,9 +211,13 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     // Get current state
     const currentState = booking.voucher_state || await voucherStateMachine.getCurrentState(booking.id, client);
 
-    // CRITICAL: Validate state - Must be 'active' to redeem (P0 Fix #3)
-    // This is the single source of truth for redemption eligibility
-    if (!currentState || currentState !== 'active') {
+    // CRITICAL: Validate state - Must be 'active' or 'booked' to redeem
+    // INVENTORY: booked → redeemed (skips active; no payment step)
+    // SERVICE: active → redeemed (normal), or booked → redeemed (voucher may stay in booked if transition failed or legacy)
+    const isInventory = booking.booking_category === 'INVENTORY';
+    const redeemableStates = isInventory ? ['booked'] : ['active', 'booked'];
+
+    if (!currentState || !redeemableStates.includes(currentState)) {
       await client.query('ROLLBACK');
       await voucherAuditService.logAuditEvent({
         bookingId: booking.id,
@@ -224,8 +228,9 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
         errorData: {
           error: 'Invalid voucher state for redemption',
           current_state: currentState,
-          required_state: 'active',
-          attempted_state: 'redeemed'
+          required_state: isInventory ? 'booked' : 'active or booked',
+          attempted_state: 'redeemed',
+          booking_category: booking.booking_category || 'SERVICE'
         },
         ipAddress: ipAddress,
         userAgent: userAgent,
@@ -234,7 +239,8 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       if (currentState === 'pending_confirmation') {
         throw new AppError(400, 'This voucher is already awaiting customer action. You cannot submit again until the customer confirms or disputes, or the dispute window closes.');
       }
-      throw new AppError(400, `Cannot redeem voucher in state '${currentState}'. Voucher must be 'active'. Current state: ${currentState}`);
+      const expectedState = isInventory ? 'booked' : 'active or booked';
+      throw new AppError(400, `Cannot redeem voucher in state '${currentState}'. ${isInventory ? 'INVENTORY voucher must be \'booked\'.' : 'Voucher must be \'active\' or \'booked\'.'} Current state: ${currentState}`);
     }
 
     // Partner redeem is always final (active → redeemed). Customer can only dispute within dispute window.
@@ -292,18 +298,19 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     const standardCoPayInr = parseFloat(calculated.ezt_co_pay_amount || 0);
     const maxAllowedCoPay = Math.min(standardCoPayInr, walletAffordableInr);
     const parsedCoPayInr = parseFloat(ezt_co_pay_amount) || 0;
+    // Cap co-pay at customer's affordable amount: redemption succeeds with reduced discount when balance is low
+    const effectiveCoPayInr = Math.min(parsedCoPayInr, maxAllowedCoPay);
+    if (effectiveCoPayInr < parsedCoPayInr - 0.01) {
+      log(`📉 Co-pay capped to ₹${effectiveCoPayInr.toFixed(2)} (requested ₹${parsedCoPayInr.toFixed(2)}, wallet: ${customerWalletEzt.toFixed(5)} EZT)`);
+    }
     const validation = redemptionCalculationService.validateCalculation(
       total_bill_amount,
-      ezt_co_pay_amount,
-      net_amount_from_user,
+      effectiveCoPayInr,
+      (parseFloat(total_bill_amount) || 0) - effectiveCoPayInr,
       effectiveOfferId,
       offerRow,
       { maxAllowedCoPayInr: maxAllowedCoPay }
     );
-    if (parsedCoPayInr > maxAllowedCoPay + 0.01) {
-      await client.query('ROLLBACK');
-      throw new AppError(400, `EZT co-pay cannot exceed customer balance plus overdraft. Max applicable: ₹${maxAllowedCoPay.toFixed(2)} (${customerWalletEzt.toFixed(5)} EZT available, balance can go down to -${overdraftLimit} EZT).`);
-    }
     const isOverride = (maxAllowedCoPay - parsedCoPayInr) > 0.01;
     if (isOverride && !(redemption_notes && String(redemption_notes).trim())) {
       await client.query('ROLLBACK');
@@ -389,6 +396,34 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       throw new AppError(400, `Cannot redeem voucher with booking status: ${booking.status}`);
     }
 
+    // Validate event redemption window: not allowed before start date or before 60 mins prior to start time
+    // INVENTORY bookings: users are AT the venue within their reservation window — skip event window check
+    const partnerTzRow = await client.query('SELECT timezone FROM partners WHERE id = $1', [partner_id]);
+    const partnerTimezone = partnerTzRow.rows[0]?.timezone || 'Asia/Kolkata';
+    const eventWindowResult = isInventory
+      ? { valid: true }  // INVENTORY: skip event window validation
+      : redemptionValidationService.validateEventRedemptionWindow(
+          booking,
+          new Date(),
+          partnerTimezone,
+          redemptionValidationService.REDEMPTION_MINUTES_BEFORE_START
+        );
+    if (!eventWindowResult.valid) {
+      await client.query('ROLLBACK');
+      await voucherAuditService.logAuditEvent({
+        bookingId: booking.id,
+        voucherCode: voucher_code,
+        action: 'redemption_failure',
+        actorId: actorId,
+        actorRole: actorRole,
+        errorData: { error: eventWindowResult.error },
+        ipAddress: ipAddress,
+        userAgent: userAgent,
+        executor: client
+      });
+      throw new AppError(400, eventWindowResult.error);
+    }
+
     // Validate time-based rules
     const validationResult = await redemptionValidationService.validateRedemptionRules({
       bookingId: booking.id,
@@ -449,10 +484,18 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       executor: client
     });
 
-    await client.query(
-      `UPDATE bookings SET status = 'redeemed', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-      [booking.id]
-    );
+    // INVENTORY (temp_reserved): also set confirmed_at since payment is confirmed at redemption
+    if (booking.status === 'temp_reserved') {
+      await client.query(
+        `UPDATE bookings SET status = 'redeemed', confirmed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [booking.id]
+      );
+    } else {
+      await client.query(
+        `UPDATE bookings SET status = 'redeemed', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [booking.id]
+      );
+    }
 
     // Geo-verification: 100m radius (redemption overhaul)
     const GEO_RADIUS_KM = 0.1;
@@ -474,6 +517,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       }
     }
 
+    const coPayWalletCapped = effectiveCoPayInr < parsedCoPayInr - 0.01;
     const metadataJson = JSON.stringify({
       booking_reference: booking.booking_reference,
       original_total_price: booking.total_price,
@@ -483,6 +527,9 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       calculation_variance: validation.valid ? null : validation.variance,
       calculated: validation.calculated,
       co_pay_override: isOverride,
+      co_pay_wallet_capped: coPayWalletCapped,
+      requested_co_pay_inr: parsedCoPayInr,
+      effective_co_pay_inr: effectiveCoPayInr,
       standard_co_pay: standardCoPayInr,
       standard_co_pay_inr: standardCoPayInr,
       customer_wallet_at_redemption: customerWalletEzt,
@@ -493,8 +540,9 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     const disputeWindowExpiresAt = new Date(Date.now() + DISPUTE_WINDOW_HOURS * 60 * 60 * 1000);
     // Round to 2 decimals so stored total matches partner-entered value (no float drift / .98 artifact).
     // Derive net from total - ezt so DB CHECK (net = total_bill - ezt_co_pay) always passes.
+    // Use effectiveCoPayInr (capped at wallet) so redemption succeeds with reduced discount when balance is low.
     const totalBillRounded = Math.round((parseFloat(total_bill_amount) || 0) * 100) / 100;
-    const eztRounded = Math.round((parseFloat(ezt_co_pay_amount) || 0) * 100) / 100;
+    const eztRounded = Math.round(effectiveCoPayInr * 100) / 100;
     const netRounded = Math.round((totalBillRounded - eztRounded) * 100) / 100;
     const baseParams = [
       booking.id,
@@ -596,8 +644,20 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
 
     const redemption = redemptionResult.rows[0];
 
+    // INVENTORY: Consume token lock before EZT deduction.
+    // The lock is marked 'consumed' so cron won't release it, then redeemTokens() does the actual deduction.
+    if (isInventory) {
+      try {
+        await tokenService.consumeTokenLock(booking.id, client);
+        log(`🔒 Token lock consumed for INVENTORY booking ${booking.id} at redemption`);
+      } catch (lockErr) {
+        logError(`⚠️ Token lock consumption failed for booking ${booking.id} (non-fatal, proceeding with redemption):`, lockErr.message);
+      }
+    }
+
     // Co-pay by EZT: debit from user's EZT balance (Fiat Spent = Total Bill − this co-pay; loyalty is % of Fiat Spent, credited later)
-    const eztToDeduct = parseFloat((parsedCoPayInr / EZT_TO_INR).toFixed(5));
+    // Use effectiveCoPayInr (capped at wallet); tokenService.redeemTokens also caps for double safety
+    const eztToDeduct = parseFloat((effectiveCoPayInr / EZT_TO_INR).toFixed(5));
     if (eztToDeduct > 0) {
       try {
         await tokenService.redeemTokens(
@@ -658,7 +718,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
       if (tierId) {
         const tier = await partnerTierRepository.getTierForRedemption(tierId, client);
         if (tier) {
-          const fiatReceived = parseFloat(net_amount_from_user) || 0; // Cash/card only; fee base is fiat only
+          const fiatReceived = netRounded; // Cash/card only; fee base is fiat only (use effective net after co-pay cap)
           const platformPct = Number(tier.platform_fee_percent) || 0;
           const fiatFeePct = Number(tier.fiat_fee_percent) ?? 0;
           const eztFeePct = Number(tier.ezt_fee_percent) ?? 0;
@@ -704,7 +764,7 @@ async function redeemVoucherEnhanced(redemptionData, context = {}) {
     let tierResult = null;
     let eztEarned = 0;
     let pointsEarned = 0;
-    const fiatAmount = parseFloat(net_amount_from_user) || 0;
+    const fiatAmount = netRounded; // Use effective net after co-pay cap (Fiat Spent = Total Bill − effective co-pay)
     
     const tierAlreadyProcessed = existingTierProcessing.rows.length > 0 && existingTierProcessing.rows[0].ezt_earned != null;
     if (!tierAlreadyProcessed) {

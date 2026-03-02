@@ -61,6 +61,12 @@ async function createBooking(req, res) {
       booked_at_client,
     });
 
+    // Enrich response with payment deadline info for event bookings
+    if (booking.payment_deadline) {
+      const deadlineDate = new Date(booking.payment_deadline);
+      booking.time_remaining_seconds = Math.max(0, Math.floor((deadlineDate.getTime() - Date.now()) / 1000));
+    }
+
     successResponse(res, 201, "Booking created successfully", booking);
   } catch (err) {
     logError("❌ Booking creation error:", err);
@@ -277,6 +283,45 @@ async function confirmPayment(req, res) {
   }
 }
 
+// Lightweight status endpoint for polling (event payment flow)
+// Single query includes user_id for auth check — prevents IDOR enumeration
+// (returning 403 before 404 would reveal booking existence to non-owners).
+async function getBookingStatus(req, res) {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+    const result = await pool.query(
+      `SELECT id, user_id, status, payment_deadline, confirmed_at, expired_at, cancelled_at, voucher_state
+       FROM bookings WHERE id = $1`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return errorResponse(res, 404, 'Booking not found');
+    }
+    const b = result.rows[0];
+    // Authorization: only booking owner can poll status — return generic 404 to prevent enumeration
+    if (String(b.user_id) !== String(req.userId)) {
+      return errorResponse(res, 404, 'Booking not found');
+    }
+    const response = {
+      id: b.id,
+      status: b.status,
+      voucher_state: b.voucher_state,
+      payment_deadline: b.payment_deadline,
+      confirmed_at: b.confirmed_at,
+      expired_at: b.expired_at,
+      cancelled_at: b.cancelled_at,
+      time_remaining_seconds: b.payment_deadline
+        ? Math.max(0, Math.floor((new Date(b.payment_deadline).getTime() - Date.now()) / 1000))
+        : null
+    };
+    return successResponse(res, 200, 'Status retrieved', response);
+  } catch (err) {
+    logError('❌ Get booking status error:', err);
+    return errorResponse(res, err.statusCode || 500, err.message || 'Failed to get booking status');
+  }
+}
+
 const visitSessionService = require('../services/visitSessionService');
 
 // Consumer check-in at venue (visit session + 100m geofence)
@@ -360,6 +405,7 @@ module.exports = {
   listBookings,
   updateBooking,
   getBooking,
+  getBookingStatus,
   cancelBooking,
   confirmPayment,
   checkInAtVenue,

@@ -177,6 +177,33 @@ async function createBooking(bookingData, executor = pool) {
         /* column may not exist yet - run migration 2026-02-booking-mode-column.sql */
       }
     }
+    // Event payment confirmation columns (run migration 2026-03-event-payment-confirmation.sql)
+    if (row && bookingData.payment_deadline) {
+      try {
+        await executor.query('SAVEPOINT payment_deadline_update');
+        await executor.query(
+          `UPDATE bookings SET payment_deadline = $1::timestamptz WHERE id = $2`,
+          [bookingData.payment_deadline, row.id]
+        );
+        row.payment_deadline = bookingData.payment_deadline;
+        await executor.query('RELEASE SAVEPOINT payment_deadline_update');
+      } catch (_) {
+        await executor.query('ROLLBACK TO SAVEPOINT payment_deadline_update');
+      }
+    }
+    if (row && bookingData.platform_handles_payment !== undefined) {
+      try {
+        await executor.query('SAVEPOINT platform_payment_update');
+        await executor.query(
+          `UPDATE bookings SET platform_handles_payment = $1 WHERE id = $2`,
+          [Boolean(bookingData.platform_handles_payment), row.id]
+        );
+        row.platform_handles_payment = Boolean(bookingData.platform_handles_payment);
+        await executor.query('RELEASE SAVEPOINT platform_payment_update');
+      } catch (_) {
+        await executor.query('ROLLBACK TO SAVEPOINT platform_payment_update');
+      }
+    }
     return row;
   } catch (err) {
     const msg = err.message || '';
@@ -285,12 +312,14 @@ async function resolveBookingId(identifier) {
 }
 
 // Get booking by ID with lock (FOR UPDATE). Accepts UUID or booking_reference.
-async function getBookingByIdForUpdate(bookingId) {
+// Pass executor (transaction client) to ensure FOR UPDATE runs inside the caller's transaction.
+async function getBookingByIdForUpdate(bookingId, executor = pool) {
   const resolvedId = await resolveBookingId(bookingId);
   if (!resolvedId) return null;
-  const result = await pool.query(
+  const result = await executor.query(
     `SELECT id, user_id, partner_id, deal_id, status, booking_date, booking_time,
-            num_tickets, num_guests, fiat_amount, ezt_redeemed, reward_eligible, reward_credited, booking_reference
+            num_tickets, num_guests, fiat_amount, ezt_redeemed, reward_eligible, reward_credited,
+            booking_reference, voucher_code, voucher_state, payment_deadline
      FROM bookings
      WHERE id = $1
      FOR UPDATE`,
@@ -346,7 +375,11 @@ async function listBookings({ userId = null, partnerId = null, status = null, li
 }
 
 // Update booking status
+// Core columns (cancelled_at, cancellation_reason, reward_credited) are always included.
+// Event-payment columns (cancelled_by, confirmed_at, expired_at, confirmed_by_partner_user_id,
+// payment_proof_url) are applied via SAVEPOINT so missing migration doesn't break the update.
 async function updateBookingStatus(bookingId, status, additionalData = {}, executor = pool) {
+  // --- Core fields (always safe) ---
   const updates = ['status = $1'];
   const values = [status];
   let paramCount = 1;
@@ -369,21 +402,57 @@ async function updateBookingStatus(bookingId, status, additionalData = {}, execu
     values.push(additionalData.reward_credited);
   }
 
-  paramCount++;
-  values.push(bookingId);
+  // --- Event-payment columns (may not exist if migration hasn't run) ---
+  // Collect them separately and try to include; fall back if columns missing.
+  const eventPaymentFields = {};
+  if (additionalData.cancelled_by) eventPaymentFields.cancelled_by = additionalData.cancelled_by;
+  if (additionalData.confirmed_at) eventPaymentFields.confirmed_at = additionalData.confirmed_at;
+  if (additionalData.expired_at) eventPaymentFields.expired_at = additionalData.expired_at;
+  if (additionalData.confirmed_by_partner_user_id) eventPaymentFields.confirmed_by_partner_user_id = additionalData.confirmed_by_partner_user_id;
+  if (additionalData.payment_proof_url) eventPaymentFields.payment_proof_url = additionalData.payment_proof_url;
 
-  const result = await executor.query(
-    `UPDATE bookings SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`,
-    values
-  );
-  return result.rows[0];
+  // Try including event-payment columns in the main UPDATE
+  const allUpdates = [...updates];
+  const allValues = [...values];
+  let allParamCount = paramCount;
+
+  for (const [col, val] of Object.entries(eventPaymentFields)) {
+    allParamCount++;
+    allUpdates.push(`${col} = $${allParamCount}`);
+    allValues.push(val);
+  }
+
+  allParamCount++;
+  allValues.push(bookingId);
+
+  try {
+    const result = await executor.query(
+      `UPDATE bookings SET ${allUpdates.join(', ')} WHERE id = $${allParamCount} RETURNING *`,
+      allValues
+    );
+    return result.rows[0];
+  } catch (err) {
+    // If the error is due to missing columns, fall back to core-only UPDATE
+    const msg = (err.message || '').toLowerCase();
+    if (Object.keys(eventPaymentFields).length > 0 && (msg.includes('column') || msg.includes('does not exist'))) {
+      logError('⚠️ updateBookingStatus: event-payment columns missing, falling back to core-only update');
+      paramCount++;
+      values.push(bookingId);
+      const fallbackResult = await executor.query(
+        `UPDATE bookings SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`,
+        values
+      );
+      return fallbackResult.rows[0];
+    }
+    throw err;
+  }
 }
 
 // Count booked tickets for an event
 async function countBookedTicketsForEvent(eventId) {
   const result = await pool.query(
     `SELECT COUNT(*) as booked_count FROM bookings 
-     WHERE event_id = $1 AND status IN ('pending', 'confirmed', 'redeemed')`,
+     WHERE event_id = $1 AND status IN ('pending', 'payment_pending', 'temp_reserved', 'confirmed', 'redeemed')`,
     [eventId]
   );
   return parseInt(result.rows[0].booked_count || 0);
