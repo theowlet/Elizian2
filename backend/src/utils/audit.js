@@ -141,8 +141,12 @@ function formatActionPhrase(action) {
   return mapped.join(' ');
 }
 
-function buildDescription(actorName, action, entityType, entityDetails) {
+function buildDescription(actorName, action, entityType, entityDetails, changes = {}) {
   const verb = formatActionPhrase(action);
+  if (entityType === 'user' && action === 'user_tier_change' && (changes.previous || changes.next)) {
+    const userName = entityDetails.userName || entityDetails.entityName || 'Unknown User';
+    return `${actorName} changed tier for user '${userName}' (${changes.previous || '?'} → ${changes.next || '?'})`;
+  }
   if (entityType === 'offer') {
     const offerName = entityDetails.offerName || entityDetails.entityName || 'the deal';
     const partnerName = entityDetails.partnerName || 'Unknown Partner';
@@ -174,7 +178,7 @@ async function createAuditLogEntry(actorId, action, entityType, entityId, change
 
   const actorName = await fetchActorName(actorId, executor);
   const entityDetails = await fetchEntityDetails(entityType, entityId, executor);
-  const description = buildDescription(actorName, action, entityType, entityDetails);
+  const description = buildDescription(actorName, action, entityType, entityDetails, changes);
 
   const metaPayload = {
     previous: changes.previous || null,

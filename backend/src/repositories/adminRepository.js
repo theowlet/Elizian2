@@ -1354,9 +1354,28 @@ async function listAdminUsers(filters = {}) {
     paramCounter++;
   }
 
-  // Tier filter (uses base schema "tiers" table via t.name)
+  // Optional column/table checks (before tier filter and queries)
+  let hasLastLogin = false;
+  let hasLoyaltyTiers = false;
+  let hasCurrentTierName = false;
+  try {
+    const [colRes, ltRes, tnRes] = await Promise.all([
+      pool.query(`SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'last_login' LIMIT 1`),
+      pool.query(`SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'loyalty_tiers' LIMIT 1`),
+      pool.query(`SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'current_tier_name' LIMIT 1`)
+    ]);
+    hasLastLogin = colRes.rowCount > 0;
+    hasLoyaltyTiers = ltRes.rowCount > 0;
+    hasCurrentTierName = tnRes.rowCount > 0;
+  } catch (_) {}
+
+  // Tier filter (tiers.name or loyalty_tiers.tier_name when loyalty_tiers exists)
   if (filters.tier && filters.tier !== "all") {
-    conditions.push(`t.name = $${paramCounter}`);
+    if (hasLoyaltyTiers) {
+      conditions.push(`(t.name = $${paramCounter} OR lt.tier_name = $${paramCounter})`);
+    } else {
+      conditions.push(`t.name = $${paramCounter}`);
+    }
     params.push(filters.tier);
     paramCounter++;
   }
@@ -1364,21 +1383,15 @@ async function listAdminUsers(filters = {}) {
   const finalWhereClause =
     conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  // Optional column: users.last_login may not exist on minimal local DB
-  let hasLastLogin = false;
-  try {
-    const col = await pool.query(
-      `SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'last_login' LIMIT 1`
-    );
-    hasLastLogin = col.rowCount > 0;
-  } catch (_) {}
+  const loyaltyTiersJoin = hasLoyaltyTiers ? "LEFT JOIN loyalty_tiers lt ON u.current_tier_id = lt.id" : "";
 
-  // Count query: join tiers so tier filter works (tiers = base schema table)
+  // Count query: join tiers (and loyalty_tiers when available) so tier filter works
   const countQuery = `
     SELECT COUNT(*)::int as total
     FROM users u
     LEFT JOIN roles r ON u.role_id = r.id
     LEFT JOIN tiers t ON u.current_tier_id = t.id
+    ${loyaltyTiersJoin}
     ${finalWhereClause}
   `;
   const countParams = [...params]; // Copy params for count query
@@ -1412,7 +1425,18 @@ async function listAdminUsers(filters = {}) {
     }
   }
 
-  // Get paginated results (use base schema: users + roles + tiers; avoid current_tier_name/annual_spend_current so query works without tier migration)
+  // Tier display: prefer current_tier_name (manual/enterprise), then loyalty_tiers, then tiers
+  const tierSelectExpr = hasCurrentTierName && hasLoyaltyTiers
+    ? "COALESCE(u.current_tier_name, lt.tier_name, t.name, 'Ather')"
+    : hasCurrentTierName
+      ? "COALESCE(u.current_tier_name, t.name, 'Ather')"
+      : hasLoyaltyTiers
+        ? "COALESCE(lt.tier_name, t.name, 'Ather')"
+        : "COALESCE(t.name, 'Ather')";
+  const tierLevelExpr = hasLoyaltyTiers ? "COALESCE(lt.tier_level, t.level)" : "t.level";
+  const tokenPctExpr = hasLoyaltyTiers ? "COALESCE(lt.ezt_reward_percentage, t.token_earning_percentage)" : "t.token_earning_percentage";
+
+  // Get paginated results
   const lastLoginSelect = hasLastLogin ? "u.last_login," : "";
   const dataQuery = `
     SELECT 
@@ -1427,13 +1451,17 @@ async function listAdminUsers(filters = {}) {
       u.available_tokens,
       r.role_name,
       t.name AS tier_name_from_tiers,
+      ${tierSelectExpr} AS tier_name_resolved,
       t.level AS tier_level_from_tiers,
+      ${tierLevelExpr} AS tier_level_resolved,
       t.token_earning_percentage,
+      ${tokenPctExpr} AS token_pct_resolved,
       COALESCE(booking_stats.total_bookings, 0)::int AS total_bookings,
       COALESCE(booking_stats.total_spent, 0)::numeric AS total_spent
     FROM users u
     LEFT JOIN roles r ON u.role_id = r.id
     LEFT JOIN tiers t ON u.current_tier_id = t.id
+    ${loyaltyTiersJoin}
     LEFT JOIN (
       SELECT 
         user_id,
@@ -1463,10 +1491,10 @@ async function listAdminUsers(filters = {}) {
       is_active: row.is_active !== false,
       created_at: row.created_at,
       last_login: row.last_login != null ? row.last_login : null,
-      tier: row.tier_name_from_tiers || "Ather",
-      tier_name: row.tier_name_from_tiers || "Ather",
-      tier_level: row.tier_level_from_tiers ?? 1,
-      tier_percentage: parseFloat(row.token_earning_percentage || 1),
+      tier: row.tier_name_resolved || "Ather",
+      tier_name: row.tier_name_resolved || "Ather",
+      tier_level: row.tier_level_resolved ?? row.tier_level_from_tiers ?? 1,
+      tier_percentage: parseFloat(row.token_pct_resolved || row.token_earning_percentage || 1),
       annual_spend: parseFloat(row.total_spent || 0),
       total_bookings: row.total_bookings,
       total_spent: parseFloat(row.total_spent || 0),

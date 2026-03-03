@@ -8,6 +8,7 @@
     "prestart": "npm run setup",
     "start": "node src/server.js",
     "dev": "node node_modules/nodemon/bin/nodemon.js src/server.js",
+    "db:dump": "node scripts/create-db-dump.js",
     "test": "node --test \"test/**/*.test.js\""
   },
   "keywords": [

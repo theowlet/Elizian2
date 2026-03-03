@@ -98,8 +98,8 @@ async function getTierHistory(userId) {
   }
 }
 
-// Admin: Manually adjust user tier
-async function adminAdjustUserTier(userId, newTierName, reason, adminUserId) {
+// Admin: Manually adjust user tier (reason is mandatory; audit is done by route)
+async function adminAdjustUserTier(userId, newTierName, reason, adminUserId, _auditContext = {}) {
   const client = await pool.connect();
   
   try {
@@ -138,6 +138,7 @@ async function adminAdjustUserTier(userId, newTierName, reason, adminUserId) {
     
     const tierLevelChange = (toTier.rows[0]?.tier_level || 0) - (fromTier.rows[0]?.tier_level || 0);
     
+    const reasonForHistory = `Admin override: ${reason}`.slice(0, 500);
     await client.query(
       `INSERT INTO user_tier_history 
        (user_id, from_tier_name, to_tier_name, tier_level_change, annual_spend_at_change, reason)
@@ -148,7 +149,7 @@ async function adminAdjustUserTier(userId, newTierName, reason, adminUserId) {
         newTierName,
         tierLevelChange,
         annualSpend,
-        `Manual adjustment by admin: ${reason}`
+        reasonForHistory
       ]
     );
     

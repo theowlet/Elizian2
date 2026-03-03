@@ -1,4 +1,5 @@
 const express = require('express');
+const bcrypt = require('bcryptjs');
 const authenticateToken = require('../../middleware/authenticateToken');
 const requireSuperAdmin = require('../middleware/requireSuperAdmin');
 const adminController = require('../controllers/adminController');
@@ -7,8 +8,15 @@ const rewardsController = require('../controllers/rewardsController');
 const adminRedemptionController = require('../controllers/adminRedemptionController');
 const adminCampaignController = require('../controllers/adminCampaignController');
 const locationsController = require('../controllers/locationsController');
+const tierService = require('../services/tierService');
 const { adminOverrideRateLimiter } = require('../middleware/rateLimiter');
 const { getUserRoleById } = require('../utils/queries');
+const { getPool } = require('../config/db');
+const { writeAuditWithExecutor } = require('../utils/audit');
+const { successResponse, errorResponse } = require('../../utils/response');
+const { logError } = require('../../utils/logger');
+
+const pool = getPool();
 
 const router = express.Router();
 
@@ -154,6 +162,61 @@ router.get('/activity', adminController.getActivity);
 // Users management
 router.get('/users', adminController.listUsers);
 
+// Admin: Change user tier (dual auth + mandatory reason + audit)
+router.post('/users/:userId/tier', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { tierName, reason, password } = req.body;
+
+    if (!tierName) {
+      return errorResponse(res, 400, 'tierName is required');
+    }
+    if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
+      return errorResponse(res, 400, 'A reason (min 5 characters) is required for tier changes');
+    }
+    if (!password) {
+      return errorResponse(res, 400, 'Password re-entry is required to confirm this action');
+    }
+
+    const authResult = await pool.query(
+      `SELECT c.password_hash FROM users u
+       JOIN user_auth_credentials c ON u.id = c.user_id
+       WHERE u.id = $1 AND c.password_hash IS NOT NULL`,
+      [req.userId]
+    );
+    if (authResult.rows.length === 0) {
+      return errorResponse(res, 403, 'Admin account has no password set. Use password reset.');
+    }
+    const isValid = await bcrypt.compare(password, authResult.rows[0].password_hash);
+    if (!isValid) {
+      return errorResponse(res, 401, 'Invalid password. Please re-enter your password to confirm.');
+    }
+
+    const result = await tierService.adminAdjustUserTier(
+      userId,
+      tierName,
+      reason.trim(),
+      req.userId,
+      {}
+    );
+
+    const actorRole = await getUserRoleById(req.userId);
+    await writeAuditWithExecutor(pool, req.userId, actorRole, 'user_tier_change', 'user', userId, {
+      previous: result.previousTier,
+      next: result.newTier,
+      reason: reason.trim(),
+      ip_address: req.ip || req.connection?.remoteAddress || req.headers['x-forwarded-for'] || null,
+      user_agent: req.headers['user-agent'] || null,
+      context: 'admin_manual_tier_change'
+    });
+
+    successResponse(res, 200, 'User tier adjusted successfully', result);
+  } catch (error) {
+    logError('Error adjusting user tier:', error);
+    errorResponse(res, error.statusCode || 500, error.message || 'Failed to adjust user tier');
+  }
+});
+
 // Analytics (legacy)
 router.get('/analytics', adminController.getAnalytics);
 
@@ -213,7 +276,6 @@ router.get('/redemptions/:redemptionId/overrides', adminRedemptionController.get
 
 // Reputation: review governance (soft-delete, restore, audit)
 const reputationReviewService = require('../services/reputationReviewService');
-const { successResponse, errorResponse } = require('../../utils/response');
 router.delete('/reviews/:reviewId', async (req, res) => {
   try {
     const updated = await reputationReviewService.softDeleteReview(req.params.reviewId, req.userId, 'admin');

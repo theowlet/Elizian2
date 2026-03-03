@@ -129,6 +129,15 @@ export default function AdminDashboard() {
   const [dealPromoFilter, setDealPromoFilter] = useState('');
   const [bookingFilter, setBookingFilter] = useState('');
   const [userSearch, setUserSearch] = useState('');
+  const [tierChangeModalOpen, setTierChangeModalOpen] = useState(false);
+  const [tierChangeUser, setTierChangeUser] = useState(null);
+  const [tierChangePassword, setTierChangePassword] = useState('');
+  const [tierChangeNewTier, setTierChangeNewTier] = useState('');
+  const [tierChangeReason, setTierChangeReason] = useState('');
+  const [tierChangeSubmitting, setTierChangeSubmitting] = useState(false);
+  const [tierChangeError, setTierChangeError] = useState(null);
+  const [availableTiers, setAvailableTiers] = useState([]);
+
 
   const headers = useCallback(() => ({
     'Content-Type': 'application/json',
@@ -460,6 +469,80 @@ export default function AdminDashboard() {
       setUsersError(e.message || 'Network error');
     }
     setLoading(false);
+  }
+
+  function openTierChangeModal(user) {
+    if (!user?.id) return;
+    setTierChangeUser(user);
+    setTierChangePassword('');
+    setTierChangeNewTier(user?.tier_name || user?.tier || 'Ather');
+    setTierChangeReason('');
+    setTierChangeError(null);
+    setTierChangeModalOpen(true);
+    if (availableTiers.length === 0) {
+      fetch(`${API_BASE}/api/v1/tiers`, { headers: headers() })
+        .then((r) => r.json())
+        .then((j) => {
+          if (j.success && Array.isArray(j.data)) setAvailableTiers(j.data);
+        })
+        .catch(() => setAvailableTiers([]));
+    }
+  }
+
+  function closeTierChangeModal() {
+    setTierChangeModalOpen(false);
+    setTierChangeUser(null);
+    setTierChangePassword('');
+    setTierChangeNewTier('');
+    setTierChangeReason('');
+    setTierChangeError(null);
+  }
+
+  async function submitTierChange() {
+    if (!tierChangeUser) return;
+    if (!tierChangePassword) {
+      setTierChangeError('Please re-enter your password to confirm');
+      return;
+    }
+    if (!tierChangeNewTier) {
+      setTierChangeError('Please select a tier');
+      return;
+    }
+    if (!tierChangeReason || tierChangeReason.trim().length < 5) {
+      setTierChangeError('Please provide a reason (min 5 characters)');
+      return;
+    }
+    setTierChangeSubmitting(true);
+    setTierChangeError(null);
+    try {
+      const r = await fetch(`${API_BASE}/api/v1/admin/users/${tierChangeUser.id}/tier`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({
+          tierName: tierChangeNewTier,
+          reason: tierChangeReason.trim(),
+          password: tierChangePassword,
+        }),
+      });
+      let j;
+      try {
+        j = await r.json();
+      } catch (_) {
+        setTierChangeError(r.status === 401 ? 'Session expired. Please log in again.' : 'Server error. Please try again.');
+        setTierChangeSubmitting(false);
+        return;
+      }
+      if (j.success) {
+        showNotif('Tier updated successfully', 'success');
+        closeTierChangeModal();
+        loadUsers(userSearch);
+      } else {
+        setTierChangeError(j.error || j.message || 'Failed to update tier');
+      }
+    } catch (e) {
+      setTierChangeError(e.message || 'Network error');
+    }
+    setTierChangeSubmitting(false);
   }
 
   async function loadRewards() {
@@ -1188,12 +1271,12 @@ export default function AdminDashboard() {
         </div>
         <div className="pc-table-container">
           <table className="pc-table">
-            <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Tier</th><th>EZT Balance</th><th>Joined</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Tier</th><th>EZT Balance</th><th>Joined</th><th>Actions</th></tr></thead>
             <tbody>
               {usersError ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24, color: 'var(--danger, #dc3545)' }}>Could not load users: {usersError}</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'var(--danger, #dc3545)' }}>Could not load users: {usersError}</td></tr>
               ) : users.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 24 }}>No users found</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: 24 }}>No users found</td></tr>
               ) : users.map(u => (
                 <tr key={u.id}>
                   <td>{[u.first_name, u.last_name].filter(Boolean).join(' ') || '—'}</td>
@@ -1202,6 +1285,22 @@ export default function AdminDashboard() {
                   <td>{u.tier_name || '—'}</td>
                   <td>{Number(u.available_tokens || u.ezt_balance || 0).toLocaleString()}</td>
                   <td>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openTierChangeModal(u);
+                      }}
+                      data-action="change-user-tier"
+                      data-user-id={u.id}
+                    >
+                      Change Tier
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -2114,6 +2213,52 @@ export default function AdminDashboard() {
           zIndex: 11000, boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
         }}>
           {notification.msg}
+        </div>
+      )}
+
+      {/* Tier change modal - simple React div */}
+      {tierChangeModalOpen && tierChangeUser && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={closeTierChangeModal}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2147483647,
+            background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ background: '#1f2937', borderRadius: 8, padding: 24, maxWidth: 440, width: '90%' }}>
+            <h2 id="tier-change-title" style={{ margin: '0 0 16px', fontSize: '1.25rem' }}>Change User Tier</h2>
+            <p style={{ color: '#9ca3af', marginBottom: 20, fontSize: '0.9rem' }}>
+              Upgrading tier for <strong>{[tierChangeUser.first_name, tierChangeUser.last_name].filter(Boolean).join(' ') || tierChangeUser.email || 'User'}</strong> (current: {tierChangeUser.tier_name || '—'})
+            </p>
+            <p style={{ color: '#f59e0b', marginBottom: 16, fontSize: '0.85rem' }}>
+              Re-enter your admin password to confirm this action. All tier changes are logged for audit.
+            </p>
+            <div style={{ marginBottom: 12 }}>
+              <label htmlFor="tier-change-password" style={{ display: 'block', fontSize: '0.8rem', color: '#9ca3af', marginBottom: 4 }}>Your password (required)</label>
+              <input id="tier-change-password" name="tier-change-password" type="password" className="pc-form-input" placeholder="Re-enter password" value={tierChangePassword} onChange={e => setTierChangePassword(e.target.value)} style={{ width: '100%' }} autoComplete="current-password" />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label htmlFor="tier-change-select" style={{ display: 'block', fontSize: '0.8rem', color: '#9ca3af', marginBottom: 4 }}>New tier</label>
+              <select id="tier-change-select" name="tier-change-select" className="pc-form-input" value={tierChangeNewTier} onChange={e => setTierChangeNewTier(e.target.value)} style={{ width: '100%' }}>
+                {(availableTiers.length ? availableTiers : [{ tier_name: 'Ather' }, { tier_name: 'Nova' }, { tier_name: 'Luminar' }, { tier_name: 'Valiant' }, { tier_name: 'Echelon' }]).map(t => (
+                  <option key={t.tier_name || t.name} value={t.tier_name || t.name}>{t.tier_name || t.name}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label htmlFor="tier-change-reason" style={{ display: 'block', fontSize: '0.8rem', color: '#9ca3af', marginBottom: 4 }}>Reason (required, min 5 characters)</label>
+              <textarea id="tier-change-reason" name="tier-change-reason" className="pc-form-input" placeholder="e.g. Customer requested upgrade for loyalty" value={tierChangeReason} onChange={e => setTierChangeReason(e.target.value)} rows={3} style={{ width: '100%', resize: 'vertical' }} />
+            </div>
+            {tierChangeError && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: 12 }}>{tierChangeError}</p>}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" className="btn btn-secondary" onClick={closeTierChangeModal} disabled={tierChangeSubmitting}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={submitTierChange} disabled={tierChangeSubmitting}>
+                {tierChangeSubmitting ? 'Applying…' : 'Apply Tier Change'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
